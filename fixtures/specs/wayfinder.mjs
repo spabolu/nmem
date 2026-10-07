@@ -80,6 +80,33 @@ const q = {
   tag090: 'in-process buckets, retry headers, and reject counters',
   tag090docs: 'Docs still describe Redis setup.',
   tag100: 'Redis setup notes are removed.',
+  closesOutage: 'Closes #8.',
+  fixesStale: 'Fixes #14.',
+  fromDisc10: 'From discussion #10.',
+  outageTitle: 'Brightline and Harbor cannot check out',
+  outageBody:
+    'Both of them wrote to support before lunch. The purchase page spins, then says they have sent too many requests. They cannot finish a purchase.',
+  outageFirst: 'The whole site looks down for Brightline and Harbor.',
+  outageCorrected: 'Correction: other pages still load. Checkout will not go through.',
+  dupOf8: 'Same outage as #8.',
+  buybackTitle: 'Can we turn the shared database back on?',
+  buybackBody:
+    'Harbor noticed two copies of the site do not share a count, so they sometimes get more requests through than the contract says. Can we turn the shared database back on?',
+  buybackNo:
+    'No. That database is how the site blocked everyone in August. We are not buying a bigger one to get exact counts back.',
+  staleTitle: 'Support is still sending the old setup',
+  staleBody:
+    'The October notes say the guides are stale, and support is still pasting the old database setup into tickets. Please take that section out.',
+  alertTitle: 'Warn us when a lot of callers get blocked',
+  alertBody:
+    'The library counts blocked calls inside each copy of the site. Nothing sends me a warning when that number jumps. I still only see it in the access log.',
+  remainingRaw: "'RateLimit-Remaining': String(remaining),",
+  remainingClamp: "'RateLimit-Remaining': String(Math.max(0, Math.floor(remaining))),",
+  expectedOne: "assert.equal(headers['RateLimit-Remaining'], '1');",
+  ciGot: 'Expected remaining 1, got 1.7.',
+  testPassed: 'The test check passed on that push.',
+  clampAsk: 'Remaining went out as 1.7. Clamp it to a whole number that is not negative.',
+  createMetricsFn: 'export function createMetrics',
 };
 
 const pkg = (version) => `{
@@ -243,7 +270,7 @@ const adr4 = adr({
   status: 'Accepted',
   date: '2024-09-05',
   supersedes: 'ADR-0002',
-  context: `${q.elevenAdr} The limiter failed closed, and the public API returned 429 for every customer. Discussion #8 is the writeup. A shared store that can take the API down costs more than exact counts.`,
+  context: `${q.elevenAdr} The limiter failed closed, and the public API returned 429 for every customer. Discussion #10 is the writeup. A shared store that can take the API down costs more than exact counts.`,
   decision: `Delete the Redis adapter. Buckets live in process memory again. ${q.onlyStore} Each process keeps its own buckets. ${q.nTimes} We accept that inaccuracy.`,
   consequences: `- A store outage can no longer take the API down.
 - Limits are approximate when more than one process is running.
@@ -582,19 +609,33 @@ test('${q.emptyTest}', () => {
 });
 `;
 
-const headersTs = `export function rateLimitHeaders(
+const headersTs = (clamped) => `export function rateLimitHeaders(
   limit: number,
   remaining: number,
   retryAfterSec: number,
 ): Record<string, string> {
   const headers: Record<string, string> = {
     'RateLimit-Limit': String(limit),
-    'RateLimit-Remaining': String(Math.max(0, Math.floor(remaining))),
+    'RateLimit-Remaining': ${clamped ? 'String(Math.max(0, Math.floor(remaining)))' : 'String(remaining)'},
     'RateLimit-Reset': String(retryAfterSec),
   };
   if (retryAfterSec > 0) headers['Retry-After'] = String(retryAfterSec);
   return headers;
 }
+`;
+
+const headersTest = `import assert from 'node:assert/strict';
+import test from 'node:test';
+import { rateLimitHeaders } from '../src/headers.ts';
+
+test('remaining is a non-negative integer', () => {
+  const headers = rateLimitHeaders(10, 1.7, 0);
+  ${q.expectedOne}
+  assert.equal(headers['Retry-After'], undefined);
+  const empty = rateLimitHeaders(10, -0.2, 3);
+  assert.equal(empty['RateLimit-Remaining'], '0');
+  assert.equal(empty['Retry-After'], '3');
+});
 `;
 
 const metricsTs = `export type Totals = {
@@ -837,6 +878,8 @@ const spec = {
 
 Priya, this will not share counts across boxes. We only run one.`,
       labels: ['feature'],
+      requestedReviewers: ['jon-okonkwo', 'priya-nair'],
+      reactions: { hooray: ['jon-okonkwo'] },
       branch: 'fixed-window',
       openedAt: '2024-03-11T15:05:00Z',
       commits: [
@@ -893,6 +936,22 @@ Priya, this will not share counts across boxes. We only run one.`,
           body: 'Two API processes would each allow the full limit. Fine while we run one box.',
         },
       ],
+      checks: [
+        {
+          name: 'test',
+          commit: 'c-window',
+          at: '2024-03-11T19:05:00Z',
+          conclusion: 'success',
+          summary: 'window tests passed',
+        },
+        {
+          name: 'test',
+          commit: 'c-readme-usage',
+          at: '2024-03-12T11:40:00Z',
+          conclusion: 'success',
+          summary: 'readme-only change, tests still passed',
+        },
+      ],
       outcome: { kind: 'merged', at: '2024-03-13T17:15:00Z', by: 'jon-okonkwo' },
     },
     {
@@ -923,6 +982,10 @@ Priya, this will not share counts across boxes. We only run one.`,
       at: '2024-03-20T10:00:00Z',
       by: 'mira-chen',
       message: `v0.1.0: ${q.tag010}. Counts by client IP.`,
+      release: {
+        title: 'Wayfinder 0.1.0',
+        body: 'Fixed-window limiter for one Node process. Counts by client IP. One box, no shared database.',
+      },
     },
     {
       type: 'pr',
@@ -933,6 +996,7 @@ Priya, this will not share counts across boxes. We only run one.`,
 
 The key default is unchanged in this PR.`,
       labels: ['feature'],
+      requestedReviewers: ['mira-chen', 'priya-nair'],
       branch: 'store-interface',
       openedAt: '2024-04-08T13:20:00Z',
       commits: [
@@ -1002,6 +1066,16 @@ The key default is unchanged in this PR.`,
           author: 'jon-okonkwo',
           at: '2024-04-10T18:22:00Z',
           body: 'Store interface is in. I will not touch the key here.',
+          reactions: { '+1': ['mira-chen'] },
+        },
+      ],
+      checks: [
+        {
+          name: 'test',
+          commit: 'c-adr1',
+          at: '2024-04-09T10:45:00Z',
+          conclusion: 'success',
+          summary: 'store tests passed',
         },
       ],
       outcome: { kind: 'merged', at: '2024-04-11T11:00:00Z', by: 'mira-chen' },
@@ -1028,12 +1102,14 @@ The key default is unchanged in this PR.`,
       author: 'sam-ellison',
       at: '2024-04-22T18:05:00Z',
       body: 'Harbor wants a higher cap on checkout. Their dashboard polls every few seconds and burns the same allowance as a real purchase. Can we set limits per route?',
+      reactions: { eyes: ['mira-chen'] },
       comments: [
         {
           id: 'disc3-mira',
           author: 'mira-chen',
           at: '2024-04-23T09:14:00Z',
           body: `No. Last November the ${q.markerCheckout} and the limit was off. Nobody noticed until a partner scraped us. I am not putting per-route numbers back in the config. Raise the one limit on their API key if checkout needs more room.`,
+          reactions: { '+1': ['jon-okonkwo'] },
           replies: [
             {
               id: 'disc3-jon',
@@ -1058,6 +1134,7 @@ The key default is unchanged in this PR.`,
           ],
         },
       ],
+      answer: 'disc3-mira',
     },
     {
       type: 'pr',
@@ -1068,6 +1145,7 @@ The key default is unchanged in this PR.`,
 
 ADR-0002 records it, and ADR-0001 is marked superseded.`,
       labels: ['feature'],
+      requestedReviewers: ['priya-nair', 'mira-chen'],
       branch: 'redis-store',
       openedAt: '2024-05-02T14:00:00Z',
       commits: [
@@ -1142,6 +1220,15 @@ ADR-0002 records it, and ADR-0001 is marked superseded.`,
         },
       ],
       comments: [],
+      checks: [
+        {
+          name: 'test',
+          commit: 'c-redis-docs',
+          at: '2024-05-03T16:10:00Z',
+          conclusion: 'success',
+          summary: 'existing tests passed with the redis adapter',
+        },
+      ],
       outcome: { kind: 'merged', at: '2024-05-07T14:00:00Z', by: 'mira-chen' },
     },
     {
@@ -1153,6 +1240,7 @@ ADR-0002 records it, and ADR-0001 is marked superseded.`,
 
 take() refills from elapsed time and rejects when the balance is below 1. Both stores now save tokens and a timestamp. ADR-0003. ${q.iOwnMath}`,
       labels: ['feature'],
+      requestedReviewers: ['jon-okonkwo'],
       branch: 'token-bucket',
       openedAt: '2024-05-13T13:10:00Z',
       commits: [
@@ -1216,6 +1304,15 @@ take() refills from elapsed time and rejects when the balance is below 1. Both s
         },
       ],
       comments: [],
+      checks: [
+        {
+          name: 'test',
+          commit: 'c-adr3',
+          at: '2024-05-14T11:05:00Z',
+          conclusion: 'success',
+          summary: 'bucket tests passed',
+        },
+      ],
       outcome: { kind: 'merged', at: '2024-05-16T16:30:00Z', by: 'jon-okonkwo' },
     },
     {
@@ -1227,6 +1324,8 @@ take() refills from elapsed time and rejects when the balance is below 1. Both s
 
 Priya, kill it if you want.`,
       labels: [],
+      requestedReviewers: ['priya-nair', 'mira-chen'],
+      reactions: { confused: ['priya-nair'] },
       branch: 'redis-cluster',
       openedAt: '2024-05-28T13:00:00Z',
       commits: [
@@ -1276,6 +1375,15 @@ Priya, kill it if you want.`,
           body: `${q.notPaying}, and I do not want a second client in the repo.`,
         },
       ],
+      checks: [
+        {
+          name: 'test',
+          commit: 'c-cluster',
+          at: '2024-05-28T15:40:00Z',
+          conclusion: 'success',
+          summary: 'no new tests for the wrapper, existing tests passed',
+        },
+      ],
       outcome: { kind: 'closed', at: '2024-05-30T09:10:00Z', by: 'jon-okonkwo' },
     },
     {
@@ -1303,6 +1411,10 @@ Priya, kill it if you want.`,
       at: '2024-06-12T09:00:00Z',
       by: 'mira-chen',
       message: `v0.3.0: ${q.tag030}. Production shares counts through Redis.`,
+      release: {
+        title: 'Wayfinder 0.3.0',
+        body: 'Pluggable store and a token bucket. Production shares counts through Redis. A Redis error still returns 429.',
+      },
     },
     {
       type: 'discussion',
@@ -1357,13 +1469,53 @@ Priya, kill it if you want.`,
       },
     },
     {
-      type: 'discussion',
+      type: 'issue',
       number: 8,
+      title: q.outageTitle,
+      author: 'sam-ellison',
+      at: '2024-08-19T08:40:00Z',
+      body: q.outageBody,
+      labels: ['bug', 'customer'],
+      assignees: ['jon-okonkwo'],
+      reactions: { eyes: ['mira-chen', 'priya-nair'] },
+      comments: [
+        {
+          id: 'cmt-outage-sam',
+          author: 'sam-ellison',
+          at: '2024-08-19T09:05:00Z',
+          body: q.outageFirst,
+          edits: [
+            { at: '2024-08-19T09:40:00Z', body: q.outageCorrected },
+          ],
+        },
+      ],
+    },
+    {
+      type: 'issue',
+      number: 9,
+      title: 'Harbor says the purchase page is blocked',
+      author: 'priya-nair',
+      at: '2024-08-19T10:05:00Z',
+      body: 'Harbor cannot finish a purchase. The access log is 429s. This is the same morning as the Brightline report.',
+      labels: ['bug'],
+      comments: [
+        {
+          id: 'cmt-outage-dup',
+          author: 'jon-okonkwo',
+          at: '2024-08-19T10:20:00Z',
+          body: `${q.dupOf8} Closing this as a duplicate.`,
+        },
+      ],
+      outcome: { kind: 'duplicate', at: '2024-08-19T10:28:00Z', by: 'jon-okonkwo', of: 8 },
+    },
+    {
+      type: 'discussion',
+      number: 10,
       title: q.disc8title,
       category: 'General',
       author: 'priya-nair',
       at: '2024-08-19T14:20:00Z',
-      body: `${q.elevenDisc} The limiter failed closed and the public API returned 429 for every customer. Pager went off at 6:12. I do not want the rate limiter to be able to take the API down. Fail-open is not the answer either. Mira already reverted that. I want the limiter off Redis.`,
+      body: `${q.elevenDisc} The limiter failed closed and the public API returned 429 for every customer. Pager went off at 6:12. I do not want the rate limiter to be able to take the API down. Fail-open is not the answer either. Mira already reverted that. I want the limiter off Redis. Sam wrote up what the customers saw in #8.`,
       comments: [
         {
           id: 'disc8-sam',
@@ -1397,15 +1549,18 @@ Priya, kill it if you want.`,
     },
     {
       type: 'pr',
-      number: 9,
+      number: 11,
       title: 'Drop Redis and keep buckets in process',
       author: 'jon-okonkwo',
-      body: `From discussion #8. Redis was down, the limiter failed closed, and every customer got a 429.
+      body: `${q.fromDisc10} Redis was down, the limiter failed closed, and every customer got a 429.
+
+${q.closesOutage}
 
 ${q.deletesRedis} createMemoryStore is the only store. ADR-0004 records the accuracy tradeoff: N processes can exceed the limit by about N times. ADR-0002 is marked superseded.
 
 README and the stores page still describe Redis. That is a follow-up, not this PR.`,
       labels: ['decision'],
+      requestedReviewers: ['mira-chen', 'priya-nair'],
       branch: 'drop-redis',
       openedAt: '2024-09-04T14:10:00Z',
       commits: [
@@ -1467,19 +1622,57 @@ README and the stores page still describe Redis. That is a follow-up, not this P
           author: 'priya-nair',
           at: '2024-09-06T15:40:00Z',
           body: 'Approximate limits are fine. I will take that over another 3am page.',
+          reactions: { hooray: ['mira-chen'] },
+        },
+      ],
+      checks: [
+        {
+          name: 'test',
+          commit: 'c-adr4',
+          at: '2024-09-05T12:10:00Z',
+          conclusion: 'success',
+          summary: 'tests passed without the redis adapter',
         },
       ],
       outcome: { kind: 'merged', at: '2024-09-09T16:00:00Z', by: 'mira-chen' },
     },
     {
+      type: 'issue',
+      number: 12,
+      title: q.buybackTitle,
+      author: 'sam-ellison',
+      at: '2024-09-16T15:10:00Z',
+      body: q.buybackBody,
+      labels: ['question'],
+      assignees: ['mira-chen'],
+      reactions: { confused: ['jon-okonkwo'] },
+      comments: [
+        {
+          id: 'cmt-buyback-mira',
+          author: 'mira-chen',
+          at: '2024-09-17T10:15:00Z',
+          body: `${q.buybackNo} Closing this. We are not doing it.`,
+        },
+        {
+          id: 'cmt-buyback-priya',
+          author: 'priya-nair',
+          at: '2024-09-17T14:40:00Z',
+          body: 'I will not run another database for this. Approximate is the deal we already made.',
+        },
+      ],
+      outcome: { kind: 'closed', at: '2024-09-18T09:05:00Z', by: 'mira-chen', reason: 'not_planned' },
+    },
+    {
       type: 'pr',
-      number: 10,
+      number: 13,
       title: 'Add Retry-After and RateLimit headers',
       author: 'jon-okonkwo',
       body: `${q.fromDisc7} Customers retry immediately and make the 429s worse.
 
 rateLimitHeaders sets Retry-After, RateLimit-Limit, RateLimit-Remaining, and RateLimit-Reset. createMetrics records allowed and rejected so Priya can alert.`,
       labels: ['feature'],
+      requestedReviewers: ['mira-chen'],
+      reactions: { rocket: ['sam-ellison'] },
       branch: 'retry-headers',
       openedAt: '2024-10-02T13:20:00Z',
       commits: [
@@ -1489,10 +1682,20 @@ rateLimitHeaders sets Retry-After, RateLimit-Limit, RateLimit-Remaining, and Rat
           author: 'jon-okonkwo',
           message: 'add Retry-After and RateLimit headers',
           files: {
-            'src/headers.ts': headersTs,
+            'src/headers.ts': headersTs(false),
             'src/limit.ts': limitBucket({ failOpen: false, headers: true, metrics: false }),
             'src/index.ts': indexTs('headers'),
             'docs/concepts/headers.md': headersDoc,
+            'test/headers.test.ts': headersTest,
+          },
+        },
+        {
+          key: 'c-headers-fix',
+          at: '2024-10-03T09:15:00Z',
+          author: 'jon-okonkwo',
+          message: 'clamp RateLimit-Remaining to a non-negative integer',
+          files: {
+            'src/headers.ts': headersTs(true),
           },
         },
         {
@@ -1509,20 +1712,78 @@ rateLimitHeaders sets Retry-After, RateLimit-Limit, RateLimit-Remaining, and Rat
       ],
       reviews: [
         {
+          id: 'pr13-rv-mira-changes',
+          author: 'mira-chen',
+          at: '2024-10-02T19:10:00Z',
+          state: 'CHANGES_REQUESTED',
+          body: 'The wait math is fine. The remaining header is not.',
+          threads: [
+            {
+              id: 'pr13-th-remaining',
+              path: 'src/headers.ts',
+              line: 8,
+              resolved: true,
+              comments: [
+                {
+                  id: 'pr13-thread-mira',
+                  author: 'mira-chen',
+                  at: '2024-10-02T19:10:00Z',
+                  body: q.clampAsk,
+                },
+                {
+                  id: 'pr13-thread-jon',
+                  author: 'jon-okonkwo',
+                  at: '2024-10-03T09:48:00Z',
+                  body: q.testPassed,
+                },
+              ],
+            },
+          ],
+        },
+        {
           id: 'pr10-rv-mira',
           author: 'mira-chen',
           at: '2024-10-07T09:40:00Z',
           state: 'APPROVED',
-          body: 'Wait math stays in take(). Headers just format it. Good.',
+          body: 'Remaining is a whole number now. Wait math stays in take(). Headers just format it. Good.',
           threads: [],
         },
       ],
       comments: [
         {
+          id: 'pr13-jon-ci',
+          author: 'jon-okonkwo',
+          at: '2024-10-02T18:05:00Z',
+          body: `The test check failed on the first push. ${q.ciGot} I will clamp it.`,
+        },
+        {
           id: 'pr10-sam',
           author: 'sam-ellison',
           at: '2024-10-07T14:22:00Z',
           body: `${q.screenshot} Their engineer could read it. That is the whole ask.`,
+        },
+      ],
+      checks: [
+        {
+          name: 'test',
+          commit: 'c-headers',
+          at: '2024-10-02T17:28:00Z',
+          conclusion: 'failure',
+          summary: 'test/headers.test.ts failed. Expected remaining 1, got 1.7.',
+        },
+        {
+          name: 'test',
+          commit: 'c-headers-fix',
+          at: '2024-10-03T09:32:00Z',
+          conclusion: 'success',
+          summary: 'test/headers.test.ts passed',
+        },
+        {
+          name: 'test',
+          commit: 'c-metrics',
+          at: '2024-10-03T11:40:00Z',
+          conclusion: 'success',
+          summary: 'tests passed with reject counters',
         },
       ],
       outcome: { kind: 'merged', at: '2024-10-08T14:00:00Z', by: 'jon-okonkwo' },
@@ -1544,16 +1805,42 @@ rateLimitHeaders sets Retry-After, RateLimit-Limit, RateLimit-Remaining, and Rat
       at: '2024-10-18T10:00:00Z',
       by: 'mira-chen',
       message: `v0.9.0: ${q.tag090}. ${q.tag090docs}`,
+      release: {
+        title: 'Wayfinder 0.9.0',
+        body: 'In-process buckets, retry headers, and reject counters. Docs still describe Redis setup. Do not follow the Redis section until the guides catch up.',
+      },
+    },
+    {
+      type: 'issue',
+      number: 14,
+      title: q.staleTitle,
+      author: 'sam-ellison',
+      at: '2024-10-22T16:30:00Z',
+      body: q.staleBody,
+      labels: ['docs', 'customer'],
+      assignees: ['jon-okonkwo'],
+      comments: [
+        {
+          id: 'cmt-stale-jon',
+          author: 'jon-okonkwo',
+          at: '2024-10-23T11:05:00Z',
+          body: 'I left that for a follow-up in September. I will take the Redis section out of the README and the stores page.',
+        },
+      ],
     },
     {
       type: 'pr',
-      number: 11,
+      number: 15,
       title: 'Drop the Redis setup notes',
       author: 'jon-okonkwo',
-      body: `PR #9 removed the Redis adapter on September 9. README and docs/concepts/stores.md ${q.stillTold}.
+      body: `PR #11 removed the Redis adapter on September 9. README and docs/concepts/stores.md ${q.stillTold}.
+
+${q.fixesStale}
 
 This replaces that with the in-process store and the accuracy note from ADR-0004. ${q.indexLists}`,
       labels: ['docs'],
+      requestedReviewers: ['priya-nair', 'sam-ellison'],
+      assignees: ['jon-okonkwo'],
       branch: 'docs-catchup',
       openedAt: '2024-11-12T14:22:00Z',
       commits: [
@@ -1587,6 +1874,15 @@ This replaces that with the in-process store and the accuracy note from ADR-0004
           body: 'Good. Support was still pasting the old setup into tickets.',
         },
       ],
+      checks: [
+        {
+          name: 'test',
+          commit: 'c-docs-fix',
+          at: '2024-11-12T17:10:00Z',
+          conclusion: 'success',
+          summary: 'docs-only change, tests passed',
+        },
+      ],
       outcome: { kind: 'merged', at: '2024-11-15T11:00:00Z', by: 'mira-chen' },
     },
     {
@@ -1606,6 +1902,34 @@ This replaces that with the in-process store and the accuracy note from ADR-0004
       at: '2024-12-06T10:00:00Z',
       by: 'mira-chen',
       message: `v1.0.0: docs match the in-process store. ${q.tag100}`,
+      release: {
+        title: 'Wayfinder 1.0.0',
+        body: 'Docs match the in-process store. Redis setup notes are removed. This is the first release we would hand to another team without a verbal warning about the README.',
+      },
+    },
+    {
+      type: 'issue',
+      number: 16,
+      title: q.alertTitle,
+      author: 'priya-nair',
+      at: '2024-12-09T14:15:00Z',
+      body: q.alertBody,
+      labels: ['enhancement'],
+      assignees: ['jon-okonkwo'],
+      comments: [
+        {
+          id: 'cmt-alert-jon',
+          author: 'jon-okonkwo',
+          at: '2024-12-10T10:22:00Z',
+          body: 'createMetrics only lives in the process. Exporting it is a January task. Leaving this open.',
+        },
+        {
+          id: 'cmt-alert-mira',
+          author: 'mira-chen',
+          at: '2024-12-10T15:05:00Z',
+          body: 'Do not add a new service for this. A counter we can scrape is enough, and it can wait.',
+        },
+      ],
     },
   ],
   answerKey: [
@@ -1635,7 +1959,7 @@ This replaces that with the in-process store and the accuracy note from ADR-0004
       question: 'Where should a non-developer start reading, and where should an engineer start?',
       answers: {
         technical:
-          'docs/index.md at c-docs-fix, written in PR #11, has a "Who this is for" section. It sends people running the public API to the concept pages and people changing the code to the README and the decision records. The README links docs/index.md. The PR body says the docs index now lists ADR-0002 as superseded.',
+          'docs/index.md at c-docs-fix, written in PR #15, has a "Who this is for" section. It sends people running the public API to the concept pages and people changing the code to the README and the decision records. The README links docs/index.md. The PR body says the docs index now lists ADR-0002 as superseded.',
         nonTechnical:
           'People who run the public site should start with the short concept pages. People who change the code should start with the project page and the written decision records. A contents page links both.',
       },
@@ -1643,7 +1967,7 @@ This replaces that with the in-process store and the accuracy note from ADR-0004
         { kind: 'file', path: 'docs/index.md', at: 'c-docs-fix', quote: q.whoFor },
         { kind: 'file', path: 'docs/index.md', at: 'c-docs-fix', quote: q.conceptStart },
         { kind: 'file', path: 'docs/index.md', at: 'c-docs-fix', quote: q.codeStart },
-        { kind: 'pr', number: 11, quote: q.indexLists },
+        { kind: 'pr', number: 15, quote: q.indexLists },
         { kind: 'file', path: 'README.md', at: 'c-docs-fix', quote: q.guidesLink },
       ],
     },
@@ -1692,18 +2016,20 @@ This replaces that with the in-process store and the accuracy note from ADR-0004
       question: 'Why was the shared Redis store dropped, and what replaced it?',
       answers: {
         technical:
-          'A month before any written reason, Jon Okonkwo tried failing open in c-fail-open (2024-07-22) and Mira Chen reverted it the next day in c-revert-fail-open. Neither message says why it was reverted. Discussion #8 (2024-08-19) is the first written reason. Priya Nair wrote that Redis was unreachable for 11 minutes that morning, the limiter failed closed, and every customer got a 429, and that fail-open was not the answer either. Sam Ellison said checkout was dead. Mira Chen said she would rather be approximate than take the API down again. Jon Okonkwo said the ops cost was not worth the exact counts. PR #9 deletes src/redis.ts and records the tradeoff: N processes can exceed the limit by about N times. c-adr4 edited ADR-0002 to Status: Superseded by ADR-0004.',
+          'A month before any written reason, Jon Okonkwo tried failing open in c-fail-open (2024-07-22) and Mira Chen reverted it the next day in c-revert-fail-open. Neither message says why it was reverted. Issue #8 that morning is Sam Ellison\'s customer report that Brightline and Harbor could not finish a purchase. It does not say why the store should change. Discussion #10 (2024-08-19) is the first written reason. Priya Nair wrote that Redis was unreachable for 11 minutes that morning, the limiter failed closed, and every customer got a 429, and that fail-open was not the answer either. Sam Ellison said checkout was dead. Mira Chen said she would rather be approximate than take the API down again. Jon Okonkwo said the ops cost was not worth the exact counts. PR #11 deletes src/redis.ts, records the tradeoff that N processes can exceed the limit by about N times, and closes issue #8. c-adr4 edited ADR-0002 to Status: Superseded by ADR-0004.',
         nonTechnical:
           'In August 2024 that shared database was unreachable for eleven minutes, and the limiter blocked every caller, so the public site looked down. The product manager said customers could not check out. The operations person and two engineers agreed that slightly wrong counts were better than blocking everyone. In September the team stopped using the shared database and went back to counting inside each copy of the site. They wrote down that several copies can let a customer slightly over the limit.',
       },
       evidence: [
-        { kind: 'discussion', number: 8, quote: q.elevenDisc },
+        { kind: 'discussion', number: 10, quote: q.elevenDisc },
+        { kind: 'issue', number: 8, quote: q.outageTitle },
         { kind: 'commit', key: 'c-fail-open', quote: "don't 429 the world if redis blips" },
         { kind: 'commit', key: 'c-revert-fail-open', quote: 'Revert' },
         { kind: 'comment', id: 'disc8-sam', quote: q.checkoutDead },
         { kind: 'comment', id: 'disc8-mira', quote: 'I would rather be approximate than take the API down again.' },
         { kind: 'comment', id: 'disc8-jon', quote: 'the ops cost is not worth the exact counts' },
-        { kind: 'pr', number: 9, quote: 'This deletes src/redis.ts. createMemoryStore is the only store. ADR-0004 records the accuracy tradeoff: N processes can exceed the limit by about N times.' },
+        { kind: 'pr', number: 11, quote: 'This deletes src/redis.ts. createMemoryStore is the only store. ADR-0004 records the accuracy tradeoff: N processes can exceed the limit by about N times.' },
+        { kind: 'pr', number: 11, quote: q.closesOutage },
         { kind: 'file', path: 'docs/adr/0002-shared-redis.md', at: 'c-adr4', quote: q.statusSuper4 },
       ],
     },
@@ -1753,7 +2079,7 @@ This replaces that with the in-process store and the accuracy note from ADR-0004
       question: 'Why does wayfinder have no per-route limit configuration?',
       answers: {
         technical:
-          'The reason is not in any file, commit message, or tag. Discussion #3 asks for a higher limit on checkout. Mira Chen\'s comment is the only explanation: the checkout override sat at zero for nine days. Jon Okonkwo replied that routes stay out of the config. docs/concepts/limits.md states the rule ("does not take a limit per route", "one limit applies to the whole key") and gives no reason.',
+          'The reason is not in any file, commit message, or tag. Discussion #3 asks for a higher limit on checkout. Mira Chen\'s comment is the only explanation, and it is marked as the answer on that question: the checkout override sat at zero for nine days. Jon Okonkwo replied that routes stay out of the config. docs/concepts/limits.md states the rule ("does not take a limit per route", "one limit applies to the whole key") and gives no reason.',
         nonTechnical:
           'The product manager asked for a higher cap on one page. The staff engineer refused, because a previous special limit on that page had been left at zero for nine days and quietly turned protection off. That reason is only in the conversation, not in the code or the guides.',
       },
@@ -1791,15 +2117,17 @@ This replaces that with the in-process store and the accuracy note from ADR-0004
       question: 'After the switch away from Redis, when did the docs catch up?',
       answers: {
         technical:
-          'README.md at c-adr4, the reversal commit, still contains redis://cache.internal:6379. docs/concepts/stores.md still contains that URL at c-changelog-090. The v0.9.0 tag says the docs still describe Redis setup. PR #11 says the guides still told people to point at that URL, and README.md at c-docs-fix instead says buckets stay in the process.',
+          'README.md at c-adr4, the reversal commit, still contains redis://cache.internal:6379. docs/concepts/stores.md still contains that URL at c-changelog-090. The v0.9.0 tag says the docs still describe Redis setup. Sam Ellison filed issue #14 because support was still sending that old setup. PR #15 says the guides still told people to point at that URL, Fixes #14, and README.md at c-docs-fix instead says buckets stay in the process.',
         nonTechnical:
-          'After the team stopped using the shared database in September 2024, the setup guides still told people how to point at it. The October release even noted that the guides were stale. They were corrected on November 15, 2024.',
+          'After the team stopped using the shared database in September 2024, the setup guides still told people how to point at it. The October release even noted that the guides were stale. Support asked for that section to come out. They were corrected on November 15, 2024.',
       },
       evidence: [
         { kind: 'file', path: 'README.md', at: 'c-adr4', quote: q.redisUrl },
         { kind: 'file', path: 'docs/concepts/stores.md', at: 'c-changelog-090', quote: q.redisUrl },
         { kind: 'tag', name: 'v0.9.0', quote: q.tag090docs },
-        { kind: 'pr', number: 11, quote: q.stillTold },
+        { kind: 'issue', number: 14, quote: q.staleTitle },
+        { kind: 'pr', number: 15, quote: q.stillTold },
+        { kind: 'pr', number: 15, quote: q.fixesStale },
         { kind: 'file', path: 'README.md', at: 'c-docs-fix', quote: q.bucketsStay },
       ],
     },
@@ -1848,14 +2176,14 @@ This replaces that with the in-process store and the accuracy note from ADR-0004
       question: 'Which feature came straight from the product manager?',
       answers: {
         technical:
-          'Retry-After and the RateLimit-* headers. Sam Ellison opened discussion #7 on 2024-07-08 after Brightline retried immediately, and asked if the response could say when to come back. Mira Chen agreed to Retry-After plus the RateLimit headers. PR #10 (Jon Okonkwo, merged 2024-10-08) says "From discussion #7." c-headers (2024-10-02) added rateLimitHeaders in src/headers.ts, including Retry-After. Sam confirmed on the PR that Brightline\'s engineer could read a screenshot of the wait time.',
+          'Retry-After and the RateLimit-* headers. Sam Ellison opened discussion #7 on 2024-07-08 after Brightline retried immediately, and asked if the response could say when to come back. Mira Chen agreed to Retry-After plus the RateLimit headers. PR #13 (Jon Okonkwo, merged 2024-10-08) says "From discussion #7." c-headers (2024-10-02) added rateLimitHeaders in src/headers.ts, including Retry-After. Sam confirmed on the PR that Brightline\'s engineer could read a screenshot of the wait time.',
         nonTechnical:
           'Sam Ellison, the product manager, asked for it in July 2024 after a customer kept retrying with no idea when to come back. In October the team added a wait time on blocked responses.',
       },
       evidence: [
         { kind: 'discussion', number: 7, quote: q.comeBack },
         { kind: 'comment', id: 'disc7-mira', quote: 'Retry-After, plus the RateLimit headers.' },
-        { kind: 'pr', number: 10, quote: q.fromDisc7 },
+        { kind: 'pr', number: 13, quote: q.fromDisc7 },
         { kind: 'file', path: 'src/headers.ts', at: 'c-headers', quote: q.retryAssign },
         { kind: 'comment', id: 'pr10-sam', quote: q.screenshot },
       ],
@@ -1905,7 +2233,7 @@ This replaces that with the in-process store and the accuracy note from ADR-0004
       question: 'What does a blocked response tell the caller?',
       answers: {
         technical:
-          'rateLimitHeaders in src/headers.ts at c-headers sets RateLimit-Limit and Retry-After. createLimiter in src/limit.ts calls rateLimitHeaders before writing the 429. docs/concepts/headers.md says a rejected request returns status 429. PR #10 lists Retry-After, RateLimit-Limit, RateLimit-Remaining, and RateLimit-Reset.',
+          'rateLimitHeaders in src/headers.ts at c-headers sets RateLimit-Limit and Retry-After. createLimiter in src/limit.ts calls rateLimitHeaders before writing the 429. docs/concepts/headers.md says a rejected request returns status 429. PR #13 lists Retry-After, RateLimit-Limit, RateLimit-Remaining, and RateLimit-Reset.',
         nonTechnical:
           'A blocked response includes a wait time, plus three numbers: the limit, how many permits are left, and when the count resets. A response that goes through includes the three numbers and no wait time.',
       },
@@ -1914,7 +2242,7 @@ This replaces that with the in-process store and the accuracy note from ADR-0004
         { kind: 'file', path: 'src/headers.ts', at: 'c-headers', quote: q.retryAssign },
         { kind: 'file', path: 'docs/concepts/headers.md', at: 'c-headers', quote: q.rejected429 },
         { kind: 'file', path: 'src/limit.ts', at: 'c-headers', quote: q.rateLimitCall },
-        { kind: 'pr', number: 10, quote: 'rateLimitHeaders sets Retry-After, RateLimit-Limit, RateLimit-Remaining, and RateLimit-Reset.' },
+        { kind: 'pr', number: 13, quote: 'rateLimitHeaders sets Retry-After, RateLimit-Limit, RateLimit-Remaining, and RateLimit-Reset.' },
       ],
     },
     {
@@ -1934,6 +2262,96 @@ This replaces that with the in-process store and the accuracy note from ADR-0004
         { kind: 'comment', id: 'pr2-thread-sam', quote: q.markerEgress },
       ],
       onlyOutsideGit: [q.markerEgress],
+    },
+    {
+      id: 'customer-outage-report',
+      view: 'timeline',
+      facet: 'who',
+      question: 'What customer report started the September move off the shared store?',
+      answers: {
+        technical:
+          'Issue #8, opened by Sam Ellison on 2024-08-19 in customer language: Brightline and Harbor could not finish a purchase. His first comment said the whole site looked down. He edited it to say other pages still loaded and checkout would not go through. Issue #9 is Priya Nair\'s same-morning report, closed as a duplicate of issue #8. Discussion #10 is where the team decided to leave Redis. PR #11 closes issue #8.',
+        nonTechnical:
+          'In August 2024 two customers wrote in before lunch because they could not finish a purchase. The product manager first said the whole site looked down, then corrected that to the purchase page only. A second report of the same morning was marked as the same event. In September the team stopped using the shared database, and that customer report is what the change was tied to.',
+      },
+      evidence: [
+        { kind: 'issue', number: 8, quote: q.outageTitle },
+        { kind: 'issue', number: 8, quote: q.outageBody },
+        { kind: 'comment', id: 'cmt-outage-sam', quote: q.outageFirst, revision: 0 },
+        { kind: 'comment', id: 'cmt-outage-sam', quote: q.outageCorrected },
+        { kind: 'comment', id: 'cmt-outage-dup', quote: q.dupOf8 },
+        { kind: 'pr', number: 11, quote: q.closesOutage },
+        { kind: 'discussion', number: 10, quote: q.elevenDisc },
+      ],
+    },
+    {
+      id: 'declined-shared-database',
+      view: 'timeline',
+      facet: 'decision',
+      question: 'Which request to bring the shared counter back was declined, and why?',
+      answers: {
+        technical:
+          'Issue #12, opened by Sam Ellison on 2024-09-16, asked to turn the shared database back on because Harbor sometimes got more requests through than the contract said. Mira Chen closed it not_planned on 2024-09-18. Her comment says that database is how the site blocked everyone in August, and they are not buying a bigger one to get exact counts back. Priya Nair agreed she would not run another database for this.',
+        nonTechnical:
+          'After the team stopped using the shared database, the product manager asked to turn it back on, because one customer was getting more requests through than their contract allowed. The staff engineer said no. That database had just blocked every caller, and they would not buy a bigger one to get exact counts back.',
+      },
+      evidence: [
+        { kind: 'issue', number: 12, quote: q.buybackTitle },
+        { kind: 'issue', number: 12, quote: q.buybackBody },
+        { kind: 'comment', id: 'cmt-buyback-mira', quote: q.buybackNo },
+        { kind: 'comment', id: 'cmt-buyback-priya', quote: 'I will not run another database for this.' },
+      ],
+    },
+    {
+      id: 'ci-caught-remaining',
+      view: 'timeline',
+      facet: 'how',
+      question: 'What did automatic checks catch on the wait-time change before it was accepted?',
+      answers: {
+        technical:
+          'On PR #13 the test check failed on c-headers. Jon Okonkwo wrote that it expected remaining 1 and got 1.7. src/headers.ts at that commit sets RateLimit-Remaining from the raw balance. Mira Chen requested changes on that line, then Jon clamped it in c-headers-fix. The later test check passed, and Mira approved after that commit.',
+        nonTechnical:
+          'Before the wait-time change was accepted, an automatic check failed. A blocked response was going to include a fraction of a permit instead of a whole number. The author fixed that, the check passed, and a teammate then accepted the change.',
+      },
+      evidence: [
+        { kind: 'comment', id: 'pr13-jon-ci', quote: q.ciGot },
+        { kind: 'file', path: 'src/headers.ts', at: 'c-headers', quote: q.remainingRaw },
+        { kind: 'file', path: 'test/headers.test.ts', at: 'c-headers', quote: q.expectedOne },
+        { kind: 'comment', id: 'pr13-thread-mira', quote: q.clampAsk },
+        { kind: 'commit', key: 'c-headers-fix', quote: 'clamp RateLimit-Remaining to a non-negative integer' },
+        { kind: 'file', path: 'src/headers.ts', at: 'c-headers-fix', quote: q.remainingClamp },
+        { kind: 'comment', id: 'pr13-thread-jon', quote: q.testPassed },
+      ],
+    },
+    {
+      id: 'alert-still-open',
+      view: 'timeline',
+      facet: 'growth',
+      question: 'What work was still unfinished after the 1.0 release?',
+      answers: {
+        technical:
+          'Issue #16, opened by Priya Nair on 2024-12-09, is still open. createMetrics in src/metrics.ts counts rejected calls in process, and her report says nothing sends a warning when that number jumps. Jon Okonkwo left exporting it as a January task. Mira Chen said not to add a new service.',
+        nonTechnical:
+          'After the December release, the operations person asked for a warning when many callers get blocked. The library can count those blocks inside each copy of the site, but nothing sends the warning. That request was still open at the end of the year.',
+      },
+      evidence: [
+        { kind: 'issue', number: 16, quote: q.alertTitle },
+        { kind: 'issue', number: 16, quote: q.alertBody },
+        { kind: 'file', path: 'src/metrics.ts', at: 'c-metrics', quote: q.createMetricsFn },
+        { kind: 'comment', id: 'cmt-alert-jon', quote: 'Exporting it is a January task.' },
+        { kind: 'comment', id: 'cmt-alert-mira', quote: 'Do not add a new service for this.' },
+      ],
+    },
+  ],
+  noise: [
+    {
+      id: 'noise-outage-edit',
+      kind: 'edited-comment',
+      description: 'Sam Ellison edited the first comment on issue #8. The original said the whole site looked down. The current text says only checkout would not go through.',
+      evidence: [
+        { kind: 'comment', id: 'cmt-outage-sam', quote: q.outageFirst, revision: 0 },
+        { kind: 'comment', id: 'cmt-outage-sam', quote: q.outageCorrected },
+      ],
     },
   ],
 };
