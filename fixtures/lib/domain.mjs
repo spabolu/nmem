@@ -177,7 +177,7 @@ function email(value, path, ctx) {
 
 function refName(value, path, ctx, what) {
   const name = nonEmpty(value, path, ctx);
-  if (/\s/.test(name) || name.includes('..') || name.startsWith('-') || name.includes(':') || name.includes('/')) {
+  if (/\s/.test(name) || name.includes('..') || name.startsWith('-') || name.includes(':') || name.startsWith('/') || name.endsWith('/') || name.includes('//') || name.endsWith('.lock')) {
     ctx.fail(path, `invalid ${what} ${JSON.stringify(name)}`);
   }
   return name;
