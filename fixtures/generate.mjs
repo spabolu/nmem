@@ -5,6 +5,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import {
   countAdrs,
   countSteps,
+  assertNoSpecLeaks,
   githubDocument,
   parseSpec,
   renderAnswerKey,
@@ -84,7 +85,9 @@ function emitAll(outDir, specs) {
     const entries = resolveAnswers(spec, repo);
     const noise = resolveNoise(spec, repo);
     const answerMd = renderAnswerKey(spec, entries, noise);
-    writeJson(path.join(slugDir, 'github.json'), githubDocument(spec, repo));
+    const github = githubDocument(spec, repo);
+    assertNoSpecLeaks(spec, github);
+    writeJson(path.join(slugDir, 'github.json'), github);
     writeJson(path.join(slugDir, 'manifest.json'), repo.manifest);
     writeJson(path.join(slugDir, 'answer-key.json'), { entries });
     writeJson(path.join(slugDir, 'noise.json'), noise);

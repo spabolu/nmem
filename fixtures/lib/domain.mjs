@@ -46,10 +46,12 @@ const MENTION = /\b(pull requests?|prs?|issues?|discussions?)\s+#(\d+)/gi;
 const CLOSING = /\b(?:close[sd]?|fix(?:es|ed)?|resolve[sd]?):?\s+#(\d+)/gi;
 const HASH_REF = /(?<![A-Za-z0-9])#(\d+)/g;
 const GITHUB_COMMITTER = { name: 'GitHub', email: 'noreply@github.com' };
-const TIME_KEYS = new Set(['at', 'openedAt', 'closedAt', 'mergedAt', 'createdAt', 'updatedAt']);
-// GitHub REST ids are 9-10 digits. 48 bits of SHA-256, folded into that range.
-const GITHUB_ID_MIN = 100_000_000;
-const GITHUB_ID_SPAN = 9_900_000_000;
+const TIME_KEYS = new Set([
+  'at', 'openedAt', 'closedAt', 'mergedAt', 'createdAt', 'updatedAt', 'authoredAt', 'committedAt',
+]);
+// Rank stride exceeds the 0..999 mix, so a later creation time always yields a larger id.
+const GITHUB_ID_BASE = 1_200_000_000;
+const GITHUB_ID_STRIDE = 7919;
 
 function object(value, path, ctx) {
   if (value === null || typeof value !== 'object' || Array.isArray(value)) {
@@ -252,20 +254,71 @@ function claimId(ctx, id, kind, path) {
   ctx.idPaths.set(id, path);
 }
 
-// Stable across runs and machines. Collision-checked per repo at parse time.
-function githubNumericId(specId) {
-  const n = createHash('sha256').update(specId).digest().readUIntBE(0, 6);
-  return GITHUB_ID_MIN + (n % GITHUB_ID_SPAN);
+function specIdMix(specId) {
+  return createHash('sha256').update(specId).digest().readUInt32BE(0) % 1000;
 }
 
-function commentLocator(specId, parent) {
-  return `comment:${githubNumericId(specId)} on ${parent}`;
+function commentableItems(steps) {
+  const items = [];
+  const add = (id, at) => items.push({ id, at });
+  for (const step of steps) {
+    if (step.type === 'issue' || step.type === 'pr') {
+      for (const comment of step.comments) add(comment.id, comment.at);
+    }
+    if (step.type === 'pr') {
+      for (const review of step.reviews) {
+        add(review.id, review.at);
+        for (const thread of review.threads) {
+          add(thread.id, thread.comments[0]?.at ?? review.at);
+          for (const comment of thread.comments) add(comment.id, comment.at);
+        }
+      }
+    }
+    if (step.type === 'discussion') {
+      for (const comment of step.comments) {
+        add(comment.id, comment.at);
+        for (const reply of comment.replies) add(reply.id, reply.at);
+      }
+    }
+  }
+  return items;
 }
 
-function assertGithubIds(ctx) {
+// One per-repo ranking. Stable across runs and machines. Collision-checked at parse time.
+function assignGithubIds(steps) {
+  const items = commentableItems(steps);
+  items.sort((a, b) => instant(a.at) - instant(b.at) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  const ids = new Map();
+  items.forEach((item, rank) => {
+    ids.set(item.id, GITHUB_ID_BASE + rank * GITHUB_ID_STRIDE + specIdMix(item.id));
+  });
+  return ids;
+}
+
+function githubId(spec, specId) {
+  const id = spec.githubIds.get(specId);
+  if (id === undefined) {
+    throw new SpecError(spec.slug, specId, `missing github id for ${JSON.stringify(specId)}`);
+  }
+  return id;
+}
+
+function commentLocator(spec, specId, parent) {
+  return `comment:${githubId(spec, specId)} on ${parent}`;
+}
+
+function reviewLocator(spec, specId, parent) {
+  return `review:${githubId(spec, specId)} on ${parent}`;
+}
+
+function assertGithubIds(ctx, ids) {
+  if (ids.size !== ctx.idPaths.size) {
+    ctx.fail('steps', `github id assignment covered ${ids.size} ids, claimed ${ctx.idPaths.size}`);
+  }
   const taken = new Map();
   for (const [id, path] of ctx.idPaths) {
-    const num = githubNumericId(id);
+    const num = ids.get(id);
+    if (num === undefined) ctx.fail(path, `missing github id for ${JSON.stringify(id)}`);
     const prior = taken.get(num);
     if (prior) ctx.fail(path, `github id ${num} collides with ${prior.path} (${JSON.stringify(prior.id)})`);
     taken.set(num, { id, path });
@@ -582,57 +635,58 @@ const ISSUE_CLOSE = {
   },
 };
 
-function currentBody(comment) {
-  const edits = comment.edits ?? [];
-  return edits.length ? edits[edits.length - 1].body : comment.body;
+function currentRevision(comment) {
+  return comment.edits?.at(-1) ?? { at: comment.at, body: comment.body };
 }
 
-function emitComment(comment) {
-  const edits = comment.edits ?? [];
-  const current = edits.at(-1);
+function emitComment(spec, comment) {
+  const current = currentRevision(comment);
   const out = {
-    id: githubNumericId(comment.id),
+    id: githubId(spec, comment.id),
     author: comment.author,
-    body: current ? current.body : comment.body,
+    body: current.body,
     createdAt: comment.at,
-    updatedAt: current ? current.at : comment.at,
+    updatedAt: current.at,
   };
-  if (edits.length) out.editHistory = [{ at: comment.at, body: comment.body }, ...edits];
+  if (comment.edits?.length) out.editHistory = [{ at: comment.at, body: comment.body }, ...comment.edits];
   if (comment.reactions) out.reactions = comment.reactions;
   return out;
 }
 
-function emitDiscussionComment(comment) {
-  return { ...emitComment(comment), replies: comment.replies.map(emitComment) };
+function emitDiscussionComment(spec, comment) {
+  return {
+    ...emitComment(spec, comment),
+    replies: comment.replies.map((reply) => emitComment(spec, reply)),
+  };
 }
 
 function latestCommitAt(commits, at) {
   let chosen = null;
   for (const commit of commits) {
-    if (instant(commit.at) <= instant(at)) chosen = commit;
+    if (instant(commit.authoredAt) <= instant(at)) chosen = commit;
   }
   return chosen;
 }
 
-function emitReview(review, commits) {
+function emitReview(spec, review, commits) {
   return {
-    id: githubNumericId(review.id),
+    id: githubId(spec, review.id),
     author: review.author,
     at: review.at,
     state: review.state,
     body: review.body,
     commitSha: latestCommitAt(commits, review.at).sha,
     threads: review.threads.map((thread) => ({
-      id: githubNumericId(thread.id),
+      id: githubId(spec, thread.id),
       path: thread.path,
       line: thread.line,
       resolved: thread.resolved ?? false,
-      comments: thread.comments.map(emitComment),
+      comments: thread.comments.map((comment) => emitComment(spec, comment)),
     })),
   };
 }
 
-function issueRecord(step) {
+function issueRecord(spec, step) {
   const issue = {
     number: step.number,
     title: step.title,
@@ -648,7 +702,7 @@ function issueRecord(step) {
     closedBy: step.outcome ? step.outcome.by : null,
     duplicateOf: null,
     closedByPullRequest: null,
-    comments: step.comments.map(emitComment),
+    comments: step.comments.map((comment) => emitComment(spec, comment)),
   };
   if (step.outcome) ISSUE_CLOSE[step.outcome.kind](issue, step.outcome);
   return issue;
@@ -658,7 +712,7 @@ function indexComment(repo, comment, locator) {
   const edits = comment.edits ?? [];
   repo.comments.set(comment.id, {
     revisions: [comment.body, ...edits.map((edit) => edit.body)],
-    current: currentBody(comment),
+    current: currentRevision(comment).body,
     locator,
   });
 }
@@ -692,7 +746,7 @@ function scan(repo, locator, text) {
 
 function scanComment(repo, comment, locator) {
   indexComment(repo, comment, locator);
-  scan(repo, locator, currentBody(comment));
+  scan(repo, locator, currentRevision(comment).body);
 }
 
 // GitHub ignores closing keywords and autolinks inside fenced blocks.
@@ -746,15 +800,17 @@ function applyCommit(repo, commit, path) {
   repo.commits.set(commit.key, sha);
   repo.manifest[commit.key] = sha;
   scan(repo, shortSha(sha), commit.message);
+  const committer = identity.committer ?? identity;
   return {
-    key: commit.key,
     sha,
     message: commit.message,
-    author: commit.author,
-    at: commit.at,
     authorName: identity.name,
     authorEmail: identity.email,
     authorLogin: identity.login,
+    committerName: committer.name,
+    committerEmail: committer.email,
+    authoredAt: commit.at,
+    committedAt: commit.at,
   };
 }
 
@@ -934,17 +990,17 @@ const STEP_HANDLERS = {
       ensureMain(repo.dir);
       const outcome = OUTCOME[step.outcome.kind](repo, step);
       for (const review of step.reviews) {
-        const locator = commentLocator(review.id, `pr#${step.number}`);
+        const locator = reviewLocator(repo.spec, review.id, `pr#${step.number}`);
         indexComment(repo, { id: review.id, body: review.body }, locator);
         scan(repo, locator, review.body);
         for (const thread of review.threads) {
           for (const comment of thread.comments) {
-            scanComment(repo, comment, commentLocator(comment.id, `pr#${step.number}`));
+            scanComment(repo, comment, commentLocator(repo.spec, comment.id, `pr#${step.number}`));
           }
         }
       }
       for (const comment of step.comments) {
-        scanComment(repo, comment, commentLocator(comment.id, `pr#${step.number}`));
+        scanComment(repo, comment, commentLocator(repo.spec, comment.id, `pr#${step.number}`));
       }
       repo.pulls.push({
         number: step.number,
@@ -962,12 +1018,11 @@ const STEP_HANDLERS = {
         ...outcome,
         headSha,
         commits,
-        reviews: step.reviews.map((review) => emitReview(review, commits)),
-        comments: step.comments.map(emitComment),
+        reviews: step.reviews.map((review) => emitReview(repo.spec, review, commits)),
+        comments: step.comments.map((comment) => emitComment(repo.spec, comment)),
         checks: step.checks.map((check) => ({
           name: check.name,
-          commit: check.commit,
-          sha: repo.commits.get(check.commit),
+          headSha: repo.commits.get(check.commit),
           at: check.at,
           conclusion: check.conclusion,
           summary: check.summary,
@@ -1028,9 +1083,9 @@ const STEP_HANDLERS = {
       const locator = `issue#${step.number}`;
       scan(repo, locator, `${step.title}\n${step.body}`);
       for (const comment of step.comments) {
-        scanComment(repo, comment, commentLocator(comment.id, `issue#${step.number}`));
+        scanComment(repo, comment, commentLocator(repo.spec, comment.id, `issue#${step.number}`));
       }
-      repo.issues.push(issueRecord(step));
+      repo.issues.push(issueRecord(repo.spec, step));
     },
     count(step, counts) {
       counts.issues += 1;
@@ -1084,9 +1139,9 @@ const STEP_HANDLERS = {
     apply(repo, step) {
       scan(repo, `discussion#${step.number}`, `${step.title}\n${step.body}`);
       for (const comment of step.comments) {
-        scanComment(repo, comment, commentLocator(comment.id, `discussion#${step.number}`));
+        scanComment(repo, comment, commentLocator(repo.spec, comment.id, `discussion#${step.number}`));
         for (const reply of comment.replies) {
-          scanComment(repo, reply, commentLocator(reply.id, `discussion#${step.number}`));
+          scanComment(repo, reply, commentLocator(repo.spec, reply.id, `discussion#${step.number}`));
         }
       }
       repo.discussions.push({
@@ -1097,8 +1152,8 @@ const STEP_HANDLERS = {
         at: step.at,
         body: step.body,
         reactions: step.reactions,
-        answerId: step.answer ? githubNumericId(step.answer) : null,
-        comments: step.comments.map(emitDiscussionComment),
+        answerId: step.answer ? githubId(repo.spec, step.answer) : null,
+        comments: step.comments.map((comment) => emitDiscussionComment(repo.spec, comment)),
       });
     },
     count(step, counts) {
@@ -1396,7 +1451,7 @@ const REF_RESOLVERS = {
         locator: hit.locator,
         label: hit.locator,
         cited: true,
-        githubId: githubNumericId(ref.id),
+        githubId: githubId(repo.spec, ref.id),
       };
     },
   },
@@ -1594,9 +1649,10 @@ export function parseSpec(input, expectedSlug) {
     }
     return STEP_HANDLERS[body.type].parse(body, path, ctx);
   });
-  assertGithubIds(ctx);
   assertTimes(steps, ctx);
   assertGraph(steps, ctx);
+  const githubIds = assignGithubIds(steps);
+  assertGithubIds(ctx, githubIds);
   const answerKey = spec.answerKey.map((entry, i) => parseAnswer(entry, `answerKey[${i}]`, ctx));
   assertMentions(answerKey, ctx);
   let noise = [];
@@ -1611,6 +1667,7 @@ export function parseSpec(input, expectedSlug) {
     description: text(spec.description, 'description', ctx),
     people: ctx.people,
     steps,
+    githubIds,
     answerKey,
     noise,
   };
@@ -1794,6 +1851,81 @@ function utcTimes(value) {
     else out[key] = utcTimes(child);
   }
   return out;
+}
+
+function specLeakStrings(spec) {
+  const forbidden = new Set(commentableItems(spec.steps).map((item) => item.id));
+  for (const step of spec.steps) {
+    if (step.type === 'commit') forbidden.add(step.key);
+    if (step.type === 'pr') {
+      for (const commit of step.commits) forbidden.add(commit.key);
+    }
+  }
+  return forbidden;
+}
+
+function unlinkedPullCommits(spec) {
+  const found = [];
+  for (const step of spec.steps) {
+    if (step.type !== 'pr') continue;
+    step.commits.forEach((commit, index) => {
+      if (!commit.identity) return;
+      const ident = spec.people[commit.author]?.identities?.[commit.identity];
+      if (!ident || ident.linked) return;
+      found.push({ number: step.number, index, handle: commit.author });
+    });
+  }
+  return found;
+}
+
+function findStringValue(value, forbidden, path) {
+  if (typeof value === 'string') return forbidden.has(value) ? { path, value } : null;
+  if (Array.isArray(value)) {
+    for (let i = 0; i < value.length; i += 1) {
+      const hit = findStringValue(value[i], forbidden, `${path}[${i}]`);
+      if (hit) return hit;
+    }
+    return null;
+  }
+  if (value && typeof value === 'object') {
+    for (const [key, child] of Object.entries(value)) {
+      const hit = findStringValue(child, forbidden, path ? `${path}.${key}` : key);
+      if (hit) return hit;
+    }
+  }
+  return null;
+}
+
+export function assertNoSpecLeaks(spec, github) {
+  const hit = findStringValue(github, specLeakStrings(spec), '');
+  if (hit) {
+    throw new SpecError(spec.slug, hit.path, `leaked spec id ${JSON.stringify(hit.value)}`);
+  }
+  const pulls = github?.pulls;
+  // A direct call may pass a fragment. The handle check needs the built pull list.
+  if (!Array.isArray(pulls)) return;
+  for (const item of unlinkedPullCommits(spec)) {
+    const pullIndex = pulls.findIndex((pull) => pull && pull.number === item.number);
+    const commit = pullIndex === -1 ? null : pulls[pullIndex]?.commits?.[item.index];
+    const path = pullIndex === -1
+      ? 'pulls'
+      : `pulls[${pullIndex}].commits[${item.index}]`;
+    if (!commit || typeof commit !== 'object') {
+      throw new SpecError(spec.slug, path, `missing pull commit for unlinked identity on pr#${item.number}`);
+    }
+    if (commit.authorLogin !== null) {
+      throw new SpecError(
+        spec.slug,
+        `${path}.authorLogin`,
+        `unlinked identity has login ${JSON.stringify(commit.authorLogin)}`,
+      );
+    }
+    for (const [key, value] of Object.entries(commit)) {
+      if (value === item.handle) {
+        throw new SpecError(spec.slug, `${path}.${key}`, `unlinked commit carries handle ${JSON.stringify(item.handle)}`);
+      }
+    }
+  }
 }
 
 export function githubDocument(spec, repo) {

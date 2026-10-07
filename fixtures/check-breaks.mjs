@@ -1,5 +1,8 @@
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import spec from './specs/_example.mjs';
-import { parseSpec, SpecError } from './lib/domain.mjs';
+import { assertNoSpecLeaks, buildRepo, githubDocument, parseSpec, SpecError } from './lib/domain.mjs';
 
 function issue(copy, number) {
   return copy.steps.find((step) => step.type === 'issue' && step.number === number);
@@ -80,6 +83,49 @@ for (const item of cases) {
     if (message.includes(item.expect)) console.log(`PASS ${item.name}`);
     else {
       console.log(`FAIL ${item.name}: ${message}`);
+      failed += 1;
+    }
+  }
+}
+
+{
+  const name = 'comment body may contain another comment spec id';
+  const copy = structuredClone(spec);
+  const issue = copy.steps.find((step) => step.type === 'issue' && step.number === 1);
+  issue.comments[0].edits[0].body = 'Updated note about the greeting. See cmt-pr-1.';
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'nmem-leak-ok-'));
+  try {
+    const parsed = parseSpec(copy, '_example');
+    const repo = buildRepo(parsed, path.join(dir, 'repo'));
+    const github = githubDocument(parsed, repo);
+    assertNoSpecLeaks(parsed, github);
+    const body = github.issues[0].comments[0].body;
+    if (body === 'Updated note about the greeting. See cmt-pr-1.') console.log(`PASS ${name}`);
+    else {
+      console.log(`FAIL ${name}: body was ${JSON.stringify(body)}`);
+      failed += 1;
+    }
+  } catch (err) {
+    const message = err instanceof SpecError ? err.message : String(err);
+    console.log(`FAIL ${name}: ${message}`);
+    failed += 1;
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+{
+  const name = 'leak guard rejects an injected commit key';
+  try {
+    const parsed = parseSpec(structuredClone(spec), '_example');
+    assertNoSpecLeaks(parsed, { note: 'c-init' });
+    console.log(`FAIL ${name}: expected throw`);
+    failed += 1;
+  } catch (err) {
+    const message = err instanceof SpecError ? err.message : String(err);
+    if (message.includes('note') && message.includes('c-init')) console.log(`PASS ${name}`);
+    else {
+      console.log(`FAIL ${name}: ${message}`);
       failed += 1;
     }
   }
