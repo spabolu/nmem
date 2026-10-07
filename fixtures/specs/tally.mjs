@@ -536,22 +536,60 @@ if __name__ == "__main__":
     unittest.main()
 `;
 
-const workflow = (version) => `name: test
+const workflow = (version, jobs) => {
+  const setup = `      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v${version}
+        with:
+          python-version: "3.11"
+`;
+  const blocks = [];
+  if (jobs.smoke) {
+    blocks.push(`  smoke:
+    runs-on: ubuntu-latest
+    steps:
+${setup}      - name: smoke
+        run: ${jobs.smoke}
+`);
+  }
+  if (jobs.test) {
+    blocks.push(`  test:
+    runs-on: ubuntu-latest
+    steps:
+${setup}      - name: unit tests
+        run: python3 -m unittest discover -s tests -v
+`);
+  }
+  return `name: test
 
 on:
   push:
   pull_request:
 
 jobs:
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v${version}
-        with:
-          python-version: "3.11"
-      - name: unit tests
-        run: python3 -m unittest discover -s tests -v
+${blocks.join('\n')}`;
+};
+
+const dependabotBody = `Bumps [actions/setup-python](https://github.com/actions/setup-python) from 4 to 5.
+<details>
+<summary>Release notes</summary>
+
+Sourced from [actions/setup-python's releases](https://github.com/actions/setup-python/releases).
+
+## v5.0.0
+
+Node 20 as the default runtime.
+
+</details>
+<details>
+<summary>Commits</summary>
+
+See the [compare view](https://github.com/actions/setup-python/compare/v4...v5).
+
+</details>
+
+[![Dependabot compatibility score](https://dependabot-badges.githubapp.com/badges/compatibility_score?dependency-name=actions/setup-python&package-manager=github_actions&previous-version=4&new-version=5)](https://docs.github.com/en/github/managing-security-vulnerabilities/about-dependabot-security-updates#about-compatibility-scores)
+
+Dependabot will resolve any conflicts with this PR as long as you don't alter it yourself. You can also trigger a rebase manually by commenting @dependabot rebase.
 `;
 
 const webPy = `"""Local page. Not wired into the commands."""
@@ -885,7 +923,7 @@ const spec = {
     },
     'dependabot[bot]': {
       name: 'dependabot[bot]',
-      email: 'dependabot[bot]@users.noreply.github.com',
+      email: '49699333+dependabot[bot]@users.noreply.github.com',
       role: 'opens dependency bumps',
       kind: 'Bot',
     },
@@ -929,7 +967,10 @@ No file yet. One bill, then it exits.`,
           at: '2023-02-18T21:12:00Z',
           author: 'lenavoss',
           message: 'Add tally.py',
-          files: { 'tally.py': tallyPy },
+          files: {
+            'tally.py': tallyPy,
+            '.github/workflows/test.yml': workflow(4, { smoke: 'python3 tally.py owen 1000 lena,owen,maya' }),
+          },
         },
         {
           key: 'c-readme-v01',
@@ -1111,6 +1152,7 @@ Notes are one word. "groceries" fits. "ikea lamp" does not. We can live with tha
             'tally/__main__.py': mainPy,
             'tally/cli.py': cliOnce,
             'tally/ledger.py': ledgerNoPay,
+            '.github/workflows/test.yml': workflow(4, { smoke: 'python3 -m tally owen 1000 lena,owen,maya' }),
           },
         },
         {
@@ -1122,6 +1164,7 @@ Notes are one word. "groceries" fits. "ikea lamp" does not. We can live with tha
             'tally/store.py': storeText(false),
             'tally/cli.py': cliPy({ data: 'ledger.txt', pay: false, settle: false, dollars: false }),
             'README.md': readme.package,
+            '.github/workflows/test.yml': workflow(4, { smoke: 'python3 -m tally balances' }),
           },
         },
         {
@@ -1292,7 +1335,7 @@ add_payment credits the sender and debits the receiver.`,
           at: '2023-05-07T18:30:00Z',
           author: 'owenbriggs',
           message: 'run tests on GitHub',
-          files: { '.github/workflows/test.yml': workflow(4) },
+          files: { '.github/workflows/test.yml': workflow(4, { smoke: 'python3 -m tally balances', test: true }) },
         },
       ],
       reviews: [
@@ -1335,11 +1378,11 @@ add_payment credits the sender and debits the receiver.`,
       ],
       checks: [
         {
-          name: 'test',
+          name: 'smoke',
           commit: 'c-pay-test',
           at: '2023-05-07T02:40:00Z',
           conclusion: 'success',
-          summary: 'payback test passed',
+          summary: 'pay command runs',
         },
         {
           name: 'test',
@@ -1660,7 +1703,7 @@ Closes #10.`,
                 {
                   id: 'pr12-thread-owen',
                   author: 'owenbriggs',
-                  at: '2023-06-27T01:50:00Z',
+                  at: '2023-06-27T01:48:00Z',
                   body: 'Smoke failed on this import. minimal_transfer is not a name in settle.py. The function is minimal_transfers.',
                 },
                 {
@@ -1897,7 +1940,7 @@ Sorry this sat on my laptop for a week.`,
               id: 'disc15-maya',
               author: 'mayaruiz',
               at: '2023-08-27T00:20:00Z',
-              body: 'The starter is not the question. Also the router has been blinking since Thursday and my laptop keeps dropping the shared folder.',
+              body: 'The starter is not the question. Also the router has been blinking since Thursday and the hallway bulb keeps buzzing.',
             },
             {
               id: 'disc15-kit',
@@ -1966,20 +2009,20 @@ Sorry this sat on my laptop for a week.`,
       number: 17,
       title: 'Bump actions/setup-python from 4 to 5',
       author: 'dependabot[bot]',
-      body: `Bumps actions/setup-python from 4 to 5.
-
-Updated .github/workflows/test.yml. No tally code in this change.`,
+      body: dependabotBody,
       labels: ['dependencies'],
       requestedReviewers: ['lenavoss'],
-      branch: 'dependabot-setup-python',
+      branch: 'dependabot/github_actions/actions/setup-python-5',
       openedAt: '2023-09-22T15:05:00Z',
       commits: [
         {
           key: 'c-bump',
           at: '2023-09-22T15:12:00Z',
           author: 'dependabot[bot]',
-          message: 'Bump actions/setup-python from 4 to 5',
-          files: { '.github/workflows/test.yml': workflow(5) },
+          message: `Bump actions/setup-python from 4 to 5
+
+${dependabotBody}`,
+          files: { '.github/workflows/test.yml': workflow(5, { smoke: 'python3 -m tally balances', test: true }) },
         },
       ],
       reviews: [
@@ -1988,7 +2031,7 @@ Updated .github/workflows/test.yml. No tally code in this change.`,
           author: 'lenavoss',
           at: '2023-09-23T02:10:00Z',
           state: 'APPROVED',
-          body: 'Pin bump only. Tests still run on 3.11. Nothing in tally/ changed.',
+          body: 'Approved. Tests still run on 3.11.',
           threads: [],
         },
       ],
@@ -2165,7 +2208,7 @@ Also:
                 {
                   id: 'pr11-thread-kit',
                   author: 'kitalvarez',
-                  at: '2023-11-05T21:15:00-07:00',
+                  at: '2023-11-05T20:15:00-08:00',
                   body: 'Copied it from the sort in settle.py. Did not want to invent a rule.',
                 },
               ],
@@ -2184,7 +2227,7 @@ Also:
         {
           id: 'pr20-kit',
           author: 'kitalvarez',
-          at: '2023-11-07T10:15:00-07:00',
+          at: '2023-11-07T09:15:00-08:00',
           body: 'git log shows Lena P on the dollars print change. That is her laptop. lena@laptop.local is not linked to the account.',
         },
       ],
@@ -2230,7 +2273,7 @@ The list of bills is a plain file named ledger.json. tally settle prints the few
       title: 'can rent just repeat every month',
       author: 'mayaruiz',
       at: '2023-11-20T18:00:00Z',
-      body: 'Rent is the same every month. I do not want to ask Owen to type it twelve times. Owen said he wrote this up as #19 and then moved that note to the house notebook. I cannot find #19. Can tally remember a bill and copy it forward?',
+      body: 'Rent is the same every month. I do not want to ask Owen to type it twelve times. Owen said he wrote this up as #19. He opened that and then deleted it. I cannot find #19. Can tally remember a bill and copy it forward?',
       labels: ['enhancement'],
       assignees: ['owenbriggs'],
       comments: [
@@ -2612,7 +2655,7 @@ The list of bills is a plain file named ledger.json. tally settle prints the few
       question: 'How many distinct people wrote the app, if a laptop shows a second name for Lena?',
       answers: {
         technical:
-          'Three people wrote product code: Lena Voss, Owen Briggs, and Kit Alvarez. c-dollars and c-usage are authored in git as Lena P <lena@laptop.local> with no linked login, but that identity belongs to lenavoss. She says so on PR #3, and Kit repeats it on PR #20. dependabot[bot] only changed the test workflow pin in PR #17 and did not change product behavior.',
+          'Three people wrote product code: Lena Voss, Owen Briggs, and Kit Alvarez. c-dollars and c-usage are authored in git as Lena P <lena@laptop.local> with no linked login, but that identity belongs to lenavoss. She says so on PR #3, and Kit repeats it on PR #20. The squash of PR #3 on main is authored as Lena Voss, not as Lena P. dependabot[bot] only changed the test workflow pin in PR #17 and did not change product behavior. That squash on main is authored by dependabot[bot].',
         nonTechnical:
           'Three people wrote the app: Lena, Owen, and Kit. A laptop of Lena\'s signed some changes as Lena P, but that is still Lena. An automated helper later updated a setup file and did not change how bills are split.',
       },
@@ -2647,14 +2690,13 @@ The list of bills is a plain file named ledger.json. tally settle prints the few
       question: 'Did the automated dependency update change how bills are split or stored?',
       answers: {
         technical:
-          'No. PR #17, opened by dependabot[bot], only changes .github/workflows/test.yml from actions/setup-python v4 to v5. The body says no tally code is in the change. Product behavior is unchanged.',
+          'No. PR #17, opened by dependabot[bot], only changes .github/workflows/test.yml from actions/setup-python v4 to v5. Commit c-bump touches that file and nothing else. Product behavior is unchanged.',
         nonTechnical:
           'No. An automated helper updated a setup file used to run the tests. It did not change how bills are split or stored.',
       },
       evidence: [
-        { kind: 'pr', number: 17, quote: 'No tally code in this change.' },
         { kind: 'file', path: '.github/workflows/test.yml', at: 'c-bump', quote: 'actions/setup-python@v5' },
-        { kind: 'comment', id: 'pr17-gha', quote: 'unit tests passed' },
+        { kind: 'commit', key: 'c-bump', quote: 'Bump actions/setup-python from 4 to 5' },
       ],
     },
     {
@@ -2681,9 +2723,9 @@ The list of bills is a plain file named ledger.json. tally settle prints the few
       question: 'What local time did Kit fix the roommates spelling, and in what clock?',
       answers: {
         technical:
-          'c-typo is stamped 2023-04-02T15:14:00-07:00. That instant is 2023-04-02T22:14:00Z. Kit wrote that the typo went in Sunday at 3:14pm his time. April 2, 2023 was a Sunday. His other timestamps use the same -07:00 offset.',
+          'c-typo is stamped 2023-04-02T15:14:00-07:00. That instant is 2023-04-02T22:14:00Z. London was on British Summer Time (UTC+1), so 15:14 in Oakland was 23:14 in London, eight hours later. Kit wrote that the typo went in Sunday at 3:14pm his time. April 2, 2023 was a Sunday. His other timestamps use -07:00 in summer and -08:00 after daylight saving ended on Nov 5.',
         nonTechnical:
-          'Kit fixed the roommates spelling on Sunday, April 2, 2023, at 3:14 in the afternoon, his time in Oakland. That clock is seven hours behind London time.',
+          'Kit fixed the roommates spelling on Sunday, April 2, 2023, at 3:14 in the afternoon, his time in Oakland. London was on summer time that day, so his clock was eight hours behind London.',
       },
       evidence: [
         { kind: 'commit', key: 'c-typo', quote: 'fix typo: roomates' },
@@ -2713,7 +2755,7 @@ The list of bills is a plain file named ledger.json. tally settle prints the few
       id: 'noise-identity-split',
       kind: 'identity-split',
       description:
-        'Lena Voss also commits as Lena P <lena@laptop.local> with linked false, on c-usage (PR #3) and c-dollars (direct to main). Git shows a second name and no login. The truth is one person, lenavoss. She says so on PR #3, and Kit notes the dollars change on PR #20.',
+        'Lena Voss also commits as Lena P <lena@laptop.local> with linked false, on c-usage (PR #3) and c-dollars (direct to main). Git shows a second name and no login. The truth is one person, lenavoss. She says so on PR #3, and Kit notes the dollars change on PR #20. The squash of PR #3 on main is authored as Lena Voss. c-usage on the pull request head remains Lena P.',
       evidence: [
         { kind: 'comment', id: 'pr3-lena', quote: 'lena@laptop.local' },
         { kind: 'comment', id: 'pr20-kit', quote: 'That is her laptop.' },
@@ -2734,9 +2776,9 @@ The list of bills is a plain file named ledger.json. tally settle prints the few
       id: 'noise-bot',
       kind: 'bot-noise',
       description:
-        'dependabot[bot] opened PR #17 to bump actions/setup-python from 4 to 5. It was squash-merged and did not change tally product code. github-actions[bot] comments on that PR and on the settle-up PR when smoke fails and then passes.',
+        'dependabot[bot] opened PR #17 to bump actions/setup-python from 4 to 5. It was squash-merged, authored on main by dependabot[bot], and did not change tally product code. github-actions[bot] comments on that PR and on the settle-up PR when smoke fails and then passes.',
       evidence: [
-        { kind: 'pr', number: 17, quote: 'Bumps actions/setup-python from 4 to 5.' },
+        { kind: 'pr', number: 17, quote: 'Bumps [actions/setup-python](https://github.com/actions/setup-python) from 4 to 5.' },
         { kind: 'comment', id: 'pr17-gha', quote: 'test: success.' },
         { kind: 'comment', id: 'pr12-gha-fail', quote: 'Smoke failed:' },
       ],
@@ -2776,7 +2818,7 @@ The list of bills is a plain file named ledger.json. tally settle prints the few
       id: 'noise-squash',
       kind: 'squash-merge',
       description:
-        'PR #3 (the decimal sentence) and PR #17 (the setup-python pin) landed with method squash. Their branch commits are not separate commits on main. The usage commit still exists on the pull request head, authored as Lena P.',
+        'PR #3 (the decimal sentence) and PR #17 (the setup-python pin) landed with method squash. Their branch commits are not separate commits on main. Each squash commit on main is authored by the pull request author and committed by GitHub: Lena Voss for #3, dependabot[bot] for #17. Owen merged #3 and Lena merged #17. Those clicks are not the git author. The usage commit still exists on the pull request head, authored as Lena P.',
       evidence: [
         { kind: 'pr', number: 3, quote: 'Print a sentence when cents is not a whole number' },
         { kind: 'pr', number: 17, quote: 'Bump actions/setup-python from 4 to 5' },
@@ -2786,7 +2828,7 @@ The list of bills is a plain file named ledger.json. tally settle prints the few
       id: 'noise-timezone',
       kind: 'timezone',
       description:
-        'Kit Alvarez\'s timestamps use -07:00 (Oakland, Pacific) consistently, including commits, reviews he replies to, and items he opens. c-typo is 2023-04-02T15:14:00-07:00, which is 22:14 UTC. He calls that Sunday at 3:14pm his time. Other people stay on Z.',
+        'Kit Alvarez\'s timestamps use -07:00 in summer and -08:00 after daylight saving ended on Nov 5 (Oakland, Pacific). That includes commits, reviews he replies to, and items he opens. c-typo is 2023-04-02T15:14:00-07:00, which is 22:14 UTC. He calls that Sunday at 3:14pm his time. Other people stay on Z.',
       evidence: [
         { kind: 'commit', key: 'c-typo', quote: 'fix typo: roomates' },
         { kind: 'comment', id: 'disc3-kit', quote: '3:14pm my time' },
@@ -2807,7 +2849,7 @@ The list of bills is a plain file named ledger.json. tally settle prints the few
       id: 'noise-dangling',
       kind: 'dangling-reference',
       description:
-        'Issue #21 mentions #19, which was never opened. The number was skipped because that note was moved to the house notebook and not filed here. #19 is not an issue, pull request, or discussion. The open rent request is #21, not a continuation of a deleted item.',
+        'Issue #21 mentions #19. Owen opened #19 and then deleted it, so GitHub skipped the number and the link dangles. #19 is not an issue, pull request, or discussion. The open rent request is #21, not a continuation of the deleted item.',
       evidence: [
         { kind: 'issue', number: 21, quote: 'I cannot find #19' },
       ],
