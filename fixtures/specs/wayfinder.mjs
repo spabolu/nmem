@@ -141,6 +141,27 @@ dist
 .env
 `;
 
+const ciWorkflow = `name: test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [22, 24]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: \${{ matrix.node-version }}
+      - run: node --experimental-strip-types --test
+`;
+
 const sample = [
   '```js',
   "import { createLimiter } from '@northwind-labs/wayfinder';",
@@ -867,6 +888,7 @@ const spec = {
         'package.json': pkg('0.0.0'),
         'tsconfig.json': tsconfig,
         '.gitignore': gitignore,
+        '.github/workflows/test.yml': ciWorkflow,
       },
     },
     {
@@ -920,7 +942,7 @@ Priya, this will not share counts across boxes. We only run one.`,
                 {
                   id: 'pr1-thread-jon',
                   author: 'jon-okonkwo',
-                  at: '2024-03-13T09:55:00Z',
+                  at: '2024-03-13T09:40:00Z',
                   body: 'count <= limit lets one extra request through once count has reached the limit. Fix it after this lands if you want. I am not holding the prototype.',
                 },
               ],
@@ -1197,7 +1219,7 @@ ADR-0002 records it, and ADR-0001 is marked superseded.`,
                 {
                   id: 'pr4-thread-priya',
                   author: 'priya-nair',
-                  at: '2024-05-06T11:40:00Z',
+                  at: '2024-05-06T11:18:00Z',
                   body: `If that VM blips, ${q.apiLooksDown}. Say that out loud in the ADR so an outage is not a surprise.`,
                 },
                 {
@@ -1289,7 +1311,7 @@ take() refills from elapsed time and rejects when the balance is below 1. Both s
                 {
                   id: 'pr5-thread-jon',
                   author: 'jon-okonkwo',
-                  at: '2024-05-15T09:20:00Z',
+                  at: '2024-05-15T09:05:00Z',
                   body: 'If the balance refills to 0.4, is the request allowed?',
                 },
                 {
@@ -1353,7 +1375,7 @@ Priya, kill it if you want.`,
                 {
                   id: 'pr6-thread-priya',
                   author: 'priya-nair',
-                  at: '2024-05-29T10:55:00Z',
+                  at: '2024-05-29T10:40:00Z',
                   body: `We run one Redis on a small VM. ${q.clusterBill} Please don't.`,
                 },
               ],
@@ -1602,7 +1624,7 @@ README and the stores page still describe Redis. That is a follow-up, not this P
                 {
                   id: 'pr9-thread-mira',
                   author: 'mira-chen',
-                  at: '2024-09-06T10:28:00Z',
+                  at: '2024-09-06T10:05:00Z',
                   body: 'I almost asked to keep the adapter behind a flag. Do not. Someone will turn it back on during an incident.',
                 },
                 {
