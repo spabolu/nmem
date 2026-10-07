@@ -30,22 +30,15 @@ function gitEnv(identity) {
     VISUAL: 'false',
   };
   if (identity) {
+    const committer = identity.committer ?? identity;
     env.GIT_AUTHOR_NAME = identity.name;
     env.GIT_AUTHOR_EMAIL = identity.email;
     env.GIT_AUTHOR_DATE = identity.date;
-    env.GIT_COMMITTER_NAME = identity.name;
-    env.GIT_COMMITTER_EMAIL = identity.email;
-    env.GIT_COMMITTER_DATE = identity.date;
+    env.GIT_COMMITTER_NAME = committer.name;
+    env.GIT_COMMITTER_EMAIL = committer.email;
+    env.GIT_COMMITTER_DATE = committer.date;
   }
   return env;
-}
-
-function gitDate(iso) {
-  return `${iso.slice(0, -1)} +0000`;
-}
-
-export function identityOf(person, at) {
-  return { name: person.name, email: person.email, date: gitDate(at) };
 }
 
 export function git(repoDir, args, opts = {}) {
@@ -112,12 +105,12 @@ export function forEachRefRaw(repoDir) {
   return git(repoDir, ['for-each-ref']).stdout;
 }
 
-export function commitAll(repoDir, person, at, message) {
+export function commitAll(repoDir, identity, message) {
   git(repoDir, ['add', '-A']);
   const diff = git(repoDir, ['diff', '--cached', '--quiet'], { allowStatus: [0, 1] });
   if (diff.status === 0) return null;
   git(repoDir, ['-c', 'commit.gpgsign=false', 'commit', '--cleanup=verbatim', '--no-gpg-sign', '-m', message], {
-    identity: identityOf(person, at),
+    identity,
   });
   return git(repoDir, ['rev-parse', 'HEAD']).stdout.trim();
 }
@@ -130,18 +123,28 @@ export function updateRef(repoDir, ref, sha) {
   git(repoDir, ['update-ref', ref, sha]);
 }
 
-export function mergeNoFf(repoDir, branch, person, at, message) {
+export function mergeNoFf(repoDir, branch, identity, message) {
   git(repoDir, [
     '-c', 'commit.gpgsign=false',
     '-c', 'commit.cleanup=verbatim',
     'merge', '--no-ff', '--no-edit', '-m', message, branch,
-  ], { identity: identityOf(person, at) });
+  ], { identity });
   return git(repoDir, ['rev-parse', 'HEAD']).stdout.trim();
 }
 
-export function annotatedTag(repoDir, name, person, at, message) {
+// Tree is the branch tip. Parent is main. The branch ref is left where it is.
+export function squashOntoMain(repoDir, branch, identity, message) {
+  const tree = git(repoDir, ['rev-parse', `${branch}^{tree}`]).stdout.trim();
+  const parent = git(repoDir, ['rev-parse', 'main']).stdout.trim();
+  const sha = git(repoDir, ['commit-tree', tree, '-p', parent, '-m', message], { identity }).stdout.trim();
+  git(repoDir, ['checkout', '--quiet', '-f', 'main']);
+  git(repoDir, ['reset', '--hard', sha]);
+  return sha;
+}
+
+export function annotatedTag(repoDir, name, identity, message) {
   git(repoDir, ['-c', 'tag.gpgsign=false', 'tag', '-a', name, '-m', message, 'main'], {
-    identity: identityOf(person, at),
+    identity,
   });
 }
 

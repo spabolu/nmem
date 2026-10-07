@@ -10,6 +10,7 @@ import {
   renderAnswerKey,
   renderCombined,
   resolveAnswers,
+  resolveNoise,
   SpecError,
   summaryLine,
   buildRepo,
@@ -81,15 +82,18 @@ function emitAll(outDir, specs) {
     fs.mkdirSync(slugDir, { recursive: true });
     const repo = buildRepo(spec, repoDir);
     const entries = resolveAnswers(spec, repo);
-    const answerMd = renderAnswerKey(spec, entries);
+    const noise = resolveNoise(spec, repo);
+    const answerMd = renderAnswerKey(spec, entries, noise);
     writeJson(path.join(slugDir, 'github.json'), githubDocument(spec, repo));
     writeJson(path.join(slugDir, 'manifest.json'), repo.manifest);
     writeJson(path.join(slugDir, 'answer-key.json'), { entries });
+    writeJson(path.join(slugDir, 'noise.json'), noise);
     fs.writeFileSync(path.join(slugDir, 'ANSWER_KEY.md'), answerMd);
     return {
       spec,
       repo,
       entries,
+      noise,
       answerMd,
       counts: countSteps(spec),
       adrs: countAdrs(repoDir),
@@ -101,7 +105,7 @@ function emitAll(outDir, specs) {
 }
 
 function compareSlug(dirA, dirB, slug) {
-  const files = ['manifest.json', 'github.json', 'answer-key.json', 'ANSWER_KEY.md'];
+  const files = ['manifest.json', 'github.json', 'answer-key.json', 'ANSWER_KEY.md', 'noise.json'];
   const diffs = [];
   for (const file of files) {
     const a = fs.readFileSync(path.join(dirA, slug, file));
