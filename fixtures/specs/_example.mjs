@@ -116,8 +116,14 @@ const spec = {
                 {
                   id: 'cmt-thread-1',
                   author: 'bob',
-                  at: '2024-01-02T02:30:00-05:00',
+                  at: '2024-01-02T02:00:00-05:00',
                   body: 'The return string is hello.',
+                },
+                {
+                  id: 'cmt-thread-reply',
+                  author: 'ada',
+                  at: '2024-01-02T02:40:00-05:00',
+                  body: 'I will fix the return string.',
                 },
               ],
             },
@@ -232,6 +238,31 @@ const spec = {
         },
       ],
       answer: 'cmt-answer-1',
+    },
+    {
+      type: 'pr',
+      number: 7,
+      title: 'Note the version',
+      author: 'ada',
+      body: 'One commit, made in the web editor, then squash-merged.',
+      labels: [],
+      branch: 'version-note',
+      openedAt: '2024-01-04T06:00:00Z',
+      commits: [
+        {
+          key: 'c-version',
+          at: '2024-01-04T07:00:00Z',
+          author: 'ada',
+          via: 'web',
+          message: 'Note the version in the readme.\n\nThe note is only a version line.',
+          files: {
+            'README.md': 'Project notes.\nThe first decision lives in git.\nVersion 0.1.0.\n',
+          },
+        },
+      ],
+      reviews: [],
+      comments: [],
+      outcome: { kind: 'merged', at: '2024-01-04T08:00:00Z', by: 'bob', method: 'squash' },
     },
     {
       type: 'tag',

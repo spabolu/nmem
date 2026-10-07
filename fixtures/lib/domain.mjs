@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import {
   annotatedTag,
   checkoutNewBranch,
@@ -45,6 +46,10 @@ const MENTION = /\b(pull requests?|prs?|issues?|discussions?)\s+#(\d+)/gi;
 const CLOSING = /\b(?:close[sd]?|fix(?:es|ed)?|resolve[sd]?):?\s+#(\d+)/gi;
 const HASH_REF = /(?<![A-Za-z0-9])#(\d+)/g;
 const GITHUB_COMMITTER = { name: 'GitHub', email: 'noreply@github.com' };
+const TIME_KEYS = new Set(['at', 'openedAt', 'closedAt', 'mergedAt', 'createdAt', 'updatedAt']);
+// GitHub REST ids are 9-10 digits. 48 bits of SHA-256, folded into that range.
+const GITHUB_ID_MIN = 100_000_000;
+const GITHUB_ID_SPAN = 9_900_000_000;
 
 function object(value, path, ctx) {
   if (value === null || typeof value !== 'object' || Array.isArray(value)) {
@@ -244,6 +249,27 @@ function reactions(value, path, ctx) {
 function claimId(ctx, id, kind, path) {
   if (ctx.ids.has(id)) ctx.fail(path, `duplicate id ${JSON.stringify(id)}`);
   ctx.ids.set(id, kind);
+  ctx.idPaths.set(id, path);
+}
+
+// Stable across runs and machines. Collision-checked per repo at parse time.
+function githubNumericId(specId) {
+  const n = createHash('sha256').update(specId).digest().readUIntBE(0, 6);
+  return GITHUB_ID_MIN + (n % GITHUB_ID_SPAN);
+}
+
+function commentLocator(specId, parent) {
+  return `comment:${githubNumericId(specId)} on ${parent}`;
+}
+
+function assertGithubIds(ctx) {
+  const taken = new Map();
+  for (const [id, path] of ctx.idPaths) {
+    const num = githubNumericId(id);
+    const prior = taken.get(num);
+    if (prior) ctx.fail(path, `github id ${num} collides with ${prior.path} (${JSON.stringify(prior.id)})`);
+    taken.set(num, { id, path });
+  }
 }
 
 function claimKey(ctx, key, path) {
@@ -311,7 +337,7 @@ function parseComment(raw, path, ctx, { replies }) {
 
 function parseCommit(raw, path, ctx) {
   const obj = object(raw, path, ctx);
-  rejectUnknown(obj, path, ctx, ['key', 'at', 'author', 'identity', 'message', 'files']);
+  rejectUnknown(obj, path, ctx, ['key', 'at', 'author', 'identity', 'via', 'message', 'files']);
   requireFields(obj, path, ctx, ['key', 'at', 'author', 'message', 'files']);
   const key = nonEmpty(obj.key, `${path}.key`, ctx);
   claimKey(ctx, key, `${path}.key`);
@@ -331,6 +357,7 @@ function parseCommit(raw, path, ctx) {
     }
     commit.identity = identity;
   }
+  if (Object.hasOwn(obj, 'via')) commit.via = oneOf(obj.via, `${path}.via`, ctx, ['web']);
   return commit;
 }
 
@@ -494,16 +521,18 @@ function commitIdentity(spec, commit) {
   const person = spec.people[commit.author];
   const source = commit.identity ? person.identities[commit.identity] : person;
   const linked = commit.identity ? source.linked : true;
-  return {
+  const author = {
     name: source.name,
     email: source.email,
     login: linked ? commit.author : null,
     date: gitDate(commit.at),
   };
+  if (commit.via !== 'web') return author;
+  return { ...author, committer: { ...GITHUB_COMMITTER, date: gitDate(commit.at) } };
 }
 
-function landingIdentity(spec, step) {
-  const person = spec.people[step.outcome.by];
+function landingIdentity(spec, step, authorHandle) {
+  const person = spec.people[authorHandle];
   return {
     name: person.name,
     email: person.email,
@@ -521,6 +550,14 @@ const LANDING_MESSAGE = {
     return `Merge pull request #${step.number} from ${repo.spec.owner}/${step.branch}\n\n${step.title}`;
   },
   squash(repo, step) {
+    if (step.commits.length === 1) {
+      const message = step.commits[0].message;
+      const nl = message.indexOf('\n');
+      const subject = nl === -1 ? message : message.slice(0, nl);
+      const rest = nl === -1 ? '' : message.slice(nl);
+      const out = `${subject} (#${step.number})${rest}`;
+      return out.endsWith('\n') ? out : `${out}\n`;
+    }
     const subjects = step.commits.map((commit) => `* ${commit.message.split('\n')[0]}`);
     return `${step.title} (#${step.number})\n\n${subjects.join('\n')}\n`;
   },
@@ -528,10 +565,10 @@ const LANDING_MESSAGE = {
 
 const LANDING = {
   merge(repo, step, message) {
-    return mergeNoFf(repo.dir, step.branch, landingIdentity(repo.spec, step), message);
+    return mergeNoFf(repo.dir, step.branch, landingIdentity(repo.spec, step, step.outcome.by), message);
   },
   squash(repo, step, message) {
-    return squashOntoMain(repo.dir, step.branch, landingIdentity(repo.spec, step), message);
+    return squashOntoMain(repo.dir, step.branch, landingIdentity(repo.spec, step, step.author), message);
   },
 };
 
@@ -554,7 +591,7 @@ function emitComment(comment) {
   const edits = comment.edits ?? [];
   const current = edits.at(-1);
   const out = {
-    id: comment.id,
+    id: githubNumericId(comment.id),
     author: comment.author,
     body: current ? current.body : comment.body,
     createdAt: comment.at,
@@ -579,14 +616,14 @@ function latestCommitAt(commits, at) {
 
 function emitReview(review, commits) {
   return {
-    id: review.id,
+    id: githubNumericId(review.id),
     author: review.author,
     at: review.at,
     state: review.state,
     body: review.body,
     commitSha: latestCommitAt(commits, review.at).sha,
     threads: review.threads.map((thread) => ({
-      id: thread.id,
+      id: githubNumericId(thread.id),
       path: thread.path,
       line: thread.line,
       resolved: thread.resolved ?? false,
@@ -624,6 +661,20 @@ function indexComment(repo, comment, locator) {
     current: currentBody(comment),
     locator,
   });
+}
+
+// The landing boilerplate names the PR being landed. That self-reference is not a cross-reference.
+function withoutLandingSelfRef(step, message) {
+  const n = step.number;
+  if (step.outcome.method === 'merge') {
+    return message.replace(`Merge pull request #${n} from `, 'Merge pull request from ');
+  }
+  const nl = message.indexOf('\n');
+  const head = nl === -1 ? message : message.slice(0, nl);
+  const tail = nl === -1 ? '' : message.slice(nl);
+  const suffix = ` (#${n})`;
+  if (!head.endsWith(suffix)) return message;
+  return `${head.slice(0, -suffix.length)}${tail}`;
 }
 
 function scan(repo, locator, text) {
@@ -718,7 +769,7 @@ const OUTCOME = {
     const message = LANDING_MESSAGE[step.outcome.method](repo, step);
     const sha = LANDING[step.outcome.method](repo, step, message);
     repo.manifest[`merge-pr-${step.number}`] = sha;
-    scan(repo, shortSha(sha), message);
+    scan(repo, shortSha(sha), withoutLandingSelfRef(step, message));
     const closingIssues = closingNumbers(step.body);
     for (const number of closingIssues) closeFromPull(repo, number, step);
     return {
@@ -741,7 +792,7 @@ const OUTCOME = {
 const STEP_HANDLERS = {
   commit: {
     parse(raw, path, ctx) {
-      rejectUnknown(raw, path, ctx, ['type', 'key', 'at', 'author', 'identity', 'message', 'files']);
+      rejectUnknown(raw, path, ctx, ['type', 'key', 'at', 'author', 'identity', 'via', 'message', 'files']);
       const commit = { ...raw };
       delete commit.type;
       return { type: 'commit', ...parseCommit(commit, path, ctx) };
@@ -835,13 +886,15 @@ const STEP_HANDLERS = {
           ctx.fail(reviewPath, `time ${review.at} is before ${path}.reviews[${i - 1}].at (${step.reviews[i - 1].at})`);
         }
         review.threads.forEach((thread, j) => {
-          walkComments(
-            ctx,
-            thread.comments,
-            `${path}.reviews[${i}].threads[${j}].comments`,
-            point(reviewPath, review.at),
-            end,
-          );
+          const commentsPath = `${path}.reviews[${i}].threads[${j}].comments`;
+          const first = thread.comments[0];
+          if (first && instant(first.at) > instant(review.at)) {
+            ctx.fail(
+              `${commentsPath}[0].at`,
+              `first thread comment at ${first.at} is after review at ${review.at}`,
+            );
+          }
+          walkComments(ctx, thread.comments, commentsPath, start, end);
         });
       });
       if (step.reviews.length > 0) {
@@ -881,17 +934,17 @@ const STEP_HANDLERS = {
       ensureMain(repo.dir);
       const outcome = OUTCOME[step.outcome.kind](repo, step);
       for (const review of step.reviews) {
-        const locator = `comment:${review.id} on pr#${step.number}`;
+        const locator = commentLocator(review.id, `pr#${step.number}`);
         indexComment(repo, { id: review.id, body: review.body }, locator);
         scan(repo, locator, review.body);
         for (const thread of review.threads) {
           for (const comment of thread.comments) {
-            scanComment(repo, comment, `comment:${comment.id} on pr#${step.number}`);
+            scanComment(repo, comment, commentLocator(comment.id, `pr#${step.number}`));
           }
         }
       }
       for (const comment of step.comments) {
-        scanComment(repo, comment, `comment:${comment.id} on pr#${step.number}`);
+        scanComment(repo, comment, commentLocator(comment.id, `pr#${step.number}`));
       }
       repo.pulls.push({
         number: step.number,
@@ -975,7 +1028,7 @@ const STEP_HANDLERS = {
       const locator = `issue#${step.number}`;
       scan(repo, locator, `${step.title}\n${step.body}`);
       for (const comment of step.comments) {
-        scanComment(repo, comment, `comment:${comment.id} on issue#${step.number}`);
+        scanComment(repo, comment, commentLocator(comment.id, `issue#${step.number}`));
       }
       repo.issues.push(issueRecord(step));
     },
@@ -1031,9 +1084,9 @@ const STEP_HANDLERS = {
     apply(repo, step) {
       scan(repo, `discussion#${step.number}`, `${step.title}\n${step.body}`);
       for (const comment of step.comments) {
-        scanComment(repo, comment, `comment:${comment.id} on discussion#${step.number}`);
+        scanComment(repo, comment, commentLocator(comment.id, `discussion#${step.number}`));
         for (const reply of comment.replies) {
-          scanComment(repo, reply, `comment:${reply.id} on discussion#${step.number}`);
+          scanComment(repo, reply, commentLocator(reply.id, `discussion#${step.number}`));
         }
       }
       repo.discussions.push({
@@ -1044,7 +1097,7 @@ const STEP_HANDLERS = {
         at: step.at,
         body: step.body,
         reactions: step.reactions,
-        answerId: step.answer ?? null,
+        answerId: step.answer ? githubNumericId(step.answer) : null,
         comments: step.comments.map(emitDiscussionComment),
       });
     },
@@ -1343,6 +1396,7 @@ const REF_RESOLVERS = {
         locator: hit.locator,
         label: hit.locator,
         cited: true,
+        githubId: githubNumericId(ref.id),
       };
     },
   },
@@ -1512,6 +1566,7 @@ export function parseSpec(input, expectedSlug) {
     },
     people: {},
     ids: new Map(),
+    idPaths: new Map(),
     revisions: new Map(),
     commitKeys: new Set(),
     numbers: new Map(),
@@ -1539,6 +1594,7 @@ export function parseSpec(input, expectedSlug) {
     }
     return STEP_HANDLERS[body.type].parse(body, path, ctx);
   });
+  assertGithubIds(ctx);
   assertTimes(steps, ctx);
   assertGraph(steps, ctx);
   const answerKey = spec.answerKey.map((entry, i) => parseAnswer(entry, `answerKey[${i}]`, ctx));
@@ -1682,6 +1738,7 @@ function assertMarkers(slug, entry, index, resolved, corpus) {
 function emitRef(ref, resolved) {
   const out = { ...ref, locator: resolved.locator };
   if (resolved.sha) out.sha = resolved.sha;
+  if (resolved.githubId !== undefined) out.githubId = resolved.githubId;
   return out;
 }
 
@@ -1724,8 +1781,23 @@ export function resolveNoise(spec, repo) {
   });
 }
 
+function utcIso(iso) {
+  return new Date(instant(iso)).toISOString().replace(/\.\d{3}Z$/, 'Z');
+}
+
+function utcTimes(value) {
+  if (Array.isArray(value)) return value.map(utcTimes);
+  if (!value || typeof value !== 'object') return value;
+  const out = {};
+  for (const [key, child] of Object.entries(value)) {
+    if (TIME_KEYS.has(key) && typeof child === 'string' && timeParts(child)) out[key] = utcIso(child);
+    else out[key] = utcTimes(child);
+  }
+  return out;
+}
+
 export function githubDocument(spec, repo) {
-  return {
+  return utcTimes({
     repo: {
       name: spec.name,
       owner: spec.owner,
@@ -1740,7 +1812,7 @@ export function githubDocument(spec, repo) {
     releases: repo.releases,
     crossReferences: repo.crossReferences,
     danglingReferences: repo.danglingReferences,
-  };
+  });
 }
 
 function finish(text) {

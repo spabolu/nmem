@@ -50,6 +50,21 @@ const cases = [
       pull.reviews[0].threads[0].comments[0].author = 'ada';
     },
   },
+  {
+    name: 'thread first comment after its review',
+    expect: 'is after review',
+    mutate(copy) {
+      const pull = copy.steps.find((step) => step.type === 'pr' && step.number === 3);
+      pull.reviews[0].threads[0].comments[0].at = '2024-01-02T02:15:00-05:00';
+    },
+  },
+  {
+    name: 'via with an unknown value',
+    expect: 'expected one of web',
+    mutate(copy) {
+      copy.steps[0].via = 'email';
+    },
+  },
 ];
 
 let failed = 0;

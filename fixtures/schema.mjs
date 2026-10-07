@@ -20,9 +20,10 @@
  *
  * @typedef {Record<string, string | null>} FileChanges  path -> full new content, or null to delete
  *
- * @typedef {{ key: string, at: IsoTime, author: Handle, identity?: string, message: string, files: FileChanges }} CommitSpec
+ * @typedef {{ key: string, at: IsoTime, author: Handle, identity?: string, via?: "web", message: string, files: FileChanges }} CommitSpec
  *   key is a stable symbolic id ("c-init"); SHAs are resolved by the generator.
  *   identity selects one of the author's `identities`; omitted means the person's primary name/email.
+ *   via "web" is an edit made in GitHub's web editor: committed by "GitHub <noreply@github.com>".
  *
  * @typedef {"+1" | "-1" | "laugh" | "hooray" | "confused" | "heart" | "rocket" | "eyes"} Reaction
  * @typedef {Partial<Record<Reaction, Handle[]>>} Reactions
@@ -37,7 +38,8 @@
  *   threads: Array<{ id: string, path: string, line: number, resolved?: boolean, comments: Comment[] }>
  * }} Review
  *   A review applies to the latest PR commit at or before its time (emitted as commitSha).
- *   Thread comments after the first may come from anyone; the first comment's author must be the review author.
+ *   Thread comments after the first may come from anyone; the first comment's author must be the review author,
+ *   and it is posted with the review, so its time is at or before the review's time. Replies may come later.
  *
  * @typedef {{ name: string, commit: string, at: IsoTime, conclusion: "success" | "failure" | "cancelled" | "skipped", summary: string }} CheckRun
  *   CI result on one PR commit key.
@@ -58,8 +60,9 @@
  *   Branches from main's tip, applies commits in order, then lands or closes. Commits, reviews, comments and checks may
  *   interleave in time (a fix pushed after "changes requested"); each list is in time order and all sit between
  *   openedAt and the outcome. The first review must follow at least one commit.
- *   method "merge" (default) makes a --no-ff merge commit. "squash" makes one commit on main titled "<title> (#n)".
- *   Both are committed by "GitHub <noreply@github.com>", as GitHub's web merge does.
+ *   method "merge" (default) makes a --no-ff merge commit authored by the merger. "squash" makes one commit on main
+ *   authored by the PR author, titled "<title> (#n)" with "* <subject>" lines, or for a single-commit PR that commit's
+ *   own subject with " (#n)" and its body. Both are committed by "GitHub <noreply@github.com>", as GitHub's web merge does.
  *   A merged PR whose body says "Closes #n", "Fixes #n" or "Resolves #n" (any case/tense) closes issue n at merge time.
  *
  * @typedef {{
@@ -122,6 +125,11 @@
  *   evidence: Ref[]
  * }} NoiseNote
  *   Deliberate mess planted to test robustness. Listed so an evaluation can tell planted noise from generator bugs.
+ *
+ * Output shape (github.json) follows the GitHub API, not the spec: times are UTC with "Z", and comments, reviews and
+ * threads carry numeric ids derived deterministically from the spec id. Spec ids never appear in github.json; they are
+ * mapped to numeric ids in answer-key.json and noise.json so evidence still resolves. A landing commit's own "(#n)" is
+ * not a cross-reference.
  *
  * @typedef {{
  *   slug: string, name: string, owner: string, description: string,
