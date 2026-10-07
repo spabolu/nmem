@@ -357,7 +357,7 @@ func (s *Shifts) Reassign(date time.Time, from, to string) error {
 `,
 ].join('\n'));
 
-const assignGo = (noRepeat) => go(`package schedule
+const assignGo = (noRepeat, fewer = '<') => go(`package schedule
 
 import (
     "slices"
@@ -390,7 +390,7 @@ ${noRepeat ? '    last := map[string]time.Time{}\n' : ''}    var shifts []Shift
 ${noRepeat ? `            if last[v.Name].Equal(day.AddDate(0, 0, -1)) {
                 continue
             }
-` : ''}            if pick == "" || count[v.Name] < count[pick] {
+` : ''}            if pick == "" || count[v.Name] ${fewer} count[pick] {
                 pick = v.Name
             }
         }
@@ -757,7 +757,7 @@ func TestTokenRoundTrip(t *testing.T) {
 }
 `);
 
-const swapWebGo = go(`package main
+const swapWebGo = (checkTaker) => go(`package main
 
 import (
     "html/template"
@@ -792,7 +792,11 @@ func swapRoutes(signer swap.Signer, shifts *store.Shifts, roster *store.Store) {
             return
         }
         taker := r.FormValue("taker")
-        if err := shifts.Reassign(date, name, taker); err != nil {
+${checkTaker ? `        if !onRoster(roster, taker) {
+            http.Error(w, "Please pick someone from the list.", http.StatusBadRequest)
+            return
+        }
+` : ''}        if err := shifts.Reassign(date, name, taker); err != nil {
             log.Printf("swap %s -> %s: %v", name, taker, err)
             http.Error(w, "We couldn't make that swap. Please call Rosa.", http.StatusInternalServerError)
             return
@@ -800,7 +804,23 @@ func swapRoutes(signer swap.Signer, shifts *store.Shifts, roster *store.Store) {
         page.Execute(w, map[string]any{"Done": true, "Date": date, "Taker": taker})
     })
 }
-`);
+${checkTaker ? `
+// onRoster reports whether name is on the roster. remind looks every
+// scheduled name up there, so a name that isn't would stop that night's run.
+func onRoster(roster *store.Store, name string) bool {
+    everyone, err := roster.All()
+    if err != nil {
+        log.Printf("swap: %v", err)
+        return false
+    }
+    for _, v := range everyone {
+        if v.Name == name {
+            return true
+        }
+    }
+    return false
+}
+` : ''}`);
 
 const swapHtml = `<!doctype html>
 <html lang="en">
@@ -938,7 +958,28 @@ const codeowners = `# Scheduling and reminders: Minh reviews changes here.
 /docs/volunteer-handbook.md  @rosa-delgado
 `;
 
+const ciWorkflow = `name: test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - run: go vet ./...
+      - run: go test ./...
+`;
+
 const readme = (...parts) => parts.join('\n');
+
+const passed = (commit, at, summary = 'go vet ./... and go test ./... passed') => ({ name: 'test', commit, at, conclusion: 'success', summary });
 
 const R = {
   title: `# seedling
@@ -1086,7 +1127,7 @@ Date: 2024-08-06
 
 When volunteers can't make a shift they text Rosa, and Rosa texts around
 for a sub. She asked for a way around that in discussion #5.
-PR #6 tried volunteer accounts with passwords. We closed it. Many of our
+PR #7 tried volunteer accounts with passwords. We closed it. Many of our
 volunteers won't keep track of a password, lockouts would land on Rosa
 anyway, and we don't want password hashes in a file that gets opened in a
 spreadsheet (ADR-0001).
@@ -1119,7 +1160,7 @@ Texting cost about $40 a month at the height of the season.
 
 Several longtime volunteers told Rosa they would rather read a paper
 schedule at the shed than get messages on their phones, and some never
-used the swap link. See discussion #11.
+used the swap link. See discussion #15.
 
 ## Decision
 
@@ -1299,6 +1340,7 @@ const spec = {
 
 No deps, stdlib only.`,
       labels: ['feature'],
+      requestedReviewers: ['tlindqvist'],
       branch: 'csv-export',
       openedAt: '2024-04-13T18:02:00Z',
       commits: [
@@ -1360,6 +1402,16 @@ No deps, stdlib only.`,
       },
     },
     {
+      type: 'commit',
+      key: 'c-ci',
+      at: '2024-04-23T03:10:00Z',
+      author: 'tlindqvist',
+      message: 'CI: go vet and go test on pushes to main and on PRs',
+      files: {
+        '.github/workflows/test.yml': ciWorkflow,
+      },
+    },
+    {
       type: 'tag',
       name: 'v0.1.0',
       at: '2024-04-27T14:00:00Z',
@@ -1379,6 +1431,7 @@ No deps, stdlib only.`,
 
 I'll deploy it to the little VPS Tobias set up (the "garden server").`,
       labels: ['feature'],
+      requestedReviewers: ['tlindqvist'],
       branch: 'signup-site',
       openedAt: '2024-05-11T19:00:00Z',
       commits: [
@@ -1426,6 +1479,7 @@ I'll deploy it to the little VPS Tobias set up (the "garden server").`,
               id: 'pr2-th-store',
               path: 'internal/store/store.go',
               line: 32,
+              resolved: true,
               comments: [
                 {
                   id: 'pr2-thread-tobias',
@@ -1463,6 +1517,10 @@ I'll deploy it to the little VPS Tobias set up (the "garden server").`,
           at: '2024-05-17T15:30:00Z',
           body: 'Signed up. Easier than the paper list in the shed.\n\nWalt',
         },
+      ],
+      checks: [
+        passed('c-serve', '2024-05-11T21:41:00Z'),
+        passed('c-adr1', '2024-05-12T16:14:00Z'),
       ],
       outcome: { kind: 'merged', at: '2024-05-18T15:00:00Z', by: 'minhtran' },
     },
@@ -1503,6 +1561,7 @@ I'll deploy it to the little VPS Tobias set up (the "garden server").`,
               author: 'rosa-delgado',
               at: '2024-06-04T01:15:00Z',
               body: "Hi Walt! The garden lot belongs to the church next door and we rent it for a dollar a year. When we signed the lease with Grace Lutheran, the one thing Pastor Ruth asked for was quiet Sunday mornings for the congregation. The sanctuary windows look right out on beds 1-6 and the rain barrel pump is LOUD. We could have done 'Sunday afternoons only' but I didn't want to be the one policing that, so we just said no Sunday shifts at all.",
+              reactions: { heart: ['waltb'], '+1': ['minhtran'] },
             },
             {
               id: 'disc3-walt',
@@ -1533,6 +1592,7 @@ I'll deploy it to the little VPS Tobias set up (the "garden server").`,
           ],
         },
       ],
+      answer: 'disc3-minh',
     },
     {
       type: 'pr',
@@ -1547,6 +1607,7 @@ I'll deploy it to the little VPS Tobias set up (the "garden server").`,
 
 \`seedling export -from 2024-06-24 > shifts.csv\`, then Rosa can tweak it in Sheets before posting.`,
       labels: ['scheduling'],
+      requestedReviewers: ['tlindqvist', 'rosa-delgado'],
       branch: 'auto-schedule',
       openedAt: '2024-06-20T23:10:00Z',
       commits: [
@@ -1556,8 +1617,17 @@ I'll deploy it to the little VPS Tobias set up (the "garden server").`,
           author: 'minhtran',
           message: 'schedule.Assign: fewest shifts first',
           files: {
-            'internal/schedule/assign.go': assignGo(false),
+            'internal/schedule/assign.go': assignGo(false, '<='),
             'internal/schedule/assign_test.go': assignTestGo(['Ana', 'Ben', 'Ana', 'Ana', 'Ana', 'Ana']),
+          },
+        },
+        {
+          key: 'c-assign-ties',
+          at: '2024-06-20T23:41:00Z',
+          author: 'minhtran',
+          message: 'Assign: ties go to the earlier volunteer\n\n<= let a later volunteer with the same count take the day, so Ben got\nMonday instead of Ana. Strict < keeps roster order.\n',
+          files: {
+            'internal/schedule/assign.go': assignGo(false),
           },
         },
         {
@@ -1612,7 +1682,7 @@ I'll deploy it to the little VPS Tobias set up (the "garden server").`,
           author: 'tlindqvist',
           at: '2024-06-24T02:30:00Z',
           state: 'APPROVED',
-          body: 'lgtm. The test reads nicely, even Rosa could follow it apparently :)',
+          body: 'lgtm. Glad the test caught the tie-break on the first push. It reads nicely too, even Rosa could follow it apparently :)',
           threads: [],
         },
       ],
@@ -1623,6 +1693,17 @@ I'll deploy it to the little VPS Tobias set up (the "garden server").`,
           at: '2024-06-29T16:20:00Z',
           body: "Merging so I can run it for the week of Jul 1. The two-days-in-a-row change from Rosa's comment comes next, separately.",
         },
+      ],
+      checks: [
+        {
+          name: 'test',
+          commit: 'c-assign',
+          at: '2024-06-20T23:15:00Z',
+          conclusion: 'failure',
+          summary: '--- FAIL: TestAssign (0.00s)\n    assign_test.go:22: Mon: got "Ben", want "Ana"\n    assign_test.go:22: Tue: got "Ana", want "Ben"\nFAIL\tgithub.com/eastside-commons/seedling/internal/schedule',
+        },
+        passed('c-assign-ties', '2024-06-20T23:45:00Z'),
+        passed('c-export-assign', '2024-06-21T00:34:00Z'),
       ],
       outcome: { kind: 'merged', at: '2024-06-29T16:22:00Z', by: 'minhtran' },
     },
@@ -1645,6 +1726,7 @@ I'll deploy it to the little VPS Tobias set up (the "garden server").`,
       author: 'rosa-delgado',
       at: '2024-07-06T18:30:00Z',
       body: "Every week I get four to six texts that go 'Rosa I can't do Thursday, can you find someone?' and then I spend my lunch break texting down the list. Is there a way the app could let people trade shifts with each other without me in the middle? Even something simple. I'm not picky about how, I just want my lunch break back.",
+      reactions: { '+1': ['waltb', 'minhtran'], heart: ['tlindqvist'] },
       comments: [
         {
           id: 'disc5-walt',
@@ -1683,11 +1765,33 @@ I'll deploy it to the little VPS Tobias set up (the "garden server").`,
       ],
     },
     {
-      type: 'pr',
+      type: 'issue',
       number: 6,
+      title: 'Let volunteers hand off a shift without going through Rosa',
+      author: 'minhtran',
+      at: '2024-07-09T02:35:00Z',
+      body: `Tracking Rosa's request from discussion #5 so it doesn't get lost.
+
+Today a volunteer who can't make a shift texts Rosa and she finds a sub. Done means a volunteer can give their shift to someone else on the roster with no Rosa in the middle.
+
+Two shapes came up in the discussion: (a) volunteer accounts, (b) a no-login link in each reminder. Tobias is trying (a) first. (b) needs reminders, which I'm building separately.`,
+      labels: ['feature'],
+      assignees: ['tlindqvist'],
+      comments: [
+        {
+          id: 'issue6-tobias',
+          author: 'tlindqvist',
+          at: '2024-07-09T04:20:00Z',
+          body: 'Assigned myself. Should have a branch up by the weekend.',
+        },
+      ],
+    },
+    {
+      type: 'pr',
+      number: 7,
       title: 'Volunteer accounts with passwords (WIP)',
       author: 'tlindqvist',
-      body: `Picking up Rosa's idea from #5, option (a).
+      body: `For #6. This tries option (a) from Rosa's discussion in #5.
 
 This adds an \`internal/auth\` package: you'd set a password when you sign up, then log in at /login to see and drop your shifts. Passwords are bcrypt-hashed and would live in a new column in volunteers.csv.
 
@@ -1697,6 +1801,7 @@ Still TODO:
 
 Opening early to get feedback before I go further. First Go dependency (golang.org/x/crypto), sorry Minh.`,
       labels: ['feature', 'wip'],
+      requestedReviewers: ['minhtran'],
       branch: 'volunteer-accounts',
       openedAt: '2024-07-12T04:15:00Z',
       commits: [
@@ -1715,43 +1820,47 @@ Opening early to get feedback before I go further. First Go dependency (golang.o
       reviews: [],
       comments: [
         {
-          id: 'pr6-rosa',
+          id: 'pr7-rosa',
           author: 'rosa-delgado',
           at: '2024-07-13T14:00:00Z',
           body: "Tobias thank you for jumping on this! But I have to be honest, a password is going to be a dealbreaker for a lot of our crew. Walt keeps his passwords on an index card in his wallet and he's one of the organized ones. If people get locked out they'll text me anyway, which is the thing we're trying to fix.",
         },
         {
-          id: 'pr6-minh',
+          id: 'pr7-minh',
           author: 'minhtran',
           at: '2024-07-13T19:30:00Z',
           body: "+1 to Rosa. I'm also not thrilled about password hashes in a CSV that Rosa opens in Google Sheets (ADR-0001). What about (b): a link in the reminder text that lets you hand off that one shift. Signed token, expires after the shift date, no login. I'm close on the text reminders.",
         },
         {
-          id: 'pr6-walt',
+          id: 'pr7-walt',
           author: 'waltb',
           at: '2024-07-14T16:10:00Z',
           body: 'For the record it is a very organized index card. But yes, no passwords please.',
         },
         {
-          id: 'pr6-tobias',
+          id: 'pr7-tobias',
           author: 'tlindqvist',
           at: '2024-07-17T03:05:00Z',
-          body: "Ha, ok, fair on all counts. Closing this. I'll do the link version once Minh's reminders are in.",
+          body: "Ha, ok, fair on all counts. Closing this. I'll do the link version for #6 once Minh's reminders are in.",
         },
+      ],
+      checks: [
+        passed('c-accounts', '2024-07-12T04:21:00Z', 'go vet ./... and go test ./... passed (internal/auth has no test files)'),
       ],
       outcome: { kind: 'closed', at: '2024-07-17T03:06:00Z', by: 'tlindqvist' },
     },
     {
       type: 'pr',
-      number: 7,
+      number: 8,
       title: 'Text message reminders the evening before a shift',
       author: 'minhtran',
       body: `Adds \`seedling remind\`. Cron on the garden server runs it at 6pm. It looks up tomorrow in shifts.csv and texts that volunteer through Twilio (plain REST call, no SDK).
 
 The Neighborhood Fund micro-grant pays for Twilio this year, details in ADR-0002. The sign-up form now asks for a cell number specifically.
 
-Also adds internal/store/shifts.go so remind can read the schedule. This is step one for the swap idea in #5, the swap link can go in these texts.`,
+Also adds internal/store/shifts.go so remind can read the schedule. This is step one for #6, the swap link can go in these texts.`,
       labels: ['notifications'],
+      requestedReviewers: ['tlindqvist'],
       branch: 'sms-reminders',
       openedAt: '2024-07-22T22:00:00Z',
       commits: [
@@ -1789,25 +1898,25 @@ Also adds internal/store/shifts.go so remind can read the schedule. This is step
       ],
       reviews: [
         {
-          id: 'pr7-rv-tobias',
+          id: 'pr8-rv-tobias',
           author: 'tlindqvist',
           at: '2024-07-25T03:00:00Z',
           state: 'APPROVED',
           body: "lgtm, tried it with Twilio's test credentials and my own number.",
           threads: [
             {
-              id: 'pr7-th-sms',
+              id: 'pr8-th-sms',
               path: 'internal/notify/sms.go',
               line: 31,
               comments: [
                 {
-                  id: 'pr7-thread-tobias',
+                  id: 'pr8-thread-tobias',
                   author: 'tlindqvist',
                   at: '2024-07-25T03:00:00Z',
                   body: "Twilio's error body is actually useful (stuff like 'unverified To number'). Worth reading it into the error?",
                 },
                 {
-                  id: 'pr7-thread-minh',
+                  id: 'pr8-thread-minh',
                   author: 'minhtran',
                   at: '2024-07-25T12:30:00Z',
                   body: 'good call. later though, I want this live before the heat next week.',
@@ -1819,29 +1928,80 @@ Also adds internal/store/shifts.go so remind can read the schedule. This is step
       ],
       comments: [
         {
-          id: 'pr7-rosa',
+          id: 'pr8-rosa',
           author: 'rosa-delgado',
           at: '2024-07-26T15:00:00Z',
-          body: 'I confirmed with the Neighborhood Fund, the $300 covers texting through the end of the year. Please keep the message short, people hate long texts!',
+          body: "I confirmed with the Neighborhood Fund, the $300 covers texting for the whole season. Please keep the message short, people hate long texts!",
+          edits: [
+            {
+              at: '2024-07-27T16:40:00Z',
+              body: "I confirmed with the Neighborhood Fund, the $300 covers texting through the end of the year. Please keep the message short, people hate long texts!\n\nEdit: I first wrote 'for the whole season'. They called back, it's the calendar year, so it runs out Dec 31.",
+            },
+          ],
+          reactions: { '+1': ['minhtran'] },
         },
+      ],
+      checks: [
+        passed('c-sms', '2024-07-22T22:05:00Z'),
+        passed('c-adr2', '2024-07-23T02:19:00Z'),
       ],
       outcome: { kind: 'merged', at: '2024-07-29T22:30:00Z', by: 'minhtran' },
     },
     {
+      type: 'issue',
+      number: 9,
+      title: "Can the app text everybody at once when it's really hot?",
+      author: 'rosa-delgado',
+      at: '2024-07-30T15:20:00Z',
+      body: "The forecast says 97 on Thursday and 99 on Friday. When it gets like this I need a few extra people to come water in the evening, and right now I text the whole crew one by one from my phone, which takes most of an hour. Now that the app sends texts, could it send one message to everybody at once? Something like 'Heat wave, extra watering tonight, can you come?'",
+      labels: ['notifications'],
+      comments: [
+        {
+          id: 'issue9-minh',
+          author: 'minhtran',
+          at: '2024-07-30T23:40:00Z',
+          body: "It could, Twilio doesn't care if it's 1 text or 30. Two things make me hesitate. Replies would go to the Twilio number, not to you, so I'd have to build something to read them and pass them on. And 30 people times a few heat waves is a real bite out of the $300, which we sized for one reminder per shift. Not a no, just not a quick one.",
+        },
+        {
+          id: 'issue9-rosa',
+          author: 'rosa-delgado',
+          at: '2024-07-31T14:05:00Z',
+          body: "Oh, I didn't think about the replies. The whole point is people text me back 'I can come at 7' and I sort it out. If the answers go to a robot that's worse, not better.",
+        },
+        {
+          id: 'issue9-walt',
+          author: 'waltb',
+          at: '2024-07-31T18:30:00Z',
+          body: "For what it's worth, when it's Rosa asking, I come. When it's the machine asking, I figure somebody else will.",
+          reactions: { heart: ['rosa-delgado'], laugh: ['tlindqvist'] },
+        },
+        {
+          id: 'issue9-rosa-2',
+          author: 'rosa-delgado',
+          at: '2024-08-01T13:00:00Z',
+          body: "Walt settles it. I'll keep texting the crew myself when it's hot, people answer me faster anyway. Let's save the grant money for the reminders. Closing this.",
+        },
+      ],
+      outcome: { kind: 'closed', at: '2024-08-01T13:01:00Z', by: 'rosa-delgado', reason: 'not_planned' },
+    },
+    {
       type: 'pr',
-      number: 8,
+      number: 10,
       title: 'Swap-a-shift link in reminder texts',
       author: 'tlindqvist',
-      body: `Closes #5.
+      body: `Closes #6.
 
-Rosa asked for a way for volunteers to trade shifts without going through her. This is Minh's option (b) from that thread:
+Rosa asked for a way for volunteers to trade shifts without going through her (discussion #5). This is Minh's option (b) from that thread:
 
 - every reminder text ends with a link
 - the link opens a page with your shift and a dropdown of everyone on the roster
 - pick who's taking it, hit the button, shifts.csv is updated
 
-No accounts or passwords (see #6 for why not, and ADR-0003). Links are HMAC-signed with SEEDLING_SWAP_KEY and stop working after the shift date.`,
+No accounts or passwords (see #7 for why not, and ADR-0003). Links are HMAC-signed with SEEDLING_SWAP_KEY and stop working after the shift date.`,
       labels: ['feature'],
+      assignees: ['tlindqvist'],
+      requestedReviewers: ['minhtran'],
+      reactions: { hooray: ['rosa-delgado', 'waltb'] },
       branch: 'swap-link',
       openedAt: '2024-08-05T03:30:00Z',
       commits: [
@@ -1861,7 +2021,7 @@ No accounts or passwords (see #6 for why not, and ADR-0003). Links are HMAC-sign
           author: 'tlindqvist',
           message: 'swap page + link in reminder text',
           files: {
-            'cmd/seedling/swap.go': swapWebGo,
+            'cmd/seedling/swap.go': swapWebGo(false),
             'cmd/seedling/serve.go': serveGo(true),
             'cmd/seedling/remind.go': remindGoV2,
             'cmd/seedling/main.go': mainGo(commandsV4),
@@ -1879,34 +2039,78 @@ No accounts or passwords (see #6 for why not, and ADR-0003). Links are HMAC-sign
             'README.md': readme(R.title, R.needsGo('1.22'), R.signup, R.schedule, R.remindSmsSwap),
           },
         },
+        {
+          key: 'c-swap-taker',
+          at: '2024-08-09T02:25:00Z',
+          author: 'tlindqvist',
+          message: "swap: only hand a shift to someone on the roster\n\nA name that isn't in volunteers.csv would make remind fail the next\nevening. Caught in review.\n",
+          files: {
+            'cmd/seedling/swap.go': swapWebGo(true),
+          },
+        },
       ],
       reviews: [
         {
-          id: 'pr8-rv-minh',
+          id: 'pr10-rv-minh-changes',
+          author: 'minhtran',
+          at: '2024-08-08T03:15:00Z',
+          state: 'CHANGES_REQUESTED',
+          body: "Token code looks solid and the test covers the cases I'd worry about. One thing has to change before this goes live, inline.",
+          threads: [
+            {
+              id: 'pr10-th-taker',
+              path: 'cmd/seedling/swap.go',
+              line: 35,
+              resolved: true,
+              comments: [
+                {
+                  id: 'pr10-thread-minh-taker',
+                  author: 'minhtran',
+                  at: '2024-08-08T03:15:00Z',
+                  body: "`taker` comes straight from the form and goes into shifts.csv unchecked. If someone edits the page, or Rosa fixes a name in volunteers.csv between the page loading and the submit, we write a name that isn't on the roster. The next evening remind's find() errors, log.Fatal stops the run, and nobody gets a reminder. Can we check taker against the roster first?",
+                },
+                {
+                  id: 'pr10-thread-tobias-taker',
+                  author: 'tlindqvist',
+                  at: '2024-08-09T02:40:00Z',
+                  body: "Oof, good catch. Pushed a fix: POST /swap only accepts names on the roster now, and otherwise says 'Please pick someone from the list.'",
+                },
+                {
+                  id: 'pr10-thread-minh-taker-2',
+                  author: 'minhtran',
+                  at: '2024-08-10T16:55:00Z',
+                  body: 'Looks right, resolving.',
+                },
+              ],
+            },
+          ],
+        },
+        {
+          id: 'pr10-rv-minh',
           author: 'minhtran',
           at: '2024-08-10T17:00:00Z',
           state: 'APPROVED',
-          body: 'Really nice. Tested on staging with my phone. One question inline.',
+          body: 'Roster check looks good. Tested on staging with my phone, really nice. One question inline.',
           threads: [
             {
-              id: 'pr8-th-open',
+              id: 'pr10-th-open',
               path: 'internal/swap/swap.go',
               line: 23,
               comments: [
                 {
-                  id: 'pr8-thread-minh',
+                  id: 'pr10-thread-minh',
                   author: 'minhtran',
                   at: '2024-08-10T17:00:00Z',
                   body: 'What happens if someone forwards the link?',
                 },
                 {
-                  id: 'pr8-thread-tobias',
+                  id: 'pr10-thread-tobias',
                   author: 'tlindqvist',
                   at: '2024-08-11T01:20:00Z',
                   body: "Whoever has it can hand off that one shift, nothing else. Same as forwarding the text to a friend and asking them to cover. I wrote that down under consequences in the ADR.",
                 },
                 {
-                  id: 'pr8-thread-minh-2',
+                  id: 'pr10-thread-minh-2',
                   author: 'minhtran',
                   at: '2024-08-11T14:00:00Z',
                   body: 'Works for me.',
@@ -1918,11 +2122,17 @@ No accounts or passwords (see #6 for why not, and ADR-0003). Links are HMAC-sign
       ],
       comments: [
         {
-          id: 'pr8-rosa',
+          id: 'pr10-rosa',
           author: 'rosa-delgado',
           at: '2024-08-15T23:10:00Z',
           body: 'Walt and I tested it on his phone at the garden tonight. He tapped the link, picked Dolores for his Thursday, and it showed up on the schedule. I may cry. THANK YOU Tobias!!',
+          reactions: { heart: ['tlindqvist', 'minhtran'] },
         },
+      ],
+      checks: [
+        passed('c-swap', '2024-08-05T03:35:00Z'),
+        passed('c-adr3', '2024-08-06T02:49:00Z'),
+        passed('c-swap-taker', '2024-08-09T02:29:00Z'),
       ],
       outcome: { kind: 'merged', at: '2024-08-16T02:00:00Z', by: 'minhtran' },
     },
@@ -1932,14 +2142,42 @@ No accounts or passwords (see #6 for why not, and ADR-0003). Links are HMAC-sign
       at: '2024-08-17T15:00:00Z',
       by: 'minhtran',
       message: "v0.3.0: automatic schedule, text reminders, swap links\n\nseedling export now builds the weekly schedule from everyone's available days.\nseedling remind texts tomorrow's volunteer (ADR-0002), and each text has a\nlink to hand the shift to someone else (ADR-0003).\n",
+      release: {
+        title: 'v0.3.0: automatic schedule, text reminders, swap links',
+        body: `- \`seedling export\` fills in the weekly schedule from everyone's available days. Nobody gets two days in a row. (#4)
+- \`seedling remind\` texts tomorrow's volunteer at 6pm through Twilio. (#8)
+- Every reminder has a link to hand the shift to someone else on the roster. (#10)
+
+New environment variables on the garden server: \`TWILIO_ACCOUNT_SID\`, \`TWILIO_AUTH_TOKEN\`, \`TWILIO_FROM\`, \`SEEDLING_SWAP_KEY\`, \`SEEDLING_URL\`.`,
+      },
+    },
+    {
+      type: 'issue',
+      number: 11,
+      title: 'Names on the swap page are all jumbled up',
+      author: 'waltb',
+      at: '2024-08-19T15:40:00Z',
+      body: "When Rosa and I tried the swap link on Thursday the list of names was in no order I could figure out. Dolores was way down near the bottom and I went right past her. It took me two tries. Could the names go in ABC order like a phone book?\n\nWalt",
+      labels: ['bug', 'good first issue'],
+      assignees: ['tlindqvist'],
+      reactions: { '+1': ['rosa-delgado', 'tlindqvist'] },
+      comments: [
+        {
+          id: 'issue11-minh',
+          author: 'minhtran',
+          at: '2024-08-19T23:10:00Z',
+          body: "Thanks Walt. They're in the order people signed up, which only makes sense to the computer. Sorting them is a small change in cmd/seedling/swap.go, so I'm marking it a good first issue in case someone new wants to try some Go.",
+        },
+      ],
     },
     {
       type: 'pr',
-      number: 9,
+      number: 12,
       title: 'Add a volunteer handbook',
       author: 'rosa-delgado',
       body: "Minh showed me how to add a page from the website. This is the handout I give new people on their first day, typed up so it lives somewhere other than my car. Please fix anything I got wrong about how the app works!",
       labels: ['docs'],
+      requestedReviewers: ['minhtran'],
       branch: 'rosa-delgado-patch-1',
       openedAt: '2024-09-07T20:15:00Z',
       commits: [
@@ -1955,25 +2193,25 @@ No accounts or passwords (see #6 for why not, and ADR-0003). Links are HMAC-sign
       ],
       reviews: [
         {
-          id: 'pr9-rv-minh',
+          id: 'pr12-rv-minh',
           author: 'minhtran',
           at: '2024-09-08T16:00:00Z',
           state: 'APPROVED',
           body: 'This is great. One small thing inline, take it or leave it.',
           threads: [
             {
-              id: 'pr9-th-reminders',
+              id: 'pr12-th-reminders',
               path: 'docs/volunteer-handbook.md',
               line: 23,
               comments: [
                 {
-                  id: 'pr9-thread-minh',
+                  id: 'pr12-thread-minh',
                   author: 'minhtran',
                   at: '2024-09-08T16:00:00Z',
                   body: 'The texts go out at 6pm, want to say that here?',
                 },
                 {
-                  id: 'pr9-thread-rosa',
+                  id: 'pr12-thread-rosa',
                   author: 'rosa-delgado',
                   at: '2024-09-08T17:30:00Z',
                   body: "I'll leave it loose. Some nights it's a few minutes late and then people text me in a panic.",
@@ -1985,17 +2223,21 @@ No accounts or passwords (see #6 for why not, and ADR-0003). Links are HMAC-sign
       ],
       comments: [
         {
-          id: 'pr9-walt',
+          id: 'pr12-walt',
           author: 'waltb',
           at: '2024-09-08T19:00:00Z',
           body: 'Could we put the lockbox code in here too? I forget it every week.',
         },
         {
-          id: 'pr9-rosa',
+          id: 'pr12-rosa',
           author: 'rosa-delgado',
           at: '2024-09-08T20:12:00Z',
           body: "Absolutely not Walt, this is on the internet! I'll write it on your index card.",
+          reactions: { laugh: ['minhtran', 'tlindqvist'] },
         },
+      ],
+      checks: [
+        passed('c-handbook', '2024-09-07T20:19:00Z'),
       ],
       outcome: { kind: 'merged', at: '2024-09-09T01:00:00Z', by: 'minhtran' },
     },
@@ -2020,8 +2262,34 @@ No accounts or passwords (see #6 for why not, and ADR-0003). Links are HMAC-sign
       },
     },
     {
+      type: 'issue',
+      number: 13,
+      title: 'swap: sort the roster dropdown by name',
+      author: 'tlindqvist',
+      at: '2024-09-21T03:30:00Z',
+      body: `Dolores told me at the garden last weekend that she scrolls past the Hendersons every time she opens a swap link.
+
+The \`<select>\` in templates/swap.html lists \`roster.All()\` as-is, which is volunteers.csv order, i.e. sign-up order. Proposal: sort \`everyone\` by Name with \`slices.SortFunc\` in the GET /swap handler before rendering. Happy to do it.`,
+      labels: ['bug', 'duplicate'],
+      comments: [
+        {
+          id: 'issue13-minh',
+          author: 'minhtran',
+          at: '2024-09-21T15:05:00Z',
+          body: 'Walt beat you to it, this is #11. All yours over there.',
+        },
+        {
+          id: 'issue13-tobias',
+          author: 'tlindqvist',
+          at: '2024-09-22T02:10:00Z',
+          body: "Ha, I even gave that one a thumbs up. Closing as a duplicate, I've assigned #11 to myself.",
+        },
+      ],
+      outcome: { kind: 'duplicate', at: '2024-09-22T02:11:00Z', by: 'tlindqvist', of: 11 },
+    },
+    {
       type: 'discussion',
-      number: 10,
+      number: 14,
       title: 'Season 1 is a wrap! Thank you, watering crew',
       category: 'Announcements',
       author: 'rosa-delgado',
@@ -2034,15 +2302,16 @@ No accounts or passwords (see #6 for why not, and ADR-0003). Links are HMAC-sign
 - the swap link got used 23 times
 
 The tomatoes alone kept the food pantry stocked for six weeks. THANK YOU. See everyone in March!`,
+      reactions: { heart: ['waltb', 'minhtran', 'tlindqvist'], hooray: ['waltb'] },
       comments: [
         {
-          id: 'disc10-walt',
+          id: 'disc14-walt',
           author: 'waltb',
           at: '2024-10-27T19:00:00Z',
           body: 'Best season I can remember. I will admit the swap link took me two tries but I got there.',
           replies: [
             {
-              id: 'disc10-rosa',
+              id: 'disc14-rosa',
               author: 'rosa-delgado',
               at: '2024-10-27T20:30:00Z',
               body: 'Two tries is better than most of us!',
@@ -2050,13 +2319,13 @@ The tomatoes alone kept the food pantry stocked for six weeks. THANK YOU. See ev
           ],
         },
         {
-          id: 'disc10-minh',
+          id: 'disc14-minh',
           author: 'minhtran',
           at: '2024-10-28T01:30:00Z',
           body: "Turning off the nightly reminder job on the garden server today. The site goes to sleep until spring, I'll wake it up in March.",
           replies: [
             {
-              id: 'disc10-tobias',
+              id: 'disc14-tobias',
               author: 'tlindqvist',
               at: '2024-10-28T03:00:00Z',
               body: "Thanks all. First open source thing I've ever contributed to, and it's for tomatoes. See you in spring.",
@@ -2078,7 +2347,7 @@ The tomatoes alone kept the food pantry stocked for six weeks. THANK YOU. See ev
     },
     {
       type: 'discussion',
-      number: 11,
+      number: 15,
       title: 'Reminders for season 2 (the grant is over)',
       category: 'General',
       author: 'rosa-delgado',
@@ -2092,13 +2361,14 @@ The tomatoes alone kept the food pantry stocked for six weeks. THANK YOU. See ev
 So what do we do for reminders this year? I really don't want to go back to me texting everyone by hand.`,
       comments: [
         {
-          id: 'disc11-walt',
+          id: 'disc15-walt',
           author: 'waltb',
           at: '2025-01-18T21:30:00Z',
           body: "I'll say it plainly. I don't read my texts until supper, and by then I've missed the morning. A sheet on the shed door I will see every time I go for the hose.",
+          reactions: { '+1': ['rosa-delgado'] },
           replies: [
             {
-              id: 'disc11-rosa',
+              id: 'disc15-rosa',
               author: 'rosa-delgado',
               at: '2025-01-19T15:00:00Z',
               body: "Noted Walt, and you're not the only one!",
@@ -2106,25 +2376,25 @@ So what do we do for reminders this year? I really don't want to go back to me t
           ],
         },
         {
-          id: 'disc11-minh',
+          id: 'disc15-minh',
           author: 'minhtran',
           at: '2025-01-20T02:10:00Z',
           body: "Email is free for us, we already have the garden Gmail. I can switch the reminder to email (swap link included) and add a command that prints a big-letter weekly sheet for the shed. Then we cancel Twilio. I'll write it up as ADR-0004 and mark the texting one superseded.",
           replies: [
             {
-              id: 'disc11-tobias',
+              id: 'disc15-tobias',
               author: 'tlindqvist',
               at: '2025-01-21T04:00:00Z',
               body: '+1. Gmail SMTP needs an app password, I can set that up on the server. Do we keep collecting phone numbers?',
             },
             {
-              id: 'disc11-rosa-2',
+              id: 'disc15-rosa-2',
               author: 'rosa-delgado',
               at: '2025-01-21T16:20:00Z',
               body: 'Yes keep phones, I still call people when there is a heat wave.',
             },
             {
-              id: 'disc11-minh-2',
+              id: 'disc15-minh-2',
               author: 'minhtran',
               at: '2025-01-25T18:00:00Z',
               body: 'ok, PR in a couple weeks.',
@@ -2135,10 +2405,10 @@ So what do we do for reminders this year? I really don't want to go back to me t
     },
     {
       type: 'pr',
-      number: 12,
+      number: 16,
       title: 'Email reminders and a printed weekly sheet (replaces texts)',
       author: 'minhtran',
-      body: `Does what we agreed in #11.
+      body: `Does what we agreed in #15.
 
 - \`seedling remind\` now emails tomorrow's volunteer (with the swap link) through the garden Gmail. The Twilio code is gone.
 - New \`seedling sheet -from <monday>\` prints a big-type weekly schedule for the shed door.
@@ -2147,6 +2417,7 @@ So what do we do for reminders this year? I really don't want to go back to me t
 
 After this merges I'll cancel the Twilio number.`,
       labels: ['notifications'],
+      requestedReviewers: ['tlindqvist'],
       branch: 'email-and-sheet',
       openedAt: '2025-02-08T19:00:00Z',
       commits: [
@@ -2154,7 +2425,7 @@ After this merges I'll cancel the Twilio number.`,
           key: 'c-email',
           at: '2025-02-08T19:02:00Z',
           author: 'minhtran',
-          message: 'remind by email instead of SMS, drop twilio\n\nTwilio account gets cancelled once this ships. See #11.\n',
+          message: 'remind by email instead of SMS, drop twilio\n\nTwilio account gets cancelled once this ships. See #15.\n',
           files: {
             'internal/notify/email.go': emailGo,
             'internal/notify/sms.go': null,
@@ -2188,25 +2459,25 @@ After this merges I'll cancel the Twilio number.`,
       ],
       reviews: [
         {
-          id: 'pr12-rv-tobias',
+          id: 'pr16-rv-tobias',
           author: 'tlindqvist',
           at: '2025-02-12T03:40:00Z',
           state: 'APPROVED',
           body: "lgtm. Printed the sample sheet from Chrome, fits on one page. I'll put the Gmail app password on the server once this is in.",
           threads: [
             {
-              id: 'pr12-th-noemail',
+              id: 'pr16-th-noemail',
               path: 'cmd/seedling/remind.go',
               line: 35,
               comments: [
                 {
-                  id: 'pr12-thread-tobias',
+                  id: 'pr16-thread-tobias',
                   author: 'tlindqvist',
                   at: '2025-02-12T03:40:00Z',
                   body: 'For folks with no email this just logs and moves on. Should it tell Rosa somehow?',
                 },
                 {
-                  id: 'pr12-thread-minh',
+                  id: 'pr16-thread-minh',
                   author: 'minhtran',
                   at: '2025-02-12T13:00:00Z',
                   body: "They're the paper-sheet people, that's the point of the sheet. Rosa knows who they are.",
@@ -2218,23 +2489,28 @@ After this merges I'll cancel the Twilio number.`,
       ],
       comments: [
         {
-          id: 'pr12-rosa',
+          id: 'pr16-rosa',
           author: 'rosa-delgado',
           at: '2025-02-13T16:20:00Z',
           body: "Printed the sample at the library. Walt read it from across the shed without his glasses, so I'm calling that a success.",
         },
         {
-          id: 'pr12-walt',
+          id: 'pr16-walt',
           author: 'waltb',
           at: '2025-02-14T15:00:00Z',
           body: 'I had my glasses on. Still, good and big.',
+          reactions: { laugh: ['rosa-delgado', 'minhtran'] },
         },
+      ],
+      checks: [
+        passed('c-email', '2025-02-08T19:06:00Z'),
+        passed('c-adr4', '2025-02-09T20:14:00Z'),
       ],
       outcome: { kind: 'merged', at: '2025-02-15T17:00:00Z', by: 'minhtran' },
     },
     {
       type: 'pr',
-      number: 13,
+      number: 17,
       title: 'Docs for season 2: index page and how scheduling works',
       author: 'tlindqvist',
       body: `Rosa asked for something she can point new volunteers at that explains how the schedule gets made, so:
@@ -2243,6 +2519,7 @@ After this merges I'll cancel the Twilio number.`,
 - docs/index.md, a table of contents split into volunteers vs. developers, including which decision records are still current
 - README now opens with a plain-language summary and points at docs/index.md`,
       labels: ['docs'],
+      requestedReviewers: ['minhtran', 'rosa-delgado'],
       branch: 'season-2-docs',
       openedAt: '2025-03-01T20:00:00Z',
       commits: [
@@ -2268,25 +2545,25 @@ After this merges I'll cancel the Twilio number.`,
       ],
       reviews: [
         {
-          id: 'pr13-rv-minh',
+          id: 'pr17-rv-minh',
           author: 'minhtran',
           at: '2025-03-03T02:00:00Z',
           state: 'APPROVED',
           body: 'Read through how-scheduling-works against assign.go, it matches. Thanks for doing this.',
           threads: [
             {
-              id: 'pr13-th-ties',
+              id: 'pr17-th-ties',
               path: 'docs/how-scheduling-works.md',
               line: 19,
               comments: [
                 {
-                  id: 'pr13-thread-minh',
+                  id: 'pr17-thread-minh',
                   author: 'minhtran',
                   at: '2025-03-03T02:00:00Z',
                   body: "Accurate. Ties really are sign-up order, since volunteers.csv is only ever appended to.",
                 },
                 {
-                  id: 'pr13-thread-tobias',
+                  id: 'pr17-thread-tobias',
                   author: 'tlindqvist',
                   at: '2025-03-03T04:10:00Z',
                   body: "Good, that's how I read it too.",
@@ -2298,33 +2575,37 @@ After this merges I'll cancel the Twilio number.`,
       ],
       comments: [
         {
-          id: 'pr13-walt',
+          id: 'pr17-walt',
           author: 'waltb',
           at: '2025-03-03T15:30:00Z',
           body: "One thing. The handbook page still says you'll get a text the night before. We don't do texts anymore, and I'd hate for a new person to sit by the phone waiting on one.",
         },
         {
-          id: 'pr13-tobias',
+          id: 'pr17-tobias',
           author: 'tlindqvist',
           at: '2025-03-03T17:45:00Z',
           body: 'Good catch Walt. Rosa said she wants to rewrite the reminders part of the handbook herself, so I left that page alone here.',
         },
         {
-          id: 'pr13-rosa',
+          id: 'pr17-rosa',
           author: 'rosa-delgado',
           at: '2025-03-04T13:10:00Z',
           body: "Yes!! I'm on it this week. Sorry, it slipped through when we switched.",
         },
       ],
+      checks: [
+        passed('c-docs-readme', '2025-03-01T20:44:00Z'),
+      ],
       outcome: { kind: 'merged', at: '2025-03-04T14:00:00Z', by: 'minhtran' },
     },
     {
       type: 'pr',
-      number: 14,
+      number: 18,
       title: 'Update handbook: reminders come by email now, not text',
       author: 'rosa-delgado',
-      body: "Fixes the reminders part that Walt caught on #13. No more texts, it's email plus the paper sheet on the shed door. I did this in the website editor so please check I didn't break anything!",
+      body: "Fixes the reminders part that Walt caught on #17. No more texts, it's email plus the paper sheet on the shed door. I did this in the website editor so please check I didn't break anything!",
       labels: ['docs'],
+      requestedReviewers: ['minhtran'],
       branch: 'rosa-delgado-patch-2',
       openedAt: '2025-03-09T21:30:00Z',
       commits: [
@@ -2340,7 +2621,7 @@ After this merges I'll cancel the Twilio number.`,
       ],
       reviews: [
         {
-          id: 'pr14-rv-minh',
+          id: 'pr18-rv-minh',
           author: 'minhtran',
           at: '2025-03-10T02:15:00Z',
           state: 'APPROVED',
@@ -2350,11 +2631,14 @@ After this merges I'll cancel the Twilio number.`,
       ],
       comments: [
         {
-          id: 'pr14-walt',
+          id: 'pr18-walt',
           author: 'waltb',
           at: '2025-03-10T14:00:00Z',
           body: 'Reads right to me.',
         },
+      ],
+      checks: [
+        passed('c-handbook-fix', '2025-03-09T21:34:00Z'),
       ],
       outcome: { kind: 'merged', at: '2025-03-10T15:00:00Z', by: 'minhtran' },
     },
@@ -2364,6 +2648,27 @@ After this merges I'll cancel the Twilio number.`,
       at: '2025-03-22T16:00:00Z',
       by: 'minhtran',
       message: 'v1.0.0: season 2\n\nReminders go out by email and a large-print weekly sheet goes on the shed\ndoor, replacing text messages (ADR-0004). New docs/index.md and\ndocs/how-scheduling-works.md, and the volunteer handbook is up to date.\n',
+      release: {
+        title: 'v1.0.0: Season 2',
+        body: `Ready for the 2025 season. Thank you Rosa, Walt, and Tobias.
+
+## For volunteers
+
+- Reminders come by email the evening before your shift, with the same swap link as before. No more text messages. (#16)
+- A large-print schedule for the week goes up on the shed door every Monday. (#16)
+- The volunteer handbook is up to date, and a new page explains how the schedule gets made. (#17, #18)
+
+## For whoever runs the server
+
+- \`seedling remind\` sends through the garden Gmail. Set \`SEEDLING_SMTP_USER\` and \`SEEDLING_SMTP_PASSWORD\` (an app password). The Twilio variables are gone and the Twilio number is cancelled.
+- New \`seedling sheet -from <monday>\` writes the shed sheet as HTML.
+- ADR-0004 supersedes ADR-0002. docs/index.md lists every decision record and its status.
+- Go 1.23.
+
+## Known issues
+
+- Names on the swap page are in sign-up order, not alphabetical (#11).`,
+      },
     },
   ],
   answerKey: [
@@ -2393,15 +2698,15 @@ After this merges I'll cancel the Twilio number.`,
       question: 'What happened between the end of the first season and the start of the second?',
       answers: {
         technical:
-          'Discussion #10 (2024-10-27) wraps season 1 the day after the last shift on Oct 26, and Minh says he is turning off the nightly reminder job and the site sleeps until spring. The only commit between then and February 2025 is c-go123 (2024-12-14, go.mod bumped to go 1.23). Planning restarts with discussion #11 on 2025-01-18, which opens the texting question for season 2.',
+          'Discussion #14 (2024-10-27) wraps season 1 the day after the last shift on Oct 26, and Minh says he is turning off the nightly reminder job and the site sleeps until spring. The only commit between then and February 2025 is c-go123 (2024-12-14, go.mod bumped to go 1.23). Planning restarts with discussion #15 on 2025-01-18, which opens the texting question for season 2.',
         nonTechnical:
           'The garden season ended in late October 2024 and the app was switched off for the winter. Apart from one small upkeep change in December, nothing happened until January 2025, when the coordinator started planning reminders for the next season.',
       },
       evidence: [
-        { kind: 'discussion', number: 10, quote: 'Last shift was yesterday (Oct 26).' },
-        { kind: 'comment', id: 'disc10-minh', quote: 'The site goes to sleep until spring' },
+        { kind: 'discussion', number: 14, quote: 'Last shift was yesterday (Oct 26).' },
+        { kind: 'comment', id: 'disc14-minh', quote: 'The site goes to sleep until spring' },
         { kind: 'commit', key: 'c-go123', quote: 'go 1.23' },
-        { kind: 'discussion', number: 11, quote: 'Two things I need to bring up before spring.' },
+        { kind: 'discussion', number: 15, quote: 'Two things I need to bring up before spring.' },
       ],
     },
     {
@@ -2429,16 +2734,16 @@ After this merges I'll cancel the Twilio number.`,
       question: 'Why did the app start sending text-message reminders?',
       answers: {
         technical:
-          "ADR-0002 (docs/adr/0002-text-message-reminders.md, commit c-adr2 in PR #7, dated 2024-07-23; PR merged 2024-07-29) chose SMS through Twilio's REST API. Six shifts in June and July had been missed, Rosa said the crew reads texts and ignores email, and a $300 Eastside Neighborhood Fund micro-grant could pay for it. internal/notify/sms.go and cmd/seedling/remind.go implement it.",
+          "ADR-0002 (docs/adr/0002-text-message-reminders.md, commit c-adr2 in PR #8, dated 2024-07-23; PR merged 2024-07-29) chose SMS through Twilio's REST API. Six shifts in June and July had been missed, Rosa said the crew reads texts and ignores email, and a $300 Eastside Neighborhood Fund micro-grant could pay for it. internal/notify/sms.go and cmd/seedling/remind.go implement it.",
         nonTechnical:
           'In summer 2024 a few watering days were missed because people forgot. The coordinator said most volunteers read texts, and a small neighborhood grant could cover the cost, so the team started texting each volunteer the evening before their shift.',
       },
       evidence: [
         { kind: 'file', path: 'docs/adr/0002-text-message-reminders.md', at: 'c-adr2', quote: 'Six shifts in June and July were missed because the volunteer forgot.' },
         { kind: 'file', path: 'docs/adr/0002-text-message-reminders.md', at: 'c-adr2', quote: 'Rosa says most of the crew reads texts and ignores email.' },
-        { kind: 'comment', id: 'pr7-rosa', quote: 'the $300 covers texting through the end of the year' },
+        { kind: 'comment', id: 'pr8-rosa', quote: 'the $300 covers texting through the end of the year' },
         { kind: 'file', path: 'internal/notify/sms.go', at: 'c-sms', quote: 'https://api.twilio.com/2010-04-01/Accounts/' },
-        { kind: 'pr', number: 7, quote: 'The Neighborhood Fund micro-grant pays for Twilio this year, details in ADR-0002.' },
+        { kind: 'pr', number: 8, quote: 'The Neighborhood Fund micro-grant pays for Twilio this year, details in ADR-0002.' },
       ],
     },
     {
@@ -2448,16 +2753,16 @@ After this merges I'll cancel the Twilio number.`,
       question: 'Why were text reminders dropped, and what replaced them?',
       answers: {
         technical:
-          "Discussion #11 (2025-01-18) raised it first. The Neighborhood Fund micro-grant that paid for Twilio ended 2024-12-31, and older volunteers including Walt said they would rather read a paper schedule at the shed. PR #12 (merged 2025-02-15) added ADR-0004: reminders by email from the garden Gmail plus `seedling sheet`, a large-print weekly schedule for the shed door, and removed the Twilio code. Its commit c-adr4 edited ADR-0002's status line to 'Superseded by ADR-0004'.",
+          "Discussion #15 (2025-01-18) raised it first. The Neighborhood Fund micro-grant that paid for Twilio ended 2024-12-31, and older volunteers including Walt said they would rather read a paper schedule at the shed. PR #16 (merged 2025-02-15) added ADR-0004: reminders by email from the garden Gmail plus `seedling sheet`, a large-print weekly schedule for the shed door, and removed the Twilio code. Its commit c-adr4 edited ADR-0002's status line to 'Superseded by ADR-0004'.",
         nonTechnical:
           'The small grant that paid for texting ran out at the end of 2024, and several older volunteers said they would rather check a paper schedule at the shed. In February 2025 the team switched to email reminders plus a printed weekly schedule on the shed door, and marked the old texting decision as replaced.',
       },
       evidence: [
-        { kind: 'discussion', number: 11, quote: 'The Neighborhood Fund micro-grant that paid for the text reminders ended Dec 31.' },
-        { kind: 'comment', id: 'disc11-walt', quote: 'A sheet on the shed door I will see every time I go for the hose.' },
+        { kind: 'discussion', number: 15, quote: 'The Neighborhood Fund micro-grant that paid for the text reminders ended Dec 31.' },
+        { kind: 'comment', id: 'disc15-walt', quote: 'A sheet on the shed door I will see every time I go for the hose.' },
         { kind: 'file', path: 'docs/adr/0004-email-and-printed-sheet.md', at: 'c-adr4', quote: 'The grant ended on December 31, 2024 and will not be renewed.' },
         { kind: 'file', path: 'docs/adr/0002-text-message-reminders.md', at: 'c-adr4', quote: 'Status: Superseded by ADR-0004' },
-        { kind: 'pr', number: 12, quote: 'ADR-0004 records the change, and ADR-0002 is marked superseded.' },
+        { kind: 'pr', number: 16, quote: 'ADR-0004 records the change, and ADR-0002 is marked superseded.' },
       ],
     },
     {
@@ -2467,15 +2772,15 @@ After this merges I'll cancel the Twilio number.`,
       question: 'After the switch away from texts, when did the volunteer handbook catch up?',
       answers: {
         technical:
-          "PR #12 merged on 2025-02-15 without touching docs/volunteer-handbook.md, so the handbook kept saying \"you'll get a text\" (still true at c-adr4 and at c-docs in PR #13). Walt flagged it in a PR #13 comment on 2025-03-03. Rosa fixed it in PR #14 (commit c-handbook-fix, 'Update volunteer-handbook.md'), merged 2025-03-10, 23 days after the switch.",
+          "PR #16 merged on 2025-02-15 without touching docs/volunteer-handbook.md, so the handbook kept saying \"you'll get a text\" (still true at c-adr4 and at c-docs in PR #17). Walt flagged it in a PR #17 comment on 2025-03-03. Rosa fixed it in PR #18 (commit c-handbook-fix, 'Update volunteer-handbook.md'), merged 2025-03-10, 23 days after the switch.",
         nonTechnical:
           'For about three weeks after the switch, the volunteer handbook still told people they would get a text. A volunteer noticed in early March 2025, and the coordinator corrected the handbook on March 10, 2025.',
       },
       evidence: [
         { kind: 'file', path: 'docs/volunteer-handbook.md', at: 'c-docs', quote: "The evening before your shift you'll get a text from the garden's number" },
-        { kind: 'comment', id: 'pr13-walt', quote: "The handbook page still says you'll get a text the night before." },
-        { kind: 'pr', number: 14, quote: 'reminders come by email now, not text' },
-        { kind: 'pr', number: 12, quote: "now emails tomorrow's volunteer (with the swap link)" },
+        { kind: 'comment', id: 'pr17-walt', quote: "The handbook page still says you'll get a text the night before." },
+        { kind: 'pr', number: 18, quote: 'reminders come by email now, not text' },
+        { kind: 'pr', number: 16, quote: "now emails tomorrow's volunteer (with the swap link)" },
         { kind: 'file', path: 'docs/volunteer-handbook.md', at: 'c-handbook-fix', quote: "We don't send texts anymore." },
       ],
     },
@@ -2506,16 +2811,16 @@ After this merges I'll cancel the Twilio number.`,
       question: 'Why did the team never add volunteer logins with passwords?',
       answers: {
         technical:
-          "PR #6 (Tobias, opened 2024-07-12) added internal/auth with bcrypt hashes and the project's first dependency, golang.org/x/crypto. Rosa objected that many volunteers can't keep track of passwords and lockouts would come back to her. Minh didn't want password hashes in a CSV opened in Google Sheets (ADR-0001) and proposed a signed swap link instead. Tobias closed the PR unmerged on 2024-07-17. ADR-0003 (PR #8) records the replacement.",
+          "PR #7 (Tobias, opened 2024-07-12) added internal/auth with bcrypt hashes and the project's first dependency, golang.org/x/crypto. Rosa objected that many volunteers can't keep track of passwords and lockouts would come back to her. Minh didn't want password hashes in a CSV opened in Google Sheets (ADR-0001) and proposed a signed swap link instead. Tobias closed the PR unmerged on 2024-07-17. ADR-0003 (PR #10) records the replacement.",
         nonTechnical:
           'A volunteer developer started building logins with passwords in July 2024. The coordinator pointed out that many volunteers would forget their passwords and call her anyway, so the team dropped it and built a one-tap link instead.',
       },
       evidence: [
-        { kind: 'pr', number: 6, quote: 'Passwords are bcrypt-hashed' },
-        { kind: 'comment', id: 'pr6-rosa', quote: 'a password is going to be a dealbreaker for a lot of our crew' },
-        { kind: 'comment', id: 'pr6-minh', quote: 'password hashes in a CSV that Rosa opens in Google Sheets' },
-        { kind: 'comment', id: 'pr6-tobias', quote: 'Closing this.' },
-        { kind: 'file', path: 'docs/adr/0003-swap-links-not-accounts.md', at: 'c-adr3', quote: 'PR #6 tried volunteer accounts with passwords. We closed it.' },
+        { kind: 'pr', number: 7, quote: 'Passwords are bcrypt-hashed' },
+        { kind: 'comment', id: 'pr7-rosa', quote: 'a password is going to be a dealbreaker for a lot of our crew' },
+        { kind: 'comment', id: 'pr7-minh', quote: 'password hashes in a CSV that Rosa opens in Google Sheets' },
+        { kind: 'comment', id: 'pr7-tobias', quote: 'Closing this.' },
+        { kind: 'file', path: 'docs/adr/0003-swap-links-not-accounts.md', at: 'c-adr3', quote: 'PR #7 tried volunteer accounts with passwords. We closed it.' },
       ],
     },
     {
@@ -2545,16 +2850,17 @@ After this merges I'll cancel the Twilio number.`,
       question: "Which feature came straight from the garden coordinator's request?",
       answers: {
         technical:
-          'The swap-a-shift link. Rosa opened discussion #5 (2024-07-06) asking for a way for volunteers to trade shifts without her, and Minh proposed option (b), a link in each reminder. After the accounts attempt in PR #6 was closed, Tobias built it in PR #8 ("Closes #5", merged 2024-08-16): HMAC-signed per-shift tokens in internal/swap, a swap page, and ADR-0003.',
+          'The swap-a-shift link. Rosa opened discussion #5 (2024-07-06) asking for a way for volunteers to trade shifts without her, and Minh proposed option (b), a link in each reminder. Minh opened issue #6 (2024-07-09) to track the request and it was assigned to Tobias. After the accounts attempt in PR #7 was closed, Tobias built it in PR #10 ("Closes #6.", merged 2024-08-16, which closed issue #6): HMAC-signed per-shift tokens in internal/swap, a swap page, and ADR-0003.',
         nonTechnical:
           'The swap link. The coordinator was spending her lunch breaks finding substitutes, so she asked for a way for volunteers to trade shifts themselves. In August 2024 the team added a link to each reminder that lets a volunteer hand their shift to someone else.',
       },
       evidence: [
         { kind: 'discussion', number: 5, quote: 'I just want my lunch break back.' },
         { kind: 'comment', id: 'disc5-minh', quote: '(b) a link in each reminder that lets you hand your shift to someone else, no login' },
-        { kind: 'pr', number: 8, quote: 'Closes #5.' },
+        { kind: 'issue', number: 6, quote: "Tracking Rosa's request from discussion #5" },
+        { kind: 'pr', number: 10, quote: 'Closes #6.' },
         { kind: 'file', path: 'docs/adr/0003-swap-links-not-accounts.md', at: 'c-adr3', quote: 'She asked for a way around that in discussion #5.' },
-        { kind: 'comment', id: 'pr8-rosa', quote: 'picked Dolores for his Thursday' },
+        { kind: 'comment', id: 'pr10-rosa', quote: 'picked Dolores for his Thursday' },
       ],
     },
     {
@@ -2564,7 +2870,7 @@ After this merges I'll cancel the Twilio number.`,
       question: 'Who should someone ask about how the schedule is made?',
       answers: {
         technical:
-          'Minh Tran (@minhtran). He authored PR #4 (schedule.Assign) and the c-no-repeat follow-up, and c-codeowners (2024-09-14) makes him the code owner of /internal/schedule/. docs/how-scheduling-works.md (c-docs, PR #13) says he wrote the scheduling code and names Rosa Delgado as the person who runs the schedule day to day.',
+          'Minh Tran (@minhtran). He authored PR #4 (schedule.Assign) and the c-no-repeat follow-up, and c-codeowners (2024-09-14) makes him the code owner of /internal/schedule/. docs/how-scheduling-works.md (c-docs, PR #17) says he wrote the scheduling code and names Rosa Delgado as the person who runs the schedule day to day.',
         nonTechnical:
           'Ask Minh Tran, the volunteer developer who wrote the scheduling part of the app. Rosa Delgado, the garden coordinator, runs the schedule week to week.',
       },
@@ -2574,6 +2880,63 @@ After this merges I'll cancel the Twilio number.`,
         { kind: 'pr', number: 4, quote: "Automatic weekly schedule from everyone's available days" },
         { kind: 'commit', key: 'c-no-repeat', quote: 'schedule: skip anyone who watered the day before' },
         { kind: 'comment', id: 'pr4-rv-rosa', quote: 'Minh walked me through this' },
+      ],
+    },
+    {
+      id: 'declined-heat-wave-text',
+      view: 'timeline',
+      facet: 'decision',
+      question: 'What did the garden coordinator ask the app to do that the team decided not to build, and why?',
+      answers: {
+        technical:
+          "A group text to the whole crew during heat waves. Rosa asked for it in issue #9 (2024-07-30), the day after text reminders shipped. Minh pointed out that replies would land on the Twilio number instead of reaching Rosa, and that blasts to 30 people would eat into the $300 grant sized for one reminder per shift. Walt added that he comes when Rosa asks personally but assumes someone else will answer the machine. Rosa closed the issue as not planned on 2024-08-01 and kept texting the crew herself, which the first handbook (c-handbook, PR #12) says under Heat waves.",
+        nonTechnical:
+          'During a July 2024 heat wave the coordinator asked whether the app could text the whole crew at once to find extra waterers. Replies would have gone to the app instead of to her, and the grant money was meant for shift reminders. A volunteer added that people come when she asks them herself, so she decided to keep sending those messages from her own phone.',
+      },
+      evidence: [
+        { kind: 'issue', number: 9, quote: 'could it send one message to everybody at once?' },
+        { kind: 'comment', id: 'issue9-minh', quote: 'Replies would go to the Twilio number, not to you' },
+        { kind: 'comment', id: 'issue9-walt', quote: "when it's Rosa asking, I come" },
+        { kind: 'comment', id: 'issue9-rosa-2', quote: "I'll keep texting the crew myself when it's hot" },
+        { kind: 'file', path: 'docs/volunteer-handbook.md', at: 'c-handbook', quote: 'text the crew directly when that happens.' },
+      ],
+    },
+    {
+      id: 'ci-caught-tie',
+      view: 'timeline',
+      facet: 'how',
+      question: 'What did the automated checks catch before the automatic schedule went in?',
+      answers: {
+        technical:
+          "A tie-break bug. On PR #4 the first push, c-assign (2024-06-20), failed the `test` check: TestAssign got Ben on Monday and Ana on Tuesday because schedule.Assign compared counts with `<=`, so a tie went to the later volunteer. Thirty minutes later c-assign-ties switched to `<` so ties go to roster order, and the check passed on c-assign-ties and c-export-assign before Tobias approved. The check is the go vet and go test workflow Tobias added in c-ci (2024-04-23).",
+        nonTechnical:
+          "The app's automatic checks caught that when two volunteers had the same number of shifts, the day went to whoever signed up later instead of earlier. Minh fixed it the same evening, more than a week before the new schedule was used for a real week.",
+      },
+      evidence: [
+        { kind: 'file', path: 'internal/schedule/assign.go', at: 'c-assign', quote: 'count[v.Name] <= count[pick]' },
+        { kind: 'commit', key: 'c-assign-ties', quote: 'Strict < keeps roster order.' },
+        { kind: 'file', path: 'internal/schedule/assign.go', at: 'c-assign-ties', quote: 'if pick == "" || count[v.Name] < count[pick] {' },
+        { kind: 'comment', id: 'pr4-rv-tobias', quote: 'Glad the test caught the tie-break on the first push.' },
+        { kind: 'file', path: '.github/workflows/test.yml', at: 'c-ci', quote: '- run: go test ./...' },
+      ],
+    },
+    {
+      id: 'review-roster-check',
+      view: 'timeline',
+      facet: 'decision',
+      question: 'What did review change in the swap-link feature before it shipped?',
+      answers: {
+        technical:
+          "Minh's CHANGES_REQUESTED review on PR #10 (2024-08-08, against c-adr3) flagged that POST /swap wrote `taker` from the form into shifts.csv unchecked. A name missing from volunteers.csv would make remind's find() fail, and log.Fatal would stop that night's reminders. Tobias pushed c-swap-taker (2024-08-09), which adds onRoster to cmd/seedling/swap.go and answers 'Please pick someone from the list.' otherwise. Minh resolved the thread and approved on 2024-08-10.",
+        nonTechnical:
+          "A reviewer noticed that the shift hand-off page would accept any name, even someone not on the volunteer list, and that this would have stopped the next evening's reminders from going out. The developer made the page accept only people on the list, and the feature was approved two days later.",
+      },
+      evidence: [
+        { kind: 'comment', id: 'pr10-rv-minh-changes', quote: 'One thing has to change before this goes live' },
+        { kind: 'comment', id: 'pr10-thread-minh-taker', quote: 'log.Fatal stops the run, and nobody gets a reminder' },
+        { kind: 'commit', key: 'c-swap-taker', quote: 'only hand a shift to someone on the roster' },
+        { kind: 'file', path: 'cmd/seedling/swap.go', at: 'c-swap-taker', quote: 'if !onRoster(roster, taker) {' },
+        { kind: 'comment', id: 'pr10-rv-minh', quote: 'Roster check looks good.' },
       ],
     },
     {
@@ -2601,7 +2964,7 @@ After this merges I'll cancel the Twilio number.`,
       question: 'Where should a volunteer start reading, and where should a developer start?',
       answers: {
         technical:
-          'docs/index.md (c-docs, PR #13, 2025-03-01) splits the docs. "For volunteers" links volunteer-handbook.md and how-scheduling-works.md. "For developers" links README.md and the four ADRs with their current status. The README (c-docs-readme) points volunteers at the handbook and everyone else at docs/index.md. Before that, from c-readme-handbook (2024-09-10), the README already sent volunteers to the handbook.',
+          'docs/index.md (c-docs, PR #17, 2025-03-01) splits the docs. "For volunteers" links volunteer-handbook.md and how-scheduling-works.md. "For developers" links README.md and the four ADRs with their current status. The README (c-docs-readme) points volunteers at the handbook and everyone else at docs/index.md. Before that, from c-readme-handbook (2024-09-10), the README already sent volunteers to the handbook.',
         nonTechnical:
           'Volunteers should start with the volunteer handbook, then the page that explains how the schedule is made. The people who build the app start with the main project page and the written decision records. A contents page links all of them.',
       },
@@ -2609,7 +2972,7 @@ After this merges I'll cancel the Twilio number.`,
         { kind: 'file', path: 'docs/index.md', at: 'c-docs', quote: '## For developers' },
         { kind: 'file', path: 'docs/index.md', at: 'c-docs', quote: '[How scheduling works](how-scheduling-works.md): how the app decides who waters which day.' },
         { kind: 'file', path: 'README.md', at: 'c-docs-readme', quote: 'Volunteers: start with the [volunteer handbook](docs/volunteer-handbook.md).' },
-        { kind: 'pr', number: 13, quote: 'a table of contents split into volunteers vs. developers' },
+        { kind: 'pr', number: 17, quote: 'a table of contents split into volunteers vs. developers' },
         { kind: 'commit', key: 'c-readme-handbook', quote: 'README: point volunteers at the handbook' },
       ],
     },
@@ -2620,7 +2983,7 @@ After this merges I'll cancel the Twilio number.`,
       question: 'How do volunteers find out about their shifts now?',
       answers: {
         technical:
-          "Since PR #12 (merged 2025-02-15), cmd/seedling/remind.go emails tomorrow's volunteer through notify.Email (net/smtp to smtp.gmail.com:587) with a swap link, and skips volunteers with no email. `seedling sheet` renders templates/weekly-sheet.html, which Rosa prints and posts on the shed door each Monday (ADR-0004). The handbook only says so from PR #14 (2025-03-10).",
+          "Since PR #16 (merged 2025-02-15), cmd/seedling/remind.go emails tomorrow's volunteer through notify.Email (net/smtp to smtp.gmail.com:587) with a swap link, and skips volunteers with no email. `seedling sheet` renders templates/weekly-sheet.html, which Rosa prints and posts on the shed door each Monday (ADR-0004). The handbook only says so from PR #18 (2025-03-10).",
         nonTechnical:
           "The evening before a shift, the app emails the volunteer with the date and a link to hand the shift to someone else. Every Monday the coordinator also posts a big-print schedule for the week on the shed door, for people who don't use email.",
       },
@@ -2646,7 +3009,7 @@ After this merges I'll cancel the Twilio number.`,
         { kind: 'file', path: 'internal/schedule/assign.go', at: 'c-no-repeat', quote: 'if pick == "" || count[v.Name] < count[pick] {' },
         { kind: 'file', path: 'internal/schedule/days.go', at: 'c-no-repeat', quote: 'if d.Weekday() == time.Sunday {' },
         { kind: 'file', path: 'docs/how-scheduling-works.md', at: 'c-docs', quote: 'If two people are tied, whoever signed up first gets it.' },
-        { kind: 'comment', id: 'pr13-thread-minh', quote: 'Ties really are sign-up order' },
+        { kind: 'comment', id: 'pr17-thread-minh', quote: 'Ties really are sign-up order' },
         { kind: 'file', path: 'docs/how-scheduling-works.md', at: 'c-docs', quote: '5. If nobody is left for a day, the day stays blank and Rosa finds someone.' },
       ],
     },
@@ -2657,7 +3020,7 @@ After this merges I'll cancel the Twilio number.`,
       question: 'Which written decisions are still in force, and which were replaced?',
       answers: {
         technical:
-          'docs/adr/ has four records. ADR-0001 (CSV roster), ADR-0003 (swap links, not accounts), and ADR-0004 (email plus printed sheet) are Accepted. ADR-0002 (SMS via Twilio) has read "Status: Superseded by ADR-0004" since c-adr4 in PR #12 (2025-02-09), and ADR-0004 carries "Supersedes: ADR-0002". docs/index.md lists the same statuses.',
+          'docs/adr/ has four records. ADR-0001 (CSV roster), ADR-0003 (swap links, not accounts), and ADR-0004 (email plus printed sheet) are Accepted. ADR-0002 (SMS via Twilio) has read "Status: Superseded by ADR-0004" since c-adr4 in PR #16 (2025-02-09), and ADR-0004 carries "Supersedes: ADR-0002". docs/index.md lists the same statuses.',
         nonTechnical:
           'The team has four written decision records. Three still apply: keeping the volunteer list as a spreadsheet file, swapping shifts by link instead of passwords, and email plus a paper schedule for reminders. The one about text messages was replaced in February 2025.',
       },
@@ -2706,6 +3069,46 @@ After this merges I'll cancel the Twilio number.`,
         { kind: 'file', path: 'internal/schedule/assign.go', at: 'c-no-repeat', quote: 'last[pick] = day' },
       ],
       onlyOutsideGit: ['burned out by mid-July'],
+    },
+    {
+      id: 'open-swap-names',
+      view: 'docs',
+      facet: 'overview',
+      question: 'Is anything volunteers reported still unfixed as of season 2?',
+      answers: {
+        technical:
+          'Yes. Issue #11 (Walt, 2024-08-19) reports that names on the swap page are not in alphabetical order. The dropdown in templates/swap.html lists roster.All(), which is volunteers.csv sign-up order. Tobias filed the same problem in developer terms as issue #13 (2024-09-21), closed it as a duplicate of #11, and assigned #11 to himself, but nothing in the repository sorts the roster. The v1.0.0 release notes list it under Known issues, and issue #11 is still open.',
+        nonTechnical:
+          'Yes. Since August 2024, volunteers have said the list of names on the shift hand-off page is in the order people signed up rather than alphabetical, so names are hard to find. A developer took it on in September but never finished it, and the season 2 release notes still list it as a known problem.',
+      },
+      evidence: [
+        { kind: 'issue', number: 11, quote: 'Could the names go in ABC order like a phone book?' },
+        { kind: 'comment', id: 'issue11-minh', quote: "They're in the order people signed up" },
+        { kind: 'issue', number: 13, quote: 'sort the roster dropdown by name' },
+        { kind: 'comment', id: 'issue13-tobias', quote: "Closing as a duplicate, I've assigned #11 to myself." },
+        { kind: 'file', path: 'templates/swap.html', at: 'c-handbook-fix', quote: '{{range .Roster}}<option>{{.Name}}</option>' },
+        { kind: 'tag', name: 'v1.0.0', quote: 'Names on the swap page are in sign-up order, not alphabetical (#11).' },
+      ],
+    },
+  ],
+  noise: [
+    {
+      id: 'noise-edited-grant',
+      kind: 'corrected-claim',
+      description: "Rosa's PR #8 comment first said the grant covers texting for the whole season. Her edit the next day says through the end of the year, which matches the Dec 31 end date in discussion #15 and ADR-0004.",
+      evidence: [
+        { kind: 'comment', id: 'pr8-rosa', quote: 'the $300 covers texting for the whole season', revision: 0 },
+        { kind: 'comment', id: 'pr8-rosa', quote: 'the $300 covers texting through the end of the year' },
+      ],
+    },
+    {
+      id: 'noise-duplicate-swap-names',
+      kind: 'duplicate',
+      description: "Issue #13 reports the unsorted swap dropdown in developer terms. It duplicates Walt's plain-language issue #11, which stays open.",
+      evidence: [
+        { kind: 'issue', number: 13, quote: 'swap: sort the roster dropdown by name' },
+        { kind: 'issue', number: 11, quote: 'Names on the swap page are all jumbled up' },
+      ],
     },
   ],
 };
