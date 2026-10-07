@@ -2185,6 +2185,7 @@ New environment variables on the garden server: \`TWILIO_ACCOUNT_SID\`, \`TWILIO
           key: 'c-handbook',
           at: '2024-09-07T20:15:00Z',
           author: 'rosa-delgado',
+          via: 'web',
           message: 'Create volunteer-handbook.md',
           files: {
             'docs/volunteer-handbook.md': handbookV1,
@@ -2613,6 +2614,7 @@ After this merges I'll cancel the Twilio number.`,
           key: 'c-handbook-fix',
           at: '2025-03-09T21:30:00Z',
           author: 'rosa-delgado',
+          via: 'web',
           message: 'Update volunteer-handbook.md',
           files: {
             'docs/volunteer-handbook.md': handbookV2,
