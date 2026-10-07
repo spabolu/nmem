@@ -536,9 +536,9 @@ if __name__ == "__main__":
     unittest.main()
 `;
 
-const workflow = (version, jobs) => {
-  const setup = `      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v${version}
+const workflow = (checkout, jobs) => {
+  const setup = `      - uses: actions/checkout@v${checkout}
+      - uses: actions/setup-python@v4
         with:
           python-version: "3.11"
 `;
@@ -569,25 +569,42 @@ jobs:
 ${blocks.join('\n')}`;
 };
 
-const dependabotBody = `Bumps [actions/setup-python](https://github.com/actions/setup-python) from 4 to 5.
+const dependabotCommit = `Bump actions/checkout from 3 to 4
+
+Bumps [actions/checkout](https://github.com/actions/checkout) from 3 to 4.
+- [Release notes](https://github.com/actions/checkout/releases)
+- [Changelog](https://github.com/actions/checkout/blob/main/CHANGELOG.md)
+- [Commits](https://github.com/actions/checkout/compare/v3...v4)
+
+---
+updated-dependencies:
+- dependency-name: actions/checkout
+  dependency-type: direct:production
+  update-type: version-update:semver-major
+...
+
+Signed-off-by: dependabot[bot] <support@github.com>
+`;
+
+const dependabotBody = `Bumps [actions/checkout](https://github.com/actions/checkout) from 3 to 4.
 <details>
 <summary>Release notes</summary>
 
-Sourced from [actions/setup-python's releases](https://github.com/actions/setup-python/releases).
+Sourced from [actions/checkout's releases](https://github.com/actions/checkout/releases).
 
-## v5.0.0
+## v4.0.0
 
-Node 20 as the default runtime.
+Update default runtime to node20.
 
 </details>
 <details>
 <summary>Commits</summary>
 
-See the [compare view](https://github.com/actions/setup-python/compare/v4...v5).
+See the [compare view](https://github.com/actions/checkout/compare/v3...v4).
 
 </details>
 
-[![Dependabot compatibility score](https://dependabot-badges.githubapp.com/badges/compatibility_score?dependency-name=actions/setup-python&package-manager=github_actions&previous-version=4&new-version=5)](https://docs.github.com/en/github/managing-security-vulnerabilities/about-dependabot-security-updates#about-compatibility-scores)
+[![Dependabot compatibility score](https://dependabot-badges.githubapp.com/badges/compatibility_score?dependency-name=actions/checkout&package-manager=github_actions&previous-version=3&new-version=4)](https://docs.github.com/en/github/managing-security-vulnerabilities/about-dependabot-security-updates#about-compatibility-scores)
 
 Dependabot will resolve any conflicts with this PR as long as you don't alter it yourself. You can also trigger a rebase manually by commenting @dependabot rebase.
 `;
@@ -969,7 +986,7 @@ No file yet. One bill, then it exits.`,
           message: 'Add tally.py',
           files: {
             'tally.py': tallyPy,
-            '.github/workflows/test.yml': workflow(4, { smoke: 'python3 tally.py owen 1000 lena,owen,maya' }),
+            '.github/workflows/test.yml': workflow(3, { smoke: 'python3 tally.py owen 1000 lena,owen,maya' }),
           },
         },
         {
@@ -1152,7 +1169,7 @@ Notes are one word. "groceries" fits. "ikea lamp" does not. We can live with tha
             'tally/__main__.py': mainPy,
             'tally/cli.py': cliOnce,
             'tally/ledger.py': ledgerNoPay,
-            '.github/workflows/test.yml': workflow(4, { smoke: 'python3 -m tally owen 1000 lena,owen,maya' }),
+            '.github/workflows/test.yml': workflow(3, { smoke: 'python3 -m tally owen 1000 lena,owen,maya' }),
           },
         },
         {
@@ -1164,7 +1181,7 @@ Notes are one word. "groceries" fits. "ikea lamp" does not. We can live with tha
             'tally/store.py': storeText(false),
             'tally/cli.py': cliPy({ data: 'ledger.txt', pay: false, settle: false, dollars: false }),
             'README.md': readme.package,
-            '.github/workflows/test.yml': workflow(4, { smoke: 'python3 -m tally balances' }),
+            '.github/workflows/test.yml': workflow(3, { smoke: 'python3 -m tally balances' }),
           },
         },
         {
@@ -1335,7 +1352,7 @@ add_payment credits the sender and debits the receiver.`,
           at: '2023-05-07T18:30:00Z',
           author: 'owenbriggs',
           message: 'run tests on GitHub',
-          files: { '.github/workflows/test.yml': workflow(4, { smoke: 'python3 -m tally balances', test: true }) },
+          files: { '.github/workflows/test.yml': workflow(3, { smoke: 'python3 -m tally balances', test: true }) },
         },
       ],
       reviews: [
@@ -1383,6 +1400,13 @@ add_payment credits the sender and debits the receiver.`,
           at: '2023-05-07T02:40:00Z',
           conclusion: 'success',
           summary: 'pay command runs',
+        },
+        {
+          name: 'smoke',
+          commit: 'c-ci',
+          at: '2023-05-07T18:50:00Z',
+          conclusion: 'success',
+          summary: 'balances command exits 0',
         },
         {
           name: 'test',
@@ -1542,6 +1566,13 @@ Fixes #8.`,
         },
       ],
       checks: [
+        {
+          name: 'smoke',
+          commit: 'c-adr2',
+          at: '2023-06-11T17:40:00Z',
+          conclusion: 'success',
+          summary: 'balances command exits 0',
+        },
         {
           name: 'test',
           commit: 'c-adr2',
@@ -1755,6 +1786,20 @@ Closes #10.`,
         },
         {
           name: 'test',
+          commit: 'c-settle',
+          at: '2023-06-24T20:55:00Z',
+          conclusion: 'success',
+          summary: 'unit tests passed',
+        },
+        {
+          name: 'smoke',
+          commit: 'c-settle-test',
+          at: '2023-06-25T01:25:00Z',
+          conclusion: 'failure',
+          summary: 'ImportError: cannot import name minimal_transfer',
+        },
+        {
+          name: 'test',
           commit: 'c-settle-test',
           at: '2023-06-25T01:40:00Z',
           conclusion: 'success',
@@ -1766,6 +1811,13 @@ Closes #10.`,
           at: '2023-06-28T15:50:00Z',
           conclusion: 'success',
           summary: 'minimal_transfers imports cleanly',
+        },
+        {
+          name: 'test',
+          commit: 'c-settle-import',
+          at: '2023-06-28T16:05:00Z',
+          conclusion: 'success',
+          summary: 'unit tests passed',
         },
       ],
       outcome: { kind: 'merged', at: '2023-07-02T18:00:00Z', by: 'owenbriggs' },
@@ -1912,11 +1964,18 @@ Sorry this sat on my laptop for a week.`,
       ],
       checks: [
         {
+          name: 'smoke',
+          commit: 'c-web',
+          at: '2023-08-12T17:15:00Z',
+          conclusion: 'success',
+          summary: 'balances command exits 0',
+        },
+        {
           name: 'test',
           commit: 'c-web',
           at: '2023-08-12T17:30:00Z',
-          conclusion: 'skipped',
-          summary: 'page is a sketch, no new test',
+          conclusion: 'success',
+          summary: 'unit tests passed',
         },
       ],
       outcome: { kind: 'closed', at: '2023-08-19T13:05:00-07:00', by: 'kitalvarez' },
@@ -2007,22 +2066,21 @@ Sorry this sat on my laptop for a week.`,
     {
       type: 'pr',
       number: 17,
-      title: 'Bump actions/setup-python from 4 to 5',
+      title: 'Bump actions/checkout from 3 to 4',
       author: 'dependabot[bot]',
       body: dependabotBody,
       labels: ['dependencies'],
       requestedReviewers: ['lenavoss'],
-      branch: 'dependabot/github_actions/actions/setup-python-5',
+      branch: 'dependabot/github_actions/actions/checkout-4',
       openedAt: '2023-09-22T15:05:00Z',
       commits: [
         {
           key: 'c-bump',
           at: '2023-09-22T15:12:00Z',
           author: 'dependabot[bot]',
-          message: `Bump actions/setup-python from 4 to 5
-
-${dependabotBody}`,
-          files: { '.github/workflows/test.yml': workflow(5, { smoke: 'python3 -m tally balances', test: true }) },
+          via: 'web',
+          message: dependabotCommit,
+          files: { '.github/workflows/test.yml': workflow(4, { smoke: 'python3 -m tally balances', test: true }) },
         },
       ],
       reviews: [
@@ -2040,10 +2098,17 @@ ${dependabotBody}`,
           id: 'pr17-gha',
           author: 'github-actions[bot]',
           at: '2023-09-22T15:45:00Z',
-          body: 'test: success. unit tests passed.',
+          body: 'smoke: success. test: success. unit tests passed.',
         },
       ],
       checks: [
+        {
+          name: 'smoke',
+          commit: 'c-bump',
+          at: '2023-09-22T15:25:00Z',
+          conclusion: 'success',
+          summary: 'balances command exits 0',
+        },
         {
           name: 'test',
           commit: 'c-bump',
@@ -2131,6 +2196,13 @@ README still describes the database. Leaving that for the docs pass so this stay
         },
       ],
       checks: [
+        {
+          name: 'smoke',
+          commit: 'c-json',
+          at: '2023-10-07T18:55:00Z',
+          conclusion: 'success',
+          summary: 'balances command exits 0',
+        },
         {
           name: 'test',
           commit: 'c-json',
@@ -2232,6 +2304,13 @@ Also:
         },
       ],
       checks: [
+        {
+          name: 'smoke',
+          commit: 'c-readme-fix',
+          at: '2023-11-04T21:15:00Z',
+          conclusion: 'success',
+          summary: 'balances command exits 0',
+        },
         {
           name: 'test',
           commit: 'c-readme-fix',
@@ -2655,7 +2734,7 @@ The list of bills is a plain file named ledger.json. tally settle prints the few
       question: 'How many distinct people wrote the app, if a laptop shows a second name for Lena?',
       answers: {
         technical:
-          'Three people wrote product code: Lena Voss, Owen Briggs, and Kit Alvarez. c-dollars and c-usage are authored in git as Lena P <lena@laptop.local> with no linked login, but that identity belongs to lenavoss. She says so on PR #3, and Kit repeats it on PR #20. The squash of PR #3 on main is authored as Lena Voss, not as Lena P. dependabot[bot] only changed the test workflow pin in PR #17 and did not change product behavior. That squash on main is authored by dependabot[bot].',
+          'Three people wrote product code: Lena Voss, Owen Briggs, and Kit Alvarez. c-dollars and c-usage are authored in git as Lena P <lena@laptop.local> with no linked login, but that identity belongs to lenavoss. She says so on PR #3, and Kit repeats it on PR #20. The squash of PR #3 on main is authored as Lena Voss, not as Lena P. dependabot[bot] only changed the actions/checkout pin in the test workflow in PR #17 and did not change product behavior. That squash on main is authored by dependabot[bot].',
         nonTechnical:
           'Three people wrote the app: Lena, Owen, and Kit. A laptop of Lena\'s signed some changes as Lena P, but that is still Lena. An automated helper later updated a setup file and did not change how bills are split.',
       },
@@ -2690,13 +2769,14 @@ The list of bills is a plain file named ledger.json. tally settle prints the few
       question: 'Did the automated dependency update change how bills are split or stored?',
       answers: {
         technical:
-          'No. PR #17, opened by dependabot[bot], only changes .github/workflows/test.yml from actions/setup-python v4 to v5. Commit c-bump touches that file and nothing else. Product behavior is unchanged.',
+          'No. PR #17, opened by dependabot[bot], only changes .github/workflows/test.yml from actions/checkout v3 to v4. setup-python stays at v4. Commit c-bump touches that file and nothing else. Product behavior is unchanged.',
         nonTechnical:
           'No. An automated helper updated a setup file used to run the tests. It did not change how bills are split or stored.',
       },
       evidence: [
-        { kind: 'file', path: '.github/workflows/test.yml', at: 'c-bump', quote: 'actions/setup-python@v5' },
-        { kind: 'commit', key: 'c-bump', quote: 'Bump actions/setup-python from 4 to 5' },
+        { kind: 'file', path: '.github/workflows/test.yml', at: 'c-bump', quote: 'actions/checkout@v4' },
+        { kind: 'file', path: '.github/workflows/test.yml', at: 'c-bump', quote: 'actions/setup-python@v4' },
+        { kind: 'commit', key: 'c-bump', quote: 'Bump actions/checkout from 3 to 4' },
       ],
     },
     {
@@ -2723,7 +2803,7 @@ The list of bills is a plain file named ledger.json. tally settle prints the few
       question: 'What local time did Kit fix the roommates spelling, and in what clock?',
       answers: {
         technical:
-          'c-typo is stamped 2023-04-02T15:14:00-07:00. That instant is 2023-04-02T22:14:00Z. London was on British Summer Time (UTC+1), so 15:14 in Oakland was 23:14 in London, eight hours later. Kit wrote that the typo went in Sunday at 3:14pm his time. April 2, 2023 was a Sunday. His other timestamps use -07:00 in summer and -08:00 after daylight saving ended on Nov 5.',
+          'The git author date on c-typo is 2023-04-02T15:14:00-07:00. That instant is 2023-04-02T22:14:00Z. London was on British Summer Time (UTC+1), so 15:14 in Oakland was 23:14 in London, eight hours later. Kit wrote that the typo went in Sunday at 3:14pm his time. April 2, 2023 was a Sunday. The offset is visible in his git commits, which use -07:00. GitHub shows UTC for reviews, comments, and issues. He has no git commit after daylight saving ended on Nov 5, so the -08:00 stamps on later comments are not in git.',
         nonTechnical:
           'Kit fixed the roommates spelling on Sunday, April 2, 2023, at 3:14 in the afternoon, his time in Oakland. London was on summer time that day, so his clock was eight hours behind London.',
       },
@@ -2776,9 +2856,9 @@ The list of bills is a plain file named ledger.json. tally settle prints the few
       id: 'noise-bot',
       kind: 'bot-noise',
       description:
-        'dependabot[bot] opened PR #17 to bump actions/setup-python from 4 to 5. It was squash-merged, authored on main by dependabot[bot], and did not change tally product code. github-actions[bot] comments on that PR and on the settle-up PR when smoke fails and then passes.',
+        'dependabot[bot] opened PR #17 to bump actions/checkout from 3 to 4. It was squash-merged, authored on main by dependabot[bot], and did not change tally product code. github-actions[bot] comments on that PR and on the settle-up PR when smoke fails and then passes.',
       evidence: [
-        { kind: 'pr', number: 17, quote: 'Bumps [actions/setup-python](https://github.com/actions/setup-python) from 4 to 5.' },
+        { kind: 'pr', number: 17, quote: 'Bumps [actions/checkout](https://github.com/actions/checkout) from 3 to 4.' },
         { kind: 'comment', id: 'pr17-gha', quote: 'test: success.' },
         { kind: 'comment', id: 'pr12-gha-fail', quote: 'Smoke failed:' },
       ],
@@ -2818,17 +2898,17 @@ The list of bills is a plain file named ledger.json. tally settle prints the few
       id: 'noise-squash',
       kind: 'squash-merge',
       description:
-        'PR #3 (the decimal sentence) and PR #17 (the setup-python pin) landed with method squash. Their branch commits are not separate commits on main. Each squash commit on main is authored by the pull request author and committed by GitHub: Lena Voss for #3, dependabot[bot] for #17. Owen merged #3 and Lena merged #17. Those clicks are not the git author. The usage commit still exists on the pull request head, authored as Lena P.',
+        'PR #3 (the decimal sentence) and PR #17 (the actions/checkout pin) landed with method squash. Their branch commits are not separate commits on main. Each squash commit on main is authored by the pull request author and committed by GitHub: Lena Voss for #3, dependabot[bot] for #17. Owen merged #3 and Lena merged #17. Those clicks are not the git author. The usage commit still exists on the pull request head, authored as Lena P.',
       evidence: [
         { kind: 'pr', number: 3, quote: 'Print a sentence when cents is not a whole number' },
-        { kind: 'pr', number: 17, quote: 'Bump actions/setup-python from 4 to 5' },
+        { kind: 'pr', number: 17, quote: 'Bump actions/checkout from 3 to 4' },
       ],
     },
     {
       id: 'noise-timezone',
       kind: 'timezone',
       description:
-        'Kit Alvarez\'s timestamps use -07:00 in summer and -08:00 after daylight saving ended on Nov 5 (Oakland, Pacific). That includes commits, reviews he replies to, and items he opens. c-typo is 2023-04-02T15:14:00-07:00, which is 22:14 UTC. He calls that Sunday at 3:14pm his time. Other people stay on Z.',
+        'Kit Alvarez commits from Oakland (Pacific). The offset is visible in his git commits, which use -07:00. c-typo is 2023-04-02T15:14:00-07:00 in git, which is 22:14 UTC. He calls that Sunday at 3:14pm his time. Daylight saving ended on Nov 5. Comments and the review reply after that are stamped -08:00 in the spec, but GitHub shows UTC, so the offset is not on his reviews, comments, or issues. Other people commit on Z.',
       evidence: [
         { kind: 'commit', key: 'c-typo', quote: 'fix typo: roomates' },
         { kind: 'comment', id: 'disc3-kit', quote: '3:14pm my time' },
