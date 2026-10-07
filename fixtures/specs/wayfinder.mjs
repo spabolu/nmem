@@ -1,6 +1,9 @@
 // File builders keep each path consistent across commits. Quote constants are the
 // substrings the answer key cites, so a wording tweak cannot drift from the evidence.
 
+const ciNodes = [18, 20];
+const ciLegList = ciNodes.map((node) => `test (${node})`).join(' and ');
+
 const q = {
   lead: 'Wayfinder limits requests to the Northwind public API.',
   published: 'The package is published so other teams can use the same limiter.',
@@ -104,12 +107,16 @@ const q = {
   remainingClamp: "'RateLimit-Remaining': String(Math.max(0, Math.floor(remaining))),",
   expectedOne: "assert.equal(headers['RateLimit-Remaining'], '1');",
   ciGot: 'Expected remaining 1, got 1.7.',
-  testPassed: 'The test check passed on that push.',
+  testPassed: `${ciLegList} passed on that push.`,
   clampAsk: 'Remaining went out as 1.7. Clamp it to a whole number that is not negative.',
   createMetricsFn: 'export function createMetrics',
 };
 
-const pkg = (version) => `{
+// typescript@5.4.2 published 2024-03-06T18:14:58Z, after c-init at 16:40Z.
+const tsAtInit = '^5.3.3';
+const tsAfter542 = '^5.4.2';
+
+const pkg = (version, typescript) => `{
   "name": "@northwind-labs/wayfinder",
   "version": "${version}",
   "type": "module",
@@ -118,7 +125,14 @@ const pkg = (version) => `{
     ".": "./src/index.ts"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=18"
+  },
+  "scripts": {
+    "test": "tsx --test test/*.test.ts"
+  },
+  "devDependencies": {
+    "tsx": "^4.7.1",
+    "typescript": "${typescript}"
   }
 }
 `;
@@ -153,14 +167,24 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        node-version: [22, 24]
+        node-version: [${ciNodes.join(', ')}]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: \${{ matrix.node-version }}
-      - run: node --experimental-strip-types --test
+      - run: npm install
+      - run: npm test
 `;
+
+const matrixChecks = (commit, at, conclusion, summary) =>
+  ciNodes.map((node) => ({
+    name: `test (${node})`,
+    commit,
+    at,
+    conclusion,
+    summary,
+  }));
 
 const sample = [
   '```js',
@@ -885,7 +909,7 @@ const spec = {
       message: 'Initial commit',
       files: {
         'README.md': readmeInit,
-        'package.json': pkg('0.0.0'),
+        'package.json': pkg('0.0.0', tsAtInit),
         'tsconfig.json': tsconfig,
         '.gitignore': gitignore,
         '.github/workflows/test.yml': ciWorkflow,
@@ -959,20 +983,8 @@ Priya, this will not share counts across boxes. We only run one.`,
         },
       ],
       checks: [
-        {
-          name: 'test',
-          commit: 'c-window',
-          at: '2024-03-11T19:05:00Z',
-          conclusion: 'success',
-          summary: 'window tests passed',
-        },
-        {
-          name: 'test',
-          commit: 'c-readme-usage',
-          at: '2024-03-12T11:40:00Z',
-          conclusion: 'success',
-          summary: 'readme-only change, tests still passed',
-        },
+        ...matrixChecks('c-window', '2024-03-11T19:05:00Z', 'success', 'window tests passed'),
+        ...matrixChecks('c-readme-usage', '2024-03-12T11:40:00Z', 'success', 'readme-only change, tests still passed'),
       ],
       outcome: { kind: 'merged', at: '2024-03-13T17:15:00Z', by: 'jon-okonkwo' },
     },
@@ -995,7 +1007,7 @@ Priya, this will not share counts across boxes. We only run one.`,
       message: 'changelog: 0.1.0',
       files: {
         'CHANGELOG.md': changelog([log010]),
-        'package.json': pkg('0.1.0'),
+        'package.json': pkg('0.1.0', tsAfter542),
       },
     },
     {
@@ -1091,15 +1103,7 @@ The key default is unchanged in this PR.`,
           reactions: { '+1': ['mira-chen'] },
         },
       ],
-      checks: [
-        {
-          name: 'test',
-          commit: 'c-adr1',
-          at: '2024-04-09T10:45:00Z',
-          conclusion: 'success',
-          summary: 'store tests passed',
-        },
-      ],
+      checks: matrixChecks('c-adr1', '2024-04-09T10:45:00Z', 'success', 'store tests passed'),
       outcome: { kind: 'merged', at: '2024-04-11T11:00:00Z', by: 'mira-chen' },
     },
     {
@@ -1242,15 +1246,7 @@ ADR-0002 records it, and ADR-0001 is marked superseded.`,
         },
       ],
       comments: [],
-      checks: [
-        {
-          name: 'test',
-          commit: 'c-redis-docs',
-          at: '2024-05-03T16:10:00Z',
-          conclusion: 'success',
-          summary: 'existing tests passed with the redis adapter',
-        },
-      ],
+      checks: matrixChecks('c-redis-docs', '2024-05-03T16:10:00Z', 'success', 'existing tests passed with the redis adapter'),
       outcome: { kind: 'merged', at: '2024-05-07T14:00:00Z', by: 'mira-chen' },
     },
     {
@@ -1326,15 +1322,7 @@ take() refills from elapsed time and rejects when the balance is below 1. Both s
         },
       ],
       comments: [],
-      checks: [
-        {
-          name: 'test',
-          commit: 'c-adr3',
-          at: '2024-05-14T11:05:00Z',
-          conclusion: 'success',
-          summary: 'bucket tests passed',
-        },
-      ],
+      checks: matrixChecks('c-adr3', '2024-05-14T11:05:00Z', 'success', 'bucket tests passed'),
       outcome: { kind: 'merged', at: '2024-05-16T16:30:00Z', by: 'jon-okonkwo' },
     },
     {
@@ -1397,15 +1385,7 @@ Priya, kill it if you want.`,
           body: `${q.notPaying}, and I do not want a second client in the repo.`,
         },
       ],
-      checks: [
-        {
-          name: 'test',
-          commit: 'c-cluster',
-          at: '2024-05-28T15:40:00Z',
-          conclusion: 'success',
-          summary: 'no new tests for the wrapper, existing tests passed',
-        },
-      ],
+      checks: matrixChecks('c-cluster', '2024-05-28T15:40:00Z', 'success', 'no new tests for the wrapper, existing tests passed'),
       outcome: { kind: 'closed', at: '2024-05-30T09:10:00Z', by: 'jon-okonkwo' },
     },
     {
@@ -1424,7 +1404,7 @@ Priya, kill it if you want.`,
       message: 'changelog: 0.3.0',
       files: {
         'CHANGELOG.md': changelog([log030, log010]),
-        'package.json': pkg('0.3.0'),
+        'package.json': pkg('0.3.0', tsAfter542),
       },
     },
     {
@@ -1647,15 +1627,7 @@ README and the stores page still describe Redis. That is a follow-up, not this P
           reactions: { hooray: ['mira-chen'] },
         },
       ],
-      checks: [
-        {
-          name: 'test',
-          commit: 'c-adr4',
-          at: '2024-09-05T12:10:00Z',
-          conclusion: 'success',
-          summary: 'tests passed without the redis adapter',
-        },
-      ],
+      checks: matrixChecks('c-adr4', '2024-09-05T12:10:00Z', 'success', 'tests passed without the redis adapter'),
       outcome: { kind: 'merged', at: '2024-09-09T16:00:00Z', by: 'mira-chen' },
     },
     {
@@ -1776,7 +1748,7 @@ rateLimitHeaders sets Retry-After, RateLimit-Limit, RateLimit-Remaining, and Rat
           id: 'pr13-jon-ci',
           author: 'jon-okonkwo',
           at: '2024-10-02T18:05:00Z',
-          body: `The test check failed on the first push. ${q.ciGot} I will clamp it.`,
+          body: `${ciLegList} failed on the first push. ${q.ciGot} I will clamp it.`,
         },
         {
           id: 'pr10-sam',
@@ -1786,27 +1758,9 @@ rateLimitHeaders sets Retry-After, RateLimit-Limit, RateLimit-Remaining, and Rat
         },
       ],
       checks: [
-        {
-          name: 'test',
-          commit: 'c-headers',
-          at: '2024-10-02T17:28:00Z',
-          conclusion: 'failure',
-          summary: 'test/headers.test.ts failed. Expected remaining 1, got 1.7.',
-        },
-        {
-          name: 'test',
-          commit: 'c-headers-fix',
-          at: '2024-10-03T09:32:00Z',
-          conclusion: 'success',
-          summary: 'test/headers.test.ts passed',
-        },
-        {
-          name: 'test',
-          commit: 'c-metrics',
-          at: '2024-10-03T11:40:00Z',
-          conclusion: 'success',
-          summary: 'tests passed with reject counters',
-        },
+        ...matrixChecks('c-headers', '2024-10-02T17:28:00Z', 'failure', 'test/headers.test.ts failed. Expected remaining 1, got 1.7.'),
+        ...matrixChecks('c-headers-fix', '2024-10-03T09:32:00Z', 'success', 'test/headers.test.ts passed'),
+        ...matrixChecks('c-metrics', '2024-10-03T11:40:00Z', 'success', 'tests passed with reject counters'),
       ],
       outcome: { kind: 'merged', at: '2024-10-08T14:00:00Z', by: 'jon-okonkwo' },
     },
@@ -1818,7 +1772,7 @@ rateLimitHeaders sets Retry-After, RateLimit-Limit, RateLimit-Remaining, and Rat
       message: 'changelog: 0.9.0',
       files: {
         'CHANGELOG.md': changelog([log090, log030, log010]),
-        'package.json': pkg('0.9.0'),
+        'package.json': pkg('0.9.0', tsAfter542),
       },
     },
     {
@@ -1896,15 +1850,7 @@ This replaces that with the in-process store and the accuracy note from ADR-0004
           body: 'Good. Support was still pasting the old setup into tickets.',
         },
       ],
-      checks: [
-        {
-          name: 'test',
-          commit: 'c-docs-fix',
-          at: '2024-11-12T17:10:00Z',
-          conclusion: 'success',
-          summary: 'docs-only change, tests passed',
-        },
-      ],
+      checks: matrixChecks('c-docs-fix', '2024-11-12T17:10:00Z', 'success', 'docs-only change, tests passed'),
       outcome: { kind: 'merged', at: '2024-11-15T11:00:00Z', by: 'mira-chen' },
     },
     {
@@ -1915,7 +1861,7 @@ This replaces that with the in-process store and the accuracy note from ADR-0004
       message: 'changelog: 1.0.0',
       files: {
         'CHANGELOG.md': changelog([log100, log090, log030, log010]),
-        'package.json': pkg('1.0.0'),
+        'package.json': pkg('1.0.0', tsAfter542),
       },
     },
     {
@@ -2331,9 +2277,9 @@ This replaces that with the in-process store and the accuracy note from ADR-0004
       question: 'What did automatic checks catch on the wait-time change before it was accepted?',
       answers: {
         technical:
-          'On PR #13 the test check failed on c-headers. Jon Okonkwo wrote that it expected remaining 1 and got 1.7. src/headers.ts at that commit sets RateLimit-Remaining from the raw balance. Mira Chen requested changes on that line, then Jon clamped it in c-headers-fix. The later test check passed, and Mira approved after that commit.',
+          `On PR #13, ${ciLegList} both failed on c-headers. Jon Okonkwo wrote that it expected remaining 1 and got 1.7. src/headers.ts at that commit sets RateLimit-Remaining from the raw balance. Mira Chen requested changes on that line, then Jon clamped it in c-headers-fix. ${ciLegList} both passed on that commit, and Mira approved after it.`,
         nonTechnical:
-          'Before the wait-time change was accepted, an automatic check failed. A blocked response was going to include a fraction of a permit instead of a whole number. The author fixed that, the check passed, and a teammate then accepted the change.',
+          'Before the wait-time change was accepted, automatic checks failed. A blocked response was going to include a fraction of a permit instead of a whole number. The author fixed that, the checks passed, and a teammate then accepted the change.',
       },
       evidence: [
         { kind: 'comment', id: 'pr13-jon-ci', quote: q.ciGot },
