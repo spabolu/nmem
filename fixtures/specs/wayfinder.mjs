@@ -964,7 +964,15 @@ The key default is unchanged in this PR.`,
           author: 'mira-chen',
           at: '2024-04-10T15:30:00Z',
           state: 'APPROVED',
-          body: 'Store split looks right. Separate note on the key, not a change for this PR.',
+          body: 'Store split looks right.',
+          threads: [],
+        },
+        {
+          id: 'pr2-rv-sam',
+          author: 'sam-ellison',
+          at: '2024-04-10T15:41:00Z',
+          state: 'COMMENTED',
+          body: 'Not blocking the store work, but read the thread on the key.',
           threads: [
             {
               id: 'pr2-th-key',
@@ -1648,7 +1656,7 @@ This replaces that with the in-process store and the accuracy note from ADR-0004
         technical:
           'The README at c-init says Mira is sketching a fixed-window counter for the partner launch. Four annotated tags mark the later phases. v0.1.0 is a fixed-window limiter for one Node process, and the tag message says it counts by client IP. v0.3.0 is a pluggable store and a token bucket, and the tag says production shares counts through Redis. v0.9.0 is in-process buckets, retry headers, and reject counters, and the tag says the docs still describe Redis setup. v1.0.0 says the Redis setup notes are removed.',
         nonTechnical:
-          'It started in March 2024 as a simple counter on one computer, tagging visitors by their network address. By June it could share counts through a database and used a fairer way to decide who gets blocked. In October it counted inside each copy of the site again, and told blocked callers when to try again. In December the written guides finally matched that.',
+          'It started in March 2024 as a simple counter on one computer, tagging visitors by their network address. By June it could share counts through a database and used a fairer way to decide who gets blocked. In September it went back to counting inside each copy of the site, and in October it started telling blocked callers when to try again. In December the written guides finally matched that.',
       },
       evidence: [
         { kind: 'file', path: 'README.md', at: 'c-init', quote: q.sketch },
@@ -1684,13 +1692,16 @@ This replaces that with the in-process store and the accuracy note from ADR-0004
       question: 'Why was the shared Redis store dropped, and what replaced it?',
       answers: {
         technical:
-          'Discussion #8 raised it first. Priya Nair wrote that Redis was unreachable for 11 minutes that morning, the limiter failed closed, and every customer got a 429. Sam Ellison said checkout was dead. Jon Okonkwo said the ops cost was not worth the exact counts. PR #9 deletes src/redis.ts and records the tradeoff: N processes can exceed the limit by about N times. c-adr4 edited ADR-0002 to Status: Superseded by ADR-0004.',
+          'A month before any written reason, Jon Okonkwo tried failing open in c-fail-open (2024-07-22) and Mira Chen reverted it the next day in c-revert-fail-open. Neither message says why it was reverted. Discussion #8 (2024-08-19) is the first written reason. Priya Nair wrote that Redis was unreachable for 11 minutes that morning, the limiter failed closed, and every customer got a 429, and that fail-open was not the answer either. Sam Ellison said checkout was dead. Mira Chen said she would rather be approximate than take the API down again. Jon Okonkwo said the ops cost was not worth the exact counts. PR #9 deletes src/redis.ts and records the tradeoff: N processes can exceed the limit by about N times. c-adr4 edited ADR-0002 to Status: Superseded by ADR-0004.',
         nonTechnical:
-          'In August 2024 that shared database was unreachable for eleven minutes, and the limiter blocked every caller, so the public site looked down. The operations person and the product manager both said that was worse than slightly wrong counts. In September the team stopped using the shared database and went back to counting inside each copy of the site. They wrote down that several copies can let a customer slightly over the limit.',
+          'In August 2024 that shared database was unreachable for eleven minutes, and the limiter blocked every caller, so the public site looked down. The product manager said customers could not check out. The operations person and two engineers agreed that slightly wrong counts were better than blocking everyone. In September the team stopped using the shared database and went back to counting inside each copy of the site. They wrote down that several copies can let a customer slightly over the limit.',
       },
       evidence: [
         { kind: 'discussion', number: 8, quote: q.elevenDisc },
+        { kind: 'commit', key: 'c-fail-open', quote: "don't 429 the world if redis blips" },
+        { kind: 'commit', key: 'c-revert-fail-open', quote: 'Revert' },
         { kind: 'comment', id: 'disc8-sam', quote: q.checkoutDead },
+        { kind: 'comment', id: 'disc8-mira', quote: 'I would rather be approximate than take the API down again.' },
         { kind: 'comment', id: 'disc8-jon', quote: 'the ops cost is not worth the exact counts' },
         { kind: 'pr', number: 9, quote: 'This deletes src/redis.ts. createMemoryStore is the only store. ADR-0004 records the accuracy tradeoff: N processes can exceed the limit by about N times.' },
         { kind: 'file', path: 'docs/adr/0002-shared-redis.md', at: 'c-adr4', quote: q.statusSuper4 },
