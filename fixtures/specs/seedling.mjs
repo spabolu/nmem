@@ -1,0 +1,2713 @@
+// Go sources are written with 4-space indents and converted to tabs, so gofmt accepts the generated files.
+const go = (src) => src.replace(/^(?: {4})+/gm, (indent) => '\t'.repeat(indent.length / 4));
+
+const gomod = (version, extra = '') => `module github.com/eastside-commons/seedling
+
+go ${version}
+${extra}`;
+
+const gitignore = `/seedling
+*.csv
+.env
+`;
+
+const daysGo = go(`package schedule
+
+import "time"
+
+// WateringDays returns every watering day in the given number of weeks,
+// starting at from.
+func WateringDays(from time.Time, weeks int) []time.Time {
+    end := from.AddDate(0, 0, 7*weeks)
+    var days []time.Time
+    for d := from; d.Before(end); d = d.AddDate(0, 0, 1) {
+        if d.Weekday() == time.Sunday {
+            continue
+        }
+        days = append(days, d)
+    }
+    return days
+}
+`);
+
+const daysTestGo = go(`package schedule
+
+import (
+    "testing"
+    "time"
+)
+
+func TestWateringDays(t *testing.T) {
+    mon := time.Date(2024, time.May, 6, 0, 0, 0, 0, time.UTC)
+    days := WateringDays(mon, 2)
+    if len(days) != 12 {
+        t.Fatalf("got %d days, want 12", len(days))
+    }
+    for _, d := range days {
+        if d.Weekday() == time.Sunday {
+            t.Errorf("%s is a Sunday", d.Format("2006-01-02"))
+        }
+    }
+}
+`);
+
+const mainGoV1 = (header, row) => go(`package main
+
+import (
+    "encoding/csv"
+    "flag"
+    "log"
+    "os"
+    "time"
+
+    "github.com/eastside-commons/seedling/internal/schedule"
+)
+
+func main() {
+    from := flag.String("from", "", "first day of the sheet, YYYY-MM-DD")
+    weeks := flag.Int("weeks", 4, "how many weeks to export")
+    flag.Parse()
+
+    start, err := time.Parse("2006-01-02", *from)
+    if err != nil {
+        log.Fatalf("bad -from date: %v", err)
+    }
+
+    w := csv.NewWriter(os.Stdout)
+    w.Write([]string{${header}})
+    for _, d := range schedule.WateringDays(start, *weeks) {
+        w.Write([]string{${row}})
+    }
+    w.Flush()
+    if err := w.Error(); err != nil {
+        log.Fatal(err)
+    }
+}
+`);
+
+const mainGo = (commands) => go(`package main
+
+import (
+    "fmt"
+    "os"
+)
+
+const usage = \`usage: seedling <command> [flags]
+
+commands:
+${commands.map(([name, desc]) => `  ${name.padEnd(8)} ${desc}`).join('\n')}\`
+
+func main() {
+    if len(os.Args) < 2 {
+        fmt.Fprintln(os.Stderr, usage)
+        os.Exit(2)
+    }
+    args := os.Args[2:]
+    switch os.Args[1] {
+${commands.map(([name]) => `    case "${name}":\n        ${name}(args)`).join('\n')}
+    default:
+        fmt.Fprintln(os.Stderr, usage)
+        os.Exit(2)
+    }
+}
+`);
+
+const exportGoV1 = go(`package main
+
+import (
+    "encoding/csv"
+    "flag"
+    "log"
+    "os"
+    "time"
+
+    "github.com/eastside-commons/seedling/internal/schedule"
+)
+
+func export(args []string) {
+    flags := flag.NewFlagSet("export", flag.ExitOnError)
+    from := flags.String("from", "", "first day of the sheet, YYYY-MM-DD")
+    weeks := flags.Int("weeks", 4, "how many weeks to export")
+    flags.Parse(args)
+
+    start, err := time.Parse("2006-01-02", *from)
+    if err != nil {
+        log.Fatalf("bad -from date: %v", err)
+    }
+
+    w := csv.NewWriter(os.Stdout)
+    w.Write([]string{"date", "day", "volunteer", "notes"})
+    for _, d := range schedule.WateringDays(start, *weeks) {
+        w.Write([]string{d.Format("2006-01-02"), d.Format("Monday"), "", ""})
+    }
+    w.Flush()
+    if err := w.Error(); err != nil {
+        log.Fatal(err)
+    }
+}
+`);
+
+const exportGoV2 = go(`package main
+
+import (
+    "encoding/csv"
+    "flag"
+    "log"
+    "os"
+    "time"
+
+    "github.com/eastside-commons/seedling/internal/schedule"
+    "github.com/eastside-commons/seedling/internal/store"
+)
+
+func export(args []string) {
+    flags := flag.NewFlagSet("export", flag.ExitOnError)
+    from := flags.String("from", "", "first day to schedule, YYYY-MM-DD")
+    weeks := flags.Int("weeks", 1, "how many weeks to schedule")
+    data := flags.String("data", "volunteers.csv", "volunteer roster")
+    flags.Parse(args)
+
+    start, err := time.Parse("2006-01-02", *from)
+    if err != nil {
+        log.Fatalf("bad -from date: %v", err)
+    }
+    all, err := store.Open(*data).All()
+    if err != nil {
+        log.Fatal(err)
+    }
+    roster := make([]schedule.Volunteer, len(all))
+    for i, v := range all {
+        roster[i] = schedule.Volunteer{Name: v.Name, Days: v.Days}
+    }
+
+    w := csv.NewWriter(os.Stdout)
+    w.Write([]string{"date", "day", "volunteer"})
+    for _, s := range schedule.Assign(schedule.WateringDays(start, *weeks), roster) {
+        w.Write([]string{s.Date.Format("2006-01-02"), s.Date.Format("Monday"), s.Volunteer})
+    }
+    w.Flush()
+    if err := w.Error(); err != nil {
+        log.Fatal(err)
+    }
+}
+`);
+
+const storeGo = go(`package store
+
+import (
+    "encoding/csv"
+    "errors"
+    "io/fs"
+    "os"
+    "strings"
+    "sync"
+    "time"
+)
+
+// Volunteer is one row of volunteers.csv.
+type Volunteer struct {
+    Name  string
+    Phone string
+    Email string
+    Days  []time.Weekday
+}
+
+// Store is the volunteer roster, kept as a CSV file.
+type Store struct {
+    path string
+    mu   sync.Mutex
+}
+
+func Open(path string) *Store { return &Store{path: path} }
+
+func (s *Store) Add(v Volunteer) error {
+    s.mu.Lock()
+    defer s.mu.Unlock()
+    f, err := os.OpenFile(s.path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+    if err != nil {
+        return err
+    }
+    defer f.Close()
+    w := csv.NewWriter(f)
+    w.Write([]string{v.Name, v.Phone, v.Email, formatDays(v.Days)})
+    w.Flush()
+    return w.Error()
+}
+
+func (s *Store) All() ([]Volunteer, error) {
+    s.mu.Lock()
+    defer s.mu.Unlock()
+    f, err := os.Open(s.path)
+    if errors.Is(err, fs.ErrNotExist) {
+        return nil, nil
+    }
+    if err != nil {
+        return nil, err
+    }
+    defer f.Close()
+    rows, err := csv.NewReader(f).ReadAll()
+    if err != nil {
+        return nil, err
+    }
+    all := make([]Volunteer, 0, len(rows))
+    for _, r := range rows {
+        all = append(all, Volunteer{Name: r[0], Phone: r[1], Email: r[2], Days: parseDays(r[3])})
+    }
+    return all, nil
+}
+
+func formatDays(days []time.Weekday) string {
+    names := make([]string, len(days))
+    for i, d := range days {
+        names[i] = d.String()[:3]
+    }
+    return strings.Join(names, " ")
+}
+
+func parseDays(s string) []time.Weekday {
+    var days []time.Weekday
+    for _, name := range strings.Fields(s) {
+        for d := time.Monday; d <= time.Saturday; d++ {
+            if d.String()[:3] == name {
+                days = append(days, d)
+            }
+        }
+    }
+    return days
+}
+`);
+
+const shiftsWho = `// Who returns the volunteer on date, or "" if the day is open or not scheduled.
+func (s *Shifts) Who(date time.Time) (string, error) {
+    s.mu.Lock()
+    defer s.mu.Unlock()
+    rows, err := s.read()
+    if err != nil {
+        return "", err
+    }
+    for _, r := range rows {
+        if r[0] == date.Format("2006-01-02") {
+            return r[2], nil
+        }
+    }
+    return "", nil
+}
+`;
+
+const shiftsRead = `func (s *Shifts) read() ([][]string, error) {
+    f, err := os.Open(s.path)
+    if err != nil {
+        return nil, err
+    }
+    defer f.Close()
+    return csv.NewReader(f).ReadAll()
+}
+`;
+
+const shiftsHead = (imports) => `package store
+
+import (
+${imports.map((name) => `    "${name}"`).join('\n')}
+)
+
+// Shifts is the schedule file written by \`seedling export\`: date, day, volunteer.
+type Shifts struct {
+    path string
+    mu   sync.Mutex
+}
+
+func OpenShifts(path string) *Shifts { return &Shifts{path: path} }
+`;
+
+const shiftsGoV1 = go([shiftsHead(['encoding/csv', 'os', 'sync', 'time']), shiftsWho, shiftsRead].join('\n'));
+
+const shiftsGoV2 = go([
+  shiftsHead(['encoding/csv', 'fmt', 'os', 'sync', 'time']),
+  shiftsWho,
+  `// Reassign hands from's shift on date to someone else.
+func (s *Shifts) Reassign(date time.Time, from, to string) error {
+    s.mu.Lock()
+    defer s.mu.Unlock()
+    rows, err := s.read()
+    if err != nil {
+        return err
+    }
+    for _, r := range rows {
+        if r[0] == date.Format("2006-01-02") && r[2] == from {
+            r[2] = to
+            return s.write(rows)
+        }
+    }
+    return fmt.Errorf("no shift for %s on %s", from, date.Format("2006-01-02"))
+}
+`,
+  shiftsRead,
+  `func (s *Shifts) write(rows [][]string) error {
+    f, err := os.Create(s.path)
+    if err != nil {
+        return err
+    }
+    w := csv.NewWriter(f)
+    if err := w.WriteAll(rows); err != nil {
+        f.Close()
+        return err
+    }
+    return f.Close()
+}
+`,
+].join('\n'));
+
+const assignGo = (noRepeat) => go(`package schedule
+
+import (
+    "slices"
+    "time"
+)
+
+// Volunteer is someone on the roster and the weekdays they said they can water.
+type Volunteer struct {
+    Name string
+    Days []time.Weekday
+}
+
+// Shift is one watering day and who has it. Volunteer is "" if nobody could.
+type Shift struct {
+    Date      time.Time
+    Volunteer string
+}
+
+// Assign gives each day to the free volunteer with the fewest shifts so far.
+// Ties go to whoever comes first in the roster.
+func Assign(days []time.Time, roster []Volunteer) []Shift {
+    count := map[string]int{}
+${noRepeat ? '    last := map[string]time.Time{}\n' : ''}    var shifts []Shift
+    for _, day := range days {
+        pick := ""
+        for _, v := range roster {
+            if !slices.Contains(v.Days, day.Weekday()) {
+                continue
+            }
+${noRepeat ? `            if last[v.Name].Equal(day.AddDate(0, 0, -1)) {
+                continue
+            }
+` : ''}            if pick == "" || count[v.Name] < count[pick] {
+                pick = v.Name
+            }
+        }
+        if pick != "" {
+            count[pick]++
+${noRepeat ? '            last[pick] = day\n' : ''}        }
+        shifts = append(shifts, Shift{Date: day, Volunteer: pick})
+    }
+    return shifts
+}
+`);
+
+const assignTestGo = (want) => go(`package schedule
+
+import (
+    "testing"
+    "time"
+)
+
+func TestAssign(t *testing.T) {
+    mon := time.Date(2024, time.July, 1, 0, 0, 0, 0, time.UTC)
+    everyDay := []time.Weekday{time.Monday, time.Tuesday, time.Wednesday, time.Thursday, time.Friday, time.Saturday}
+    roster := []Volunteer{
+        {Name: "Ana", Days: everyDay},
+        {Name: "Ben", Days: []time.Weekday{time.Monday, time.Tuesday}},
+    }
+    got := Assign(WateringDays(mon, 1), roster)
+    want := []string{${want.map((name) => JSON.stringify(name)).join(', ')}}
+    if len(got) != len(want) {
+        t.Fatalf("got %d shifts, want %d", len(got), len(want))
+    }
+    for i, s := range got {
+        if s.Volunteer != want[i] {
+            t.Errorf("%s: got %q, want %q", s.Date.Format("Mon"), s.Volunteer, want[i])
+        }
+    }
+}
+`);
+
+const serveGo = (withSwap) => go(`package main
+
+import (
+    "flag"
+    "html/template"
+    "log"
+    "net/http"
+${withSwap ? '    "os"\n' : ''}    "time"
+
+    "github.com/eastside-commons/seedling/internal/store"
+${withSwap ? '    "github.com/eastside-commons/seedling/internal/swap"\n' : ''})
+
+var weekdays = []time.Weekday{
+    time.Monday, time.Tuesday, time.Wednesday, time.Thursday, time.Friday, time.Saturday,
+}
+
+func serve(args []string) {
+    flags := flag.NewFlagSet("serve", flag.ExitOnError)
+    addr := flags.String("addr", ":8080", "listen address")
+    data := flags.String("data", "volunteers.csv", "volunteer roster")
+${withSwap ? '    shifts := flags.String("shifts", "shifts.csv", "schedule written by export")\n' : ''}    flags.Parse(args)
+
+    roster := store.Open(*data)
+    page := template.Must(template.ParseFiles("templates/signup.html"))
+${withSwap ? `    signer := swap.Signer{Key: []byte(os.Getenv("SEEDLING_SWAP_KEY"))}
+    swapRoutes(signer, store.OpenShifts(*shifts), roster)
+` : ''}
+    http.HandleFunc("GET /", func(w http.ResponseWriter, r *http.Request) {
+        page.Execute(w, map[string]any{"Days": weekdays})
+    })
+    http.HandleFunc("POST /signup", func(w http.ResponseWriter, r *http.Request) {
+        v := store.Volunteer{
+            Name:  r.FormValue("name"),
+            Phone: r.FormValue("phone"),
+            Email: r.FormValue("email"),
+        }
+        for _, d := range weekdays {
+            if r.FormValue(d.String()) == "on" {
+                v.Days = append(v.Days, d)
+            }
+        }
+        if v.Name == "" {
+            http.Error(w, "Please tell us your name.", http.StatusBadRequest)
+            return
+        }
+        if err := roster.Add(v); err != nil {
+            log.Printf("signup %q: %v", v.Name, err)
+            http.Error(w, "Something went wrong. Please tell Rosa.", http.StatusInternalServerError)
+            return
+        }
+        page.Execute(w, map[string]any{"Days": weekdays, "Thanks": v.Name})
+    })
+
+    log.Printf("sign-up site listening on %s", *addr)
+    log.Fatal(http.ListenAndServe(*addr, nil))
+}
+`);
+
+const signupHtml = ({ thanks, phone, email }) => `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Eastside Commons watering sign-up</title>
+  <style>
+    body { font-family: sans-serif; font-size: 1.25rem; max-width: 32rem; margin: 2rem auto; padding: 0 1rem; }
+    input[type=text], input[type=tel], input[type=email] { width: 100%; font-size: 1.25rem; padding: .4rem; }
+    input[type=checkbox] { width: 1.5rem; height: 1.5rem; }
+    button { font-size: 1.5rem; padding: .7rem 1.4rem; }
+  </style>
+</head>
+<body>
+  <h1>Water the garden</h1>
+  {{if .Thanks}}<p><strong>${thanks}</strong></p>{{end}}
+  <form method="post" action="/signup">
+    <p><label>Your name<br><input type="text" name="name" required></label></p>
+    <p><label>${phone}<br><input type="tel" name="phone"></label></p>
+    <p><label>${email}<br><input type="email" name="email"></label></p>
+    <p>Which days can you usually water?</p>
+    {{range .Days}}<p><label><input type="checkbox" name="{{.}}"> {{.}}</label></p>
+    {{end}}
+    <p><button type="submit">Sign me up</button></p>
+  </form>
+</body>
+</html>
+`;
+
+const signup = {
+  typo: { thanks: 'Thank you for signing up, {{.Thanks}}! See you at the gardne.', phone: 'Phone (so Rosa can reach you)', email: 'Email' },
+};
+signup.fixed = { ...signup.typo, thanks: 'Thank you for signing up, {{.Thanks}}! See you at the garden.' };
+signup.sms = { ...signup.fixed, phone: 'Cell phone (we text you the evening before your shift)' };
+signup.email = { ...signup.fixed, phone: 'Phone (optional, so Rosa can call you)', email: 'Email (we email you the evening before your shift)' };
+
+const smsGo = go(`package notify
+
+import (
+    "fmt"
+    "net/http"
+    "net/url"
+    "strings"
+)
+
+// SMS sends text messages through Twilio's REST API.
+type SMS struct {
+    AccountSID string
+    AuthToken  string
+    From       string
+}
+
+func (s SMS) Send(to, body string) error {
+    form := url.Values{"To": {to}, "From": {s.From}, "Body": {body}}
+    endpoint := "https://api.twilio.com/2010-04-01/Accounts/" + s.AccountSID + "/Messages.json"
+    req, err := http.NewRequest("POST", endpoint, strings.NewReader(form.Encode()))
+    if err != nil {
+        return err
+    }
+    req.SetBasicAuth(s.AccountSID, s.AuthToken)
+    req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+    resp, err := http.DefaultClient.Do(req)
+    if err != nil {
+        return err
+    }
+    defer resp.Body.Close()
+    if resp.StatusCode >= 300 {
+        return fmt.Errorf("twilio: %s", resp.Status)
+    }
+    return nil
+}
+`);
+
+const emailGo = go(`package notify
+
+import (
+    "fmt"
+    "net/smtp"
+    "strings"
+)
+
+// Email sends plain-text mail through the garden's Gmail account.
+type Email struct {
+    Addr     string
+    User     string
+    Password string
+}
+
+func (e Email) Send(to, subject, body string) error {
+    host, _, _ := strings.Cut(e.Addr, ":")
+    auth := smtp.PlainAuth("", e.User, e.Password, host)
+    msg := fmt.Sprintf("From: Eastside Commons Garden <%s>\\r\\nTo: %s\\r\\nSubject: %s\\r\\n\\r\\n%s",
+        e.User, to, subject, body)
+    return smtp.SendMail(e.Addr, auth, e.User, []string{to}, []byte(msg))
+}
+`);
+
+const remindFind = `func find(roster *store.Store, name string) (store.Volunteer, error) {
+    all, err := roster.All()
+    if err != nil {
+        return store.Volunteer{}, err
+    }
+    for _, v := range all {
+        if v.Name == name {
+            return v, nil
+        }
+    }
+    return store.Volunteer{}, fmt.Errorf("%s is on the schedule but not on the roster", name)
+}
+`;
+
+const remindHead = (imports, internal) => `package main
+
+import (
+${imports.map((name) => `    "${name}"`).join('\n')}
+
+${internal.map((name) => `    "github.com/eastside-commons/seedling/internal/${name}"`).join('\n')}
+)
+
+func remind(args []string) {
+    flags := flag.NewFlagSet("remind", flag.ExitOnError)
+    data := flags.String("data", "volunteers.csv", "volunteer roster")
+    shifts := flags.String("shifts", "shifts.csv", "schedule written by export")
+    flags.Parse(args)
+
+    tomorrow := time.Now().AddDate(0, 0, 1)
+    name, err := store.OpenShifts(*shifts).Who(tomorrow)
+    if err != nil {
+        log.Fatal(err)
+    }
+    if name == "" {
+        log.Printf("nobody to remind for %s", tomorrow.Format("Mon Jan 2"))
+        return
+    }
+    v, err := find(store.Open(*data), name)
+    if err != nil {
+        log.Fatal(err)
+    }
+`;
+
+const twilioClient = `    sms := notify.SMS{
+        AccountSID: os.Getenv("TWILIO_ACCOUNT_SID"),
+        AuthToken:  os.Getenv("TWILIO_AUTH_TOKEN"),
+        From:       os.Getenv("TWILIO_FROM"),
+    }
+`;
+
+const swapLink = `    signer := swap.Signer{Key: []byte(os.Getenv("SEEDLING_SWAP_KEY"))}
+    link := os.Getenv("SEEDLING_URL") + "/swap?t=" + url.QueryEscape(signer.Token(tomorrow, v.Name))
+`;
+
+const remindGoV1 = go([
+  remindHead(['flag', 'fmt', 'log', 'os', 'time'], ['notify', 'store'])
+    + `
+${twilioClient}    msg := fmt.Sprintf("Hi %s! You're watering at Eastside Commons tomorrow, %s. Thank you!",
+        v.Name, tomorrow.Format("Mon Jan 2"))
+    if err := sms.Send(v.Phone, msg); err != nil {
+        log.Fatalf("texting %s: %v", v.Name, err)
+    }
+}
+`,
+  remindFind,
+].join('\n'));
+
+const remindGoV2 = go([
+  remindHead(['flag', 'fmt', 'log', 'net/url', 'os', 'time'], ['notify', 'store', 'swap'])
+    + `
+${swapLink}${twilioClient}    msg := fmt.Sprintf("Hi %s! You're watering at Eastside Commons tomorrow, %s. Can't make it? %s",
+        v.Name, tomorrow.Format("Mon Jan 2"), link)
+    if err := sms.Send(v.Phone, msg); err != nil {
+        log.Fatalf("texting %s: %v", v.Name, err)
+    }
+}
+`,
+  remindFind,
+].join('\n'));
+
+const remindGoV3 = go([
+  remindHead(['flag', 'fmt', 'log', 'net/url', 'os', 'time'], ['notify', 'store', 'swap'])
+    + `    if v.Email == "" {
+        log.Printf("%s has no email on file, skipping", v.Name)
+        return
+    }
+
+${swapLink}    mail := notify.Email{
+        Addr:     "smtp.gmail.com:587",
+        User:     os.Getenv("SEEDLING_SMTP_USER"),
+        Password: os.Getenv("SEEDLING_SMTP_PASSWORD"),
+    }
+    body := fmt.Sprintf("Hi %s,\\n\\nYou're watering at Eastside Commons tomorrow, %s.\\n\\n"+
+        "Can't make it? Hand your shift to someone else here:\\n%s\\n\\nThank you!\\nThe garden crew\\n",
+        v.Name, tomorrow.Format("Monday, January 2"), link)
+    if err := mail.Send(v.Email, "Watering tomorrow", body); err != nil {
+        log.Fatalf("emailing %s: %v", v.Name, err)
+    }
+}
+`,
+  remindFind,
+].join('\n'));
+
+const swapPkgGo = go(`package swap
+
+import (
+    "crypto/hmac"
+    "crypto/sha256"
+    "encoding/base64"
+    "strings"
+    "time"
+)
+
+// Signer makes and checks swap links. A token names one volunteer and one
+// date, so whoever holds the link can hand off that shift and nothing else.
+type Signer struct {
+    Key []byte
+}
+
+func (s Signer) Token(date time.Time, name string) string {
+    payload := date.Format("2006-01-02") + "|" + name
+    return base64.RawURLEncoding.EncodeToString([]byte(payload)) + "." + s.sign(payload)
+}
+
+// Open checks a token and returns its shift. Tokens stop working after the shift date.
+func (s Signer) Open(token string, now time.Time) (time.Time, string, bool) {
+    raw, sig, found := strings.Cut(token, ".")
+    if !found {
+        return time.Time{}, "", false
+    }
+    b, err := base64.RawURLEncoding.DecodeString(raw)
+    if err != nil || !hmac.Equal([]byte(sig), []byte(s.sign(string(b)))) {
+        return time.Time{}, "", false
+    }
+    day, name, _ := strings.Cut(string(b), "|")
+    date, err := time.Parse("2006-01-02", day)
+    if err != nil || date.Before(now.Truncate(24*time.Hour)) {
+        return time.Time{}, "", false
+    }
+    return date, name, true
+}
+
+func (s Signer) sign(payload string) string {
+    mac := hmac.New(sha256.New, s.Key)
+    mac.Write([]byte(payload))
+    return base64.RawURLEncoding.EncodeToString(mac.Sum(nil))
+}
+`);
+
+const swapTestGo = go(`package swap
+
+import (
+    "testing"
+    "time"
+)
+
+func TestTokenRoundTrip(t *testing.T) {
+    s := Signer{Key: []byte("test key")}
+    thu := time.Date(2024, time.August, 8, 0, 0, 0, 0, time.UTC)
+    date, name, ok := s.Open(s.Token(thu, "Walt"), thu)
+    if !ok || name != "Walt" || !date.Equal(thu) {
+        t.Fatalf("Open = %v %q %v, want %v Walt true", date, name, ok, thu)
+    }
+    if _, _, ok := s.Open(s.Token(thu, "Walt"), thu.AddDate(0, 0, 1)); ok {
+        t.Error("token still works the day after the shift")
+    }
+    if _, _, ok := (Signer{Key: []byte("other")}).Open(s.Token(thu, "Walt"), thu); ok {
+        t.Error("token signed with a different key was accepted")
+    }
+}
+`);
+
+const swapWebGo = go(`package main
+
+import (
+    "html/template"
+    "log"
+    "net/http"
+    "time"
+
+    "github.com/eastside-commons/seedling/internal/store"
+    "github.com/eastside-commons/seedling/internal/swap"
+)
+
+func swapRoutes(signer swap.Signer, shifts *store.Shifts, roster *store.Store) {
+    page := template.Must(template.ParseFiles("templates/swap.html"))
+
+    http.HandleFunc("GET /swap", func(w http.ResponseWriter, r *http.Request) {
+        date, name, ok := signer.Open(r.FormValue("t"), time.Now())
+        if !ok {
+            http.Error(w, "This swap link has expired.", http.StatusGone)
+            return
+        }
+        everyone, err := roster.All()
+        if err != nil {
+            log.Printf("swap: %v", err)
+        }
+        page.Execute(w, map[string]any{"Token": r.FormValue("t"), "Date": date, "Name": name, "Roster": everyone})
+    })
+
+    http.HandleFunc("POST /swap", func(w http.ResponseWriter, r *http.Request) {
+        date, name, ok := signer.Open(r.FormValue("t"), time.Now())
+        if !ok {
+            http.Error(w, "This swap link has expired.", http.StatusGone)
+            return
+        }
+        taker := r.FormValue("taker")
+        if err := shifts.Reassign(date, name, taker); err != nil {
+            log.Printf("swap %s -> %s: %v", name, taker, err)
+            http.Error(w, "We couldn't make that swap. Please call Rosa.", http.StatusInternalServerError)
+            return
+        }
+        page.Execute(w, map[string]any{"Done": true, "Date": date, "Taker": taker})
+    })
+}
+`);
+
+const swapHtml = `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Swap a watering shift</title>
+  <style>
+    body { font-family: sans-serif; font-size: 1.25rem; max-width: 32rem; margin: 2rem auto; padding: 0 1rem; }
+    select, button { font-size: 1.4rem; padding: .5rem; }
+  </style>
+</head>
+<body>
+  {{if .Done}}
+  <h1>All set</h1>
+  <p>{{.Taker}} is watering on {{.Date.Format "Monday, January 2"}}. Thanks for finding someone!</p>
+  {{else}}
+  <h1>Can't make it, {{.Name}}?</h1>
+  <p>Your shift is {{.Date.Format "Monday, January 2"}}. Who is taking it? Please ask them first.</p>
+  <form method="post" action="/swap">
+    <input type="hidden" name="t" value="{{.Token}}">
+    <p><select name="taker">
+      {{range .Roster}}<option>{{.Name}}</option>
+      {{end}}
+    </select></p>
+    <p><button type="submit">Give them my shift</button></p>
+  </form>
+  {{end}}
+</body>
+</html>
+`;
+
+const sheetGo = go(`package main
+
+import (
+    "flag"
+    "html/template"
+    "log"
+    "os"
+    "time"
+
+    "github.com/eastside-commons/seedling/internal/schedule"
+    "github.com/eastside-commons/seedling/internal/store"
+)
+
+func sheet(args []string) {
+    flags := flag.NewFlagSet("sheet", flag.ExitOnError)
+    from := flags.String("from", "", "Monday of the week to print, YYYY-MM-DD")
+    shifts := flags.String("shifts", "shifts.csv", "schedule written by export")
+    flags.Parse(args)
+
+    start, err := time.Parse("2006-01-02", *from)
+    if err != nil {
+        log.Fatalf("bad -from date: %v", err)
+    }
+    sched := store.OpenShifts(*shifts)
+    var week []schedule.Shift
+    for _, d := range schedule.WateringDays(start, 1) {
+        name, err := sched.Who(d)
+        if err != nil {
+            log.Fatal(err)
+        }
+        week = append(week, schedule.Shift{Date: d, Volunteer: name})
+    }
+
+    page := template.Must(template.ParseFiles("templates/weekly-sheet.html"))
+    if err := page.Execute(os.Stdout, map[string]any{"Week": start, "Shifts": week}); err != nil {
+        log.Fatal(err)
+    }
+}
+`);
+
+const weeklySheetHtml = `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Watering, week of {{.Week.Format "January 2"}}</title>
+  <style>
+    body { font-family: sans-serif; font-size: 22pt; margin: 0.75in; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { border: 2px solid #000; padding: 12pt; text-align: left; }
+    td.initials { width: 25%; }
+  </style>
+</head>
+<body>
+  <h1>Watering: week of {{.Week.Format "January 2"}}</h1>
+  <table>
+    <tr><th>Day</th><th>Who is watering</th><th>Initials when done</th></tr>
+    {{range .Shifts}}<tr>
+      <td>{{.Date.Format "Mon Jan 2"}}</td>
+      <td>{{if .Volunteer}}{{.Volunteer}}{{else}}OPEN, please call Rosa{{end}}</td>
+      <td class="initials"></td>
+    </tr>
+    {{end}}
+  </table>
+  <p>Can't make your day? Use the link in your reminder email, or call Rosa.</p>
+</body>
+</html>
+`;
+
+const authGo = go(`package auth
+
+import (
+    "errors"
+
+    "golang.org/x/crypto/bcrypt"
+)
+
+var ErrWrongPassword = errors.New("wrong name or password")
+
+// Hash returns the bcrypt hash we keep in the password column of volunteers.csv.
+func Hash(password string) (string, error) {
+    b, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+    return string(b), err
+}
+
+// Check compares a login attempt against the stored hash.
+func Check(hash, password string) error {
+    if bcrypt.CompareHashAndPassword([]byte(hash), []byte(password)) != nil {
+        return ErrWrongPassword
+    }
+    return nil
+}
+`);
+
+const cryptoGoSum = `golang.org/x/crypto v0.25.0 h1:ypSNr+bnYL2YhwoMt2zPxHFmbAN1KZs/njMG3hxUp30=
+golang.org/x/crypto v0.25.0/go.mod h1:T+wALwcMOSE0kXgUAnPAHqTLW+XHgcELELW8VaDgm/M=
+`;
+
+const codeowners = `# Scheduling and reminders: Minh reviews changes here.
+/internal/schedule/  @minhtran
+/internal/notify/    @minhtran
+/cmd/seedling/       @minhtran @tlindqvist
+
+/docs/volunteer-handbook.md  @rosa-delgado
+`;
+
+const readme = (...parts) => parts.join('\n');
+
+const R = {
+  title: `# seedling
+
+Watering schedule tools for the Eastside Commons community garden.
+`,
+  titleSeason2: `# seedling
+
+Seedling runs the watering schedule for the Eastside Commons community
+garden. Volunteers sign up on a web page and say which days they're free.
+Seedling makes the weekly schedule, emails each volunteer the evening
+before their shift, and prints a big-type schedule for the shed door.
+
+Volunteers: start with the [volunteer handbook](docs/volunteer-handbook.md).
+Everything else: [docs/index.md](docs/index.md).
+`,
+  nothingYet: `Nothing here yet. The first goal is to stop typing 150 dates into the
+sign-up spreadsheet by hand every spring.
+`,
+  handbookPointer: `**Volunteers:** you probably want the [volunteer handbook](docs/volunteer-handbook.md), not this page.
+`,
+  needsGo: (version) => `Needs Go ${version} or newer. Standard library only.
+`,
+  exportSheet: (cmd) => `## Export the sign-up sheet
+
+    go run ./cmd/seedling ${cmd}-from 2024-05-06 -weeks 4 > may.csv
+
+Prints every watering day (Monday to Saturday) for the next four weeks as a
+CSV with empty \`volunteer\` and \`notes\` columns. Import it into the sign-up
+Google Sheet with File > Import.
+`,
+  signup: `## Sign-up website
+
+    go run ./cmd/seedling serve -addr :8080
+
+Volunteers enter their name, phone, email, and the weekdays they can usually
+water. Each sign-up is one row in \`volunteers.csv\`, which Rosa can open in any
+spreadsheet program. See [ADR-0001](docs/adr/0001-keep-the-roster-in-a-csv-file.md).
+`,
+  schedule: `## Make the weekly schedule
+
+    go run ./cmd/seedling export -from 2024-06-24 > shifts.csv
+
+Fills in who waters each day from everyone's available days. A day nobody
+can take stays blank so Rosa can fill it by hand.
+`,
+  remindSms: `## Reminders
+
+    go run ./cmd/seedling remind
+
+Cron runs this at 6pm on the garden server. It texts tomorrow's volunteer
+through Twilio. Set \`TWILIO_ACCOUNT_SID\`, \`TWILIO_AUTH_TOKEN\`, and
+\`TWILIO_FROM\`. See [ADR-0002](docs/adr/0002-text-message-reminders.md).
+`,
+  remindSmsSwap: `## Reminders and swapping
+
+    go run ./cmd/seedling remind
+
+Cron runs this at 6pm on the garden server. It texts tomorrow's volunteer
+through Twilio, with a link to hand the shift to someone else. Set
+\`TWILIO_ACCOUNT_SID\`, \`TWILIO_AUTH_TOKEN\`, \`TWILIO_FROM\`, \`SEEDLING_SWAP_KEY\`,
+and \`SEEDLING_URL\`. See [ADR-0002](docs/adr/0002-text-message-reminders.md)
+and [ADR-0003](docs/adr/0003-swap-links-not-accounts.md).
+`,
+  remindEmail: `## Reminders and swapping
+
+    go run ./cmd/seedling remind
+
+Cron runs this at 6pm on the garden server. It emails tomorrow's volunteer
+from the garden Gmail, with a link to hand the shift to someone else. Set
+\`SEEDLING_SMTP_USER\`, \`SEEDLING_SMTP_PASSWORD\` (a Gmail app password, not the
+account password), \`SEEDLING_SWAP_KEY\`, and \`SEEDLING_URL\`.
+See [ADR-0004](docs/adr/0004-email-and-printed-sheet.md).
+
+## Weekly sheet for the shed
+
+    go run ./cmd/seedling sheet -from 2025-04-07 > week.html
+
+Open week.html in a browser and print it. Rosa posts it on the shed door
+every Monday.
+`,
+};
+
+const adr1 = `# ADR-0001: Keep the volunteer roster in a CSV file
+
+Status: Accepted
+Date: 2024-05-12
+
+## Context
+
+Volunteers are moving from the shared Google Sheet to a sign-up web form.
+The answers have to be stored somewhere. Rosa, the garden coordinator,
+needs to read the roster and fix mistakes herself without asking a
+developer. The roster is about 30 people.
+
+## Decision
+
+The sign-up form appends one row per volunteer to \`volunteers.csv\`:
+name, phone, email, and the weekdays they can water. No database.
+
+## Consequences
+
+- Rosa can open and edit the roster in Google Sheets or Excel.
+- Writes go through one mutex in \`internal/store\`, so two sign-ups at the
+  same moment don't interleave. That only holds while there is one server
+  process.
+- \`volunteers.csv\` holds personal details, so it stays out of git
+  (see \`.gitignore\`).
+- If the roster grows past a few hundred people, revisit this.
+`;
+
+const adr2 = (status) => `# ADR-0002: Send shift reminders by text message
+
+Status: ${status}
+Date: 2024-07-23
+
+## Context
+
+Six shifts in June and July were missed because the volunteer forgot.
+Rosa says most of the crew reads texts and ignores email. The Eastside
+Neighborhood Fund gave the garden a $300 micro-grant for 2024 that can
+pay for a texting service.
+
+## Decision
+
+Every evening \`seedling remind\` texts the next day's volunteer through
+Twilio's REST API (no SDK, just \`net/http\`). The grant pays for the
+Twilio number and the messages.
+
+## Consequences
+
+- Every volunteer needs a cell number. The sign-up form now says so.
+- Twilio bills every month. When the grant runs out we either pay for it
+  ourselves or change course.
+- Twilio credentials live in environment variables on the garden server,
+  never in git.
+`;
+
+const adr3 = `# ADR-0003: Swap shifts with a link, not volunteer accounts
+
+Status: Accepted
+Date: 2024-08-06
+
+## Context
+
+When volunteers can't make a shift they text Rosa, and Rosa texts around
+for a sub. She asked for a way around that in discussion #5.
+PR #6 tried volunteer accounts with passwords. We closed it. Many of our
+volunteers won't keep track of a password, lockouts would land on Rosa
+anyway, and we don't want password hashes in a file that gets opened in a
+spreadsheet (ADR-0001).
+
+## Decision
+
+Each reminder ends with a swap link. The link carries a token for one
+volunteer and one date, signed with HMAC-SHA256 (key in
+\`SEEDLING_SWAP_KEY\`). Opening it shows the shift and the roster. The
+volunteer picks who is taking it and \`shifts.csv\` is updated. No logins.
+
+## Consequences
+
+- Anyone holding the link can give away that one shift. We accept that.
+- Links stop working after the shift date.
+- No passwords to store, reset, or leak.
+`;
+
+const adr4 = `# ADR-0004: Email reminders and a printed weekly sheet
+
+Status: Accepted
+Date: 2025-02-09
+Supersedes: ADR-0002
+
+## Context
+
+ADR-0002 chose text messages, paid for by the Neighborhood Fund
+micro-grant. The grant ended on December 31, 2024 and will not be renewed.
+Texting cost about $40 a month at the height of the season.
+
+Several longtime volunteers told Rosa they would rather read a paper
+schedule at the shed than get messages on their phones, and some never
+used the swap link. See discussion #11.
+
+## Decision
+
+- \`seedling remind\` sends the reminder and swap link by email from the
+  garden's Gmail account. Sending costs nothing.
+- \`seedling sheet\` renders a large-print schedule for the week. Rosa
+  prints it and posts it on the shed door every Monday.
+- The Twilio code is removed and the Twilio number is cancelled.
+
+## Consequences
+
+- Volunteers without email rely on the printed sheet.
+- The sign-up form still asks for a phone number so Rosa can call people,
+  but nothing sends texts.
+- No monthly bill.
+`;
+
+const handbook = ({ signup: signupPara, reminders, cantMake, heat }) => `# Volunteer handbook
+
+Welcome to the Eastside Commons watering crew! Thank you for helping keep
+the garden alive through the summer. This page is everything I tell new
+volunteers on their first day, so you can look it up again later.
+
+Rosa Delgado, garden coordinator
+
+## Signing up
+
+${signupPara}
+
+## Your schedule
+
+Every week the app makes the watering schedule from everybody's days.
+It spreads shifts out so nobody does more than their share, and you'll
+never get two days in a row.
+
+## Reminders
+
+${reminders}
+
+## Can't make it?
+
+${cantMake}
+
+## On your shift
+
+- Water early (before 9am) or in the evening (after 6pm). Never midday.
+- The hose key is in the lockbox on the shed. I'll give you the code.
+- Beds 1 to 12 get a deep soak. The herb spiral just needs a sprinkle.
+- If the rain barrel is below the painted line, top it up from the hose.
+- Close the gate behind you. The rabbits are watching.
+
+## Heat waves
+
+${heat}
+`;
+
+const handbookV1 = handbook({
+  signup: `Go to the sign-up page and fill in your name, cell phone, email, and the
+days of the week you can usually water. Pick as many days as you like.
+There are no shifts on Sundays.`,
+  reminders: `The evening before your shift you'll get a text from the garden's number
+with the date and a link in case you can't make it.`,
+  cantMake: `Tap the link in your text and pick who is taking your shift. Please ask
+them first! If you can't find anybody, call me.`,
+  heat: `When it's over 90 degrees I may ask for an extra evening watering. I'll
+text the crew directly when that happens.`,
+});
+
+const handbookV2 = handbook({
+  signup: `Go to the sign-up page and fill in your name, email, phone (optional), and
+the days of the week you can usually water. Pick as many days as you like.
+There are no shifts on Sundays.`,
+  reminders: `The evening before your shift you'll get an email from the garden with the
+date and a link in case you can't make it. We don't send texts anymore.
+
+Not an email person? That's fine. Every Monday I post the week's schedule
+on the shed door in big print. Check it when you come in, and initial your
+day when you're done.`,
+  cantMake: `Use the link in your reminder email and pick who is taking your shift.
+Please ask them first! If you can't find anybody, call me.`,
+  heat: `When it's over 90 degrees I may ask for an extra evening watering. I'll
+call around when that happens.`,
+});
+
+const docsIndex = `# Seedling docs
+
+Seedling runs the watering schedule for the Eastside Commons community garden.
+
+## For volunteers
+
+- [Volunteer handbook](volunteer-handbook.md): signing up, reminders, swapping a shift, what to do on your shift.
+- [How scheduling works](how-scheduling-works.md): how the app decides who waters which day.
+
+## For developers
+
+- [README](../README.md): building and running seedling.
+- Decision records, oldest first:
+  - [ADR-0001](adr/0001-keep-the-roster-in-a-csv-file.md) Keep the volunteer roster in a CSV file. Accepted.
+  - [ADR-0002](adr/0002-text-message-reminders.md) Send shift reminders by text message. Superseded by ADR-0004.
+  - [ADR-0003](adr/0003-swap-links-not-accounts.md) Swap shifts with a link, not volunteer accounts. Accepted.
+  - [ADR-0004](adr/0004-email-and-printed-sheet.md) Email reminders and a printed weekly sheet. Accepted.
+`;
+
+const howScheduling = `# How scheduling works
+
+This page explains how seedling decides who waters which day. It's for
+volunteers and the coordinator, so there's no code here. If you want the
+code, it's in \`internal/schedule/\`.
+
+## When the schedule gets made
+
+Each Saturday, whoever has the garden server login runs \`seedling export\`
+for the coming week. That writes the schedule to a spreadsheet file. Rosa
+looks it over, fixes anything odd, and runs \`seedling sheet\` to print the
+copy for the shed door.
+
+## The rules
+
+1. Watering days are Monday through Saturday. There are no shifts on Sundays.
+2. You only get days you ticked on the sign-up form.
+3. Each day goes to the free volunteer with the fewest shifts so far that week.
+   If two people are tied, whoever signed up first gets it.
+4. Nobody is scheduled two days in a row.
+5. If nobody is left for a day, the day stays blank and Rosa finds someone.
+
+## Reminders and swaps
+
+The evening before a shift, seedling emails that volunteer with a link to
+swap. The link lets you hand your shift to anyone else on the roster. See
+the [volunteer handbook](volunteer-handbook.md).
+
+## Who to ask
+
+Minh Tran wrote the scheduling code. Ask him if the schedule looks wrong.
+Rosa Delgado runs the schedule day to day.
+`;
+
+const commandsV2 = [['export', 'print the watering sheet as CSV'], ['serve', 'run the sign-up website']];
+const commandsV3 = [['export', 'make the weekly schedule as CSV'], ['serve', 'run the sign-up website and swap pages']];
+const commandsV4 = [...commandsV3, ['remind', "text tomorrow's volunteer"]];
+const commandsV5 = [...commandsV3, ['remind', "email tomorrow's volunteer"], ['sheet', 'print the weekly sheet for the shed door']];
+
+/** @type {import('../schema.mjs').RepoSpec} */
+const spec = {
+  slug: 'seedling',
+  name: 'Seedling',
+  owner: 'eastside-commons',
+  description:
+    'A small volunteer-built Go web app that schedules watering shifts for the Eastside Commons community garden and reminds volunteers. Two developers, a garden coordinator, and a volunteer, April 2024 to March 2025.',
+  people: {
+    minhtran: { name: 'Minh Tran', email: '48213907+minhtran@users.noreply.github.com', role: 'lead developer; wrote and owns the scheduling logic' },
+    tlindqvist: { name: 'Tobias Lindqvist', email: 'tobias.lindqvist@fastmail.com', role: 'occasional developer, evenings and weekends' },
+    'rosa-delgado': { name: 'Rosa Delgado', email: '91550312+rosa-delgado@users.noreply.github.com', role: 'garden coordinator; not a developer' },
+    waltb: { name: 'Walt Brennan', email: '30117745+waltb@users.noreply.github.com', role: 'volunteer waterer; not a developer' },
+  },
+  steps: [
+    {
+      type: 'commit',
+      key: 'c-init',
+      at: '2024-04-06T15:12:00Z',
+      author: 'minhtran',
+      message: 'Initial commit',
+      files: {
+        'README.md': readme(R.title, R.nothingYet),
+        'go.mod': gomod('1.22'),
+        '.gitignore': gitignore,
+      },
+    },
+    {
+      type: 'pr',
+      number: 1,
+      title: 'Export the watering sign-up sheet as CSV',
+      author: 'minhtran',
+      body: `First real piece of seedling.
+
+\`go run ./cmd/seedling -from 2024-05-06 -weeks 4 > may.csv\` prints every watering day (Mon-Sat) as CSV with empty volunteer/notes columns. Rosa imports that into the sign-up Google Sheet instead of typing the dates in by hand like last year.
+
+No deps, stdlib only.`,
+      labels: ['feature'],
+      branch: 'csv-export',
+      openedAt: '2024-04-13T18:02:00Z',
+      commits: [
+        {
+          key: 'c-export',
+          at: '2024-04-13T18:05:00Z',
+          author: 'minhtran',
+          message: 'Export watering days as CSV',
+          files: {
+            'cmd/seedling/main.go': mainGoV1('"date", "volunteer", "notes"', 'd.Format("2006-01-02"), "", ""'),
+            'internal/schedule/days.go': daysGo,
+            'README.md': readme(R.title, R.needsGo('1.22'), R.exportSheet('')),
+          },
+        },
+        {
+          key: 'c-export-test',
+          at: '2024-04-14T20:41:00Z',
+          author: 'minhtran',
+          message: 'test WateringDays',
+          files: {
+            'internal/schedule/days_test.go': daysTestGo,
+          },
+        },
+      ],
+      reviews: [
+        {
+          id: 'pr1-rv-tobias',
+          author: 'tlindqvist',
+          at: '2024-04-16T02:14:00Z',
+          state: 'APPROVED',
+          body: 'Nice and small. Ran it for May, 24 rows, matches the paper calendar. lgtm',
+          threads: [],
+        },
+      ],
+      comments: [
+        {
+          id: 'pr1-rosa',
+          author: 'rosa-delgado',
+          at: '2024-04-17T13:30:00Z',
+          body: "This is going to save me a whole evening, thank you Minh! One request. Could the sheet show the day of the week next to the date? People think in Tuesdays, not 5/14.",
+        },
+        {
+          id: 'pr1-minh',
+          author: 'minhtran',
+          at: '2024-04-17T22:05:00Z',
+          body: "yep, easy. I'll add it right after this goes in.",
+        },
+      ],
+      outcome: { kind: 'merged', at: '2024-04-20T16:45:00Z', by: 'minhtran' },
+    },
+    {
+      type: 'commit',
+      key: 'c-weekday',
+      at: '2024-04-21T17:20:00Z',
+      author: 'minhtran',
+      message: 'add day-of-week column (rosa)',
+      files: {
+        'cmd/seedling/main.go': mainGoV1('"date", "day", "volunteer", "notes"', 'd.Format("2006-01-02"), d.Format("Monday"), "", ""'),
+      },
+    },
+    {
+      type: 'tag',
+      name: 'v0.1.0',
+      at: '2024-04-27T14:00:00Z',
+      by: 'minhtran',
+      message: "v0.1.0: sign-up sheet export\n\nseedling prints the season's watering days as CSV for the sign-up spreadsheet.\n",
+    },
+    {
+      type: 'pr',
+      number: 2,
+      title: 'Sign-up website (replaces the shared spreadsheet)',
+      author: 'minhtran',
+      body: `Adds \`seedling serve\`, a one-page website where volunteers enter their name, phone, email, and which weekdays they can usually water.
+
+- Each sign-up is appended to volunteers.csv. Why a CSV and not a database: docs/adr/0001-keep-the-roster-in-a-csv-file.md
+- Big fonts and big buttons on purpose, most of the crew will do this on a phone
+- The old \`seedling -from ...\` is now \`seedling export -from ...\`
+
+I'll deploy it to the little VPS Tobias set up (the "garden server").`,
+      labels: ['feature'],
+      branch: 'signup-site',
+      openedAt: '2024-05-11T19:00:00Z',
+      commits: [
+        {
+          key: 'c-store',
+          at: '2024-05-11T19:04:00Z',
+          author: 'minhtran',
+          message: 'store: append sign-ups to volunteers.csv',
+          files: {
+            'internal/store/store.go': storeGo,
+          },
+        },
+        {
+          key: 'c-serve',
+          at: '2024-05-11T21:37:00Z',
+          author: 'minhtran',
+          message: 'serve: sign-up form',
+          files: {
+            'cmd/seedling/main.go': mainGo(commandsV2),
+            'cmd/seedling/export.go': exportGoV1,
+            'cmd/seedling/serve.go': serveGo(false),
+            'templates/signup.html': signupHtml(signup.typo),
+          },
+        },
+        {
+          key: 'c-adr1',
+          at: '2024-05-12T16:10:00Z',
+          author: 'minhtran',
+          message: 'ADR-0001 csv roster, README',
+          files: {
+            'docs/adr/0001-keep-the-roster-in-a-csv-file.md': adr1,
+            'README.md': readme(R.title, R.needsGo('1.22'), R.signup, R.exportSheet('export ')),
+          },
+        },
+      ],
+      reviews: [
+        {
+          id: 'pr2-rv-tobias',
+          author: 'tlindqvist',
+          at: '2024-05-14T03:22:00Z',
+          state: 'APPROVED',
+          body: "Works locally, I signed up as 'Test Tomato' about ten times. One question inline but not blocking.",
+          threads: [
+            {
+              id: 'pr2-th-store',
+              path: 'internal/store/store.go',
+              line: 32,
+              comments: [
+                {
+                  id: 'pr2-thread-tobias',
+                  author: 'tlindqvist',
+                  at: '2024-05-14T03:22:00Z',
+                  body: 'If two people hit submit at the exact same moment, can their rows get mixed together in the file? O_APPEND is atomic for small writes on Linux but I never remember the exact guarantee.',
+                },
+                {
+                  id: 'pr2-thread-minh',
+                  author: 'minhtran',
+                  at: '2024-05-14T12:10:00Z',
+                  body: 'Not with the mutex above, and it is a single process. Fine for 30 gardeners.',
+                },
+                {
+                  id: 'pr2-thread-tobias-2',
+                  author: 'tlindqvist',
+                  at: '2024-05-14T23:48:00Z',
+                  body: 'ah, missed the mutex. lgtm',
+                },
+              ],
+            },
+          ],
+        },
+      ],
+      comments: [
+        {
+          id: 'pr2-rosa',
+          author: 'rosa-delgado',
+          at: '2024-05-16T14:05:00Z',
+          body: 'I tried it on my phone and on the library computer and both worked!! The big letters are perfect. The old Google Form was impossible for some of our folks.',
+        },
+        {
+          id: 'pr2-walt',
+          author: 'waltb',
+          at: '2024-05-17T15:30:00Z',
+          body: 'Signed up. Easier than the paper list in the shed.\n\nWalt',
+        },
+      ],
+      outcome: { kind: 'merged', at: '2024-05-18T15:00:00Z', by: 'minhtran' },
+    },
+    {
+      type: 'commit',
+      key: 'c-typo',
+      at: '2024-05-22T01:13:00Z',
+      author: 'tlindqvist',
+      message: 'fix typo on thank-you message',
+      files: {
+        'templates/signup.html': signupHtml(signup.fixed),
+      },
+    },
+    {
+      type: 'tag',
+      name: 'v0.2.0',
+      at: '2024-05-25T13:00:00Z',
+      by: 'minhtran',
+      message: 'v0.2.0: sign-up website\n\nVolunteers sign up on a web form instead of the shared spreadsheet.\nThe roster lives in volunteers.csv (ADR-0001).\n',
+    },
+    {
+      type: 'discussion',
+      number: 3,
+      title: "Why can't I sign up for Sundays?",
+      category: 'Q&A',
+      author: 'waltb',
+      at: '2024-06-03T14:22:00Z',
+      body: 'Hello. I filled out the new sign-up page and it only lets me pick Monday through Saturday. Sunday is the one day my daughter can drive me over to the garden. Is Sunday left off by mistake?\n\nWalt',
+      comments: [
+        {
+          id: 'disc3-minh',
+          author: 'minhtran',
+          at: '2024-06-03T16:40:00Z',
+          body: 'Not a mistake, Sundays are skipped on purpose. Rosa knows the whole story, I just know the rule.',
+          replies: [
+            {
+              id: 'disc3-rosa',
+              author: 'rosa-delgado',
+              at: '2024-06-04T01:15:00Z',
+              body: "Hi Walt! The garden lot belongs to the church next door and we rent it for a dollar a year. When we signed the lease with Grace Lutheran, the one thing Pastor Ruth asked for was quiet Sunday mornings for the congregation. The sanctuary windows look right out on beds 1-6 and the rain barrel pump is LOUD. We could have done 'Sunday afternoons only' but I didn't want to be the one policing that, so we just said no Sunday shifts at all.",
+            },
+            {
+              id: 'disc3-walt',
+              author: 'waltb',
+              at: '2024-06-04T13:02:00Z',
+              body: "Well that makes sense. I wouldn't want a pump going during the sermon either. Saturday it is.",
+            },
+          ],
+        },
+        {
+          id: 'disc3-tobias',
+          author: 'tlindqvist',
+          at: '2024-06-05T02:30:00Z',
+          body: 'Could we allow Sunday evening shifts? Services are over by then, right?',
+          replies: [
+            {
+              id: 'disc3-rosa-2',
+              author: 'rosa-delgado',
+              at: '2024-06-05T14:48:00Z',
+              body: "I'd rather not push our luck. They have evening things too sometimes, and the lease comes up for renewal in 2026. Saturday evening watering carries the beds through Sunday except in a real heat wave, and then I just go myself with a watering can, very quietly.",
+            },
+            {
+              id: 'disc3-minh-2',
+              author: 'minhtran',
+              at: '2024-06-06T03:05:00Z',
+              body: 'Leaving it as is then.',
+            },
+          ],
+        },
+      ],
+    },
+    {
+      type: 'pr',
+      number: 4,
+      title: "Automatic weekly schedule from everyone's available days",
+      author: 'minhtran',
+      body: `Right now Rosa builds the weekly schedule by hand from volunteers.csv. This makes \`seedling export\` fill in the volunteer column itself:
+
+- each day goes to someone who said they're free that weekday
+- whoever has the fewest shifts so far gets it, ties go to whoever is earlier in the roster
+- if nobody is free the cell stays blank
+
+\`seedling export -from 2024-06-24 > shifts.csv\`, then Rosa can tweak it in Sheets before posting.`,
+      labels: ['scheduling'],
+      branch: 'auto-schedule',
+      openedAt: '2024-06-20T23:10:00Z',
+      commits: [
+        {
+          key: 'c-assign',
+          at: '2024-06-20T23:12:00Z',
+          author: 'minhtran',
+          message: 'schedule.Assign: fewest shifts first',
+          files: {
+            'internal/schedule/assign.go': assignGo(false),
+            'internal/schedule/assign_test.go': assignTestGo(['Ana', 'Ben', 'Ana', 'Ana', 'Ana', 'Ana']),
+          },
+        },
+        {
+          key: 'c-export-assign',
+          at: '2024-06-21T00:30:00Z',
+          author: 'minhtran',
+          message: 'export fills in volunteers from the roster',
+          files: {
+            'cmd/seedling/export.go': exportGoV2,
+            'cmd/seedling/main.go': mainGo([['export', 'make the weekly schedule as CSV'], ['serve', 'run the sign-up website']]),
+            'README.md': readme(R.title, R.needsGo('1.22'), R.signup, R.schedule),
+          },
+        },
+      ],
+      reviews: [
+        {
+          id: 'pr4-rv-rosa',
+          author: 'rosa-delgado',
+          at: '2024-06-22T19:40:00Z',
+          state: 'COMMENTED',
+          body: "I don't read code but Minh walked me through this at the garden on Saturday. One question about the rules.",
+          threads: [
+            {
+              id: 'pr4-th-assign',
+              path: 'internal/schedule/assign.go',
+              line: 31,
+              comments: [
+                {
+                  id: 'pr4-thread-rosa',
+                  author: 'rosa-delgado',
+                  at: '2024-06-22T19:40:00Z',
+                  body: "If I understand this right, it picks whoever has watered the least so far. But what stops it from giving one person Wednesday, Thursday, Friday AND Saturday? Minh showed me the little test at the bottom and that is exactly what happens to Ana!\n\nLast summer we had folks doing four and five days straight during the heat wave and two of our best people burned out by mid-July and never came back. Can we make it so nobody gets two days in a row, even if that leaves a day empty? I'd rather find a sub for an empty day than lose a volunteer.",
+                },
+                {
+                  id: 'pr4-thread-minh',
+                  author: 'minhtran',
+                  at: '2024-06-22T21:15:00Z',
+                  body: "Nothing stops it right now, you're right. Easy to add: skip anyone who had the day before, and leave the day blank if nobody is left. I'll do it as a follow-up right after this goes in so it's there for the first real schedule.",
+                },
+                {
+                  id: 'pr4-thread-rosa-2',
+                  author: 'rosa-delgado',
+                  at: '2024-06-23T13:02:00Z',
+                  body: "Blank is fine, I'll fill those by hand. Thank you!!",
+                },
+              ],
+            },
+          ],
+        },
+        {
+          id: 'pr4-rv-tobias',
+          author: 'tlindqvist',
+          at: '2024-06-24T02:30:00Z',
+          state: 'APPROVED',
+          body: 'lgtm. The test reads nicely, even Rosa could follow it apparently :)',
+          threads: [],
+        },
+      ],
+      comments: [
+        {
+          id: 'pr4-minh',
+          author: 'minhtran',
+          at: '2024-06-29T16:20:00Z',
+          body: "Merging so I can run it for the week of Jul 1. The two-days-in-a-row change from Rosa's comment comes next, separately.",
+        },
+      ],
+      outcome: { kind: 'merged', at: '2024-06-29T16:22:00Z', by: 'minhtran' },
+    },
+    {
+      type: 'commit',
+      key: 'c-no-repeat',
+      at: '2024-07-01T02:48:00Z',
+      author: 'minhtran',
+      message: 'schedule: skip anyone who watered the day before',
+      files: {
+        'internal/schedule/assign.go': assignGo(true),
+        'internal/schedule/assign_test.go': assignTestGo(['Ana', 'Ben', 'Ana', '', 'Ana', '']),
+      },
+    },
+    {
+      type: 'discussion',
+      number: 5,
+      title: 'Could volunteers swap shifts on their own?',
+      category: 'Ideas',
+      author: 'rosa-delgado',
+      at: '2024-07-06T18:30:00Z',
+      body: "Every week I get four to six texts that go 'Rosa I can't do Thursday, can you find someone?' and then I spend my lunch break texting down the list. Is there a way the app could let people trade shifts with each other without me in the middle? Even something simple. I'm not picky about how, I just want my lunch break back.",
+      comments: [
+        {
+          id: 'disc5-walt',
+          author: 'waltb',
+          at: '2024-07-06T20:00:00Z',
+          body: "I have been one of those texts about Thursdays, I admit it. If there were a button I would push it.",
+          replies: [
+            {
+              id: 'disc5-rosa',
+              author: 'rosa-delgado',
+              at: '2024-07-06T21:10:00Z',
+              body: 'Walt you are forgiven, your Thursdays are always for a good reason (grandkids!)',
+            },
+          ],
+        },
+        {
+          id: 'disc5-minh',
+          author: 'minhtran',
+          at: '2024-07-07T15:00:00Z',
+          body: "Doable. Two shapes I can think of:\n\n(a) accounts, so people log in and manage their own shifts\n(b) a link in each reminder that lets you hand your shift to someone else, no login\n\n(b) is less work and nobody has to remember anything. Reminders don't exist yet though, I'm doing those next.",
+          replies: [
+            {
+              id: 'disc5-tobias',
+              author: 'tlindqvist',
+              at: '2024-07-08T02:00:00Z',
+              body: "I'd like to take this one, I have some time in July. I'll try (a) first since it's more general?",
+            },
+            {
+              id: 'disc5-rosa-2',
+              author: 'rosa-delgado',
+              at: '2024-07-08T13:00:00Z',
+              body: "Whatever is easiest for people who aren't on their phones all day!",
+            },
+          ],
+        },
+      ],
+    },
+    {
+      type: 'pr',
+      number: 6,
+      title: 'Volunteer accounts with passwords (WIP)',
+      author: 'tlindqvist',
+      body: `Picking up Rosa's idea from #5, option (a).
+
+This adds an \`internal/auth\` package: you'd set a password when you sign up, then log in at /login to see and drop your shifts. Passwords are bcrypt-hashed and would live in a new column in volunteers.csv.
+
+Still TODO:
+- the login page and "my shifts" page
+- password reset (no idea how to do this without email or SMS yet)
+
+Opening early to get feedback before I go further. First Go dependency (golang.org/x/crypto), sorry Minh.`,
+      labels: ['feature', 'wip'],
+      branch: 'volunteer-accounts',
+      openedAt: '2024-07-12T04:15:00Z',
+      commits: [
+        {
+          key: 'c-accounts',
+          at: '2024-07-12T04:16:00Z',
+          author: 'tlindqvist',
+          message: 'WIP volunteer accounts (bcrypt)',
+          files: {
+            'internal/auth/auth.go': authGo,
+            'go.mod': gomod('1.22', '\nrequire golang.org/x/crypto v0.25.0\n'),
+            'go.sum': cryptoGoSum,
+          },
+        },
+      ],
+      reviews: [],
+      comments: [
+        {
+          id: 'pr6-rosa',
+          author: 'rosa-delgado',
+          at: '2024-07-13T14:00:00Z',
+          body: "Tobias thank you for jumping on this! But I have to be honest, a password is going to be a dealbreaker for a lot of our crew. Walt keeps his passwords on an index card in his wallet and he's one of the organized ones. If people get locked out they'll text me anyway, which is the thing we're trying to fix.",
+        },
+        {
+          id: 'pr6-minh',
+          author: 'minhtran',
+          at: '2024-07-13T19:30:00Z',
+          body: "+1 to Rosa. I'm also not thrilled about password hashes in a CSV that Rosa opens in Google Sheets (ADR-0001). What about (b): a link in the reminder text that lets you hand off that one shift. Signed token, expires after the shift date, no login. I'm close on the text reminders.",
+        },
+        {
+          id: 'pr6-walt',
+          author: 'waltb',
+          at: '2024-07-14T16:10:00Z',
+          body: 'For the record it is a very organized index card. But yes, no passwords please.',
+        },
+        {
+          id: 'pr6-tobias',
+          author: 'tlindqvist',
+          at: '2024-07-17T03:05:00Z',
+          body: "Ha, ok, fair on all counts. Closing this. I'll do the link version once Minh's reminders are in.",
+        },
+      ],
+      outcome: { kind: 'closed', at: '2024-07-17T03:06:00Z', by: 'tlindqvist' },
+    },
+    {
+      type: 'pr',
+      number: 7,
+      title: 'Text message reminders the evening before a shift',
+      author: 'minhtran',
+      body: `Adds \`seedling remind\`. Cron on the garden server runs it at 6pm. It looks up tomorrow in shifts.csv and texts that volunteer through Twilio (plain REST call, no SDK).
+
+The Neighborhood Fund micro-grant pays for Twilio this year, details in ADR-0002. The sign-up form now asks for a cell number specifically.
+
+Also adds internal/store/shifts.go so remind can read the schedule. This is step one for the swap idea in #5, the swap link can go in these texts.`,
+      labels: ['notifications'],
+      branch: 'sms-reminders',
+      openedAt: '2024-07-22T22:00:00Z',
+      commits: [
+        {
+          key: 'c-sms',
+          at: '2024-07-22T22:01:00Z',
+          author: 'minhtran',
+          message: 'notify: twilio sms sender',
+          files: {
+            'internal/notify/sms.go': smsGo,
+          },
+        },
+        {
+          key: 'c-remind',
+          at: '2024-07-23T01:40:00Z',
+          author: 'minhtran',
+          message: 'remind command + shifts store',
+          files: {
+            'internal/store/shifts.go': shiftsGoV1,
+            'cmd/seedling/remind.go': remindGoV1,
+            'cmd/seedling/main.go': mainGo([['export', 'make the weekly schedule as CSV'], ['serve', 'run the sign-up website'], ['remind', "text tomorrow's volunteer"]]),
+          },
+        },
+        {
+          key: 'c-adr2',
+          at: '2024-07-23T02:15:00Z',
+          author: 'minhtran',
+          message: 'ADR-0002 sms reminders; ask for cell on the form',
+          files: {
+            'docs/adr/0002-text-message-reminders.md': adr2('Accepted'),
+            'templates/signup.html': signupHtml(signup.sms),
+            'README.md': readme(R.title, R.needsGo('1.22'), R.signup, R.schedule, R.remindSms),
+          },
+        },
+      ],
+      reviews: [
+        {
+          id: 'pr7-rv-tobias',
+          author: 'tlindqvist',
+          at: '2024-07-25T03:00:00Z',
+          state: 'APPROVED',
+          body: "lgtm, tried it with Twilio's test credentials and my own number.",
+          threads: [
+            {
+              id: 'pr7-th-sms',
+              path: 'internal/notify/sms.go',
+              line: 31,
+              comments: [
+                {
+                  id: 'pr7-thread-tobias',
+                  author: 'tlindqvist',
+                  at: '2024-07-25T03:00:00Z',
+                  body: "Twilio's error body is actually useful (stuff like 'unverified To number'). Worth reading it into the error?",
+                },
+                {
+                  id: 'pr7-thread-minh',
+                  author: 'minhtran',
+                  at: '2024-07-25T12:30:00Z',
+                  body: 'good call. later though, I want this live before the heat next week.',
+                },
+              ],
+            },
+          ],
+        },
+      ],
+      comments: [
+        {
+          id: 'pr7-rosa',
+          author: 'rosa-delgado',
+          at: '2024-07-26T15:00:00Z',
+          body: 'I confirmed with the Neighborhood Fund, the $300 covers texting through the end of the year. Please keep the message short, people hate long texts!',
+        },
+      ],
+      outcome: { kind: 'merged', at: '2024-07-29T22:30:00Z', by: 'minhtran' },
+    },
+    {
+      type: 'pr',
+      number: 8,
+      title: 'Swap-a-shift link in reminder texts',
+      author: 'tlindqvist',
+      body: `Closes #5.
+
+Rosa asked for a way for volunteers to trade shifts without going through her. This is Minh's option (b) from that thread:
+
+- every reminder text ends with a link
+- the link opens a page with your shift and a dropdown of everyone on the roster
+- pick who's taking it, hit the button, shifts.csv is updated
+
+No accounts or passwords (see #6 for why not, and ADR-0003). Links are HMAC-signed with SEEDLING_SWAP_KEY and stop working after the shift date.`,
+      labels: ['feature'],
+      branch: 'swap-link',
+      openedAt: '2024-08-05T03:30:00Z',
+      commits: [
+        {
+          key: 'c-swap',
+          at: '2024-08-05T03:31:00Z',
+          author: 'tlindqvist',
+          message: 'swap: signed per-shift tokens',
+          files: {
+            'internal/swap/swap.go': swapPkgGo,
+            'internal/swap/swap_test.go': swapTestGo,
+          },
+        },
+        {
+          key: 'c-swap-web',
+          at: '2024-08-06T02:10:00Z',
+          author: 'tlindqvist',
+          message: 'swap page + link in reminder text',
+          files: {
+            'cmd/seedling/swap.go': swapWebGo,
+            'cmd/seedling/serve.go': serveGo(true),
+            'cmd/seedling/remind.go': remindGoV2,
+            'cmd/seedling/main.go': mainGo(commandsV4),
+            'internal/store/shifts.go': shiftsGoV2,
+            'templates/swap.html': swapHtml,
+          },
+        },
+        {
+          key: 'c-adr3',
+          at: '2024-08-06T02:45:00Z',
+          author: 'tlindqvist',
+          message: 'ADR-0003, README for swap links',
+          files: {
+            'docs/adr/0003-swap-links-not-accounts.md': adr3,
+            'README.md': readme(R.title, R.needsGo('1.22'), R.signup, R.schedule, R.remindSmsSwap),
+          },
+        },
+      ],
+      reviews: [
+        {
+          id: 'pr8-rv-minh',
+          author: 'minhtran',
+          at: '2024-08-10T17:00:00Z',
+          state: 'APPROVED',
+          body: 'Really nice. Tested on staging with my phone. One question inline.',
+          threads: [
+            {
+              id: 'pr8-th-open',
+              path: 'internal/swap/swap.go',
+              line: 23,
+              comments: [
+                {
+                  id: 'pr8-thread-minh',
+                  author: 'minhtran',
+                  at: '2024-08-10T17:00:00Z',
+                  body: 'What happens if someone forwards the link?',
+                },
+                {
+                  id: 'pr8-thread-tobias',
+                  author: 'tlindqvist',
+                  at: '2024-08-11T01:20:00Z',
+                  body: "Whoever has it can hand off that one shift, nothing else. Same as forwarding the text to a friend and asking them to cover. I wrote that down under consequences in the ADR.",
+                },
+                {
+                  id: 'pr8-thread-minh-2',
+                  author: 'minhtran',
+                  at: '2024-08-11T14:00:00Z',
+                  body: 'Works for me.',
+                },
+              ],
+            },
+          ],
+        },
+      ],
+      comments: [
+        {
+          id: 'pr8-rosa',
+          author: 'rosa-delgado',
+          at: '2024-08-15T23:10:00Z',
+          body: 'Walt and I tested it on his phone at the garden tonight. He tapped the link, picked Dolores for his Thursday, and it showed up on the schedule. I may cry. THANK YOU Tobias!!',
+        },
+      ],
+      outcome: { kind: 'merged', at: '2024-08-16T02:00:00Z', by: 'minhtran' },
+    },
+    {
+      type: 'tag',
+      name: 'v0.3.0',
+      at: '2024-08-17T15:00:00Z',
+      by: 'minhtran',
+      message: "v0.3.0: automatic schedule, text reminders, swap links\n\nseedling export now builds the weekly schedule from everyone's available days.\nseedling remind texts tomorrow's volunteer (ADR-0002), and each text has a\nlink to hand the shift to someone else (ADR-0003).\n",
+    },
+    {
+      type: 'pr',
+      number: 9,
+      title: 'Add a volunteer handbook',
+      author: 'rosa-delgado',
+      body: "Minh showed me how to add a page from the website. This is the handout I give new people on their first day, typed up so it lives somewhere other than my car. Please fix anything I got wrong about how the app works!",
+      labels: ['docs'],
+      branch: 'rosa-delgado-patch-1',
+      openedAt: '2024-09-07T20:15:00Z',
+      commits: [
+        {
+          key: 'c-handbook',
+          at: '2024-09-07T20:15:00Z',
+          author: 'rosa-delgado',
+          message: 'Create volunteer-handbook.md',
+          files: {
+            'docs/volunteer-handbook.md': handbookV1,
+          },
+        },
+      ],
+      reviews: [
+        {
+          id: 'pr9-rv-minh',
+          author: 'minhtran',
+          at: '2024-09-08T16:00:00Z',
+          state: 'APPROVED',
+          body: 'This is great. One small thing inline, take it or leave it.',
+          threads: [
+            {
+              id: 'pr9-th-reminders',
+              path: 'docs/volunteer-handbook.md',
+              line: 23,
+              comments: [
+                {
+                  id: 'pr9-thread-minh',
+                  author: 'minhtran',
+                  at: '2024-09-08T16:00:00Z',
+                  body: 'The texts go out at 6pm, want to say that here?',
+                },
+                {
+                  id: 'pr9-thread-rosa',
+                  author: 'rosa-delgado',
+                  at: '2024-09-08T17:30:00Z',
+                  body: "I'll leave it loose. Some nights it's a few minutes late and then people text me in a panic.",
+                },
+              ],
+            },
+          ],
+        },
+      ],
+      comments: [
+        {
+          id: 'pr9-walt',
+          author: 'waltb',
+          at: '2024-09-08T19:00:00Z',
+          body: 'Could we put the lockbox code in here too? I forget it every week.',
+        },
+        {
+          id: 'pr9-rosa',
+          author: 'rosa-delgado',
+          at: '2024-09-08T20:12:00Z',
+          body: "Absolutely not Walt, this is on the internet! I'll write it on your index card.",
+        },
+      ],
+      outcome: { kind: 'merged', at: '2024-09-09T01:00:00Z', by: 'minhtran' },
+    },
+    {
+      type: 'commit',
+      key: 'c-readme-handbook',
+      at: '2024-09-10T02:30:00Z',
+      author: 'minhtran',
+      message: 'README: point volunteers at the handbook',
+      files: {
+        'README.md': readme(R.title, R.handbookPointer, R.needsGo('1.22'), R.signup, R.schedule, R.remindSmsSwap),
+      },
+    },
+    {
+      type: 'commit',
+      key: 'c-codeowners',
+      at: '2024-09-14T18:00:00Z',
+      author: 'minhtran',
+      message: 'add CODEOWNERS',
+      files: {
+        '.github/CODEOWNERS': codeowners,
+      },
+    },
+    {
+      type: 'discussion',
+      number: 10,
+      title: 'Season 1 is a wrap! Thank you, watering crew',
+      category: 'Announcements',
+      author: 'rosa-delgado',
+      at: '2024-10-27T16:00:00Z',
+      body: `Last shift was yesterday (Oct 26). Some numbers Minh pulled for me:
+
+- 150 watering days, 144 covered
+- all 6 missed days were before the text reminders started at the end of July
+- 31 volunteers signed up through the website
+- the swap link got used 23 times
+
+The tomatoes alone kept the food pantry stocked for six weeks. THANK YOU. See everyone in March!`,
+      comments: [
+        {
+          id: 'disc10-walt',
+          author: 'waltb',
+          at: '2024-10-27T19:00:00Z',
+          body: 'Best season I can remember. I will admit the swap link took me two tries but I got there.',
+          replies: [
+            {
+              id: 'disc10-rosa',
+              author: 'rosa-delgado',
+              at: '2024-10-27T20:30:00Z',
+              body: 'Two tries is better than most of us!',
+            },
+          ],
+        },
+        {
+          id: 'disc10-minh',
+          author: 'minhtran',
+          at: '2024-10-28T01:30:00Z',
+          body: "Turning off the nightly reminder job on the garden server today. The site goes to sleep until spring, I'll wake it up in March.",
+          replies: [
+            {
+              id: 'disc10-tobias',
+              author: 'tlindqvist',
+              at: '2024-10-28T03:00:00Z',
+              body: "Thanks all. First open source thing I've ever contributed to, and it's for tomatoes. See you in spring.",
+            },
+          ],
+        },
+      ],
+    },
+    {
+      type: 'commit',
+      key: 'c-go123',
+      at: '2024-12-14T21:05:00Z',
+      author: 'tlindqvist',
+      message: 'go 1.23',
+      files: {
+        'go.mod': gomod('1.23'),
+        'README.md': readme(R.title, R.handbookPointer, R.needsGo('1.23'), R.signup, R.schedule, R.remindSmsSwap),
+      },
+    },
+    {
+      type: 'discussion',
+      number: 11,
+      title: 'Reminders for season 2 (the grant is over)',
+      category: 'General',
+      author: 'rosa-delgado',
+      at: '2025-01-18T17:45:00Z',
+      body: `Happy new year everyone! Two things I need to bring up before spring.
+
+1. The Neighborhood Fund micro-grant that paid for the text reminders ended Dec 31. I asked and they are not renewing small grants this round. Minh says texting was costing us around $40 a month in July and August, which we just don't have.
+
+2. At the potluck in November a bunch of our older folks (Walt, Dolores, both Hendersons) told me they'd honestly rather look at a paper schedule on the shed. Half of them never used the swap link, they called me anyway.
+
+So what do we do for reminders this year? I really don't want to go back to me texting everyone by hand.`,
+      comments: [
+        {
+          id: 'disc11-walt',
+          author: 'waltb',
+          at: '2025-01-18T21:30:00Z',
+          body: "I'll say it plainly. I don't read my texts until supper, and by then I've missed the morning. A sheet on the shed door I will see every time I go for the hose.",
+          replies: [
+            {
+              id: 'disc11-rosa',
+              author: 'rosa-delgado',
+              at: '2025-01-19T15:00:00Z',
+              body: "Noted Walt, and you're not the only one!",
+            },
+          ],
+        },
+        {
+          id: 'disc11-minh',
+          author: 'minhtran',
+          at: '2025-01-20T02:10:00Z',
+          body: "Email is free for us, we already have the garden Gmail. I can switch the reminder to email (swap link included) and add a command that prints a big-letter weekly sheet for the shed. Then we cancel Twilio. I'll write it up as ADR-0004 and mark the texting one superseded.",
+          replies: [
+            {
+              id: 'disc11-tobias',
+              author: 'tlindqvist',
+              at: '2025-01-21T04:00:00Z',
+              body: '+1. Gmail SMTP needs an app password, I can set that up on the server. Do we keep collecting phone numbers?',
+            },
+            {
+              id: 'disc11-rosa-2',
+              author: 'rosa-delgado',
+              at: '2025-01-21T16:20:00Z',
+              body: 'Yes keep phones, I still call people when there is a heat wave.',
+            },
+            {
+              id: 'disc11-minh-2',
+              author: 'minhtran',
+              at: '2025-01-25T18:00:00Z',
+              body: 'ok, PR in a couple weeks.',
+            },
+          ],
+        },
+      ],
+    },
+    {
+      type: 'pr',
+      number: 12,
+      title: 'Email reminders and a printed weekly sheet (replaces texts)',
+      author: 'minhtran',
+      body: `Does what we agreed in #11.
+
+- \`seedling remind\` now emails tomorrow's volunteer (with the swap link) through the garden Gmail. The Twilio code is gone.
+- New \`seedling sheet -from <monday>\` prints a big-type weekly schedule for the shed door.
+- ADR-0004 records the change, and ADR-0002 is marked superseded.
+- Sign-up form: email is now the reminder field, phone is optional.
+
+After this merges I'll cancel the Twilio number.`,
+      labels: ['notifications'],
+      branch: 'email-and-sheet',
+      openedAt: '2025-02-08T19:00:00Z',
+      commits: [
+        {
+          key: 'c-email',
+          at: '2025-02-08T19:02:00Z',
+          author: 'minhtran',
+          message: 'remind by email instead of SMS, drop twilio\n\nTwilio account gets cancelled once this ships. See #11.\n',
+          files: {
+            'internal/notify/email.go': emailGo,
+            'internal/notify/sms.go': null,
+            'cmd/seedling/remind.go': remindGoV3,
+            'cmd/seedling/main.go': mainGo([...commandsV3, ['remind', "email tomorrow's volunteer"]]),
+            'templates/signup.html': signupHtml(signup.email),
+          },
+        },
+        {
+          key: 'c-sheet',
+          at: '2025-02-09T18:30:00Z',
+          author: 'minhtran',
+          message: 'seedling sheet: printable weekly schedule',
+          files: {
+            'cmd/seedling/sheet.go': sheetGo,
+            'cmd/seedling/main.go': mainGo(commandsV5),
+            'templates/weekly-sheet.html': weeklySheetHtml,
+          },
+        },
+        {
+          key: 'c-adr4',
+          at: '2025-02-09T20:10:00Z',
+          author: 'minhtran',
+          message: 'ADR-0004 email + paper sheet, supersede ADR-0002',
+          files: {
+            'docs/adr/0004-email-and-printed-sheet.md': adr4,
+            'docs/adr/0002-text-message-reminders.md': adr2('Superseded by ADR-0004'),
+            'README.md': readme(R.title, R.handbookPointer, R.needsGo('1.23'), R.signup, R.schedule, R.remindEmail),
+          },
+        },
+      ],
+      reviews: [
+        {
+          id: 'pr12-rv-tobias',
+          author: 'tlindqvist',
+          at: '2025-02-12T03:40:00Z',
+          state: 'APPROVED',
+          body: "lgtm. Printed the sample sheet from Chrome, fits on one page. I'll put the Gmail app password on the server once this is in.",
+          threads: [
+            {
+              id: 'pr12-th-noemail',
+              path: 'cmd/seedling/remind.go',
+              line: 35,
+              comments: [
+                {
+                  id: 'pr12-thread-tobias',
+                  author: 'tlindqvist',
+                  at: '2025-02-12T03:40:00Z',
+                  body: 'For folks with no email this just logs and moves on. Should it tell Rosa somehow?',
+                },
+                {
+                  id: 'pr12-thread-minh',
+                  author: 'minhtran',
+                  at: '2025-02-12T13:00:00Z',
+                  body: "They're the paper-sheet people, that's the point of the sheet. Rosa knows who they are.",
+                },
+              ],
+            },
+          ],
+        },
+      ],
+      comments: [
+        {
+          id: 'pr12-rosa',
+          author: 'rosa-delgado',
+          at: '2025-02-13T16:20:00Z',
+          body: "Printed the sample at the library. Walt read it from across the shed without his glasses, so I'm calling that a success.",
+        },
+        {
+          id: 'pr12-walt',
+          author: 'waltb',
+          at: '2025-02-14T15:00:00Z',
+          body: 'I had my glasses on. Still, good and big.',
+        },
+      ],
+      outcome: { kind: 'merged', at: '2025-02-15T17:00:00Z', by: 'minhtran' },
+    },
+    {
+      type: 'pr',
+      number: 13,
+      title: 'Docs for season 2: index page and how scheduling works',
+      author: 'tlindqvist',
+      body: `Rosa asked for something she can point new volunteers at that explains how the schedule gets made, so:
+
+- docs/how-scheduling-works.md, written for non-programmers
+- docs/index.md, a table of contents split into volunteers vs. developers, including which decision records are still current
+- README now opens with a plain-language summary and points at docs/index.md`,
+      labels: ['docs'],
+      branch: 'season-2-docs',
+      openedAt: '2025-03-01T20:00:00Z',
+      commits: [
+        {
+          key: 'c-docs',
+          at: '2025-03-01T20:01:00Z',
+          author: 'tlindqvist',
+          message: 'docs: index + how scheduling works',
+          files: {
+            'docs/index.md': docsIndex,
+            'docs/how-scheduling-works.md': howScheduling,
+          },
+        },
+        {
+          key: 'c-docs-readme',
+          at: '2025-03-01T20:40:00Z',
+          author: 'tlindqvist',
+          message: 'README: season 2 intro, link docs index',
+          files: {
+            'README.md': readme(R.titleSeason2, R.needsGo('1.23'), R.signup, R.schedule, R.remindEmail),
+          },
+        },
+      ],
+      reviews: [
+        {
+          id: 'pr13-rv-minh',
+          author: 'minhtran',
+          at: '2025-03-03T02:00:00Z',
+          state: 'APPROVED',
+          body: 'Read through how-scheduling-works against assign.go, it matches. Thanks for doing this.',
+          threads: [
+            {
+              id: 'pr13-th-ties',
+              path: 'docs/how-scheduling-works.md',
+              line: 19,
+              comments: [
+                {
+                  id: 'pr13-thread-minh',
+                  author: 'minhtran',
+                  at: '2025-03-03T02:00:00Z',
+                  body: "Accurate. Ties really are sign-up order, since volunteers.csv is only ever appended to.",
+                },
+                {
+                  id: 'pr13-thread-tobias',
+                  author: 'tlindqvist',
+                  at: '2025-03-03T04:10:00Z',
+                  body: "Good, that's how I read it too.",
+                },
+              ],
+            },
+          ],
+        },
+      ],
+      comments: [
+        {
+          id: 'pr13-walt',
+          author: 'waltb',
+          at: '2025-03-03T15:30:00Z',
+          body: "One thing. The handbook page still says you'll get a text the night before. We don't do texts anymore, and I'd hate for a new person to sit by the phone waiting on one.",
+        },
+        {
+          id: 'pr13-tobias',
+          author: 'tlindqvist',
+          at: '2025-03-03T17:45:00Z',
+          body: 'Good catch Walt. Rosa said she wants to rewrite the reminders part of the handbook herself, so I left that page alone here.',
+        },
+        {
+          id: 'pr13-rosa',
+          author: 'rosa-delgado',
+          at: '2025-03-04T13:10:00Z',
+          body: "Yes!! I'm on it this week. Sorry, it slipped through when we switched.",
+        },
+      ],
+      outcome: { kind: 'merged', at: '2025-03-04T14:00:00Z', by: 'minhtran' },
+    },
+    {
+      type: 'pr',
+      number: 14,
+      title: 'Update handbook: reminders come by email now, not text',
+      author: 'rosa-delgado',
+      body: "Fixes the reminders part that Walt caught on #13. No more texts, it's email plus the paper sheet on the shed door. I did this in the website editor so please check I didn't break anything!",
+      labels: ['docs'],
+      branch: 'rosa-delgado-patch-2',
+      openedAt: '2025-03-09T21:30:00Z',
+      commits: [
+        {
+          key: 'c-handbook-fix',
+          at: '2025-03-09T21:30:00Z',
+          author: 'rosa-delgado',
+          message: 'Update volunteer-handbook.md',
+          files: {
+            'docs/volunteer-handbook.md': handbookV2,
+          },
+        },
+      ],
+      reviews: [
+        {
+          id: 'pr14-rv-minh',
+          author: 'minhtran',
+          at: '2025-03-10T02:15:00Z',
+          state: 'APPROVED',
+          body: "Looks right and it renders fine. Nothing broken.",
+          threads: [],
+        },
+      ],
+      comments: [
+        {
+          id: 'pr14-walt',
+          author: 'waltb',
+          at: '2025-03-10T14:00:00Z',
+          body: 'Reads right to me.',
+        },
+      ],
+      outcome: { kind: 'merged', at: '2025-03-10T15:00:00Z', by: 'minhtran' },
+    },
+    {
+      type: 'tag',
+      name: 'v1.0.0',
+      at: '2025-03-22T16:00:00Z',
+      by: 'minhtran',
+      message: 'v1.0.0: season 2\n\nReminders go out by email and a large-print weekly sheet goes on the shed\ndoor, replacing text messages (ADR-0004). New docs/index.md and\ndocs/how-scheduling-works.md, and the volunteer handbook is up to date.\n',
+    },
+  ],
+  answerKey: [
+    {
+      id: 'growth-arc',
+      view: 'timeline',
+      facet: 'growth',
+      question: 'How did seedling grow from its first commit to the season 2 release?',
+      answers: {
+        technical:
+          "The README at c-init (2024-04-06) states the starting goal: stop typing 150 dates into the sign-up spreadsheet by hand. Four annotated tags mark the phases. v0.1.0 (2024-04-27) prints the season's watering days as CSV for that spreadsheet. v0.2.0 (2024-05-25) moves sign-ups to a web form with the roster in volunteers.csv (ADR-0001). v0.3.0 (2024-08-17) adds `seedling export` building the weekly schedule from availability, `seedling remind` text reminders (ADR-0002), and swap links (ADR-0003). After a winter gap, v1.0.0 (2025-03-22) is season 2: email reminders and a large-print shed sheet replace texts (ADR-0004), plus docs/index.md, docs/how-scheduling-works.md, and an up-to-date volunteer handbook.",
+        nonTechnical:
+          'It started in April 2024 as a helper that printed the list of watering days for the sign-up spreadsheet. By late May volunteers could sign up on a web page, and by August the app made the weekly schedule itself, sent reminders, and let people hand off a shift. After a quiet winter, the season 2 version in March 2025 switched reminders to email plus a paper schedule on the shed, with a handbook for volunteers.',
+      },
+      evidence: [
+        { kind: 'tag', name: 'v0.1.0', quote: 'v0.1.0: sign-up sheet export' },
+        { kind: 'tag', name: 'v0.2.0', quote: 'Volunteers sign up on a web form instead of the shared spreadsheet.' },
+        { kind: 'tag', name: 'v0.3.0', quote: "seedling export now builds the weekly schedule from everyone's available days." },
+        { kind: 'tag', name: 'v1.0.0', quote: 'replacing text messages (ADR-0004)' },
+        { kind: 'file', path: 'README.md', at: 'c-init', quote: 'The first goal is to stop typing 150 dates into the' },
+      ],
+    },
+    {
+      id: 'winter-lull',
+      view: 'timeline',
+      facet: 'growth',
+      question: 'What happened between the end of the first season and the start of the second?',
+      answers: {
+        technical:
+          'Discussion #10 (2024-10-27) wraps season 1 the day after the last shift on Oct 26, and Minh says he is turning off the nightly reminder job and the site sleeps until spring. The only commit between then and February 2025 is c-go123 (2024-12-14, go.mod bumped to go 1.23). Planning restarts with discussion #11 on 2025-01-18, which opens the texting question for season 2.',
+        nonTechnical:
+          'The garden season ended in late October 2024 and the app was switched off for the winter. Apart from one small upkeep change in December, nothing happened until January 2025, when the coordinator started planning reminders for the next season.',
+      },
+      evidence: [
+        { kind: 'discussion', number: 10, quote: 'Last shift was yesterday (Oct 26).' },
+        { kind: 'comment', id: 'disc10-minh', quote: 'The site goes to sleep until spring' },
+        { kind: 'commit', key: 'c-go123', quote: 'go 1.23' },
+        { kind: 'discussion', number: 11, quote: 'Two things I need to bring up before spring.' },
+      ],
+    },
+    {
+      id: 'roster-csv',
+      view: 'timeline',
+      facet: 'adr',
+      question: 'Why is the volunteer list kept in a spreadsheet file instead of a database?',
+      answers: {
+        technical:
+          'ADR-0001 (docs/adr/0001-keep-the-roster-in-a-csv-file.md, commit c-adr1 in PR #2, 2024-05-12) keeps the roster in volunteers.csv so Rosa can read and fix it in a spreadsheet without a developer. internal/store/store.go appends rows under a sync.Mutex, which Tobias questioned in the PR #2 review thread. docs/index.md still lists it as Accepted in March 2025.',
+        nonTechnical:
+          'The team keeps the volunteer list as a plain spreadsheet file so the garden coordinator can open it and fix mistakes herself without needing a programmer. That choice from May 2024 still stands.',
+      },
+      evidence: [
+        { kind: 'file', path: 'docs/adr/0001-keep-the-roster-in-a-csv-file.md', at: 'c-adr1', quote: 'needs to read the roster and fix mistakes herself without asking a' },
+        { kind: 'file', path: 'internal/store/store.go', at: 'c-store', quote: 'os.O_APPEND|os.O_CREATE|os.O_WRONLY' },
+        { kind: 'comment', id: 'pr2-thread-minh', quote: 'Not with the mutex above' },
+        { kind: 'file', path: 'docs/index.md', at: 'c-docs', quote: 'Keep the volunteer roster in a CSV file. Accepted.' },
+      ],
+    },
+    {
+      id: 'texts-adopted',
+      view: 'timeline',
+      facet: 'adr',
+      question: 'Why did the app start sending text-message reminders?',
+      answers: {
+        technical:
+          "ADR-0002 (docs/adr/0002-text-message-reminders.md, commit c-adr2 in PR #7, dated 2024-07-23; PR merged 2024-07-29) chose SMS through Twilio's REST API. Six shifts in June and July had been missed, Rosa said the crew reads texts and ignores email, and a $300 Eastside Neighborhood Fund micro-grant could pay for it. internal/notify/sms.go and cmd/seedling/remind.go implement it.",
+        nonTechnical:
+          'In summer 2024 a few watering days were missed because people forgot. The coordinator said most volunteers read texts, and a small neighborhood grant could cover the cost, so the team started texting each volunteer the evening before their shift.',
+      },
+      evidence: [
+        { kind: 'file', path: 'docs/adr/0002-text-message-reminders.md', at: 'c-adr2', quote: 'Six shifts in June and July were missed because the volunteer forgot.' },
+        { kind: 'file', path: 'docs/adr/0002-text-message-reminders.md', at: 'c-adr2', quote: 'Rosa says most of the crew reads texts and ignores email.' },
+        { kind: 'comment', id: 'pr7-rosa', quote: 'the $300 covers texting through the end of the year' },
+        { kind: 'file', path: 'internal/notify/sms.go', at: 'c-sms', quote: 'https://api.twilio.com/2010-04-01/Accounts/' },
+        { kind: 'pr', number: 7, quote: 'The Neighborhood Fund micro-grant pays for Twilio this year, details in ADR-0002.' },
+      ],
+    },
+    {
+      id: 'texts-dropped',
+      view: 'timeline',
+      facet: 'reversal',
+      question: 'Why were text reminders dropped, and what replaced them?',
+      answers: {
+        technical:
+          "Discussion #11 (2025-01-18) raised it first. The Neighborhood Fund micro-grant that paid for Twilio ended 2024-12-31, and older volunteers including Walt said they would rather read a paper schedule at the shed. PR #12 (merged 2025-02-15) added ADR-0004: reminders by email from the garden Gmail plus `seedling sheet`, a large-print weekly schedule for the shed door, and removed the Twilio code. Its commit c-adr4 edited ADR-0002's status line to 'Superseded by ADR-0004'.",
+        nonTechnical:
+          'The small grant that paid for texting ran out at the end of 2024, and several older volunteers said they would rather check a paper schedule at the shed. In February 2025 the team switched to email reminders plus a printed weekly schedule on the shed door, and marked the old texting decision as replaced.',
+      },
+      evidence: [
+        { kind: 'discussion', number: 11, quote: 'The Neighborhood Fund micro-grant that paid for the text reminders ended Dec 31.' },
+        { kind: 'comment', id: 'disc11-walt', quote: 'A sheet on the shed door I will see every time I go for the hose.' },
+        { kind: 'file', path: 'docs/adr/0004-email-and-printed-sheet.md', at: 'c-adr4', quote: 'The grant ended on December 31, 2024 and will not be renewed.' },
+        { kind: 'file', path: 'docs/adr/0002-text-message-reminders.md', at: 'c-adr4', quote: 'Status: Superseded by ADR-0004' },
+        { kind: 'pr', number: 12, quote: 'ADR-0004 records the change, and ADR-0002 is marked superseded.' },
+      ],
+    },
+    {
+      id: 'handbook-caught-up',
+      view: 'timeline',
+      facet: 'reversal',
+      question: 'After the switch away from texts, when did the volunteer handbook catch up?',
+      answers: {
+        technical:
+          "PR #12 merged on 2025-02-15 without touching docs/volunteer-handbook.md, so the handbook kept saying \"you'll get a text\" (still true at c-adr4 and at c-docs in PR #13). Walt flagged it in a PR #13 comment on 2025-03-03. Rosa fixed it in PR #14 (commit c-handbook-fix, 'Update volunteer-handbook.md'), merged 2025-03-10, 23 days after the switch.",
+        nonTechnical:
+          'For about three weeks after the switch, the volunteer handbook still told people they would get a text. A volunteer noticed in early March 2025, and the coordinator corrected the handbook on March 10, 2025.',
+      },
+      evidence: [
+        { kind: 'file', path: 'docs/volunteer-handbook.md', at: 'c-docs', quote: "The evening before your shift you'll get a text from the garden's number" },
+        { kind: 'comment', id: 'pr13-walt', quote: "The handbook page still says you'll get a text the night before." },
+        { kind: 'pr', number: 14, quote: 'reminders come by email now, not text' },
+        { kind: 'pr', number: 12, quote: "now emails tomorrow's volunteer (with the swap link)" },
+        { kind: 'file', path: 'docs/volunteer-handbook.md', at: 'c-handbook-fix', quote: "We don't send texts anymore." },
+      ],
+    },
+    {
+      id: 'no-back-to-back',
+      view: 'timeline',
+      facet: 'decision',
+      question: 'Why does the scheduler never give the same volunteer two days in a row, and where was that decided?',
+      answers: {
+        technical:
+          "It was decided only in Rosa's review thread on PR #4 (internal/schedule/assign.go, 2024-06-22). The summer before, volunteers working four and five days straight burned out and quit. Minh agreed to do it as a follow-up, and c-no-repeat (2024-07-01, pushed straight to main) added the `last` map and the `last[v.Name].Equal(day.AddDate(0, 0, -1))` skip to schedule.Assign, with the expected test output changing to leave Thursday and Saturday blank. Neither the code nor the commit message says why.",
+        nonTechnical:
+          'The garden coordinator asked for it while looking over the scheduling change in June 2024. The summer before, people who watered several days in a row wore out and quit. The team added the rule a week later, but the reason was only ever written in that conversation.',
+      },
+      evidence: [
+        { kind: 'comment', id: 'pr4-thread-rosa', quote: 'two of our best people burned out by mid-July and never came back' },
+        { kind: 'comment', id: 'pr4-thread-minh', quote: "I'll do it as a follow-up" },
+        { kind: 'commit', key: 'c-no-repeat', quote: 'schedule: skip anyone who watered the day before' },
+        { kind: 'file', path: 'internal/schedule/assign.go', at: 'c-no-repeat', quote: 'if last[v.Name].Equal(day.AddDate(0, 0, -1)) {' },
+        { kind: 'file', path: 'internal/schedule/assign_test.go', at: 'c-no-repeat', quote: 'want := []string{"Ana", "Ben", "Ana", "", "Ana", ""}' },
+      ],
+      onlyOutsideGit: ['burned out by mid-July'],
+    },
+    {
+      id: 'accounts-closed',
+      view: 'timeline',
+      facet: 'decision',
+      question: 'Why did the team never add volunteer logins with passwords?',
+      answers: {
+        technical:
+          "PR #6 (Tobias, opened 2024-07-12) added internal/auth with bcrypt hashes and the project's first dependency, golang.org/x/crypto. Rosa objected that many volunteers can't keep track of passwords and lockouts would come back to her. Minh didn't want password hashes in a CSV opened in Google Sheets (ADR-0001) and proposed a signed swap link instead. Tobias closed the PR unmerged on 2024-07-17. ADR-0003 (PR #8) records the replacement.",
+        nonTechnical:
+          'A volunteer developer started building logins with passwords in July 2024. The coordinator pointed out that many volunteers would forget their passwords and call her anyway, so the team dropped it and built a one-tap link instead.',
+      },
+      evidence: [
+        { kind: 'pr', number: 6, quote: 'Passwords are bcrypt-hashed' },
+        { kind: 'comment', id: 'pr6-rosa', quote: 'a password is going to be a dealbreaker for a lot of our crew' },
+        { kind: 'comment', id: 'pr6-minh', quote: 'password hashes in a CSV that Rosa opens in Google Sheets' },
+        { kind: 'comment', id: 'pr6-tobias', quote: 'Closing this.' },
+        { kind: 'file', path: 'docs/adr/0003-swap-links-not-accounts.md', at: 'c-adr3', quote: 'PR #6 tried volunteer accounts with passwords. We closed it.' },
+      ],
+    },
+    {
+      id: 'no-sundays-why',
+      view: 'timeline',
+      facet: 'unwritten-why',
+      question: 'Why are there never any watering shifts on Sundays?',
+      answers: {
+        technical:
+          "The Sunday skip has been in schedule.WateringDays (internal/schedule/days.go) since c-export in PR #1 (2024-04-13). The `weekdays` list in cmd/seedling/serve.go (c-serve, PR #2) also stops at Saturday. Neither explains it. The reason is only in discussion #3: on 2024-06-04 Rosa explained that the lot is leased from Grace Lutheran next door and the pastor asked for quiet Sunday mornings for the congregation, so the team dropped Sunday entirely rather than police afternoon-only shifts.",
+        nonTechnical:
+          'The garden is on land rented from the church next door, and the church asked for quiet Sunday mornings during services. To keep it simple, the team never schedules anyone on Sundays.',
+      },
+      evidence: [
+        { kind: 'discussion', number: 3, quote: "Why can't I sign up for Sundays?" },
+        { kind: 'comment', id: 'disc3-rosa', quote: 'the one thing Pastor Ruth asked for was quiet Sunday mornings for the congregation' },
+        { kind: 'comment', id: 'disc3-rosa-2', quote: "I'd rather not push our luck." },
+        { kind: 'file', path: 'internal/schedule/days.go', at: 'c-export', quote: 'if d.Weekday() == time.Sunday {' },
+        { kind: 'file', path: 'cmd/seedling/serve.go', at: 'c-serve', quote: 'time.Monday, time.Tuesday, time.Wednesday, time.Thursday, time.Friday, time.Saturday,' },
+      ],
+      onlyOutsideGit: ['quiet Sunday mornings for the congregation', 'lease with Grace Lutheran'],
+    },
+    {
+      id: 'swap-from-coordinator',
+      view: 'timeline',
+      facet: 'who',
+      question: "Which feature came straight from the garden coordinator's request?",
+      answers: {
+        technical:
+          'The swap-a-shift link. Rosa opened discussion #5 (2024-07-06) asking for a way for volunteers to trade shifts without her, and Minh proposed option (b), a link in each reminder. After the accounts attempt in PR #6 was closed, Tobias built it in PR #8 ("Closes #5", merged 2024-08-16): HMAC-signed per-shift tokens in internal/swap, a swap page, and ADR-0003.',
+        nonTechnical:
+          'The swap link. The coordinator was spending her lunch breaks finding substitutes, so she asked for a way for volunteers to trade shifts themselves. In August 2024 the team added a link to each reminder that lets a volunteer hand their shift to someone else.',
+      },
+      evidence: [
+        { kind: 'discussion', number: 5, quote: 'I just want my lunch break back.' },
+        { kind: 'comment', id: 'disc5-minh', quote: '(b) a link in each reminder that lets you hand your shift to someone else, no login' },
+        { kind: 'pr', number: 8, quote: 'Closes #5.' },
+        { kind: 'file', path: 'docs/adr/0003-swap-links-not-accounts.md', at: 'c-adr3', quote: 'She asked for a way around that in discussion #5.' },
+        { kind: 'comment', id: 'pr8-rosa', quote: 'picked Dolores for his Thursday' },
+      ],
+    },
+    {
+      id: 'who-scheduling',
+      view: 'timeline',
+      facet: 'who',
+      question: 'Who should someone ask about how the schedule is made?',
+      answers: {
+        technical:
+          'Minh Tran (@minhtran). He authored PR #4 (schedule.Assign) and the c-no-repeat follow-up, and c-codeowners (2024-09-14) makes him the code owner of /internal/schedule/. docs/how-scheduling-works.md (c-docs, PR #13) says he wrote the scheduling code and names Rosa Delgado as the person who runs the schedule day to day.',
+        nonTechnical:
+          'Ask Minh Tran, the volunteer developer who wrote the scheduling part of the app. Rosa Delgado, the garden coordinator, runs the schedule week to week.',
+      },
+      evidence: [
+        { kind: 'file', path: '.github/CODEOWNERS', at: 'c-codeowners', quote: '/internal/schedule/  @minhtran' },
+        { kind: 'file', path: 'docs/how-scheduling-works.md', at: 'c-docs', quote: 'Minh Tran wrote the scheduling code.' },
+        { kind: 'pr', number: 4, quote: "Automatic weekly schedule from everyone's available days" },
+        { kind: 'commit', key: 'c-no-repeat', quote: 'schedule: skip anyone who watered the day before' },
+        { kind: 'comment', id: 'pr4-rv-rosa', quote: 'Minh walked me through this' },
+      ],
+    },
+    {
+      id: 'what-is-it',
+      view: 'docs',
+      facet: 'overview',
+      question: 'What is seedling and who is it for?',
+      answers: {
+        technical:
+          'A standard-library-only Go app (module github.com/eastside-commons/seedling, go 1.23) for the Eastside Commons community garden. As of v1.0.0 the README covers the sign-up site (`seedling serve`), the weekly schedule (`seedling export`), email reminders (`seedling remind`), and the shed sheet (`seedling sheet`). Volunteers and the coordinator read docs/volunteer-handbook.md and docs/how-scheduling-works.md. The two volunteer developers read the README and docs/adr/.',
+        nonTechnical:
+          'Seedling is the app the Eastside Commons community garden uses to organize who waters the garden each day. Volunteers sign up on a web page, the app makes the weekly schedule, emails a reminder the night before, and prints a schedule for the shed door.',
+      },
+      evidence: [
+        { kind: 'file', path: 'README.md', at: 'c-docs-readme', quote: 'Seedling runs the watering schedule for the Eastside Commons community' },
+        { kind: 'file', path: 'README.md', at: 'c-docs-readme', quote: 'before their shift, and prints a big-type schedule for the shed door.' },
+        { kind: 'file', path: 'go.mod', at: 'c-go123', quote: 'module github.com/eastside-commons/seedling' },
+        { kind: 'file', path: 'docs/index.md', at: 'c-docs', quote: '## For volunteers' },
+      ],
+    },
+    {
+      id: 'docs-map',
+      view: 'docs',
+      facet: 'overview',
+      question: 'Where should a volunteer start reading, and where should a developer start?',
+      answers: {
+        technical:
+          'docs/index.md (c-docs, PR #13, 2025-03-01) splits the docs. "For volunteers" links volunteer-handbook.md and how-scheduling-works.md. "For developers" links README.md and the four ADRs with their current status. The README (c-docs-readme) points volunteers at the handbook and everyone else at docs/index.md. Before that, from c-readme-handbook (2024-09-10), the README already sent volunteers to the handbook.',
+        nonTechnical:
+          'Volunteers should start with the volunteer handbook, then the page that explains how the schedule is made. The people who build the app start with the main project page and the written decision records. A contents page links all of them.',
+      },
+      evidence: [
+        { kind: 'file', path: 'docs/index.md', at: 'c-docs', quote: '## For developers' },
+        { kind: 'file', path: 'docs/index.md', at: 'c-docs', quote: '[How scheduling works](how-scheduling-works.md): how the app decides who waters which day.' },
+        { kind: 'file', path: 'README.md', at: 'c-docs-readme', quote: 'Volunteers: start with the [volunteer handbook](docs/volunteer-handbook.md).' },
+        { kind: 'pr', number: 13, quote: 'a table of contents split into volunteers vs. developers' },
+        { kind: 'commit', key: 'c-readme-handbook', quote: 'README: point volunteers at the handbook' },
+      ],
+    },
+    {
+      id: 'notified-now',
+      view: 'docs',
+      facet: 'how',
+      question: 'How do volunteers find out about their shifts now?',
+      answers: {
+        technical:
+          "Since PR #12 (merged 2025-02-15), cmd/seedling/remind.go emails tomorrow's volunteer through notify.Email (net/smtp to smtp.gmail.com:587) with a swap link, and skips volunteers with no email. `seedling sheet` renders templates/weekly-sheet.html, which Rosa prints and posts on the shed door each Monday (ADR-0004). The handbook only says so from PR #14 (2025-03-10).",
+        nonTechnical:
+          "The evening before a shift, the app emails the volunteer with the date and a link to hand the shift to someone else. Every Monday the coordinator also posts a big-print schedule for the week on the shed door, for people who don't use email.",
+      },
+      evidence: [
+        { kind: 'file', path: 'cmd/seedling/remind.go', at: 'c-email', quote: 'Addr:     "smtp.gmail.com:587",' },
+        { kind: 'file', path: 'templates/weekly-sheet.html', at: 'c-sheet', quote: '<th>Initials when done</th>' },
+        { kind: 'file', path: 'docs/adr/0004-email-and-printed-sheet.md', at: 'c-adr4', quote: 'prints it and posts it on the shed door every Monday.' },
+        { kind: 'file', path: 'docs/volunteer-handbook.md', at: 'c-handbook-fix', quote: "you'll get an email from the garden" },
+      ],
+    },
+    {
+      id: 'how-scheduler-picks',
+      view: 'docs',
+      facet: 'how',
+      question: 'How does the app decide who waters which day?',
+      answers: {
+        technical:
+          'schedule.WateringDays (internal/schedule/days.go) lists Monday to Saturday. schedule.Assign (internal/schedule/assign.go) walks the days in order. Among volunteers whose Days include that weekday, it picks the lowest count, and ties go to roster order, which is sign-up order in the append-only volunteers.csv. Since c-no-repeat it also skips whoever had the previous day, and leaves the day blank if nobody is left. docs/how-scheduling-works.md (c-docs) states the same five rules.',
+        nonTechnical:
+          'The app looks at which days each volunteer said they are free. It gives each day to the free person who has had the fewest shifts that week, and a tie goes to whoever signed up first. Nobody gets two days in a row, there are no Sunday shifts, and a day nobody can take stays open for the coordinator to fill.',
+      },
+      evidence: [
+        { kind: 'file', path: 'internal/schedule/assign.go', at: 'c-no-repeat', quote: 'if pick == "" || count[v.Name] < count[pick] {' },
+        { kind: 'file', path: 'internal/schedule/days.go', at: 'c-no-repeat', quote: 'if d.Weekday() == time.Sunday {' },
+        { kind: 'file', path: 'docs/how-scheduling-works.md', at: 'c-docs', quote: 'If two people are tied, whoever signed up first gets it.' },
+        { kind: 'comment', id: 'pr13-thread-minh', quote: 'Ties really are sign-up order' },
+        { kind: 'file', path: 'docs/how-scheduling-works.md', at: 'c-docs', quote: '5. If nobody is left for a day, the day stays blank and Rosa finds someone.' },
+      ],
+    },
+    {
+      id: 'decisions-current',
+      view: 'docs',
+      facet: 'adr',
+      question: 'Which written decisions are still in force, and which were replaced?',
+      answers: {
+        technical:
+          'docs/adr/ has four records. ADR-0001 (CSV roster), ADR-0003 (swap links, not accounts), and ADR-0004 (email plus printed sheet) are Accepted. ADR-0002 (SMS via Twilio) has read "Status: Superseded by ADR-0004" since c-adr4 in PR #12 (2025-02-09), and ADR-0004 carries "Supersedes: ADR-0002". docs/index.md lists the same statuses.',
+        nonTechnical:
+          'The team has four written decision records. Three still apply: keeping the volunteer list as a spreadsheet file, swapping shifts by link instead of passwords, and email plus a paper schedule for reminders. The one about text messages was replaced in February 2025.',
+      },
+      evidence: [
+        { kind: 'file', path: 'docs/index.md', at: 'c-handbook-fix', quote: 'Send shift reminders by text message. Superseded by ADR-0004.' },
+        { kind: 'file', path: 'docs/adr/0002-text-message-reminders.md', at: 'c-adr4', quote: 'Status: Superseded by ADR-0004' },
+        { kind: 'file', path: 'docs/adr/0003-swap-links-not-accounts.md', at: 'c-handbook-fix', quote: 'Status: Accepted' },
+        { kind: 'file', path: 'docs/adr/0004-email-and-printed-sheet.md', at: 'c-handbook-fix', quote: 'Supersedes: ADR-0002' },
+        { kind: 'file', path: 'docs/adr/0001-keep-the-roster-in-a-csv-file.md', at: 'c-handbook-fix', quote: 'Status: Accepted' },
+      ],
+    },
+    {
+      id: 'docs-sunday-gap',
+      view: 'docs',
+      facet: 'unwritten-why',
+      question: 'The docs say there are no Sunday shifts. Do they say why?',
+      answers: {
+        technical:
+          "No. Rule 1 in docs/how-scheduling-works.md and the 'Signing up' section of docs/volunteer-handbook.md state that there are no Sunday shifts and give no reason, and no ADR covers it. The reason lives only in discussion #3, where Rosa cites the lease with Grace Lutheran and the pastor's request for quiet Sunday mornings for the congregation.",
+        nonTechnical:
+          'No. The volunteer pages only say there are no Sunday shifts. The reason, a promise to the church next door to keep Sunday mornings quiet, was only explained in a conversation on the project discussion board.',
+      },
+      evidence: [
+        { kind: 'file', path: 'docs/how-scheduling-works.md', at: 'c-docs', quote: '1. Watering days are Monday through Saturday. There are no shifts on Sundays.' },
+        { kind: 'file', path: 'docs/volunteer-handbook.md', at: 'c-handbook-fix', quote: 'There are no shifts on Sundays.' },
+        { kind: 'comment', id: 'disc3-rosa', quote: 'When we signed the lease with Grace Lutheran' },
+      ],
+      onlyOutsideGit: ['lease with Grace Lutheran'],
+    },
+    {
+      id: 'docs-back-to-back-gap',
+      view: 'docs',
+      facet: 'unwritten-why',
+      question: 'The docs say nobody is scheduled two days in a row. Where is the reason written?',
+      answers: {
+        technical:
+          "Nowhere in the repository. Rule 4 in docs/how-scheduling-works.md and the 'Your schedule' section of the handbook state the rule, and c-no-repeat implements it without a comment. The reason is only in the PR #4 review thread on internal/schedule/assign.go, where Rosa says that people working several days straight burned out by mid-July the summer before.",
+        nonTechnical:
+          'Only in a comment the coordinator left while the team was looking over the scheduling change. The summer before, people who watered several days in a row wore out and stopped coming, and she said she would rather fill an empty day than lose a volunteer.',
+      },
+      evidence: [
+        { kind: 'file', path: 'docs/how-scheduling-works.md', at: 'c-docs', quote: '4. Nobody is scheduled two days in a row.' },
+        { kind: 'file', path: 'docs/volunteer-handbook.md', at: 'c-handbook', quote: 'never get two days in a row.' },
+        { kind: 'comment', id: 'pr4-thread-rosa', quote: "I'd rather find a sub for an empty day than lose a volunteer." },
+        { kind: 'comment', id: 'pr4-thread-rosa', quote: 'burned out by mid-July' },
+        { kind: 'file', path: 'internal/schedule/assign.go', at: 'c-no-repeat', quote: 'last[pick] = day' },
+      ],
+      onlyOutsideGit: ['burned out by mid-July'],
+    },
+  ],
+};
+
+export default spec;
