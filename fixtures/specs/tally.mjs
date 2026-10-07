@@ -178,7 +178,7 @@ def main(argv=None):
     return 0
 `;
 
-function cliPy({ data, pay, settle, dollars }) {
+function cliPy({ data, pay, settle, dollars, importName, guard }) {
   const lines = [
     'import argparse',
     'import sys',
@@ -186,7 +186,7 @@ function cliPy({ data, pay, settle, dollars }) {
     'from tally.ledger import balances_for',
     'from tally.store import load, save',
   ];
-  if (settle) lines.push('from tally.settle import minimal_transfers');
+  if (settle) lines.push(`from tally.settle import ${importName || 'minimal_transfers'}`);
   lines.push('', 'def show(cents):');
   if (dollars) {
     lines.push(
@@ -239,27 +239,35 @@ function cliPy({ data, pay, settle, dollars }) {
     '        if args.payer not in names:',
     '            print("payer must be in the split", file=sys.stderr)',
     '            return 2',
+  );
+  if (guard) {
+    lines.push(
+      '        if args.cents < 0:',
+      '            print("cents must be zero or more", file=sys.stderr)',
+      '            return 2',
+    );
+  }
+  lines.push(
     '        rows.append({',
-    '            "kind": "expense",',
-    '            "date": args.date,',
-    '            "payer": args.payer,',
-    '            "cents": args.cents,',
-    '            "note": args.note,',
-    '            "split": names,',
+    '            "kind": "expense", "date": args.date, "payer": args.payer,',
+    '            "cents": args.cents, "note": args.note, "split": names,',
     '        })',
     '        save(args.data, rows)',
     '        return 0',
   );
   if (pay) {
+    lines.push('    if args.cmd == "pay":');
+    if (guard) {
+      lines.push(
+        '        if args.cents < 0:',
+        '            print("cents must be zero or more", file=sys.stderr)',
+        '            return 2',
+      );
+    }
     lines.push(
-      '    if args.cmd == "pay":',
       '        rows.append({',
-      '            "kind": "payment",',
-      '            "date": args.date,',
-      '            "src": args.src,',
-      '            "dst": args.dst,',
-      '            "cents": args.cents,',
-      '            "note": args.note,',
+      '            "kind": "payment", "date": args.date,',
+      '            "src": args.src, "dst": args.dst, "cents": args.cents, "note": args.note,',
       '        })',
       '        save(args.data, rows)',
       '        return 0',
@@ -507,6 +515,45 @@ if __name__ == "__main__":
     unittest.main()
 `;
 
+const testCli = `import unittest
+
+from tally.cli import main
+
+
+class CliTest(unittest.TestCase):
+    def test_negative_cents_rejected(self):
+        code = main([
+            "add",
+            "--date", "2023-11-12",
+            "--payer", "lena",
+            "--cents", "-5",
+            "--split", "lena,owen",
+        ])
+        self.assertEqual(code, 2)
+
+
+if __name__ == "__main__":
+    unittest.main()
+`;
+
+const workflow = (version) => `name: test
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v${version}
+        with:
+          python-version: "3.11"
+      - name: unit tests
+        run: python3 -m unittest discover -s tests -v
+`;
+
 const webPy = `"""Local page. Not wired into the commands."""
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
@@ -730,7 +777,7 @@ Supersedes: ADR-0002
 ADR-0002 put the ledger in SQLite. Maya keeps the household folder in
 Dropbox so the three laptops see the same file. In September the file
 came back malformed. Owen traced it to Dropbox copying ledger.db while
-tally had it open. See discussion #9.
+tally had it open. See discussion #16.
 
 A half-written text file is annoying. A malformed database file is a
 dead ledger.
@@ -817,6 +864,9 @@ const spec = {
       name: 'Lena Voss',
       email: '18440211+lenavoss@users.noreply.github.com',
       role: 'lead maintainer; owns the settle-up code',
+      identities: {
+        laptop: { name: 'Lena P', email: 'lena@laptop.local', linked: false },
+      },
     },
     owenbriggs: {
       name: 'Owen Briggs',
@@ -826,12 +876,24 @@ const spec = {
     kitalvarez: {
       name: 'Kit Alvarez',
       email: '77219004+kitalvarez@users.noreply.github.com',
-      role: 'part-time contributor, weekends',
+      role: 'part-time contributor, weekends, Oakland (Pacific time)',
     },
     mayaruiz: {
       name: 'Maya Ruiz',
       email: '55021883+mayaruiz@users.noreply.github.com',
       role: 'roommate; uses tally, not a developer',
+    },
+    'dependabot[bot]': {
+      name: 'dependabot[bot]',
+      email: 'dependabot[bot]@users.noreply.github.com',
+      role: 'opens dependency bumps',
+      kind: 'Bot',
+    },
+    'github-actions[bot]': {
+      name: 'github-actions[bot]',
+      email: 'github-actions[bot]@users.noreply.github.com',
+      role: 'comments when the test workflow finishes',
+      kind: 'Bot',
     },
   },
   steps: [
@@ -857,6 +919,8 @@ const spec = {
 
 No file yet. One bill, then it exits.`,
       labels: ['feature'],
+      requestedReviewers: ['owenbriggs'],
+      reactions: { heart: ['mayaruiz'] },
       branch: 'one-bill',
       openedAt: '2023-02-18T21:05:00Z',
       commits: [
@@ -911,6 +975,7 @@ No file yet. One bill, then it exits.`,
           author: 'mayaruiz',
           at: '2023-02-22T18:40:00Z',
           body: 'Owen ran last week\'s groceries through it while I watched. It matched the notebook!! Thank you Lena.',
+          reactions: { heart: ['lenavoss'] },
         },
         {
           id: 'pr1-lena',
@@ -919,15 +984,99 @@ No file yet. One bill, then it exits.`,
           body: 'good. that is the whole job for now.',
         },
       ],
+      checks: [
+        {
+          name: 'smoke',
+          commit: 'c-script',
+          at: '2023-02-18T21:40:00Z',
+          conclusion: 'success',
+          summary: '1000 cents, three names, exit 0',
+        },
+        {
+          name: 'smoke',
+          commit: 'c-readme-v01',
+          at: '2023-02-19T16:00:00Z',
+          conclusion: 'success',
+          summary: 'readme matches the script',
+        },
+      ],
       outcome: { kind: 'merged', at: '2023-02-25T17:00:00Z', by: 'owenbriggs' },
     },
     {
-      type: 'commit',
-      key: 'c-usage',
-      at: '2023-03-02T01:16:00Z',
+      type: 'issue',
+      number: 2,
+      title: 'I typed 10.50 and got a wall of red text',
+      author: 'mayaruiz',
+      at: '2023-02-26T18:10:00Z',
+      body: 'Owen showed me the script. I typed 10.50 because that is how money looks. It printed a long red error and stopped. Can it say what I did wrong?',
+      labels: ['bug'],
+      assignees: ['lenavoss'],
+      comments: [
+        {
+          id: 'iss2-owen',
+          author: 'owenbriggs',
+          at: '2023-02-27T02:15:00Z',
+          body: 'int() throws a traceback on a decimal. A sentence would be kinder. I said the same thing on the first change.',
+        },
+        {
+          id: 'iss2-lena',
+          author: 'lenavoss',
+          at: '2023-02-27T16:40:00Z',
+          body: 'I will push a fix from the laptop tonight.',
+        },
+      ],
+    },
+    {
+      type: 'pr',
+      number: 3,
+      title: 'Print a sentence when cents is not a whole number',
       author: 'lenavoss',
-      message: 'say so when cents is not a whole number',
-      files: { 'tally.py': tallyPyKind },
+      body: `Closes #2.
+
+A decimal used to throw a traceback. It now prints that cents must be a whole number and exits.`,
+      labels: ['bug'],
+      assignees: ['lenavoss'],
+      requestedReviewers: ['owenbriggs'],
+      branch: 'usage-sentence',
+      openedAt: '2023-02-28T01:05:00Z',
+      commits: [
+        {
+          key: 'c-usage',
+          at: '2023-02-28T01:20:00Z',
+          author: 'lenavoss',
+          identity: 'laptop',
+          message: 'say so when cents is not a whole number',
+          files: { 'tally.py': tallyPyKind },
+        },
+      ],
+      reviews: [
+        {
+          id: 'pr3-rv-owen',
+          author: 'owenbriggs',
+          at: '2023-03-01T02:10:00Z',
+          state: 'APPROVED',
+          body: 'Sentence is what I asked for. Maya can type 10.50 and get words instead of a traceback.',
+          threads: [],
+        },
+      ],
+      comments: [
+        {
+          id: 'pr3-lena',
+          author: 'lenavoss',
+          at: '2023-03-01T18:40:00Z',
+          body: 'Pushed from the laptop. git will say Lena P and lena@laptop.local. That is still me. The noreply address was not set on that machine.',
+        },
+      ],
+      checks: [
+        {
+          name: 'smoke',
+          commit: 'c-usage',
+          at: '2023-02-28T01:45:00Z',
+          conclusion: 'success',
+          summary: 'decimal input prints a sentence, exit 2',
+        },
+      ],
+      outcome: { kind: 'merged', at: '2023-03-03T16:00:00Z', by: 'owenbriggs', method: 'squash' },
     },
     {
       type: 'tag',
@@ -938,7 +1087,7 @@ No file yet. One bill, then it exits.`,
     },
     {
       type: 'pr',
-      number: 2,
+      number: 4,
       title: 'Turn the script into a package with a text ledger',
       author: 'owenbriggs',
       body: `The one-shot script is fine for a single detergent bottle. It is useless for a month of groceries.
@@ -947,6 +1096,7 @@ This moves the split into a package and adds ledger.txt. \`python -m tally add\`
 
 Notes are one word. "groceries" fits. "ikea lamp" does not. We can live with that until the file format changes.`,
       labels: ['feature'],
+      requestedReviewers: ['lenavoss'],
       branch: 'package-ledger',
       openedAt: '2023-03-18T19:20:00Z',
       commits: [
@@ -1019,8 +1169,17 @@ Notes are one word. "groceries" fits. "ikea lamp" does not. We can live with tha
         {
           id: 'pr2-kit',
           author: 'kitalvarez',
-          at: '2023-03-23T14:00:00Z',
+          at: '2023-03-23T07:00:00-07:00',
           body: 'ran it on my laptop, works. nice to see it as a package. sorry I am late, work ate the week.',
+        },
+      ],
+      checks: [
+        {
+          name: 'smoke',
+          commit: 'c-store-txt',
+          at: '2023-03-19T16:40:00Z',
+          conclusion: 'success',
+          summary: 'balances match a hand calc',
         },
       ],
       outcome: { kind: 'merged', at: '2023-03-26T18:30:00Z', by: 'lenavoss' },
@@ -1028,7 +1187,7 @@ Notes are one word. "groceries" fits. "ikea lamp" does not. We can live with tha
     {
       type: 'commit',
       key: 'c-typo',
-      at: '2023-04-02T22:14:00Z',
+      at: '2023-04-02T15:14:00-07:00',
       author: 'kitalvarez',
       message: 'fix typo: roomates',
       files: { 'README.md': readme.typo },
@@ -1042,7 +1201,7 @@ Notes are one word. "groceries" fits. "ikea lamp" does not. We can live with tha
     },
     {
       type: 'discussion',
-      number: 3,
+      number: 5,
       title: 'I already paid Lena back and it still says I owe her',
       category: 'Ideas',
       author: 'mayaruiz',
@@ -1078,8 +1237,8 @@ Notes are one word. "groceries" fits. "ikea lamp" does not. We can live with tha
             {
               id: 'disc3-kit',
               author: 'kitalvarez',
-              at: '2023-04-18T15:20:00Z',
-              body: 'I can look at the diff on a weekend if you want a second pair of eyes. I cannot start it.',
+              at: '2023-04-18T08:20:00-07:00',
+              body: 'I can look at the diff on a weekend if you want a second pair of eyes. I cannot start it. I did get the roommates typo in on Sunday at 3:14pm my time.',
             },
           ],
         },
@@ -1087,15 +1246,16 @@ Notes are one word. "groceries" fits. "ikea lamp" does not. We can live with tha
     },
     {
       type: 'pr',
-      number: 4,
+      number: 6,
       title: 'Record a payback so the balance can clear',
       author: 'owenbriggs',
-      body: `Maya asked for this in discussion #3.
+      body: `Maya asked for this in discussion #5.
 
 A Venmo should clear the balance without deleting the expense. \`tally pay --from maya --to lena --cents 4000\` appends a payment line. The lamp stays in the file.
 
 add_payment credits the sender and debits the receiver.`,
       labels: ['feature'],
+      requestedReviewers: ['lenavoss'],
       branch: 'pay-command',
       openedAt: '2023-05-06T20:11:00Z',
       commits: [
@@ -1126,6 +1286,13 @@ add_payment credits the sender and debits the receiver.`,
           author: 'owenbriggs',
           message: 'README: mention pay',
           files: { 'README.md': readme.pay },
+        },
+        {
+          key: 'c-ci',
+          at: '2023-05-07T18:30:00Z',
+          author: 'owenbriggs',
+          message: 'run tests on GitHub',
+          files: { '.github/workflows/test.yml': workflow(4) },
         },
       ],
       reviews: [
@@ -1166,11 +1333,27 @@ add_payment credits the sender and debits the receiver.`,
           body: 'Owen sat with me and typed the venmo. The lamp is still there and it no longer says I owe Lena. This is the one I wanted.',
         },
       ],
+      checks: [
+        {
+          name: 'test',
+          commit: 'c-pay-test',
+          at: '2023-05-07T02:40:00Z',
+          conclusion: 'success',
+          summary: 'payback test passed',
+        },
+        {
+          name: 'test',
+          commit: 'c-ci',
+          at: '2023-05-07T19:00:00Z',
+          conclusion: 'success',
+          summary: 'unit tests passed on the new workflow',
+        },
+      ],
       outcome: { kind: 'merged', at: '2023-05-13T16:00:00Z', by: 'lenavoss' },
     },
     {
       type: 'discussion',
-      number: 5,
+      number: 7,
       title: 'Can tally do Canadian dollars from Montreal?',
       category: 'Q&A',
       author: 'mayaruiz',
@@ -1200,7 +1383,7 @@ add_payment credits the sender and debits the receiver.`,
         {
           id: 'disc5-kit',
           author: 'kitalvarez',
-          at: '2023-05-23T02:12:00Z',
+          at: '2023-05-22T19:12:00-07:00',
           body: 'My old splitting app stored rates and nobody trusted them either. Leaving it.',
           replies: [
             {
@@ -1214,22 +1397,51 @@ add_payment credits the sender and debits the receiver.`,
       ],
     },
     {
+      type: 'issue',
+      number: 8,
+      title: 'ikea lamp breaks the list',
+      author: 'mayaruiz',
+      at: '2023-05-28T17:40:00Z',
+      body: 'I tried to type ikea lamp as the note and tally would not take it. Owen says the note has to be one word. That is silly. The lamp is still a real purchase.',
+      labels: ['bug'],
+      assignees: ['kitalvarez'],
+      reactions: { eyes: ['kitalvarez'] },
+      comments: [
+        {
+          id: 'iss8-owen',
+          author: 'owenbriggs',
+          at: '2023-05-29T02:15:00Z',
+          body: 'The text file splits on spaces. A note with a space becomes an extra field and the line will not parse.',
+        },
+        {
+          id: 'iss8-kit',
+          author: 'kitalvarez',
+          at: '2023-05-29T11:00:00-07:00',
+          body: 'I can put the list in a small database this weekend so the note can have spaces.',
+        },
+      ],
+    },
+    {
       type: 'pr',
-      number: 6,
+      number: 9,
       title: 'Store the ledger in SQLite',
       author: 'kitalvarez',
       body: `ledger.txt cannot hold a note with a space. "ikea lamp" becomes two fields. I also want to ask what we spent on groceries without writing a parser.
 
 This replaces tally/store.py with sqlite3 and ledger.db. Same row shape, so add and pay do not change. No extra package.
 
-ADR-0002 has the why. Old lines are not imported. Re-add anything you still care about.`,
+ADR-0002 has the why. Old lines are not imported. Re-add anything you still care about.
+
+Fixes #8.`,
       labels: ['storage'],
+      assignees: ['kitalvarez'],
+      requestedReviewers: ['owenbriggs'],
       branch: 'sqlite-ledger',
-      openedAt: '2023-06-10T21:00:00Z',
+      openedAt: '2023-06-10T14:00:00-07:00',
       commits: [
         {
           key: 'c-sqlite',
-          at: '2023-06-10T21:18:00Z',
+          at: '2023-06-10T14:18:00-07:00',
           author: 'kitalvarez',
           message: 'store: sqlite instead of ledger.txt',
           files: {
@@ -1239,7 +1451,7 @@ ADR-0002 has the why. Old lines are not imported. Re-add anything you still care
         },
         {
           key: 'c-adr2',
-          at: '2023-06-11T17:05:00Z',
+          at: '2023-06-11T10:05:00-07:00',
           author: 'kitalvarez',
           message: 'ADR-0002 sqlite ledger, update README',
           files: {
@@ -1270,7 +1482,7 @@ ADR-0002 has the why. Old lines are not imported. Re-add anything you still care
                 {
                   id: 'pr6-thread-kit',
                   author: 'kitalvarez',
-                  at: '2023-06-14T16:22:00Z',
+                  at: '2023-06-14T09:22:00-07:00',
                   body: 'sqlite locks the file. We usually take turns. Good enough for three roommates.',
                 },
               ],
@@ -1286,19 +1498,74 @@ ADR-0002 has the why. Old lines are not imported. Re-add anything you still care
           body: 'merging. Maya can type "ikea lamp" now. do not hand-edit the db.',
         },
       ],
+      checks: [
+        {
+          name: 'test',
+          commit: 'c-adr2',
+          at: '2023-06-11T18:00:00Z',
+          conclusion: 'success',
+          summary: 'notes with spaces round-trip',
+        },
+      ],
       outcome: { kind: 'merged', at: '2023-06-18T15:30:00Z', by: 'lenavoss' },
     },
     {
+      type: 'issue',
+      number: 10,
+      title: 'it prints three numbers and I still do not know who to pay',
+      author: 'mayaruiz',
+      at: '2023-06-19T16:20:00Z',
+      body: 'Owen ran balances after groceries. It printed three numbers. I still do not know who pays who. Can it just say the sentence?',
+      labels: ['enhancement'],
+      assignees: ['lenavoss'],
+      reactions: { '+1': ['owenbriggs'] },
+      comments: [
+        {
+          id: 'iss10-owen',
+          author: 'owenbriggs',
+          at: '2023-06-19T22:05:00Z',
+          body: 'That is the settle command I have been meaning to write. Lena can take it.',
+        },
+        {
+          id: 'iss10-lena',
+          author: 'lenavoss',
+          at: '2023-06-20T02:40:00Z',
+          body: 'I will do it this week. Fewest payments, same file always prints the same lines.',
+        },
+      ],
+    },
+    {
+      type: 'issue',
+      number: 11,
+      title: 'balances still do not say who to pay',
+      author: 'kitalvarez',
+      at: '2023-06-20T08:10:00-07:00',
+      body: 'Maya asked me again this morning. The balances command prints three numbers and she still does not know who to venmo. Can we print a sentence?',
+      labels: ['enhancement'],
+      comments: [
+        {
+          id: 'iss11-owen',
+          author: 'owenbriggs',
+          at: '2023-06-20T18:30:00Z',
+          body: 'This is the same request as #10. Closing it as a duplicate.',
+        },
+      ],
+      outcome: { kind: 'duplicate', at: '2023-06-20T18:45:00Z', by: 'owenbriggs', of: 10 },
+    },
+    {
       type: 'pr',
-      number: 7,
+      number: 12,
       title: 'Settle up with the fewest payments',
       author: 'lenavoss',
       body: `balances prints three numbers and Maya still asks Owen who pays whom.
 
 \`tally settle\` prints the fewest payments that clear the household. Largest debt against largest credit, ties broken by name, so the same file always prints the same lines.
 
-The split itself is unchanged in this PR. Question on the test, which locks the current rule in.`,
+The split itself is unchanged in this PR. Question on the test, which locks the current rule in.
+
+Closes #10.`,
       labels: ['feature'],
+      requestedReviewers: ['owenbriggs'],
       branch: 'settle-up',
       openedAt: '2023-06-24T19:50:00Z',
       commits: [
@@ -1309,7 +1576,13 @@ The split itself is unchanged in this PR. Question on the test, which locks the 
           message: 'settle: greedy fewest transfers',
           files: {
             'tally/settle.py': settlePy,
-            'tally/cli.py': cliPy({ data: 'ledger.db', pay: true, settle: true, dollars: false }),
+            'tally/cli.py': cliPy({
+              data: 'ledger.db',
+              pay: true,
+              settle: true,
+              dollars: false,
+              importName: 'minimal_transfer',
+            }),
           },
         },
         {
@@ -1329,6 +1602,15 @@ The split itself is unchanged in this PR. Question on the test, which locks the 
             'README.md': readme.settle,
           },
         },
+        {
+          key: 'c-settle-import',
+          at: '2023-06-28T15:20:00Z',
+          author: 'lenavoss',
+          message: 'cli: import minimal_transfers',
+          files: {
+            'tally/cli.py': cliPy({ data: 'ledger.db', pay: true, settle: true, dollars: false }),
+          },
+        },
       ],
       reviews: [
         {
@@ -1336,7 +1618,7 @@ The split itself is unchanged in this PR. Question on the test, which locks the 
           author: 'owenbriggs',
           at: '2023-06-27T01:48:00Z',
           state: 'CHANGES_REQUESTED',
-          body: 'The fewest-payments part looks right. I do not want to ship the split rule the test locks in. See inline.',
+          body: 'The fewest-payments part looks right. I do not want to ship the split rule the test locks in. See inline. Smoke is also red on a bad import. Fix that here. The split rule can land after.',
           threads: [
             {
               id: 'pr7-th-cent',
@@ -1358,7 +1640,7 @@ The split itself is unchanged in this PR. Question on the test, which locks the 
                 {
                   id: 'pr7-thread-kit',
                   author: 'kitalvarez',
-                  at: '2023-06-27T14:10:00Z',
+                  at: '2023-06-27T07:10:00-07:00',
                   body: 'my old spreadsheet handed extra cents out by alphabetical order and people noticed by month two. quieter if the person who paid just eats it.',
                 },
                 {
@@ -1369,6 +1651,26 @@ The split itself is unchanged in this PR. Question on the test, which locks the 
                 },
               ],
             },
+            {
+              id: 'pr12-th-import',
+              path: 'tally/cli.py',
+              line: 6,
+              resolved: true,
+              comments: [
+                {
+                  id: 'pr12-thread-owen',
+                  author: 'owenbriggs',
+                  at: '2023-06-27T01:50:00Z',
+                  body: 'Smoke failed on this import. minimal_transfer is not a name in settle.py. The function is minimal_transfers.',
+                },
+                {
+                  id: 'pr12-thread-lena',
+                  author: 'lenavoss',
+                  at: '2023-06-28T15:30:00Z',
+                  body: 'renamed it to minimal_transfers in the latest push. smoke should go green.',
+                },
+              ],
+            },
           ],
         },
         {
@@ -1376,16 +1678,51 @@ The split itself is unchanged in this PR. Question on the test, which locks the 
           author: 'owenbriggs',
           at: '2023-06-29T02:15:00Z',
           state: 'APPROVED',
-          body: 'fewest-payments looks right. I will merge this and you can floor the split after.',
+          body: 'Import is fixed. fewest-payments looks right. I will merge this and you can floor the split after.',
           threads: [],
         },
       ],
       comments: [
         {
+          id: 'pr12-gha-fail',
+          author: 'github-actions[bot]',
+          at: '2023-06-24T20:42:00Z',
+          body: 'Smoke failed: ImportError: cannot import name minimal_transfer.',
+        },
+        {
+          id: 'pr12-gha-pass',
+          author: 'github-actions[bot]',
+          at: '2023-06-28T15:55:00Z',
+          body: 'Smoke passed. minimal_transfers imports cleanly.',
+        },
+        {
           id: 'pr7-lena',
           author: 'lenavoss',
           at: '2023-07-01T16:05:00Z',
           body: 'merging so settle is there for the weekend groceries. split follow-up next.',
+        },
+      ],
+      checks: [
+        {
+          name: 'smoke',
+          commit: 'c-settle',
+          at: '2023-06-24T20:40:00Z',
+          conclusion: 'failure',
+          summary: 'ImportError: cannot import name minimal_transfer',
+        },
+        {
+          name: 'test',
+          commit: 'c-settle-test',
+          at: '2023-06-25T01:40:00Z',
+          conclusion: 'success',
+          summary: 'settle unit tests passed',
+        },
+        {
+          name: 'smoke',
+          commit: 'c-settle-import',
+          at: '2023-06-28T15:50:00Z',
+          conclusion: 'success',
+          summary: 'minimal_transfers imports cleanly',
         },
       ],
       outcome: { kind: 'merged', at: '2023-07-02T18:00:00Z', by: 'owenbriggs' },
@@ -1406,6 +1743,7 @@ The split itself is unchanged in this PR. Question on the test, which locks the 
       key: 'c-dollars',
       at: '2023-07-12T02:08:00Z',
       author: 'lenavoss',
+      identity: 'laptop',
       message: 'print dollars, not raw cents',
       files: {
         'tally/cli.py': cliPy({ data: 'ledger.db', pay: true, settle: true, dollars: true }),
@@ -1420,8 +1758,39 @@ The split itself is unchanged in this PR. Question on the test, which locks the 
       message: 'v0.3.0: a database ledger and settle-up\n\nThe ledger is a SQLite file (ADR-0002). tally settle prints the fewest\npayments that clear the household.\n',
     },
     {
+      type: 'issue',
+      number: 13,
+      title: 'can it text me when I owe someone',
+      author: 'mayaruiz',
+      at: '2023-07-22T17:30:00Z',
+      body: 'Can tally text me when I owe someone? I forget to ask Owen until rent day and then it is awkward.',
+      labels: ['enhancement'],
+      assignees: ['lenavoss'],
+      comments: [
+        {
+          id: 'iss13-lena',
+          author: 'lenavoss',
+          at: '2023-07-23T02:15:00Z',
+          body: 'Yes, I can add a text next weekend. Same number as the group chat.',
+          edits: [
+            {
+              at: '2023-07-23T04:05:00Z',
+              body: 'We are not adding texts. The living room laptop is not a pager, and I will not babysit a notification setup.',
+            },
+          ],
+        },
+        {
+          id: 'iss13-owen',
+          author: 'owenbriggs',
+          at: '2023-07-24T16:20:00Z',
+          body: 'Agreed. Closing this as not planned. If we need a reminder, Maya can ask one of us.',
+        },
+      ],
+      outcome: { kind: 'closed', at: '2023-07-25T18:00:00Z', by: 'owenbriggs', reason: 'not_planned' },
+    },
+    {
       type: 'pr',
-      number: 8,
+      number: 14,
       title: 'Local web page for balances (WIP)',
       author: 'kitalvarez',
       body: `Maya keeps asking Owen to type things in. This is a page on localhost:8765 that lists balances from ledger.db.
@@ -1430,12 +1799,13 @@ Still TODO: a form to add a bill. Opening early because I do not want to build t
 
 Sorry this sat on my laptop for a week.`,
       labels: ['wip'],
+      requestedReviewers: ['lenavoss'],
       branch: 'local-page',
-      openedAt: '2023-08-12T16:40:00Z',
+      openedAt: '2023-08-12T09:40:00-07:00',
       commits: [
         {
           key: 'c-web',
-          at: '2023-08-12T16:55:00Z',
+          at: '2023-08-12T09:55:00-07:00',
           author: 'kitalvarez',
           message: 'wip: local page for balances',
           files: { 'tally/web.py': webPy },
@@ -1463,7 +1833,7 @@ Sorry this sat on my laptop for a week.`,
                 {
                   id: 'pr8-thread-kit',
                   author: 'kitalvarez',
-                  at: '2023-08-14T15:30:00Z',
+                  at: '2023-08-14T08:30:00-07:00',
                   body: 'It only listens on localhost. Still a process, I know. If Maya does not want it I will drop it.',
                 },
               ],
@@ -1479,23 +1849,76 @@ Sorry this sat on my laptop for a week.`,
           body: 'If Maya is happy with the sentence from settle, I would not add a second way to enter bills. Two ways means two bugs.',
         },
         {
+          id: 'pr14-kit-claim',
+          author: 'kitalvarez',
+          at: '2023-08-15T11:00:00-07:00',
+          body: 'Maya asked me for this page in the group chat last week. She is tired of the terminal.',
+        },
+        {
           id: 'pr8-maya',
           author: 'mayaruiz',
           at: '2023-08-16T18:45:00Z',
-          body: "I don't need a website. Owen already types the groceries in for me. I just want the who-pays-who sentence, which I have now.",
+          body: "I don't need a website. I never asked for one. I asked Owen to type the groceries. I just want the who-pays-who sentence, which I have now.",
         },
         {
           id: 'pr8-kit',
           author: 'kitalvarez',
-          at: '2023-08-19T19:50:00Z',
+          at: '2023-08-19T12:50:00-07:00',
           body: 'Closing this. Maya does not want a page, and I am not going to win Lena over on a server in the apartment. The branch can sit.',
         },
       ],
-      outcome: { kind: 'closed', at: '2023-08-19T20:05:00Z', by: 'kitalvarez' },
+      checks: [
+        {
+          name: 'test',
+          commit: 'c-web',
+          at: '2023-08-12T17:30:00Z',
+          conclusion: 'skipped',
+          summary: 'page is a sketch, no new test',
+        },
+      ],
+      outcome: { kind: 'closed', at: '2023-08-19T13:05:00-07:00', by: 'kitalvarez' },
     },
     {
       type: 'discussion',
-      number: 9,
+      number: 15,
+      title: 'Whose turn is the Costco run',
+      category: 'General',
+      author: 'mayaruiz',
+      at: '2023-08-26T18:05:00Z',
+      body: 'Not really a tally question. Whose turn is Costco? I am not buying the olive oil again. Last time I paid and then forgot to tell Owen the number.',
+      comments: [
+        {
+          id: 'disc15-owen',
+          author: 'owenbriggs',
+          at: '2023-08-26T21:40:00Z',
+          body: 'Mine, I think. I also killed the sourdough starter. It was on the fridge and I left town. Do not open the jar.',
+          replies: [
+            {
+              id: 'disc15-maya',
+              author: 'mayaruiz',
+              at: '2023-08-27T00:20:00Z',
+              body: 'The starter is not the question. Also the router has been blinking since Thursday and my laptop keeps dropping the shared folder.',
+            },
+            {
+              id: 'disc15-kit',
+              author: 'kitalvarez',
+              at: '2023-08-27T11:05:00-07:00',
+              body: 'Router is the white one behind the tv, not the black one. I reset it last month. The starter is Owen\'s problem.',
+            },
+          ],
+        },
+        {
+          id: 'disc15-lena',
+          author: 'lenavoss',
+          at: '2023-08-28T01:15:00Z',
+          body: 'Costco is Owen this week. Write the olive oil in tally when you get back. The router and the jar are not this thread.',
+          replies: [],
+        },
+      ],
+    },
+    {
+      type: 'discussion',
+      number: 16,
       title: 'tally says the file is malformed',
       category: 'General',
       author: 'mayaruiz',
@@ -1525,7 +1948,7 @@ Sorry this sat on my laptop for a week.`,
         {
           id: 'disc9-kit',
           author: 'kitalvarez',
-          at: '2023-09-11T03:15:00Z',
+          at: '2023-09-10T20:15:00-07:00',
           body: 'This one is on me. I pushed the database. I can dump the rows this weekend if Owen writes the file code.',
           replies: [
             {
@@ -1540,10 +1963,60 @@ Sorry this sat on my laptop for a week.`,
     },
     {
       type: 'pr',
-      number: 10,
+      number: 17,
+      title: 'Bump actions/setup-python from 4 to 5',
+      author: 'dependabot[bot]',
+      body: `Bumps actions/setup-python from 4 to 5.
+
+Updated .github/workflows/test.yml. No tally code in this change.`,
+      labels: ['dependencies'],
+      requestedReviewers: ['lenavoss'],
+      branch: 'dependabot-setup-python',
+      openedAt: '2023-09-22T15:05:00Z',
+      commits: [
+        {
+          key: 'c-bump',
+          at: '2023-09-22T15:12:00Z',
+          author: 'dependabot[bot]',
+          message: 'Bump actions/setup-python from 4 to 5',
+          files: { '.github/workflows/test.yml': workflow(5) },
+        },
+      ],
+      reviews: [
+        {
+          id: 'pr17-rv-lena',
+          author: 'lenavoss',
+          at: '2023-09-23T02:10:00Z',
+          state: 'APPROVED',
+          body: 'Pin bump only. Tests still run on 3.11. Nothing in tally/ changed.',
+          threads: [],
+        },
+      ],
+      comments: [
+        {
+          id: 'pr17-gha',
+          author: 'github-actions[bot]',
+          at: '2023-09-22T15:45:00Z',
+          body: 'test: success. unit tests passed.',
+        },
+      ],
+      checks: [
+        {
+          name: 'test',
+          commit: 'c-bump',
+          at: '2023-09-22T15:40:00Z',
+          conclusion: 'success',
+          summary: 'unit tests passed',
+        },
+      ],
+      outcome: { kind: 'merged', at: '2023-09-25T16:00:00Z', by: 'lenavoss', method: 'squash' },
+    },
+    {
+      type: 'pr',
+      number: 18,
       title: 'Put the ledger back in a plain JSON file',
       author: 'owenbriggs',
-      body: `Does what we agreed in discussion #9.
+      body: `Does what we agreed in discussion #16.
 
 Dropbox copied ledger.db while tally had it open and the file came back malformed. Twice. A plain file survives that. A database file does not.
 
@@ -1551,6 +2024,7 @@ tally/store.py now writes ledger.json. The commands already build the same entri
 
 README still describes the database. Leaving that for the docs pass so this stays a storage change.`,
       labels: ['storage'],
+      requestedReviewers: ['lenavoss'],
       branch: 'json-ledger',
       openedAt: '2023-10-07T18:22:00Z',
       commits: [
@@ -1581,7 +2055,7 @@ README still describes the database. Leaving that for the docs pass so this stay
           author: 'lenavoss',
           at: '2023-10-11T03:05:00Z',
           state: 'APPROVED',
-          body: 'Store looks right. ADR matches discussion #9. One docs miss inline, not blocking.',
+          body: 'Store looks right. ADR matches discussion #16. One docs miss inline, not blocking.',
           threads: [
             {
               id: 'pr10-th-readme',
@@ -1609,8 +2083,17 @@ README still describes the database. Leaving that for the docs pass so this stay
         {
           id: 'pr10-kit',
           author: 'kitalvarez',
-          at: '2023-10-12T13:40:00Z',
+          at: '2023-10-12T06:40:00-07:00',
           body: 'Dumped the 40 rows into the group chat so Maya is not retyping August. I will fix the README and write a how-it-works page next month, after the work trip.',
+        },
+      ],
+      checks: [
+        {
+          name: 'test',
+          commit: 'c-json',
+          at: '2023-10-07T19:10:00Z',
+          conclusion: 'success',
+          summary: 'json store round-trips an expense',
         },
       ],
       outcome: { kind: 'merged', at: '2023-10-14T17:45:00Z', by: 'lenavoss' },
@@ -1625,22 +2108,23 @@ README still describes the database. Leaving that for the docs pass so this stay
     },
     {
       type: 'pr',
-      number: 11,
+      number: 20,
       title: 'Docs for 1.0, and fix the README',
       author: 'kitalvarez',
-      body: `README still told people to open ledger.db. The code has been writing ledger.json since #10. Fixed.
+      body: `README still told people to open ledger.db. The code has been writing ledger.json since #18. Fixed.
 
 Also:
 - docs/index.md, roommates vs people who change the code, including which decision records are still current
 - docs/how-it-works.md, written so Maya can read it
 - version 1.0.0`,
       labels: ['docs'],
+      requestedReviewers: ['owenbriggs'],
       branch: 'docs-1.0',
-      openedAt: '2023-11-04T19:10:00Z',
+      openedAt: '2023-11-04T12:10:00-07:00',
       commits: [
         {
           key: 'c-docs',
-          at: '2023-11-04T19:25:00Z',
+          at: '2023-11-04T12:25:00-07:00',
           author: 'kitalvarez',
           message: 'docs: index and how it works',
           files: {
@@ -1650,7 +2134,7 @@ Also:
         },
         {
           key: 'c-readme-fix',
-          at: '2023-11-04T21:02:00Z',
+          at: '2023-11-04T14:02:00-07:00',
           author: 'kitalvarez',
           message: 'README: ledger is a json file, not sqlite',
           files: {
@@ -1681,7 +2165,7 @@ Also:
                 {
                   id: 'pr11-thread-kit',
                   author: 'kitalvarez',
-                  at: '2023-11-06T04:15:00Z',
+                  at: '2023-11-05T21:15:00-07:00',
                   body: 'Copied it from the sort in settle.py. Did not want to invent a rule.',
                 },
               ],
@@ -1695,9 +2179,36 @@ Also:
           author: 'mayaruiz',
           at: '2023-11-06T18:00:00Z',
           body: 'I read the how-it-works page. I understood it. That has not happened with the other pages. The payback part is what I asked for in the spring, written so I can find it again.',
+          reactions: { heart: ['lenavoss'] },
+        },
+        {
+          id: 'pr20-kit',
+          author: 'kitalvarez',
+          at: '2023-11-07T10:15:00-07:00',
+          body: 'git log shows Lena P on the dollars print change. That is her laptop. lena@laptop.local is not linked to the account.',
+        },
+      ],
+      checks: [
+        {
+          name: 'test',
+          commit: 'c-readme-fix',
+          at: '2023-11-04T21:30:00Z',
+          conclusion: 'success',
+          summary: 'unit tests passed',
         },
       ],
       outcome: { kind: 'merged', at: '2023-11-08T15:30:00Z', by: 'owenbriggs' },
+    },
+    {
+      type: 'commit',
+      key: 'c-fix-tests',
+      at: '2023-11-12T18:40:00Z',
+      author: 'owenbriggs',
+      message: 'fix tests',
+      files: {
+        'tally/cli.py': cliPy({ data: 'ledger.json', pay: true, settle: true, dollars: true, guard: true }),
+        'tests/test_cli.py': testCli,
+      },
     },
     {
       type: 'tag',
@@ -1705,6 +2216,37 @@ Also:
       at: '2023-11-18T16:00:00Z',
       by: 'lenavoss',
       message: 'v1.0.0: a file you can copy, and docs\n\nThe ledger is a JSON file again (ADR-0004). docs/ explains the app for\nroommates and lists which decision records still apply.\n',
+      release: {
+        title: 'tally 1.0.0',
+        body: `A file you can copy between laptops, and a guide for the roommates.
+
+The list of bills is a plain file named ledger.json. tally settle prints the fewest payments that clear the household. Start with docs/how-it-works.md.
+`,
+      },
+    },
+    {
+      type: 'issue',
+      number: 21,
+      title: 'can rent just repeat every month',
+      author: 'mayaruiz',
+      at: '2023-11-20T18:00:00Z',
+      body: 'Rent is the same every month. I do not want to ask Owen to type it twelve times. Owen said he wrote this up as #19 and then moved that note to the house notebook. I cannot find #19. Can tally remember a bill and copy it forward?',
+      labels: ['enhancement'],
+      assignees: ['owenbriggs'],
+      comments: [
+        {
+          id: 'iss21-owen',
+          author: 'owenbriggs',
+          at: '2023-11-21T02:30:00Z',
+          body: 'The copy-forward idea is real. I am not building it this month. Leaving this open.',
+        },
+        {
+          id: 'iss21-maya',
+          author: 'mayaruiz',
+          at: '2023-11-21T17:10:00Z',
+          body: 'ok I will keep asking Owen to type rent then. Just wanted it written down.',
+        },
+      ],
     },
   ],
   answerKey: [
@@ -1733,7 +2275,7 @@ Also:
       question: 'Where should a roommate start reading, and where should a developer start?',
       answers: {
         technical:
-          'docs/index.md (c-docs, PR #11, 2023-11-04) splits the docs. "For roommates" links how-it-works.md and the README. "For the people who change the code" links the README and the four decision records with their current status. The README at c-readme-fix points roommates at docs/how-it-works.md.',
+          'docs/index.md (c-docs, PR #20, 2023-11-04) splits the docs. "For roommates" links how-it-works.md and the README. "For the people who change the code" links the README and the four decision records with their current status. The README at c-readme-fix points roommates at docs/how-it-works.md.',
         nonTechnical:
           'Roommates should start with the page that explains how a bill becomes a payment. The people who change the app start with the front page and the written decision records. A contents page links all of them.',
       },
@@ -1741,7 +2283,7 @@ Also:
         { kind: 'file', path: 'docs/index.md', at: 'c-docs', quote: '## For roommates' },
         { kind: 'file', path: 'docs/index.md', at: 'c-docs', quote: '## For the people who change the code' },
         { kind: 'file', path: 'README.md', at: 'c-readme-fix', quote: 'Start with' },
-        { kind: 'pr', number: 11, quote: 'roommates vs people who change the code' },
+        { kind: 'pr', number: 20, quote: 'roommates vs people who change the code' },
       ],
     },
     {
@@ -1770,14 +2312,14 @@ Also:
       question: 'Why did the bill list move into a small database file?',
       answers: {
         technical:
-          'PR #6 (Kit Alvarez, merged 2023-06-18) replaced tally/store.py\'s text file with sqlite3 and ledger.db. ADR-0002 (c-adr2, dated 2023-06-11) records why: ledger.txt cannot hold a note with a space, and Kit wanted to ask what the household spent on groceries without writing a parser. The README sentence "The ledger is a SQLite database file named ledger.db." lands in that same commit.',
+          'PR #9 (Kit Alvarez, merged 2023-06-18) replaced tally/store.py\'s text file with sqlite3 and ledger.db. ADR-0002 (c-adr2, dated 2023-06-11) records why: ledger.txt cannot hold a note with a space, and Kit wanted to ask what the household spent on groceries without writing a parser. The README sentence "The ledger is a SQLite database file named ledger.db." lands in that same commit.',
         nonTechnical:
           'In June 2023 the part-time helper replaced the plain list with a small database file. The old list could not hold a note with a space in it, and they wanted to look up what the household had spent on groceries.',
       },
       evidence: [
         { kind: 'file', path: 'docs/adr/0002-store-the-ledger-in-sqlite.md', at: 'c-adr2', quote: 'A note cannot contain' },
         { kind: 'file', path: 'docs/adr/0002-store-the-ledger-in-sqlite.md', at: 'c-adr2', quote: 'what the household spent on groceries' },
-        { kind: 'pr', number: 6, quote: 'ledger.txt cannot hold a note with a space' },
+        { kind: 'pr', number: 9, quote: 'ledger.txt cannot hold a note with a space' },
         { kind: 'file', path: 'tally/store.py', at: 'c-sqlite', quote: 'sqlite3.connect' },
         { kind: 'file', path: 'README.md', at: 'c-adr2', quote: 'The ledger is a SQLite database file named ledger.db.' },
       ],
@@ -1789,14 +2331,14 @@ Also:
       question: 'Why was storage switched twice?',
       answers: {
         technical:
-          'Two switches. First, PR #6 and ADR-0002 (c-adr2, 2023-06-11, merged 2023-06-18) moved ledger.txt to a SQLite file so notes could contain spaces. Second, discussion #9 (2023-09-09) is the first place the reversal reason appears: Owen says Dropbox synced ledger.db while tally had it open and SQLite came back malformed. PR #10 (merged 2023-10-14) adds ADR-0004 and edits ADR-0002\'s status line to "Superseded by ADR-0004". tally/store.py at c-json writes ledger.json.',
+          'Two switches. First, PR #9 and ADR-0002 (c-adr2, 2023-06-11, merged 2023-06-18) moved ledger.txt to a SQLite file so notes could contain spaces. Second, discussion #16 (2023-09-09) is the first place the reversal reason appears: Owen says Dropbox synced ledger.db while tally had it open and SQLite came back malformed. PR #18 (merged 2023-10-14) adds ADR-0004 and edits ADR-0002\'s status line to "Superseded by ADR-0004". tally/store.py at c-json writes ledger.json.',
         nonTechnical:
           'The list of bills moved twice. In June it moved into a small database file so notes could include spaces. In September that file broke because the roommates kept it in a shared folder that copies files between laptops, and a copy landed while the app still had the file open. In October the team put the list back in a plain text file.',
       },
       evidence: [
         { kind: 'file', path: 'docs/adr/0002-store-the-ledger-in-sqlite.md', at: 'c-adr2', quote: 'Status: Accepted' },
         { kind: 'comment', id: 'disc9-owen', quote: 'Dropbox synced ledger.db while tally had it open' },
-        { kind: 'file', path: 'docs/adr/0004-store-the-ledger-in-a-json-file.md', at: 'c-adr4', quote: 'See discussion #9.' },
+        { kind: 'file', path: 'docs/adr/0004-store-the-ledger-in-a-json-file.md', at: 'c-adr4', quote: 'See discussion #16.' },
         { kind: 'file', path: 'docs/adr/0002-store-the-ledger-in-sqlite.md', at: 'c-adr4', quote: 'Status: Superseded by ADR-0004' },
         { kind: 'file', path: 'tally/store.py', at: 'c-json', quote: 'json.dump' },
       ],
@@ -1808,14 +2350,14 @@ Also:
       question: 'After the switch back to a plain text file, when did the README catch up?',
       answers: {
         technical:
-          'PR #10 merged on 2023-10-14 without editing README.md. At c-adr4 the README still says "The ledger is a SQLite database file named ledger.db." Lena flagged it in the PR #10 review thread on 2023-10-11 and called it not blocking. Kit fixes it in PR #11, commit c-readme-fix (2023-11-04), merged 2023-11-08. The new sentence is "The ledger is a plain JSON file named ledger.json." That is 21 days after the reversal merged.',
+          'PR #18 merged on 2023-10-14 without editing README.md. At c-adr4 the README still says "The ledger is a SQLite database file named ledger.db." Lena flagged it in the PR #18 review thread on 2023-10-11 and called it not blocking. Kit fixes it in PR #20, commit c-readme-fix (2023-11-04), merged 2023-11-08. The new sentence is "The ledger is a plain JSON file named ledger.json." That is 21 days after the reversal merged.',
         nonTechnical:
           'For about three weeks after the switch back to a plain text file, the front page still told people to open the small database file. Someone noticed while looking at that change, and the front page was corrected in early November 2023.',
       },
       evidence: [
         { kind: 'file', path: 'README.md', at: 'c-adr4', quote: 'The ledger is a SQLite database file named ledger.db.' },
         { kind: 'comment', id: 'pr10-thread-lena', quote: 'README still says sqlite. not blocking, fix it in the docs pass.' },
-        { kind: 'pr', number: 11, quote: 'README still told people to open ledger.db.' },
+        { kind: 'pr', number: 20, quote: 'README still told people to open ledger.db.' },
         { kind: 'file', path: 'README.md', at: 'c-readme-fix', quote: 'The ledger is a plain JSON file named ledger.json.' },
         { kind: 'commit', key: 'c-readme-fix', quote: 'README: ledger is a json file, not sqlite' },
       ],
@@ -1827,7 +2369,7 @@ Also:
       question: 'How is a leftover cent handled when a bill does not split evenly, and why?',
       answers: {
         technical:
-          'Decided only in Owen\'s review thread on PR #7 (tests/test_settle.py, 2023-06-27). The code in that PR still gives the extra cent to the first name in --split: tally/ledger.py at c-settle uses divmod, and the test expects balances["lena"] == -334. Lena rejects first-in-list, nearest-cent rounding, and tenths of a cent, and says the remainder rides with the payer. c-remainder (2023-07-08, pushed straight to main) changes add_expense to floor division and updates the test to -333. No comment, and the commit message does not say why.',
+          'Decided only in Owen\'s review thread on PR #12 (tests/test_settle.py, 2023-06-27). The code in that PR still gives the extra cent to the first name in --split: tally/ledger.py at c-settle uses divmod, and the test expects balances["lena"] == -334. Lena rejects first-in-list, nearest-cent rounding, and tenths of a cent, and says the remainder rides with the payer. The commit between Owen\'s reviews, c-settle-import, only renames a bad import. It does not change the split. c-remainder (2023-07-08, pushed straight to main) changes add_expense to floor division and updates the test to -333. No comment, and the commit message does not say why.',
         nonTechnical:
           'If a bill does not split into even cents, the person who paid keeps the leftover cents. The team agreed to that in June 2023 while looking at the change, because giving the extra cent to whoever was typed first felt unfair. The reason was only written in that conversation, not in the app or the guide.',
       },
@@ -1847,12 +2389,12 @@ Also:
       question: 'Why does tally not support more than one currency?',
       answers: {
         technical:
-          'No currency field exists in the ledger row shape (tally/store.py at c-json, tally/ledger.py). docs/how-it-works.md says to type the amount in cents and does not explain the limit. The reason is only in discussion #5 (2023-05-21): after a Montreal weekend, Maya, Owen, and Lena disagreed about the exchange rate, and Maya writes that they still do not agree on the kiosk rate. Lena says she will not build a rate table.',
+          'No currency field exists in the ledger row shape (tally/store.py at c-json, tally/ledger.py). docs/how-it-works.md says to type the amount in cents and does not explain the limit. The reason is only in discussion #7 (2023-05-21): after a Montreal weekend, Maya, Owen, and Lena disagreed about the exchange rate, and Maya writes that they still do not agree on the kiosk rate. Lena says she will not build a rate table.',
         nonTechnical:
           'The app only keeps one kind of money. After a weekend in Montreal the roommates could not agree what a Canadian dollar was worth in their usual money, and they argued over a few dollars. They decided to pick one number themselves before typing a bill in, instead of teaching the app about exchange rates.',
       },
       evidence: [
-        { kind: 'discussion', number: 5, quote: 'Can tally do Canadian dollars from Montreal?' },
+        { kind: 'discussion', number: 7, quote: 'Can tally do Canadian dollars from Montreal?' },
         { kind: 'comment', id: 'disc5-maya', quote: "we still don't agree on the kiosk rate" },
         { kind: 'comment', id: 'disc5-lena', quote: 'Not building a rate table.' },
         { kind: 'file', path: 'docs/how-it-works.md', at: 'c-docs', quote: 'Type the amount in cents.' },
@@ -1867,14 +2409,14 @@ Also:
       question: 'Who should someone ask about how settle-up turns balances into payments?',
       answers: {
         technical:
-          'Lena Voss (lenavoss). She added tally/settle.py in c-settle (PR #7, 2023-06-24) and is the only author of that file. c-codeowners (2023-10-21) lists /tally/settle.py @lenavoss. docs/how-it-works.md says to ask Lena if a payment looks wrong. Owen reviewed PR #7. Maya uses the output.',
+          'Lena Voss (lenavoss). She added tally/settle.py in c-settle (PR #12, 2023-06-24) and is the only author of that file. c-codeowners (2023-10-21) lists /tally/settle.py @lenavoss. docs/how-it-works.md says to ask Lena if a payment looks wrong. Owen reviewed PR #12. Maya uses the output.',
         nonTechnical:
           'Ask Lena Voss. She wrote the part that turns balances into payments. Owen Briggs looks over her changes, and Maya Ruiz uses the app day to day.',
       },
       evidence: [
         { kind: 'file', path: '.github/CODEOWNERS', at: 'c-codeowners', quote: '/tally/settle.py  @lenavoss' },
         { kind: 'file', path: 'docs/how-it-works.md', at: 'c-docs', quote: 'Ask Lena if a payment looks wrong.' },
-        { kind: 'pr', number: 7, quote: 'Settle up with the fewest payments' },
+        { kind: 'pr', number: 12, quote: 'Settle up with the fewest payments' },
         { kind: 'commit', key: 'c-settle', quote: 'settle: greedy fewest transfers' },
         { kind: 'comment', id: 'pr7-rv-owen-2', quote: 'fewest-payments looks right.' },
       ],
@@ -1886,14 +2428,14 @@ Also:
       question: 'Which feature came straight from a roommate who does not write code?',
       answers: {
         technical:
-          'The pay command. Maya opened discussion #3 on 2023-04-16 asking to record a Venmo for the ikea lamp without deleting the expense. Owen built tally pay in PR #4 (merged 2023-05-13): add_payment in tally/ledger.py and the pay subcommand in tally/cli.py. The PR body says Maya asked for it in discussion #3.',
+          'The pay command. Maya opened discussion #5 on 2023-04-16 asking to record a Venmo for the ikea lamp without deleting the expense. Owen built tally pay in PR #6 (merged 2023-05-13): add_payment in tally/ledger.py and the pay subcommand in tally/cli.py. The PR body says Maya asked for it in discussion #5.',
         nonTechnical:
           'Maya asked for a way to record that she had already paid Lena back, without erasing the original bill. In May 2023 the team added a payback command so the app would stop saying she still owed that money.',
       },
       evidence: [
-        { kind: 'discussion', number: 3, quote: "I venmo'd Lena 40 dollars" },
+        { kind: 'discussion', number: 5, quote: "I venmo'd Lena 40 dollars" },
         { kind: 'comment', id: 'disc3-owen', quote: 'I can add a pay line' },
-        { kind: 'pr', number: 4, quote: 'Maya asked for this in discussion #3.' },
+        { kind: 'pr', number: 6, quote: 'Maya asked for this in discussion #5.' },
         { kind: 'file', path: 'tally/ledger.py', at: 'c-pay', quote: 'def add_payment(balances, src, dst, cents):' },
         { kind: 'comment', id: 'pr4-maya', quote: 'The lamp is still there and it no longer says I owe Lena.' },
       ],
@@ -1905,12 +2447,12 @@ Also:
       question: 'Why was the local web page never added?',
       answers: {
         technical:
-          'PR #8 (Kit, opened 2023-08-12, closed unmerged 2023-08-19) added tally/web.py, a page on 127.0.0.1:8765. Lena requested changes: she did not want a server on the living room laptop. Maya said she does not need a website. Kit closed it. The file never landed on main.',
+          'PR #14 (Kit, opened 2023-08-12, closed unmerged 2023-08-19) added tally/web.py, a page on 127.0.0.1:8765. Lena requested changes: she did not want a server on the living room laptop. Maya said she does not need a website. Kit closed it. The file never landed on main.',
         nonTechnical:
           'A part-time helper tried to add a web page so Maya would not have to use the terminal. Lena did not want a program running on the living room laptop, and Maya said she did not need a website, so they dropped it.',
       },
       evidence: [
-        { kind: 'pr', number: 8, quote: 'Local web page for balances (WIP)' },
+        { kind: 'pr', number: 14, quote: 'Local web page for balances (WIP)' },
         { kind: 'comment', id: 'pr8-thread-lena', quote: "I don't want a server on the living room laptop." },
         { kind: 'comment', id: 'pr8-maya', quote: "I don't need a website." },
         { kind: 'comment', id: 'pr8-kit', quote: 'Closing this.' },
@@ -1923,7 +2465,7 @@ Also:
       question: 'What stores the bills now, and how does that work?',
       answers: {
         technical:
-          'As of c-json (PR #10, 2023-10-07) and the README fix in c-readme-fix, tally/store.py load and save use json and the default path in tally/cli.py is ledger.json. An expense row has kind, date, payer, cents, note, and split. A payment row has kind, date, src, dst, cents, and note. save writes {"entries": rows}. ADR-0004 is Accepted. ADR-0002 has been superseded since c-adr4.',
+          'As of c-json (PR #18, 2023-10-07) and the README fix in c-readme-fix, tally/store.py load and save use json and the default path in tally/cli.py is ledger.json. An expense row has kind, date, payer, cents, note, and split. A payment row has kind, date, src, dst, cents, and note. save writes {"entries": rows}. ADR-0004 is Accepted. ADR-0002 has been superseded since c-adr4.',
         nonTechnical:
           'The app keeps every bill and payback in one plain text file next to the app. Adding a bill or a payback rewrites that file. The small database file from the summer is no longer used.',
       },
@@ -1961,7 +2503,7 @@ Also:
       question: 'Which written decisions are still in force, and which were replaced?',
       answers: {
         technical:
-          'docs/adr/ has four records. ADR-0001 (record decisions), ADR-0003 (integer cents), and ADR-0004 (JSON file) are Accepted at c-readme-fix. ADR-0002 (SQLite) has read "Status: Superseded by ADR-0004" since c-adr4 in PR #10 (2023-10-08). ADR-0004 carries "Supersedes: ADR-0002". docs/index.md lists the same statuses.',
+          'docs/adr/ has four records. ADR-0001 (record decisions), ADR-0003 (integer cents), and ADR-0004 (JSON file) are Accepted at c-readme-fix. ADR-0002 (SQLite) has read "Status: Superseded by ADR-0004" since c-adr4 in PR #18 (2023-10-08). ADR-0004 carries "Supersedes: ADR-0002". docs/index.md lists the same statuses.',
         nonTechnical:
           'The team has four written decision records. Three still apply: write decisions down, keep money as whole cents, and keep the bill list in a plain text file. The one about the small database file was replaced in October 2023.',
       },
@@ -1980,7 +2522,7 @@ Also:
       question: 'The app only keeps one kind of money. Do the docs say why?',
       answers: {
         technical:
-          'No. docs/how-it-works.md and the README never mention currencies or exchange rates. Amounts are cents and the row shape has no currency field. The reason lives only in discussion #5, where Maya says they still do not agree on the kiosk rate after the Montreal weekend.',
+          'No. docs/how-it-works.md and the README never mention currencies or exchange rates. Amounts are cents and the row shape has no currency field. The reason lives only in discussion #7, where Maya says they still do not agree on the kiosk rate after the Montreal weekend.',
         nonTechnical:
           'No. The guide never says why the app keeps only one kind of money. That reason lives only in a conversation from May 2023, where the roommates described arguing about an exchange rate.',
       },
@@ -1998,7 +2540,7 @@ Also:
       question: 'Where is the leftover-cent rule written down, if not in the docs?',
       answers: {
         technical:
-          'Nowhere in the repository. docs/how-it-works.md, the README, and ADR-0003 do not state the policy. ADR-0003 says splitting a bill that does not divide evenly is a separate question and "This record does not answer it." The policy is only in the PR #7 review thread. After c-remainder, add_expense floors with cents // len(names) and has no comment.',
+          'Nowhere in the repository. docs/how-it-works.md, the README, and ADR-0003 do not state the policy. ADR-0003 says splitting a bill that does not divide evenly is a separate question and "This record does not answer it." The policy is only in the PR #12 review thread. After c-remainder, add_expense floors with cents // len(names) and has no comment.',
         nonTechnical:
           'The guide never says what happens to a leftover cent. The written decision about whole cents even says that question is separate and unanswered. The reason lives only in a conversation from June 2023.',
       },
@@ -2010,6 +2552,265 @@ Also:
         { kind: 'file', path: 'tests/test_settle.py', at: 'c-remainder', quote: 'balances["lena"], -333' },
       ],
       onlyOutsideGit: ['remainder rides with the payer'],
+    },
+    {
+      id: 'declined-texts',
+      view: 'timeline',
+      facet: 'decision',
+      question: 'Was the request for text reminders accepted?',
+      answers: {
+        technical:
+          'No. Issue #13, opened by Maya on 2023-07-22, asked for a text when she owes someone. Lena\'s final comment says they are not adding texts. Owen closed it as not planned on 2023-07-25. This is separate from PR #14, which declined a local web page.',
+        nonTechnical:
+          'No. Maya asked if the app could text her when she owed someone. Lena decided not to add that. Owen closed the request. This is separate from the web page they also turned down.',
+      },
+      evidence: [
+        { kind: 'issue', number: 13, quote: 'Can tally text me when I owe someone?' },
+        { kind: 'comment', id: 'iss13-lena', quote: 'We are not adding texts.' },
+        { kind: 'comment', id: 'iss13-owen', quote: 'Closing this as not planned.' },
+      ],
+    },
+    {
+      id: 'spaces-from-maya',
+      view: 'timeline',
+      facet: 'who',
+      question: 'Which stored-list change started from a note Maya wrote in plain language?',
+      answers: {
+        technical:
+          'Issue #8 (Maya, 2023-05-28) says a two-word note breaks the list. PR #9 (Kit, merged 2023-06-18) says Fixes #8 and replaces the text store with sqlite3 so a note can contain a space.',
+        nonTechnical:
+          'Maya wrote that typing ikea lamp made the list break. Kit then changed how the list is stored so a note can contain a space. That change landed in June 2023.',
+      },
+      evidence: [
+        { kind: 'issue', number: 8, quote: 'ikea lamp breaks the list' },
+        { kind: 'comment', id: 'iss8-kit', quote: 'so the note can have spaces' },
+        { kind: 'pr', number: 9, quote: 'Fixes #8.' },
+      ],
+    },
+    {
+      id: 'ci-caught-import',
+      view: 'timeline',
+      facet: 'how',
+      question: 'What did the failing test run on the settle-up change catch, and was it the leftover-cent rule?',
+      answers: {
+        technical:
+          'No. PR #12 commit c-settle imports minimal_transfer, which is not a name in tally/settle.py. The smoke check on that commit failed with ImportError. c-settle-import, pushed 2023-06-28 after Owen requested changes and before he approved, renames the import to minimal_transfers. The later smoke check passed. The leftover-cent policy was not what the check caught.',
+        nonTechnical:
+          'No. An automated test run on Lena\'s settle-up change failed because the app looked for a helper under the wrong name. She fixed the name before the change was accepted, and the test run passed. The failure was not about leftover cents.',
+      },
+      evidence: [
+        { kind: 'file', path: 'tally/cli.py', at: 'c-settle', quote: 'from tally.settle import minimal_transfer' },
+        { kind: 'comment', id: 'pr12-gha-fail', quote: 'cannot import name minimal_transfer' },
+        { kind: 'file', path: 'tally/cli.py', at: 'c-settle-import', quote: 'from tally.settle import minimal_transfers' },
+        { kind: 'commit', key: 'c-settle-import', quote: 'cli: import minimal_transfers' },
+      ],
+    },
+    {
+      id: 'noise-who-wrote',
+      view: 'timeline',
+      facet: 'noise',
+      question: 'How many distinct people wrote the app, if a laptop shows a second name for Lena?',
+      answers: {
+        technical:
+          'Three people wrote product code: Lena Voss, Owen Briggs, and Kit Alvarez. c-dollars and c-usage are authored in git as Lena P <lena@laptop.local> with no linked login, but that identity belongs to lenavoss. She says so on PR #3, and Kit repeats it on PR #20. dependabot[bot] only changed the test workflow pin in PR #17 and did not change product behavior.',
+        nonTechnical:
+          'Three people wrote the app: Lena, Owen, and Kit. A laptop of Lena\'s signed some changes as Lena P, but that is still Lena. An automated helper later updated a setup file and did not change how bills are split.',
+      },
+      evidence: [
+        { kind: 'comment', id: 'pr3-lena', quote: 'lena@laptop.local' },
+        { kind: 'comment', id: 'pr3-lena', quote: 'That is still me.' },
+        { kind: 'comment', id: 'pr20-kit', quote: 'lena@laptop.local is not linked' },
+        { kind: 'commit', key: 'c-dollars', quote: 'print dollars, not raw cents' },
+      ],
+    },
+    {
+      id: 'noise-fix-tests',
+      view: 'timeline',
+      facet: 'noise',
+      question: 'What did the change labeled "fix tests" actually change?',
+      answers: {
+        technical:
+          'c-fix-tests (Owen, 2023-11-12) is titled fix tests. It also changes tally/cli.py so add and pay reject a negative cent amount, and it adds tests/test_cli.py. The message does not mention that behavior change.',
+        nonTechnical:
+          'A note labeled as a test fix also stopped the app from accepting a negative amount. The note does not say that. A new bill and a payback now refuse a negative amount.',
+      },
+      evidence: [
+        { kind: 'commit', key: 'c-fix-tests', quote: 'fix tests' },
+        { kind: 'file', path: 'tally/cli.py', at: 'c-fix-tests', quote: 'if args.cents < 0:' },
+        { kind: 'file', path: 'tests/test_cli.py', at: 'c-fix-tests', quote: 'def test_negative_cents_rejected' },
+      ],
+    },
+    {
+      id: 'noise-bot-behavior',
+      view: 'timeline',
+      facet: 'noise',
+      question: 'Did the automated dependency update change how bills are split or stored?',
+      answers: {
+        technical:
+          'No. PR #17, opened by dependabot[bot], only changes .github/workflows/test.yml from actions/setup-python v4 to v5. The body says no tally code is in the change. Product behavior is unchanged.',
+        nonTechnical:
+          'No. An automated helper updated a setup file used to run the tests. It did not change how bills are split or stored.',
+      },
+      evidence: [
+        { kind: 'pr', number: 17, quote: 'No tally code in this change.' },
+        { kind: 'file', path: '.github/workflows/test.yml', at: 'c-bump', quote: 'actions/setup-python@v5' },
+        { kind: 'comment', id: 'pr17-gha', quote: 'unit tests passed' },
+      ],
+    },
+    {
+      id: 'noise-text-edit',
+      view: 'timeline',
+      facet: 'noise',
+      question: 'Lena first agreed to add text messages. What was the final decision?',
+      answers: {
+        technical:
+          'The final text is the decision. On issue #13, comment iss13-lena first said she would add a text next weekend. She edited it to say they are not adding texts. Owen then closed the issue as not planned. The edited wording is the one that stands.',
+        nonTechnical:
+          'Lena first wrote that she would add text messages next weekend. She changed that note. The wording people see now says they are not adding texts. That later wording is the decision.',
+      },
+      evidence: [
+        { kind: 'comment', id: 'iss13-lena', quote: 'Yes, I can add a text next weekend.', revision: 0 },
+        { kind: 'comment', id: 'iss13-lena', quote: 'We are not adding texts.' },
+        { kind: 'comment', id: 'iss13-owen', quote: 'Closing this as not planned.' },
+      ],
+    },
+    {
+      id: 'noise-kit-time',
+      view: 'timeline',
+      facet: 'noise',
+      question: 'What local time did Kit fix the roommates spelling, and in what clock?',
+      answers: {
+        technical:
+          'c-typo is stamped 2023-04-02T15:14:00-07:00. That instant is 2023-04-02T22:14:00Z. Kit wrote that the typo went in Sunday at 3:14pm his time. April 2, 2023 was a Sunday. His other timestamps use the same -07:00 offset.',
+        nonTechnical:
+          'Kit fixed the roommates spelling on Sunday, April 2, 2023, at 3:14 in the afternoon, his time in Oakland. That clock is seven hours behind London time.',
+      },
+      evidence: [
+        { kind: 'commit', key: 'c-typo', quote: 'fix typo: roomates' },
+        { kind: 'comment', id: 'disc3-kit', quote: 'Sunday at 3:14pm my time' },
+      ],
+    },
+    {
+      id: 'noise-web-claim',
+      view: 'timeline',
+      facet: 'noise',
+      question: 'Did Maya ask for the local web page?',
+      answers: {
+        technical:
+          'No. On PR #14 Kit wrote that Maya asked for the page in the group chat. Maya replied that she never asked for one and that she asked Owen to type the groceries. Her reply is the correction. The page was closed without landing.',
+        nonTechnical:
+          'No. Kit said Maya had asked for a web page. Maya said she had not. She had asked Owen to type the groceries. They did not add the page.',
+      },
+      evidence: [
+        { kind: 'comment', id: 'pr14-kit-claim', quote: 'Maya asked me for this page' },
+        { kind: 'comment', id: 'pr8-maya', quote: 'I never asked for one.' },
+        { kind: 'comment', id: 'pr8-maya', quote: "I don't need a website." },
+      ],
+    },
+  ],
+  noise: [
+    {
+      id: 'noise-identity-split',
+      kind: 'identity-split',
+      description:
+        'Lena Voss also commits as Lena P <lena@laptop.local> with linked false, on c-usage (PR #3) and c-dollars (direct to main). Git shows a second name and no login. The truth is one person, lenavoss. She says so on PR #3, and Kit notes the dollars change on PR #20.',
+      evidence: [
+        { kind: 'comment', id: 'pr3-lena', quote: 'lena@laptop.local' },
+        { kind: 'comment', id: 'pr20-kit', quote: 'That is her laptop.' },
+        { kind: 'commit', key: 'c-dollars', quote: 'print dollars, not raw cents' },
+      ],
+    },
+    {
+      id: 'noise-misleading-message',
+      kind: 'misleading-message',
+      description:
+        'c-fix-tests is titled "fix tests" but also rejects negative cent amounts in tally add and tally pay. The new test covers that refusal. The message understates the behavior change. The leftover-cent follow-up remains c-remainder, message "ledger: floor the split", and is not this commit.',
+      evidence: [
+        { kind: 'commit', key: 'c-fix-tests', quote: 'fix tests' },
+        { kind: 'file', path: 'tally/cli.py', at: 'c-fix-tests', quote: 'cents must be zero or more' },
+      ],
+    },
+    {
+      id: 'noise-bot',
+      kind: 'bot-noise',
+      description:
+        'dependabot[bot] opened PR #17 to bump actions/setup-python from 4 to 5. It was squash-merged and did not change tally product code. github-actions[bot] comments on that PR and on the settle-up PR when smoke fails and then passes.',
+      evidence: [
+        { kind: 'pr', number: 17, quote: 'Bumps actions/setup-python from 4 to 5.' },
+        { kind: 'comment', id: 'pr17-gha', quote: 'test: success.' },
+        { kind: 'comment', id: 'pr12-gha-fail', quote: 'Smoke failed:' },
+      ],
+    },
+    {
+      id: 'noise-duplicate',
+      kind: 'duplicate',
+      description:
+        'Issue #11 (Kit) repeats Maya\'s request in issue #10 about balances not saying who to pay. Owen closed #11 as a duplicate of #10. The settle-up PR later closes #10. #11 is not a separate feature.',
+      evidence: [
+        { kind: 'issue', number: 11, quote: 'balances still do not say who to pay' },
+        { kind: 'comment', id: 'iss11-owen', quote: 'same request as #10' },
+        { kind: 'issue', number: 10, quote: 'it prints three numbers and I still do not know who to pay' },
+      ],
+    },
+    {
+      id: 'noise-corrected-claim',
+      kind: 'corrected-claim',
+      description:
+        'On PR #14 Kit claims Maya asked for the web page in the group chat. Maya\'s later comment is the truth: she never asked for a website, and she asked Owen to type the groceries.',
+      evidence: [
+        { kind: 'comment', id: 'pr14-kit-claim', quote: 'Maya asked me for this page in the group chat' },
+        { kind: 'comment', id: 'pr8-maya', quote: 'I never asked for one.' },
+      ],
+    },
+    {
+      id: 'noise-edited-comment',
+      kind: 'edited-comment',
+      description:
+        'On issue #13 Lena\'s comment first said she would add a text next weekend. The edit reverses that: they are not adding texts. The current text is the truth. Owen closed the issue as not planned after the edit.',
+      evidence: [
+        { kind: 'comment', id: 'iss13-lena', quote: 'Yes, I can add a text next weekend.', revision: 0 },
+        { kind: 'comment', id: 'iss13-lena', quote: 'We are not adding texts.' },
+      ],
+    },
+    {
+      id: 'noise-squash',
+      kind: 'squash-merge',
+      description:
+        'PR #3 (the decimal sentence) and PR #17 (the setup-python pin) landed with method squash. Their branch commits are not separate commits on main. The usage commit still exists on the pull request head, authored as Lena P.',
+      evidence: [
+        { kind: 'pr', number: 3, quote: 'Print a sentence when cents is not a whole number' },
+        { kind: 'pr', number: 17, quote: 'Bump actions/setup-python from 4 to 5' },
+      ],
+    },
+    {
+      id: 'noise-timezone',
+      kind: 'timezone',
+      description:
+        'Kit Alvarez\'s timestamps use -07:00 (Oakland, Pacific) consistently, including commits, reviews he replies to, and items he opens. c-typo is 2023-04-02T15:14:00-07:00, which is 22:14 UTC. He calls that Sunday at 3:14pm his time. Other people stay on Z.',
+      evidence: [
+        { kind: 'commit', key: 'c-typo', quote: 'fix typo: roomates' },
+        { kind: 'comment', id: 'disc3-kit', quote: '3:14pm my time' },
+      ],
+    },
+    {
+      id: 'noise-off-topic',
+      kind: 'off-topic',
+      description:
+        'Discussion #15 starts as whose turn Costco is, then drifts to Owen\'s dead sourdough starter and a blinking router. Lena pulls it back to the olive oil and tally. It is not about storage, settle, or currency.',
+      evidence: [
+        { kind: 'discussion', number: 15, quote: 'Not really a tally question.' },
+        { kind: 'comment', id: 'disc15-owen', quote: 'killed the sourdough starter' },
+        { kind: 'comment', id: 'disc15-lena', quote: 'The router and the jar are not this thread.' },
+      ],
+    },
+    {
+      id: 'noise-dangling',
+      kind: 'dangling-reference',
+      description:
+        'Issue #21 mentions #19, which was never opened. The number was skipped because that note was moved to the house notebook and not filed here. #19 is not an issue, pull request, or discussion. The open rent request is #21, not a continuation of a deleted item.',
+      evidence: [
+        { kind: 'issue', number: 21, quote: 'I cannot find #19' },
+      ],
     },
   ],
 };
