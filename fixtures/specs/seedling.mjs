@@ -757,7 +757,7 @@ func TestTokenRoundTrip(t *testing.T) {
 }
 `);
 
-const swapWebGo = (checkTaker) => go(`package main
+const swapWebGo = (checkTaker, checkNextTo = false) => go(`package main
 
 import (
     "html/template"
@@ -796,6 +796,10 @@ ${checkTaker ? `        if !onRoster(roster, taker) {
             http.Error(w, "Please pick someone from the list.", http.StatusBadRequest)
             return
         }
+` : ''}${checkNextTo ? `        if nextTo(shifts, date, taker) {
+            http.Error(w, "They already water the day before or after. Please pick someone else.", http.StatusBadRequest)
+            return
+        }
 ` : ''}        if err := shifts.Reassign(date, name, taker); err != nil {
             log.Printf("swap %s -> %s: %v", name, taker, err)
             http.Error(w, "We couldn't make that swap. Please call Rosa.", http.StatusInternalServerError)
@@ -815,6 +819,22 @@ func onRoster(roster *store.Store, name string) bool {
     }
     for _, v := range everyone {
         if v.Name == name {
+            return true
+        }
+    }
+    return false
+}
+` : ''}${checkNextTo ? `
+// nextTo reports whether name already waters the day before or after date.
+// A swap must not give anyone two days in a row.
+func nextTo(shifts *store.Shifts, date time.Time, name string) bool {
+    for _, d := range []time.Time{date.AddDate(0, 0, -1), date.AddDate(0, 0, 1)} {
+        who, err := shifts.Who(d)
+        if err != nil {
+            log.Printf("swap: %v", err)
+            return true
+        }
+        if who == name {
             return true
         }
     }
@@ -1264,7 +1284,7 @@ Seedling runs the watering schedule for the Eastside Commons community garden.
   - [ADR-0004](adr/0004-email-and-printed-sheet.md) Email reminders and a printed weekly sheet. Accepted.
 `;
 
-const howScheduling = `# How scheduling works
+const howScheduling = (swaps) => `# How scheduling works
 
 This page explains how seedling decides who waters which day. It's for
 volunteers and the coordinator, so there's no code here. If you want the
@@ -1288,14 +1308,27 @@ copy for the shed door.
 
 ## Reminders and swaps
 
-The evening before a shift, seedling emails that volunteer with a link to
-swap. The link lets you hand your shift to anyone else on the roster. See
-the [volunteer handbook](volunteer-handbook.md).
+${swaps}
 
 ## Who to ask
 
 Minh Tran wrote the scheduling code. Ask him if the schedule looks wrong.
 Rosa Delgado runs the schedule day to day.
+`;
+
+const swapRule = {
+  anyone: `The evening before a shift, seedling emails that volunteer with a link to
+swap. The link lets you hand your shift to anyone else on the roster. See
+the [volunteer handbook](volunteer-handbook.md).`,
+  notNextTo: `The evening before a shift, seedling emails that volunteer with a link to
+swap. The link lets you hand your shift to anyone else on the roster who
+isn't already watering the day before or after. See the
+[volunteer handbook](volunteer-handbook.md).`,
+};
+
+const crontab = (hour) => `# seedling on the garden server. Install with: crontab deploy/crontab
+# Secrets live in /srv/seedling/.env, which stays out of git.
+0 ${hour} * * * cd /srv/seedling && set -a && . ./.env && ./seedling remind >> remind.log 2>&1
 `;
 
 const commandsV2 = [['export', 'print the watering sheet as CSV'], ['serve', 'run the sign-up website']];
@@ -1877,10 +1910,11 @@ Also adds internal/store/shifts.go so remind can read the schedule. This is step
           key: 'c-remind',
           at: '2024-07-23T01:40:00Z',
           author: 'minhtran',
-          message: 'remind command + shifts store',
+          message: 'remind command + shifts store, crontab for the server',
           files: {
             'internal/store/shifts.go': shiftsGoV1,
             'cmd/seedling/remind.go': remindGoV1,
+            'deploy/crontab': crontab(18),
             'cmd/seedling/main.go': mainGo([['export', 'make the weekly schedule as CSV'], ['serve', 'run the sign-up website'], ['remind', "text tomorrow's volunteer"]]),
           },
         },
@@ -2531,7 +2565,7 @@ After this merges I'll cancel the Twilio number.`,
           message: 'docs: index + how scheduling works',
           files: {
             'docs/index.md': docsIndex,
-            'docs/how-scheduling-works.md': howScheduling,
+            'docs/how-scheduling-works.md': howScheduling(swapRule.anyone),
           },
         },
         {
@@ -2670,6 +2704,27 @@ After this merges I'll cancel the Twilio number.`,
 ## Known issues
 
 - Names on the swap page are in sign-up order, not alphabetical (#11).`,
+      },
+    },
+    {
+      type: 'commit',
+      key: 'c-swap-adjacent',
+      at: '2025-03-26T01:40:00Z',
+      author: 'minhtran',
+      message: "swap: don't hand a shift to someone on the day before or after\n\nThe scheduler never gives anyone two days in a row and the handbook says so,\nbut the swap page would hand a shift to someone who already waters the day\nbefore or after. Now it asks for someone else.\n",
+      files: {
+        'cmd/seedling/swap.go': swapWebGo(true, true),
+        'docs/how-scheduling-works.md': howScheduling(swapRule.notNextTo),
+      },
+    },
+    {
+      type: 'commit',
+      key: 'c-cron-5pm',
+      at: '2025-03-29T22:15:00Z',
+      author: 'tlindqvist',
+      message: 'crontab: remind at 5pm',
+      files: {
+        'deploy/crontab': crontab(17),
       },
     },
   ],
@@ -3090,6 +3145,148 @@ After this merges I'll cancel the Twilio number.`,
         { kind: 'comment', id: 'issue13-tobias', quote: "Closing as a duplicate, I've assigned #11 to myself." },
         { kind: 'file', path: 'templates/swap.html', at: 'c-handbook-fix', quote: '{{range .Roster}}<option>{{.Name}}</option>' },
         { kind: 'tag', name: 'v1.0.0', quote: 'Names on the swap page are in sign-up order, not alphabetical (#11).' },
+      ],
+    },
+    {
+      id: 'currency-stdlib-only',
+      view: 'docs',
+      facet: 'overview',
+      job: 'currency',
+      question: 'Is it still true that seedling uses only the Go standard library, as the README says?',
+      answers: {
+        technical:
+          'Yes. "Standard library only." has been in the README since c-export (PR #1, 2024-04-13) and is still there at main. go.mod at main has no require lines and there is no go.sum. The only dependency ever proposed, golang.org/x/crypto for bcrypt in PR #7, was closed unmerged on 2024-07-17. Later features stayed in the standard library: crypto/hmac for swap links and net/smtp for email reminders.',
+        nonTechnical:
+          'Yes. Since April 2024 the developer notes have said the app needs nothing beyond the tools that come with its programming language, and that still holds. The one attempt to add an outside package, for volunteer passwords in July 2024, was dropped.',
+      },
+      evidence: [
+        { kind: 'file', path: 'README.md', at: 'c-export', quote: 'Needs Go 1.22 or newer. Standard library only.' },
+        { kind: 'file', path: 'README.md', at: 'c-cron-5pm', quote: 'Needs Go 1.23 or newer. Standard library only.' },
+        { kind: 'file', path: 'go.mod', at: 'c-cron-5pm', quote: 'module github.com/eastside-commons/seedling\n\ngo 1.23\n' },
+        { kind: 'pr', number: 7, quote: 'First Go dependency (golang.org/x/crypto), sorry Minh.' },
+        { kind: 'comment', id: 'pr7-tobias', quote: 'Closing this.' },
+        { kind: 'file', path: 'internal/notify/email.go', at: 'c-cron-5pm', quote: '"net/smtp"' },
+      ],
+    },
+    {
+      id: 'currency-reminder-6pm',
+      view: 'docs',
+      facet: 'how',
+      job: 'currency',
+      question: 'Is it still true that reminders go out at 6pm, as the README says?',
+      answers: {
+        technical:
+          'No. The README line "Cron runs this at 6pm on the garden server." was written in c-adr2 (PR #8, 2024-07-23), when deploy/crontab ran remind at `0 18 * * *`, and it survived the email rewrite in PR #16. On 2025-03-29 Tobias\'s c-cron-5pm changed deploy/crontab to `0 17 * * *` and left the README alone, so at main reminders go out at 5pm. The handbook never gave a time (Rosa kept it loose in the PR #12 review), so it is still right.',
+        nonTechnical:
+          'No. The developer notes still say 6pm, but since late March 2025 the reminder goes out at 5pm, and nobody updated the notes. The volunteer handbook only says "the evening before", so it is still right.',
+      },
+      evidence: [
+        { kind: 'file', path: 'README.md', at: 'c-adr2', quote: 'Cron runs this at 6pm on the garden server.' },
+        { kind: 'file', path: 'deploy/crontab', at: 'c-remind', quote: '0 18 * * * cd /srv/seedling' },
+        { kind: 'commit', key: 'c-cron-5pm', quote: 'crontab: remind at 5pm' },
+        { kind: 'file', path: 'deploy/crontab', at: 'c-cron-5pm', quote: '0 17 * * * cd /srv/seedling' },
+        { kind: 'file', path: 'README.md', at: 'c-cron-5pm', quote: 'Cron runs this at 6pm on the garden server.' },
+        { kind: 'file', path: 'docs/volunteer-handbook.md', at: 'c-cron-5pm', quote: "The evening before your shift you'll get an email from the garden" },
+        { kind: 'comment', id: 'pr12-thread-rosa', quote: "I'll leave it loose." },
+      ],
+    },
+    {
+      id: 'currency-two-days-in-a-row',
+      view: 'docs',
+      facet: 'how',
+      job: 'currency',
+      question: 'Is it still true that nobody ever gets two watering days in a row, as the volunteer handbook says?',
+      answers: {
+        technical:
+          'Yes at main, but only since c-swap-adjacent (Minh, 2025-03-26). The scheduler has skipped whoever watered the day before since c-no-repeat (2024-07-01), before Rosa wrote "you\'ll never get two days in a row" in the handbook (c-handbook, 2024-09-07). The swap page only checked that the taker was on the roster, so handing a shift to someone who had the day before or after gave them two in a row. c-swap-adjacent added nextTo to cmd/seedling/swap.go, which refuses that taker, and updated docs/how-scheduling-works.md to match.',
+        nonTechnical:
+          'Yes, but only since late March 2025. The automatic schedule has never given anyone two days in a row. Until that fix, though, a volunteer handing off a shift could pass it to someone already watering the day before or after. The hand-off page now says no to that.',
+      },
+      evidence: [
+        { kind: 'file', path: 'docs/volunteer-handbook.md', at: 'c-handbook', quote: 'never get two days in a row.' },
+        { kind: 'file', path: 'internal/schedule/assign.go', at: 'c-cron-5pm', quote: 'if last[v.Name].Equal(day.AddDate(0, 0, -1)) {' },
+        { kind: 'file', path: 'cmd/seedling/swap.go', at: 'c-swap-taker', quote: 'if !onRoster(roster, taker) {' },
+        { kind: 'commit', key: 'c-swap-adjacent', quote: 'but the swap page would hand a shift to someone who already waters the day' },
+        { kind: 'file', path: 'cmd/seedling/swap.go', at: 'c-cron-5pm', quote: 'if nextTo(shifts, date, taker) {' },
+        { kind: 'file', path: 'docs/how-scheduling-works.md', at: 'c-cron-5pm', quote: "isn't already watering the day before or after." },
+      ],
+    },
+    {
+      id: 'go-123-why-gap',
+      view: 'timeline',
+      facet: 'unwritten-why',
+      expect: 'gap',
+      question: 'Why did seedling move from Go 1.22 to Go 1.23 in December 2024?',
+      answers: {
+        technical:
+          'The record does not say. c-go123 (Tobias, 2024-12-14, pushed straight to main during the winter break) changes go.mod from go 1.22 to go 1.23 and the README to "Needs Go 1.23 or newer", with the message "go 1.23" and nothing else. The v1.0.0 release notes only list "Go 1.23." No review, issue, or discussion mentions it, and no code at main needs a 1.23 feature. Ask Tobias Lindqvist, who made the change.',
+        nonTechnical:
+          'The notes do not say. In December 2024, while the garden was closed for winter, Tobias moved the app to a newer version of its programming language and left no reason. Ask Tobias.',
+      },
+      evidence: [
+        { kind: 'commit', key: 'c-go123', quote: 'go 1.23' },
+        { kind: 'file', path: 'go.mod', at: 'c-init', quote: 'go 1.22' },
+        { kind: 'file', path: 'go.mod', at: 'c-go123', quote: 'go 1.23' },
+        { kind: 'file', path: 'README.md', at: 'c-go123', quote: 'Needs Go 1.23 or newer.' },
+        { kind: 'tag', name: 'v1.0.0', quote: '- Go 1.23.' },
+      ],
+      truth: 'Tobias moved the garden server to a cheaper VPS plan over the winter, and the new machine came with Go 1.23. He raised go.mod so laptops and the test workflow build with the same Go as the server.',
+      notRecorded: ['cheaper VPS plan'],
+    },
+    {
+      id: 'reminder-5pm-why-gap',
+      view: 'timeline',
+      facet: 'unwritten-why',
+      expect: 'gap',
+      question: 'Why do reminders go out at 5pm now instead of 6pm?',
+      answers: {
+        technical:
+          'The record does not say. c-cron-5pm (Tobias, 2025-03-29, pushed straight to main) changes deploy/crontab from `0 18 * * *` to `0 17 * * *` with the message "crontab: remind at 5pm". No review, issue, discussion, or doc explains it, and the README still says 6pm. Ask Tobias Lindqvist, who made the change.',
+        nonTechnical:
+          'The notes do not say. In late March 2025 Tobias moved the evening reminder an hour earlier, from 6pm to 5pm, without writing down why. Ask Tobias.',
+      },
+      evidence: [
+        { kind: 'commit', key: 'c-cron-5pm', quote: 'crontab: remind at 5pm' },
+        { kind: 'file', path: 'deploy/crontab', at: 'c-remind', quote: '0 18 * * *' },
+        { kind: 'file', path: 'deploy/crontab', at: 'c-cron-5pm', quote: '0 17 * * *' },
+      ],
+      truth: 'Rosa asked Tobias at the season kickoff to move reminders an hour earlier. She leaves the community center at 5:30 and wanted anyone who needs help finding a sub to reach her before she goes home.',
+      notRecorded: ['season kickoff', 'community center'],
+    },
+    {
+      id: 'example-assign-week',
+      view: 'docs',
+      facet: 'how',
+      question: 'Give me a concrete example: if Ana is free Monday to Saturday and Ben only on Mondays and Tuesdays, who waters each day that week?',
+      answers: {
+        technical:
+          'TestAssign in internal/schedule/assign_test.go at main runs that roster for the week of Monday, July 1, 2024 and expects Ana, Ben, Ana, blank, Ana, blank for Monday to Saturday. Monday is a tie at zero shifts, so roster order gives it to Ana. Tuesday skips Ana, who watered Monday, so Ben gets it. Thursday and Saturday stay blank because Ana watered the day before and Ben is not free. The expected list has not changed since c-no-repeat (2024-07-01).',
+        nonTechnical:
+          "The app's own test uses exactly that case. Ana gets Monday, Wednesday and Friday, and Ben gets Tuesday. Thursday and Saturday stay open for the coordinator to fill, because Ana watered the day before and Ben is only free early in the week.",
+      },
+      evidence: [
+        { kind: 'file', path: 'internal/schedule/assign_test.go', at: 'c-cron-5pm', quote: '{Name: "Ben", Days: []time.Weekday{time.Monday, time.Tuesday}},' },
+        { kind: 'file', path: 'internal/schedule/assign_test.go', at: 'c-cron-5pm', quote: 'want := []string{"Ana", "Ben", "Ana", "", "Ana", ""}' },
+        { kind: 'file', path: 'internal/schedule/assign.go', at: 'c-cron-5pm', quote: 'Ties go to whoever comes first in the roster.' },
+        { kind: 'file', path: 'docs/how-scheduling-works.md', at: 'c-cron-5pm', quote: '4. Nobody is scheduled two days in a row.' },
+      ],
+    },
+    {
+      id: 'example-swap-link-expiry',
+      view: 'docs',
+      facet: 'how',
+      question: 'Give me a concrete example of when a swap link stops working.',
+      answers: {
+        technical:
+          "TestTokenRoundTrip in internal/swap/swap_test.go at main signs a link for Walt's shift on Thursday, August 8, 2024. Opened that Thursday, swap.Signer.Open returns Walt and the date. Opened on Friday it fails, because Open rejects a shift date before the current day (days start at midnight UTC). A token checked with a different SEEDLING_SWAP_KEY also fails.",
+        nonTechnical:
+          "The app's own test uses Walt's Thursday shift. His link works on that Thursday and stops working on Friday, the day after. A link made with a different secret key is refused, so nobody can make their own.",
+      },
+      evidence: [
+        { kind: 'file', path: 'internal/swap/swap_test.go', at: 'c-cron-5pm', quote: 'thu := time.Date(2024, time.August, 8, 0, 0, 0, 0, time.UTC)' },
+        { kind: 'file', path: 'internal/swap/swap_test.go', at: 'c-cron-5pm', quote: 't.Error("token still works the day after the shift")' },
+        { kind: 'file', path: 'internal/swap/swap_test.go', at: 'c-cron-5pm', quote: 't.Error("token signed with a different key was accepted")' },
+        { kind: 'file', path: 'internal/swap/swap.go', at: 'c-cron-5pm', quote: 'date.Before(now.Truncate(24*time.Hour))' },
       ],
     },
   ],
