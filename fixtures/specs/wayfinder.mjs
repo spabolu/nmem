@@ -110,6 +110,24 @@ const q = {
   testPassed: `${ciLegList} passed on that push.`,
   clampAsk: 'Remaining went out as 1.7. Clamp it to a whole number that is not negative.',
   createMetricsFn: 'export function createMetrics',
+  noBehavior: 'no behavior change intended',
+  mostlyMechanical: 'Mostly mechanical, no behavior change intended.',
+  restyleList: 'Restyled src/headers.ts, src/key.ts, and src/metrics.ts.',
+  skimmedTypes: 'Skimmed the types file.',
+  burstCall: 'options.limit * 2',
+  omitReset: "delete extra['RateLimit-Reset'];",
+  generatedBanner: 'Generated typed client. Do not edit by hand.',
+  lockVersion: '"lockfileVersion": 3',
+  clockClaim: 'The clock step is 1 ms.',
+  clockBranch: 'return nodeMajor >= 20 ? 1 : 10;',
+  depends17: 'Depends on PR #17.',
+  burstAssert: 'assert.deepEqual(seen, [200, 200, 200, 200, 429]);',
+  burstInput: 'limit: 2,',
+  sameClock: 'now: () => 5_000,',
+  missingReset: 'no RateLimit-Reset',
+  allowedSame: 'Allowed responses get the same RateLimit headers and no Retry-After.',
+  balanceCap: 'The balance never goes above the limit.',
+  refreshedLock: 'Refreshed package-lock.json.',
 };
 
 // typescript@5.4.2 published 2024-03-06T18:14:58Z, after c-init at 16:40Z.
@@ -783,16 +801,20 @@ export function createLimiter(options: Options) {
 }
 `;
 
-const limitBucket = ({ failOpen, headers, metrics }) => {
+const limitBucket = ({ failOpen, headers, metrics, doubled = false, omitReset = false, windowName = 'windowMs' }) => {
   const imports = ["import { take } from './bucket.ts';"];
   if (headers) imports.push("import { rateLimitHeaders } from './headers.ts';");
   imports.push("import { apiKey } from './key.ts';", "import type { Incoming } from './key.ts';");
   if (metrics) imports.push("import type { Metrics } from './metrics.ts';");
   imports.push("import { createMemoryStore } from './store.ts';", "import type { BucketStore } from './store.ts';");
+  const capacityExpr = doubled ? 'options.limit * 2' : 'options.limit';
+  const omitLine = omitReset
+    ? "      if (decision.allowed) delete extra['RateLimit-Reset'];\n"
+    : '';
   const headerLines = headers
     ? `      const retrySec = Math.ceil(decision.retryAfterMs / 1000);
       const extra = rateLimitHeaders(options.limit, decision.tokens, retrySec);
-      for (const [name, value] of Object.entries(extra)) res.setHeader(name, value);
+${omitLine}      for (const [name, value] of Object.entries(extra)) res.setHeader(name, value);
 `
     : '';
   const metricLine = metrics ? '      options.metrics?.record(decision.allowed);\n' : '';
@@ -811,7 +833,7 @@ export type Outgoing = {
 
 type Options = {
   limit: number;
-  windowMs: number;
+  ${windowName}: number;
   store?: BucketStore;
   now?: () => number;
   key?: (req: Incoming) => string;${metricsField}
@@ -824,7 +846,7 @@ export function createLimiter(options: Options) {
   return async function limit(req: Incoming, res: Outgoing, next: () => void) {
     try {
       const key = keyFn(req);
-      const decision = take(await store.read(key), now(), options.limit, options.windowMs);
+      const decision = take(await store.read(key), now(), ${capacityExpr}, options.${windowName});
       await store.write(key, decision.state);
 ${headerLines}${metricLine}      if (!decision.allowed) {
         res.statusCode = 429;
@@ -870,6 +892,256 @@ const readmeFinal = readme({
   store: storeMemory,
   guides: q.guidesLink,
 });
+
+// Big files are built here so a wording tweak cannot drift from the cited quotes.
+// The generated client and the lockfile are the only long paths. Other files stay short.
+
+function lineCount(text) {
+  if (!text) return 0;
+  return text.endsWith('\n') ? text.split('\n').length - 1 : text.split('\n').length;
+}
+
+function restyle(source) {
+  let text = source.replace(/'([^'\\]*)'/g, '"$1"');
+  text = text.replace(
+    'const totals = { allowed: 0, rejected: 0 };',
+    'const totals = {\n    allowed: 0,\n    rejected: 0,\n  };',
+  );
+  text = text.replace(
+    'return { allowed: totals.allowed, rejected: totals.rejected };',
+    'return {\n        allowed: totals.allowed,\n        rejected: totals.rejected,\n      };',
+  );
+  if (!text.endsWith('\n')) text += '\n';
+  return text;
+}
+
+const clientResources = [
+  'Account', 'Address', 'Adjustment', 'Catalog', 'Charge', 'Checkout',
+  'Contact', 'Contract', 'Credit', 'Customer', 'Delivery', 'Discount',
+  'Document', 'Estimate', 'Event', 'Export', 'Fulfillment', 'Inventory',
+  'Invoice', 'Item', 'Label', 'Ledger', 'Location', 'Membership',
+  'Note', 'Order', 'Package', 'Payment', 'Payout', 'Price',
+  'Product', 'Quote', 'Receipt', 'Refund', 'Return', 'Shipment',
+  'Sku', 'Subscription', 'Tax', 'Ticket', 'Transfer', 'Vendor',
+  'Warehouse', 'Webhook', 'Batch', 'Campaign',
+];
+
+const CLIENT_FIELDS = 22;
+
+function resourcePlural(name) {
+  const lower = name.toLowerCase();
+  if (lower.endsWith('s')) return `${lower}es`;
+  if (lower.endsWith('y')) return `${lower.slice(0, -1)}ies`;
+  return `${lower}s`;
+}
+
+function openApiClient(resources, fieldsPer) {
+  const stems = [
+    'id', 'externalId', 'status', 'currency', 'amount', 'createdAt', 'updatedAt',
+    'description', 'reference', 'region', 'channel', 'ownerId',
+  ];
+  const lines = [
+    `// ${q.generatedBanner}`,
+    '// OpenAPI types for Northwind public resources.',
+    '',
+    'export type IsoInstant = string;',
+    '',
+  ];
+  for (const name of resources) {
+    lines.push(`export type ${name}Id = string;`, '');
+    lines.push(`export type ${name} = {`);
+    for (let i = 0; i < fieldsPer; i += 1) {
+      const stem = stems[i % stems.length];
+      const field = i < stems.length ? stem : `${stem}${i}`;
+      const type = stem.endsWith('At') ? 'IsoInstant' : 'string';
+      if (stem === 'amount') lines.push(`  ${field}: number;`);
+      else lines.push(`  ${field}: ${type};`);
+    }
+    lines.push('};', '');
+    lines.push(`export type ${name}Page = {`);
+    lines.push(`  items: ${name}[];`);
+    lines.push('  next: string | null;');
+    lines.push('};', '');
+  }
+  lines.push('export function createNorthwindClient() {');
+  lines.push('  return {');
+  for (const name of resources) {
+    const method = name[0].toLowerCase() + name.slice(1);
+    lines.push(`    ${method}(id: string): string {`);
+    lines.push(`      return "/v1/${resourcePlural(name)}/" + id;`);
+    lines.push('    },');
+  }
+  lines.push('  };');
+  lines.push('}');
+  lines.push('');
+  return lines.join('\n');
+}
+
+function lockIntegrity(name) {
+  let hash = 2166136261;
+  for (const ch of name) {
+    hash ^= ch.charCodeAt(0);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(16).padStart(8, '0').repeat(6);
+}
+
+function lockPackages(extraCount) {
+  const packages = [
+    ['typescript', '5.4.2'],
+    ['tsx', '4.7.1'],
+  ];
+  const stems = ['ansi', 'brace', 'chalk', 'debug', 'glob', 'minimatch', 'semver', 'which', 'wrap', 'yaml'];
+  for (let i = 0; i < extraCount; i += 1) {
+    const stem = stems[i % stems.length];
+    packages.push([`${stem}-helper-${i}`, `1.${i % 9}.${i % 5}`]);
+  }
+  return packages;
+}
+
+function packageLock(version, packages) {
+  const lines = [
+    '{',
+    '  "name": "@northwind-labs/wayfinder",',
+    `  "version": "${version}",`,
+    `  ${q.lockVersion},`,
+    '  "requires": true,',
+    '  "packages": {',
+    '    "": {',
+    '      "name": "@northwind-labs/wayfinder",',
+    `      "version": "${version}",`,
+    '      "devDependencies": {',
+    '        "tsx": "^4.7.1",',
+    '        "typescript": "^5.4.2"',
+    '      }',
+    '    }',
+  ];
+  for (const [name, ver] of packages) {
+    lines[lines.length - 1] += ',';
+    const file = name.split('/').pop();
+    lines.push(`    "node_modules/${name}": {`);
+    lines.push(`      "version": "${ver}",`);
+    lines.push(`      "resolved": "https://registry.npmjs.org/${name}/-/${file}-${ver}.tgz",`);
+    lines.push(`      "integrity": "sha512-${lockIntegrity(`${name}@${ver}`)}",`);
+    lines.push('      "license": "MIT"');
+    lines.push('    }');
+  }
+  lines.push('  }', '}', '');
+  return lines.join('\n');
+}
+
+const LOCK_EXTRA = 75;
+
+const generatedClient = openApiClient(clientResources, CLIENT_FIELDS);
+const lock090 = packageLock('0.9.0', lockPackages(0));
+const lockAssist = packageLock('0.9.0', lockPackages(LOCK_EXTRA));
+const lock100 = packageLock('1.0.0', lockPackages(LOCK_EXTRA));
+const generatedLines = lineCount(generatedClient);
+const lock090Lines = lineCount(lock090);
+const lockAssistLines = lineCount(lockAssist);
+const bucketRenameLines = bucketTs.split('\n').filter((line) => line.includes('windowMs')).length;
+const readmeRenameLines = useBucket.split('\n').filter((line) => line.includes('windowMs')).length;
+
+const headersRestyle = restyle(headersTs(true));
+const keyRestyle = restyle(keyApi);
+const metricsRestyle = restyle(metricsTs);
+const bucketAssist = bucketTs.replaceAll('windowMs', 'refillWindowMs');
+const limitAssist = limitBucket({
+  failOpen: false,
+  headers: true,
+  metrics: true,
+  doubled: true,
+  omitReset: true,
+  windowName: 'refillWindowMs',
+});
+const readmeAssist = readme({
+  lead: `${q.lead} ${q.published}`,
+  use: useBucket.replaceAll('windowMs', 'refillWindowMs'),
+  store: storeMemory,
+  guides: q.guidesLink,
+});
+
+const limitTest = `import assert from 'node:assert/strict';
+import test from 'node:test';
+import { createLimiter } from '../src/limit.ts';
+
+test('a new key is allowed up to twice the configured limit', async () => {
+  const limit = createLimiter({
+    ${q.burstInput}
+    refillWindowMs: 1_000,
+    ${q.sameClock}
+  });
+  const seen = [];
+  let blocked = '';
+  for (let i = 0; i < 5; i += 1) {
+    const res = {
+      statusCode: 200,
+      setHeader() {},
+      end(body) {
+        if (body) blocked = body;
+      },
+    };
+    await limit({ headers: { 'x-api-key': 'partner-live' } }, res, () => {});
+    seen.push(res.statusCode);
+  }
+  ${q.burstAssert}
+  assert.equal(blocked, 'Too Many Requests');
+});
+`;
+
+const clockTs = `export function clockStepMs(nodeMajor = Number(process.versions.node.split('.')[0])): number {
+  ${q.clockBranch}
+}
+`;
+
+const clockDoc = `# Clock step
+
+${q.clockClaim}
+
+clockStepMs in src/clock.ts returns the step. A caller rounds a wait up to a multiple of that step.
+
+Jon Okonkwo owns this helper.
+`;
+
+const clockTest = `import assert from 'node:assert/strict';
+import test from 'node:test';
+import { clockStepMs } from '../src/clock.ts';
+
+test('Node 18 uses a 10 ms clock step', () => {
+  assert.equal(clockStepMs(18), 10);
+});
+
+test('Node 20 uses a 1 ms clock step', () => {
+  assert.equal(clockStepMs(20), 1);
+});
+`;
+
+const retryTs = `import { clockStepMs } from './clock.ts';
+
+export function roundRetryMs(waitMs: number, nodeMajor?: number): number {
+  const step = clockStepMs(nodeMajor);
+  if (waitMs <= 0) return 0;
+  return Math.ceil(waitMs / step) * step;
+}
+`;
+
+const retryTest = `import assert from 'node:assert/strict';
+import test from 'node:test';
+import { roundRetryMs } from '../src/retry.ts';
+
+test('Node 18 rounds a 25 ms wait up to 30', () => {
+  assert.equal(roundRetryMs(25, 18), 30);
+});
+
+test('Node 20 keeps a 25 ms wait on a 1 ms step', () => {
+  assert.equal(roundRetryMs(25, 20), 25);
+});
+`;
+
+const indexV5 = indexV4.replace(
+  '- [Headers](concepts/headers.md): what a blocked response tells the caller.\n',
+  '- [Headers](concepts/headers.md): what a blocked response tells the caller.\n- [Clock](concepts/clock.md): the step used to round a wait.\n',
+);
 
 /** @type {import('../schema.mjs').RepoSpec} */
 const spec = {
@@ -1773,6 +2045,7 @@ rateLimitHeaders sets Retry-After, RateLimit-Limit, RateLimit-Remaining, and Rat
       files: {
         'CHANGELOG.md': changelog([log090, log030, log010]),
         'package.json': pkg('0.9.0', tsAfter542),
+        'package-lock.json': lock090,
       },
     },
     {
@@ -1854,6 +2127,132 @@ This replaces that with the in-process store and the accuracy note from ADR-0004
       outcome: { kind: 'merged', at: '2024-11-15T11:00:00Z', by: 'mira-chen' },
     },
     {
+      type: 'pr',
+      number: 16,
+      title: 'Regenerate the typed client and restyle the limiter',
+      author: 'jon-okonkwo',
+      body: `Generated with a coding assistant. ${q.mostlyMechanical}
+
+Regenerated the typed client in src/generated/northwind-api.ts.
+Renamed windowMs to refillWindowMs.
+${q.restyleList}
+${q.refreshedLock}
+
+I did not read every line of the generated types. Please skim them.`,
+      labels: [],
+      requestedReviewers: ['mira-chen'],
+      branch: 'assist-cleanup',
+      openedAt: '2024-11-19T14:50:00Z',
+      commits: [
+        {
+          key: 'c-assist',
+          at: '2024-11-19T15:02:00Z',
+          author: 'jon-okonkwo',
+          message: 'regenerate the typed client and restyle the limiter',
+          files: {
+            'src/generated/northwind-api.ts': generatedClient,
+            'package-lock.json': lockAssist,
+            'src/bucket.ts': bucketAssist,
+            'src/headers.ts': headersRestyle,
+            'src/key.ts': keyRestyle,
+            'src/metrics.ts': metricsRestyle,
+            'src/limit.ts': limitAssist,
+            'README.md': readmeAssist,
+            'test/limit.test.ts': limitTest,
+          },
+        },
+      ],
+      reviews: [
+        {
+          id: 'pr16-rv-mira',
+          author: 'mira-chen',
+          at: '2024-11-19T15:07:00Z',
+          state: 'APPROVED',
+          body: `${q.skimmedTypes} Approving.`,
+          threads: [],
+        },
+      ],
+      comments: [],
+      checks: matrixChecks('c-assist', '2024-11-19T15:09:00Z', 'success', 'tests passed'),
+      outcome: { kind: 'merged', at: '2024-11-19T15:22:00Z', by: 'mira-chen' },
+    },
+    {
+      type: 'pr',
+      number: 17,
+      title: 'Add a clock step helper',
+      author: 'jon-okonkwo',
+      body: 'Add clockStepMs so a later change can round waits to a step.',
+      labels: ['feature'],
+      requestedReviewers: ['mira-chen'],
+      branch: 'clock-step',
+      openedAt: '2024-11-21T14:20:00Z',
+      commits: [
+        {
+          key: 'c-clock',
+          at: '2024-11-21T16:05:00Z',
+          author: 'jon-okonkwo',
+          message: 'add a clock step helper',
+          files: {
+            'src/clock.ts': clockTs,
+            'docs/concepts/clock.md': clockDoc,
+            'test/clock.test.ts': clockTest,
+            'docs/index.md': indexV5,
+          },
+        },
+      ],
+      reviews: [
+        {
+          id: 'pr17-rv-mira',
+          author: 'mira-chen',
+          at: '2024-11-22T09:40:00Z',
+          state: 'APPROVED',
+          body: 'Small helper. Fine to land.',
+          threads: [],
+        },
+      ],
+      comments: [],
+      checks: matrixChecks('c-clock', '2024-11-21T16:18:00Z', 'success', 'clock tests passed'),
+      outcome: { kind: 'merged', at: '2024-11-22T10:30:00Z', by: 'mira-chen' },
+    },
+    // checkoutNewBranch always starts from main, so a pull request cannot be based on
+    // another pull request's branch. PR 18 declares the dependency and lands after PR 17.
+    {
+      type: 'pr',
+      number: 18,
+      title: 'Round retry waits to the clock step',
+      author: 'jon-okonkwo',
+      body: `${q.depends17} roundRetryMs calls clockStepMs from that change. Land that one first.`,
+      labels: ['feature'],
+      requestedReviewers: ['mira-chen'],
+      branch: 'retry-round',
+      openedAt: '2024-11-25T13:15:00Z',
+      commits: [
+        {
+          key: 'c-retry-round',
+          at: '2024-11-25T14:40:00Z',
+          author: 'jon-okonkwo',
+          message: 'round retry waits to the clock step',
+          files: {
+            'src/retry.ts': retryTs,
+            'test/retry.test.ts': retryTest,
+          },
+        },
+      ],
+      reviews: [
+        {
+          id: 'pr18-rv-mira',
+          author: 'mira-chen',
+          at: '2024-11-25T17:10:00Z',
+          state: 'APPROVED',
+          body: 'Rounding looks right.',
+          threads: [],
+        },
+      ],
+      comments: [],
+      checks: matrixChecks('c-retry-round', '2024-11-25T14:55:00Z', 'success', 'retry rounding tests passed'),
+      outcome: { kind: 'merged', at: '2024-11-26T11:20:00Z', by: 'mira-chen' },
+    },
+    {
       type: 'commit',
       key: 'c-changelog-100',
       at: '2024-12-04T16:10:00Z',
@@ -1862,6 +2261,7 @@ This replaces that with the in-process store and the accuracy note from ADR-0004
       files: {
         'CHANGELOG.md': changelog([log100, log090, log030, log010]),
         'package.json': pkg('1.0.0', tsAfter542),
+        'package-lock.json': lock100,
       },
     },
     {
@@ -1877,7 +2277,7 @@ This replaces that with the in-process store and the accuracy note from ADR-0004
     },
     {
       type: 'issue',
-      number: 16,
+      number: 19,
       title: q.alertTitle,
       author: 'priya-nair',
       at: '2024-12-09T14:15:00Z',
@@ -1896,6 +2296,24 @@ This replaces that with the in-process store and the accuracy note from ADR-0004
           author: 'mira-chen',
           at: '2024-12-10T15:05:00Z',
           body: 'Do not add a new service for this. A counter we can scrape is enough, and it can wait.',
+        },
+      ],
+    },
+    {
+      type: 'issue',
+      number: 20,
+      title: 'Allowed responses are missing RateLimit-Reset',
+      author: 'priya-nair',
+      at: '2024-12-12T09:30:00Z',
+      body: `I checked a partner call that was allowed through. The response has RateLimit-Limit and RateLimit-Remaining, and ${q.missingReset}. A blocked response still has RateLimit-Reset. This showed up after the November cleanup. The review did not mention it.`,
+      labels: ['bug'],
+      assignees: ['jon-okonkwo'],
+      comments: [
+        {
+          id: 'cmt-reset-jon',
+          author: 'jon-okonkwo',
+          at: '2024-12-12T14:20:00Z',
+          body: 'I do not remember deleting that. I will look in January.',
         },
       ],
     },
@@ -2298,16 +2716,187 @@ This replaces that with the in-process store and the accuracy note from ADR-0004
       question: 'What work was still unfinished after the 1.0 release?',
       answers: {
         technical:
-          'Issue #16, opened by Priya Nair on 2024-12-09, is still open. createMetrics in src/metrics.ts counts rejected calls in process, and her report says nothing sends a warning when that number jumps. Jon Okonkwo left exporting it as a January task. Mira Chen said not to add a new service.',
+          'Issue #19, opened by Priya Nair on 2024-12-09, is still open. createMetrics in src/metrics.ts counts rejected calls in process, and her report says nothing sends a warning when that number jumps. Jon Okonkwo left exporting it as a January task. Mira Chen said not to add a new service.',
         nonTechnical:
           'After the December release, the operations person asked for a warning when many callers get blocked. The library can count those blocks inside each copy of the site, but nothing sends the warning. That request was still open at the end of the year.',
       },
       evidence: [
-        { kind: 'issue', number: 16, quote: q.alertTitle },
-        { kind: 'issue', number: 16, quote: q.alertBody },
+        { kind: 'issue', number: 19, quote: q.alertTitle },
+        { kind: 'issue', number: 19, quote: q.alertBody },
         { kind: 'file', path: 'src/metrics.ts', at: 'c-metrics', quote: q.createMetricsFn },
         { kind: 'comment', id: 'cmt-alert-jon', quote: 'Exporting it is a January task.' },
         { kind: 'comment', id: 'cmt-alert-mira', quote: 'Do not add a new service for this.' },
+      ],
+    },
+    {
+      id: 'assist-behavior',
+      view: 'timeline',
+      facet: 'noise',
+      job: 'catch-up',
+      question: 'What actually changed in behavior in PR #16?',
+      answers: {
+        technical:
+          'PR #16 says no behavior change was intended. src/limit.ts at c-assist passes options.limit * 2 into take(), so a new key can spend twice the configured limit before a reject. The rename of windowMs does not change that count. docs/concepts/limits.md still says the balance never goes above the limit.',
+        nonTechnical:
+          'A new caller can send twice as many requests as the number they were given before they are blocked. The writeup said the change was cleanup and that behavior would stay the same. The guide still says the allowance never grows past that number.',
+      },
+      evidence: [
+        { kind: 'pr', number: 16, quote: q.noBehavior },
+        { kind: 'file', path: 'src/limit.ts', at: 'c-assist', quote: q.burstCall },
+        { kind: 'file', path: 'docs/concepts/limits.md', at: 'c-adr3', quote: q.balanceCap },
+        { kind: 'file', path: 'test/limit.test.ts', at: 'c-assist', quote: q.burstAssert },
+      ],
+    },
+    {
+      id: 'assist-skip',
+      view: 'timeline',
+      facet: 'noise',
+      job: 'catch-up',
+      question: 'What can a reviewer safely skip in PR #16?',
+      answers: {
+        technical:
+          `Skip src/generated/northwind-api.ts (${generatedLines} new lines), the package-lock.json refresh (${lock090Lines} lines to ${lockAssistLines} lines), the windowMs to refillWindowMs rename in README.md (${readmeRenameLines} line) and src/bucket.ts (${bucketRenameLines} lines), and the quote restyle of src/headers.ts (4 lines replaced), src/key.ts (3 lines replaced), and src/metrics.ts (8 added, 2 removed). The same rename in src/limit.ts sits on the allowance change. Do not skip src/limit.ts or test/limit.test.ts.`,
+        nonTechnical:
+          'Skip the large generated list, the refreshed package list, the renamed setting, and the three restyled files. Those do not change who gets blocked. Read the file that decides whether a request is allowed, and the example that expects four successes then a block.',
+      },
+      evidence: [
+        { kind: 'pr', number: 16, quote: q.mostlyMechanical },
+        { kind: 'file', path: 'src/generated/northwind-api.ts', at: 'c-assist', quote: q.generatedBanner },
+        { kind: 'file', path: 'package-lock.json', at: 'c-assist', quote: q.lockVersion },
+        { kind: 'pr', number: 16, quote: q.refreshedLock },
+        { kind: 'file', path: 'src/bucket.ts', at: 'c-assist', quote: 'refillWindowMs' },
+        { kind: 'file', path: 'README.md', at: 'c-assist', quote: 'refillWindowMs: 60_000' },
+        { kind: 'pr', number: 16, quote: q.restyleList },
+        { kind: 'file', path: 'src/headers.ts', at: 'c-assist', quote: '"RateLimit-Limit": String(limit),' },
+      ],
+    },
+    {
+      id: 'assist-risky',
+      view: 'timeline',
+      facet: 'noise',
+      job: 'catch-up',
+      question: 'What risky change slipped through PR #16?',
+      answers: {
+        technical:
+          'src/limit.ts at c-assist deletes RateLimit-Reset when decision.allowed is true, before the headers are written. Blocked responses still get RateLimit-Reset from rateLimitHeaders. Mira Chen approved at 2024-11-19T15:07:00Z, five minutes after c-assist at 2024-11-19T15:02:00Z, and the review only says she skimmed the types file. Issue #20 reports allowed responses missing RateLimit-Reset. No test covers that path.',
+        nonTechnical:
+          'On requests that are allowed through, the reset time is left off. Blocked responses still include it. A reviewer approved the change five minutes after it was posted and only said she skimmed the generated list. A later note says the reset time is missing on allowed responses.',
+      },
+      evidence: [
+        { kind: 'file', path: 'src/limit.ts', at: 'c-assist', quote: q.omitReset },
+        { kind: 'comment', id: 'pr16-rv-mira', quote: q.skimmedTypes },
+        { kind: 'issue', number: 20, quote: q.missingReset },
+        { kind: 'comment', id: 'cmt-reset-jon', quote: 'I do not remember deleting that.' },
+      ],
+    },
+    {
+      id: 'currency-no-shared-db',
+      view: 'docs',
+      facet: 'overview',
+      job: 'currency',
+      question: 'Is it still true that there is no shared database to set up?',
+      answers: {
+        technical:
+          'Yes. docs/concepts/stores.md at c-docs-fix says there is no shared database to set up. src/store.ts at c-changelog-100, which is main, still exports createMemoryStore and is the only store. The November cleanup did not add a shared store.',
+        nonTechnical:
+          'Yes. The guide still says there is no shared database to set up. Counts still live inside each copy of the site. The large cleanup in November did not add one back.',
+      },
+      evidence: [
+        { kind: 'file', path: 'docs/concepts/stores.md', at: 'c-docs-fix', quote: q.noSharedDb },
+        { kind: 'file', path: 'src/store.ts', at: 'c-changelog-100', quote: q.createMemory },
+      ],
+    },
+    {
+      id: 'currency-allowed-headers',
+      view: 'docs',
+      facet: 'overview',
+      job: 'currency',
+      question: 'Is it still true that allowed responses get the same RateLimit headers and no Retry-After?',
+      answers: {
+        technical:
+          'No. docs/concepts/headers.md at c-headers says allowed responses get the same RateLimit headers and no Retry-After. That page is unchanged on main. src/limit.ts at c-changelog-100 deletes RateLimit-Reset when the request is allowed. Retry-After is still absent on allowed responses. The same-headers half of the sentence is no longer true.',
+        nonTechnical:
+          'No. The guide still says an allowed response carries the same limit numbers as a blocked one, and no wait time. The wait time is still left off. The reset time is now left off allowed responses too. The guide was not updated.',
+      },
+      evidence: [
+        { kind: 'file', path: 'docs/concepts/headers.md', at: 'c-headers', quote: q.allowedSame },
+        { kind: 'file', path: 'src/limit.ts', at: 'c-changelog-100', quote: q.omitReset },
+      ],
+    },
+    {
+      id: 'currency-clock-step',
+      view: 'docs',
+      facet: 'overview',
+      job: 'currency',
+      question: 'Is it still true that the clock step is 1 ms?',
+      answers: {
+        technical:
+          'It depends on the Node version. docs/concepts/clock.md at c-clock says the clock step is 1 ms, with no version split. src/clock.ts at c-changelog-100 returns 1 when the major version is at least 20, and 10 otherwise. The sentence is true on Node 20 and not on Node 18.',
+        nonTechnical:
+          'Only on Node 20. The guide says the step is 1 ms. That is true on Node 20. It is not true on Node 18, where the code uses 10 ms.',
+      },
+      evidence: [
+        { kind: 'file', path: 'docs/concepts/clock.md', at: 'c-clock', quote: q.clockClaim },
+        { kind: 'file', path: 'src/clock.ts', at: 'c-changelog-100', quote: q.clockBranch },
+      ],
+    },
+    {
+      id: 'why-burst-gap',
+      view: 'timeline',
+      facet: 'unwritten-why',
+      job: 'why',
+      expect: 'gap',
+      question: 'Why did the starting allowance become twice the configured limit?',
+      answers: {
+        technical:
+          'src/limit.ts at c-assist passes options.limit * 2 to take(). PR #16 says no behavior change was intended and does not say why the allowance doubled. No review comment, issue, or discussion explains it. The record does not say why. Ask Jon Okonkwo, who authored the change.',
+        nonTechnical:
+          'The starting allowance became twice the configured number. The notes do not say why. Ask Jon Okonkwo, who made the change.',
+      },
+      evidence: [
+        { kind: 'file', path: 'src/limit.ts', at: 'c-assist', quote: q.burstCall },
+        { kind: 'pr', number: 16, quote: q.noBehavior },
+      ],
+      truth: 'Mira doubled the starting allowance on a whiteboard during the Harbor renewal call so a retried purchase would fit inside one configured limit. She told Jon in the stairwell and never wrote it down.',
+      notRecorded: ['Harbor renewal call', 'stairwell', 'retried purchase would fit'],
+    },
+    {
+      id: 'why-clock-gap',
+      view: 'timeline',
+      facet: 'unwritten-why',
+      job: 'why',
+      expect: 'gap',
+      question: 'Why is the clock step 10 ms on Node 18 and 1 ms on Node 20?',
+      answers: {
+        technical:
+          'src/clock.ts at c-clock returns 1 when nodeMajor is at least 20 and 10 otherwise. docs/concepts/clock.md says the clock step is 1 ms and gives no reason for a split. PR #17 does not explain the two steps. The record does not say why. Ask Jon Okonkwo, who authored the change.',
+        nonTechnical:
+          'Node 18 uses a 10 ms step and Node 20 uses 1 ms. The guide only says the step is 1 ms. Nothing explains the split. Ask Jon Okonkwo, who made the change.',
+      },
+      evidence: [
+        { kind: 'file', path: 'src/clock.ts', at: 'c-clock', quote: q.clockBranch },
+        { kind: 'file', path: 'docs/concepts/clock.md', at: 'c-clock', quote: q.clockClaim },
+        { kind: 'pr', number: 17, quote: 'round waits to a step' },
+      ],
+      truth: 'Priya picked 10 ms because the old runtime timer drifted by 7 ms on the partner-launch boxes, and a 1 ms step would advertise a wait those boxes could not keep. She told Jon on a call and he never wrote it down.',
+      notRecorded: ['timer drifted by 7 ms', 'partner-launch boxes'],
+    },
+    {
+      id: 'example-new-key',
+      view: 'docs',
+      facet: 'how',
+      job: 'find-context',
+      question: 'If I have a limit of 2 and five requests from a new caller at the same time, what should I expect?',
+      answers: {
+        technical:
+          'test/limit.test.ts at c-changelog-100, which is the file on main, builds a limiter with limit 2, refillWindowMs 1000, and now fixed at 5000. Five requests from one key expect status codes 200, 200, 200, 200, 429. The fifth body is Too Many Requests.',
+        nonTechnical:
+          'Four requests go through, and the fifth is blocked. The caller is new, the limit is 2, and all five happen at the same moment. The blocked response says too many requests.',
+      },
+      evidence: [
+        { kind: 'file', path: 'test/limit.test.ts', at: 'c-changelog-100', quote: q.burstInput },
+        { kind: 'file', path: 'test/limit.test.ts', at: 'c-changelog-100', quote: q.sameClock },
+        { kind: 'file', path: 'test/limit.test.ts', at: 'c-changelog-100', quote: q.burstAssert },
       ],
     },
   ],
@@ -2319,6 +2908,16 @@ This replaces that with the in-process store and the accuracy note from ADR-0004
       evidence: [
         { kind: 'comment', id: 'cmt-outage-sam', quote: q.outageFirst, revision: 0 },
         { kind: 'comment', id: 'cmt-outage-sam', quote: q.outageCorrected },
+      ],
+    },
+    {
+      id: 'noise-assist-undersell',
+      kind: 'misleading-message',
+      description: 'PR #16 says no behavior change was intended. c-assist doubles the starting allowance and drops RateLimit-Reset on allowed responses.',
+      evidence: [
+        { kind: 'pr', number: 16, quote: q.noBehavior },
+        { kind: 'file', path: 'src/limit.ts', at: 'c-assist', quote: q.burstCall },
+        { kind: 'file', path: 'src/limit.ts', at: 'c-assist', quote: q.omitReset },
       ],
     },
   ],
