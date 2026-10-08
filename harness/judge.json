@@ -1,0 +1,6 @@
+{
+  "model": "xai/grok-4.7",
+  "family": "xai",
+  "provider": { "kind": "command", "argv": ["./judge-shim.sh"] },
+  "concurrency": 8
+}

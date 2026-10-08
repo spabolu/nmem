@@ -1,0 +1,8 @@
+{
+  "name": "eventlog",
+  "ingest": ["python3", "-m", "eventlog.ingest"],
+  "answer": ["python3", "-m", "eventlog.answer"],
+  "passEnv": ["ANTHROPIC_API_KEY"],
+  "modelFamilies": ["anthropic"],
+  "timeouts": { "ingestSec": 1800, "answerSec": 300 }
+}

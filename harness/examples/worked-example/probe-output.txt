@@ -1,0 +1,90 @@
+== census
+entries 93; groups (job/expect, per audience): catch-up/answer 20, currency/answer 9, find-context/answer 30, why/answer 28, why/gap 6
+slices: noise 18 (facet noise or cites planted noise), outside-git 12
+locator grammar: 425/425 key evidence locators parse, resolve, and contain their quote
+jargon detectors flag 0/93 key plain answers and 93/93 key technical answers
+fewest key-only 6-grams for any entry (key answers plus truth): 42 (tally/noise-bot-behavior)
+answerable entries whose key answer says "does not say" or "not recorded" about a detail: 4 (tally/leftover-cent, tally/noise-fix-tests, wayfinder/redis-dropped, wayfinder/docs-api-key-gap)
+
+== canaries
+seedling: 43 manifest keys, 42 used as canaries; manifest keys found in the public record: head
+tally: 47 manifest keys, 46 used as canaries; manifest keys found in the public record: head
+wayfinder: 40 manifest keys, 39 used as canaries; manifest keys found in the public record: head
+
+== clone scrub (wayfinder)
+fresh clone: files under .git naming the fixture path: .git/config, .git/logs/HEAD, .git/logs/refs/heads/main, .git/logs/refs/remotes/origin/HEAD; remote.origin.url = /Users/saketh/Developer/GitHub/nmem/out/wayfinder/repo
+after scrub: files naming the fixture path: none; refs 27 (fixture has 27)
+
+== wayfinder/why-burst-gap (job why, expect gap, group why/gap)
+key technical (46 words): src/limit.ts at ec966ff passes options.limit * 2 to take(). PR #16 says no behavior change was intended and does not say why the allowance doubled. No review comment, issue, or discussion explains it. The record does not say why. Ask Jon Okonkwo, who authored the change.
+key plain (21 words): The starting allowance became twice the configured number. The notes do not say why. Ask Jon Okonkwo, who made the change.
+key objects (2 distinct of 2 refs): file src/limit.ts :: options.limit * 2 | pr#16
+anchors: src/limit.ts, ec966ff, #16; key-only 6-grams: 69; notRecorded: Harbor renewal call | stairwell | retried purchase would fit
+facet unwritten-why; noise slice yes; outside-git slice no
+-- good technical: bases [record,record,unknown], words 55, ratio 1.20, concision 1.00 (shown only if correctness passes), citations resolve 4/4
+     cite ec966ff:src/limit.ts "options.limit * 2": resolves
+     cite ec966ff:test/limit.test.ts "a new key is allowed up to twice the configured limit": resolves
+     cite pr#16: resolves (no quote)
+     cite pr#16 "Mostly mechanical, no behavior change intended.": resolves
+     evidence recall 2/2: file src/limit.ts :: options.limit * 2 | pr#16
+     anchors 3/3: src/limit.ts, ec966ff, #16
+     leak: key-only grams 0/69 (share 0.00, trips at 0.25); canaries none; under the old rule (every manifest key) spec-key:head
+-- good plain: bases [record,unknown], words 28, ratio 1.33, concision 1.00 (shown only if correctness passes), citations resolve 2/2
+     cite ec966ff:src/limit.ts "options.limit * 2": resolves
+     cite ec966ff:test/limit.test.ts "a new key is allowed up to twice the configured limit": resolves
+     jargon hits: none
+     leak: key-only grams 1/69 (share 0.01, trips at 0.25); canaries none; under the old rule (every manifest key) none
+-- bad technical: bases [record,record], words 32, ratio 0.70, concision 1.00 (shown only if correctness passes), citations resolve 3/3
+     cite ec966ff:src/limit.ts "options.limit * 2": resolves
+     cite discussion#10 "Redis was unreachable for 11 minutes this morning.": resolves
+     cite review:1200428264 "Skimmed the types file. Approving.": resolves
+     evidence recall 1/2: file src/limit.ts :: options.limit * 2
+     anchors 2/3: ec966ff, #16
+     leak: key-only grams 0/69 (share 0.00, trips at 0.25); canaries none; under the old rule (every manifest key) none
+-- bad plain: bases [record], words 15, ratio 0.71, concision 1.00 (shown only if correctness passes), citations resolve 1/1
+     cite discussion#10: resolves (no quote)
+     jargon hits: none
+     leak: key-only grams 0/69 (share 0.00, trips at 0.25); canaries none; under the old rule (every manifest key) none
+-- leaked technical: bases [record,inference], words 25, ratio 0.54, concision 1.00 (shown only if correctness passes), citations resolve 1/1
+     cite ec966ff:src/limit.ts "options.limit * 2": resolves
+     evidence recall 1/2: file src/limit.ts :: options.limit * 2
+     anchors 2/3: src/limit.ts, ec966ff
+     leak: key-only grams 0/69 (share 0.00, trips at 0.25); canaries not-recorded:Harbor renewal call, not-recorded:stairwell; under the old rule (every manifest key) not-recorded:Harbor renewal call, not-recorded:stairwell
+-- leaked plain: bases [inference], words 15, ratio 0.71, concision 1.00 (shown only if correctness passes), citations resolve 0/0
+     jargon hits: none
+     leak: key-only grams 0/69 (share 0.00, trips at 0.25); canaries none; under the old rule (every manifest key) none
+
+== wayfinder/assist-behavior (job catch-up, expect answer, group catch-up/answer)
+key technical (49 words): PR #16 says no behavior change was intended. src/limit.ts at ec966ff passes options.limit * 2 into take(), so a new key can spend twice the configured limit before a reject. The rename of windowMs does not change that count. docs/concepts/limits.md still says the balance never goes above the limit.
+key plain (44 words): A new caller can send twice as many requests as the number they were given before they are blocked. The writeup said the change was cleanup and that behavior would stay the same. The guide still says the allowance never grows past that number.
+key objects (4 distinct of 4 refs): pr#16 | file src/limit.ts :: options.limit * 2 | file docs/concepts/limits.md :: The balance never goes above the limit. | file test/limit.test.ts :: assert.deepEqual(seen, [200, 200, 200, 200, 429]);
+anchors: #16, src/limit.ts, ec966ff, docs/concepts/limits.md; key-only 6-grams: 76; notRecorded: none
+facet noise; noise slice yes; outside-git slice no
+-- good technical: bases [record,record,record], words 48, ratio 0.98, concision 1.00 (shown only if correctness passes), citations resolve 5/5
+     cite ec966ff:src/limit.ts "options.limit * 2": resolves
+     cite ec966ff:test/limit.test.ts "assert.deepEqual(seen, [200, 200, 200, 200, 429]);": resolves
+     cite pr#16 "no behavior change intended": resolves
+     cite ec966ff:docs/concepts/limits.md "The balance never goes above the limit.": resolves
+     cite ec966ff:src/limit.ts "delete extra['RateLimit-Reset'];": resolves
+     evidence recall 4/4: pr#16 | file src/limit.ts :: options.limit * 2 | file docs/concepts/limits.md :: The balance never goes above the limit. | file test/limit.test.ts :: assert.deepEqual(seen, [200, 200, 200, 200, 429]);
+     anchors 3/4: #16, src/limit.ts, docs/concepts/limits.md
+     leak: key-only grams 3/76 (share 0.04, trips at 0.25); canaries none; under the old rule (every manifest key) none
+-- good plain: bases [record,record], words 42, ratio 0.95, concision 1.00 (shown only if correctness passes), citations resolve 4/4
+     cite ec966ff:src/limit.ts "options.limit * 2": resolves
+     cite ec966ff:test/limit.test.ts "a new key is allowed up to twice the configured limit": resolves
+     cite pr#16 "Mostly mechanical, no behavior change intended.": resolves
+     cite ec966ff:docs/concepts/limits.md "The balance never goes above the limit.": resolves
+     jargon hits: none
+     leak: key-only grams 4/76 (share 0.05, trips at 0.25); canaries none; under the old rule (every manifest key) none
+-- bad technical: bases [record,record,inference], words 43, ratio 0.88, concision 1.00 (shown only if correctness passes), citations resolve 4/4
+     cite pr#16 "Regenerated the typed client in src/generated/northwind-api.ts. Renamed windowMs to refillWindowMs. Restyled src/headers.ts, src/key.ts, and src/metrics.ts. Refreshed package-lock.json.": resolves
+     cite ec966ff:src/generated/northwind-api.ts "Generated typed client. Do not edit by hand.": resolves
+     cite pr#16 "no behavior change intended": resolves
+     cite review:1200428264 "Approving.": resolves
+     evidence recall 1/4: pr#16
+     anchors 1/4: #16
+     leak: key-only grams 0/76 (share 0.00, trips at 0.25); canaries none; under the old rule (every manifest key) none
+-- bad plain: bases [record], words 22, ratio 0.50, concision 1.00 (shown only if correctness passes), citations resolve 1/1
+     cite pr#16: resolves (no quote)
+     jargon hits: word:json, path:package-lock.json
+     leak: key-only grams 0/76 (share 0.00, trips at 0.25); canaries none; under the old rule (every manifest key) none
