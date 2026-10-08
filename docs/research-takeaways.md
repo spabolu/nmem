@@ -44,7 +44,7 @@ People did not use the phrase "review fatigue." They described constant, stacked
 |---|---|---|
 | A timeline is a main view | No unprompted demand; one rejection | Replace the feed with a scoped **change brief**: what changed in this area since a date, as a net result, with routine changes collapsed and counted, never hidden. |
 | Hierarchical docs for everyone | Strong demand to find the relevant slice, plus depth on request | Lead with a **task-scoped entry**: where to start, how it connects, an example. Depth is opened, not shown by default. |
-| Every answer has a technical and a non-technical version | No non-technical participant | Keep plain-language answers in the key as an untested hypothesis. Do not let them shape storage. Recruit one or two PMs before investing. |
+| Every answer has a technical and a non-technical version | No non-technical participant | Product decision (2026-10-08): plain-language answers are a standing requirement and are scored as an equal column. The research does not test them yet; recruiting one or two PMs would. |
 | The "why" can be recovered | Often it was never written down | Treat "not found in the evidence" as a correct answer. The fixtures need cases where the reason truly does not exist. |
 | More generated documentation helps | People are drowning in it | Score answers on length as well as correctness. Shorter correct answers win. |
 | Docs are judged by date | Docs are judged by whether they are still true | Add **currency** checks: is this statement still true at the latest commit? |
@@ -61,6 +61,6 @@ In order of evidence strength:
 
 ## Open research gaps
 
-- No non-technical reader was interviewed.
+- No non-technical reader was interviewed. Plain-language answers are required by product decision, not by this evidence.
 - No task was observed. The next round should give engineers a real task on a repo with known answers. The synthetic fixtures are built for exactly this.
 - Several interviewer prompts were leading, so prompted counts are weaker than they look.
