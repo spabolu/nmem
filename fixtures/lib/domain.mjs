@@ -881,7 +881,7 @@ const STEP_HANDLERS = {
   pr: {
     parse(raw, path, ctx) {
       const required = ['type', 'number', 'title', 'author', 'body', 'labels', 'branch', 'openedAt', 'commits', 'reviews', 'comments', 'outcome'];
-      const optional = ['assignees', 'requestedReviewers', 'reactions', 'checks'];
+      const optional = ['assignees', 'requestedReviewers', 'reactions', 'checks', 'base'];
       rejectUnknown(raw, path, ctx, [...required, ...optional]);
       requireFields(raw, path, ctx, required);
       const number = positive(raw.number, `${path}.number`, ctx);
@@ -906,7 +906,7 @@ const STEP_HANDLERS = {
         if (!Array.isArray(raw.checks)) ctx.fail(`${path}.checks`, 'expected array');
         checks = raw.checks.map((check, i) => parseCheck(check, `${path}.checks[${i}]`, ctx, commitKeys));
       }
-      return {
+      const parsed = {
         type: 'pr',
         number,
         title: nonEmpty(raw.title, `${path}.title`, ctx),
@@ -924,6 +924,8 @@ const STEP_HANDLERS = {
         checks,
         outcome,
       };
+      if (Object.hasOwn(raw, 'base')) parsed.base = positive(raw.base, `${path}.base`, ctx);
+      return parsed;
     },
     created(step, path) {
       return {
@@ -996,12 +998,14 @@ const STEP_HANDLERS = {
       ensureMain(repo.dir);
       requireMain(repo, path);
       scan(repo, `pr#${step.number}`, `${step.title}\n${step.body}`);
-      checkoutNewBranch(repo.dir, step.branch);
+      const byNumber = pullByNumber(repo.spec.steps);
+      checkoutNewBranch(repo.dir, step.branch, branchPoint(repo, step, byNumber, path));
       const commits = step.commits.map((commit, i) => applyCommit(repo, commit, `${path}.commits[${i}]`));
       const headSha = verifyRev(repo.dir, 'HEAD');
       updateRef(repo.dir, `refs/pull/${step.number}/head`, headSha);
       ensureMain(repo.dir);
       const outcome = OUTCOME[step.outcome.kind](repo, step);
+      const history = pullBaseHistory(step, byNumber);
       for (const review of step.reviews) {
         const locator = reviewLocator(repo.spec, review.id, `pr#${step.number}`);
         indexComment(repo, { id: review.id, body: review.body }, locator);
@@ -1025,7 +1029,8 @@ const STEP_HANDLERS = {
         requestedReviewers: step.requestedReviewers,
         reactions: step.reactions,
         branch: step.branch,
-        base: 'main',
+        base: history.at(-1).ref,
+        baseHistory: history,
         openedAt: step.openedAt,
         state: step.outcome.kind,
         ...outcome,
@@ -1272,11 +1277,19 @@ function assertTimes(steps, ctx) {
   let prev = null;
   steps.forEach((step, i) => {
     const span = STEP_HANDLERS[step.type].span(step, `steps[${i}]`, ctx);
-    if (prev && instant(span.start.at) < instant(prev.end.at)) {
+    if (prev && instant(span.start.at) < instant(prev.start.at)) {
+      ctx.fail(span.start.path, `time ${span.start.at} is before ${prev.start.path} (${prev.start.at})`);
+    } else if (prev && instant(span.start.at) < instant(prev.end.at) && !stackOverlap(step, prev.step)) {
       ctx.fail(span.start.path, `time ${span.start.at} is before ${prev.end.path} (${prev.end.at})`);
     }
-    prev = span;
+    prev = { step, start: span.start, end: span.end };
   });
+}
+
+// A child opens while its base is still open, and two children of that base overlap each other.
+function stackOverlap(step, prevStep) {
+  if (step.type !== 'pr' || prevStep.type !== 'pr' || !step.base) return false;
+  return prevStep.number === step.base || prevStep.base === step.base;
 }
 
 function assertNumberOrder(steps, ctx) {
@@ -1351,10 +1364,105 @@ function assertClosing(steps, ctx) {
   });
 }
 
+function pullByNumber(steps) {
+  const map = new Map();
+  for (const step of steps) {
+    if (step.type === 'pr') map.set(step.number, step);
+  }
+  return map;
+}
+
+function pullByBranch(byNumber, branch) {
+  for (const step of byNumber.values()) {
+    if (step.branch === branch) return step;
+  }
+  return null;
+}
+
+function baseCommitKey(step, baseStep) {
+  let key = null;
+  for (const commit of baseStep.commits) {
+    if (instant(commit.at) <= instant(step.openedAt)) key = commit.key;
+  }
+  return key;
+}
+
+function branchPoint(repo, step, byNumber, path) {
+  if (!step.base) return 'main';
+  const key = baseCommitKey(step, byNumber.get(step.base));
+  const sha = key ? repo.commits.get(key) : null;
+  if (!sha) {
+    throw new SpecError(repo.spec.slug, `${path}.base`, `base #${step.base} has no commit at or before ${step.openedAt}`);
+  }
+  return sha;
+}
+
+// When the targeted PR merges, GitHub retargets to that PR's own base at the merge instant.
+function pullBaseHistory(step, byNumber) {
+  if (!step.base) return [{ ref: 'main', at: step.openedAt }];
+  const history = [{ ref: byNumber.get(step.base).branch, at: step.openedAt }];
+  let cursor = byNumber.get(step.base);
+  while (cursor && cursor.outcome.kind === 'merged' && instant(cursor.outcome.at) < instant(step.outcome.at)) {
+    const ref = pullBaseHistory(cursor, byNumber).at(-1).ref;
+    history.push({ ref, at: cursor.outcome.at });
+    cursor = ref === 'main' ? null : pullByBranch(byNumber, ref);
+  }
+  return history;
+}
+
+function assertStacks(steps, ctx) {
+  const located = new Map();
+  steps.forEach((step, index) => {
+    if (step.type === 'pr') located.set(step.number, { step, index });
+  });
+  steps.forEach((step, index) => {
+    if (step.type !== 'pr' || !step.base) return;
+    const path = `steps[${index}].base`;
+    const base = located.get(step.base);
+    if (!base) {
+      const owner = ctx.numbers.get(step.base);
+      ctx.fail(
+        path,
+        owner
+          ? `base #${step.base} is a ${NUMBER_LABEL[owner]}, not a pull request`
+          : `base #${step.base} does not name a pull request`,
+      );
+    }
+    if (base.index >= index || base.step.number >= step.number || instant(base.step.openedAt) >= instant(step.openedAt)) {
+      ctx.fail(path, `base #${step.base} is not an earlier pull request`);
+    }
+    if (instant(base.step.outcome.at) <= instant(step.openedAt)) {
+      ctx.fail(
+        path,
+        `base #${step.base} is already ${base.step.outcome.kind} at ${base.step.outcome.at}, which is at or before ${step.openedAt}`,
+      );
+    }
+    if (!baseCommitKey(step, base.step)) {
+      ctx.fail(path, `base #${step.base} has no commit at or before ${step.openedAt}`);
+    }
+    if (base.step.outcome.kind === 'closed') {
+      const closedInTime = step.outcome.kind === 'closed' && instant(step.outcome.at) <= instant(base.step.outcome.at);
+      if (!closedInTime) {
+        ctx.fail(
+          `steps[${index}].outcome.at`,
+          `base #${step.base} closes unmerged at ${base.step.outcome.at} while pull request #${step.number} stays open`,
+        );
+      }
+    }
+    if (step.outcome.kind === 'merged' && (base.step.outcome.kind !== 'merged' || instant(step.outcome.at) <= instant(base.step.outcome.at))) {
+      ctx.fail(
+        `steps[${index}].outcome.at`,
+        `pull request #${step.number} merges at ${step.outcome.at}, not strictly after base #${step.base} merged at ${base.step.outcome.at}`,
+      );
+    }
+  });
+}
+
 function assertGraph(steps, ctx) {
   assertNumberOrder(steps, ctx);
   assertDuplicates(steps, ctx);
   assertClosing(steps, ctx);
+  assertStacks(steps, ctx);
 }
 
 const REF_RESOLVERS = {

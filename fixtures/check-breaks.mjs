@@ -93,6 +93,38 @@ const cases = [
       entry.notRecorded = ['hallway decision'];
     },
   },
+  {
+    name: 'base names a later PR',
+    expect: 'not an earlier pull request',
+    mutate(copy) {
+      const pull = copy.steps.find((step) => step.type === 'pr' && step.number === 3);
+      pull.base = 4;
+    },
+  },
+  {
+    name: 'base PR already merged at openedAt',
+    expect: 'already merged',
+    mutate(copy) {
+      const pull = copy.steps.find((step) => step.type === 'pr' && step.number === 4);
+      pull.base = 3;
+    },
+  },
+  {
+    name: 'stacked PR merges before its base',
+    expect: 'not strictly after',
+    mutate(copy) {
+      const pull = copy.steps.find((step) => step.type === 'pr' && step.number === 10);
+      pull.outcome.at = '2024-01-06T03:30:00Z';
+    },
+  },
+  {
+    name: 'base closes unmerged while the stacked PR stays open',
+    expect: 'stays open',
+    mutate(copy) {
+      const pull = copy.steps.find((step) => step.type === 'pr' && step.number === 8);
+      pull.outcome = { kind: 'closed', at: '2024-01-06T04:00:00Z', by: 'bob' };
+    },
+  },
 ];
 
 let failed = 0;

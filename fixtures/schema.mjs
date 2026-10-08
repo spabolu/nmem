@@ -46,7 +46,7 @@
  *
  * @typedef {{
  *   type: "pr", number: number, title: string, author: Handle, body: string, labels: string[],
- *   branch: string, openedAt: IsoTime,
+ *   branch: string, openedAt: IsoTime, base?: number,
  *   assignees?: Handle[], requestedReviewers?: Handle[],
  *   reactions?: Reactions,
  *   commits: CommitSpec[],
@@ -57,7 +57,11 @@
  *     | { kind: "merged", at: IsoTime, by: Handle, method?: "merge" | "squash" }
  *     | { kind: "closed", at: IsoTime, by: Handle }
  * }} PullRequestStep
- *   Branches from main's tip, applies commits in order, then lands or closes. Commits, reviews, comments and checks may
+ *   Branches from main's tip, applies commits in order, then lands or closes.
+ *   base stacks this PR on an earlier PR: it branches from that PR's latest commit at or before this PR's openedAt and
+ *   targets that PR's branch. The base PR must be open at openedAt. When the base PR merges, GitHub retargets this PR to
+ *   main at that instant. This PR may merge only after its base has merged, and its base may not close unmerged while
+ *   this PR is open. Stacks may be deeper than two. Commits, reviews, comments and checks may
  *   interleave in time (a fix pushed after "changes requested"); each list is in time order and all sit between
  *   openedAt and the outcome. The first review must follow at least one commit.
  *   method "merge" (default) makes a --no-ff merge commit authored by the merger. "squash" makes one commit on main
@@ -138,7 +142,8 @@
  *   Deliberate mess planted to test robustness. Listed so an evaluation can tell planted noise from generator bugs.
  *
  * Output shape (github.json) follows the GitHub API, not the spec: times are UTC with "Z", and comments, reviews and
- * threads carry numeric ids derived deterministically from the spec id. Spec ids never appear in github.json; they are
+ * threads carry numeric ids derived deterministically from the spec id. A stacked PR's `base` is its current base
+ * branch name ("main" once retargeted) and `baseHistory` lists each base with the instant it took effect. Spec ids never appear in github.json; they are
  * mapped to numeric ids in answer-key.json and noise.json so evidence still resolves. A landing commit's own "(#n)" is
  * not a cross-reference.
  *

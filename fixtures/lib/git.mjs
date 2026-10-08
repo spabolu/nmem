@@ -115,8 +115,8 @@ export function commitAll(repoDir, identity, message) {
   return git(repoDir, ['rev-parse', 'HEAD']).stdout.trim();
 }
 
-export function checkoutNewBranch(repoDir, branch) {
-  git(repoDir, ['checkout', '--quiet', '-b', branch, 'main']);
+export function checkoutNewBranch(repoDir, branch, startPoint = 'main') {
+  git(repoDir, ['checkout', '--quiet', '-b', branch, startPoint]);
 }
 
 export function updateRef(repoDir, ref, sha) {

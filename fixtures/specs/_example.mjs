@@ -3,7 +3,7 @@ const spec = {
   slug: '_example',
   name: 'Example',
   owner: 'acme',
-  description: 'A tiny fixture covering every step type and every evidence ref.',
+  description: 'A tiny fixture covering every step type, every evidence ref, and a two-PR stack.',
   people: {
     ada: {
       name: 'Ada Lovelace',
@@ -274,6 +274,55 @@ const spec = {
         title: 'Version 0.1.0',
         body: 'First tagged snapshot notes.',
       },
+    },
+    {
+      type: 'pr',
+      number: 8,
+      title: 'Add a counter',
+      author: 'ada',
+      body: 'Parent of the stacked counter change.',
+      labels: [],
+      branch: 'counter',
+      openedAt: '2024-01-06T00:00:00Z',
+      commits: [
+        {
+          key: 'c-counter',
+          at: '2024-01-06T01:00:00Z',
+          author: 'ada',
+          message: 'Add a counter helper.',
+          files: {
+            'src/counter.js': 'export function counter() {\n  return 1;\n}\n',
+          },
+        },
+      ],
+      reviews: [],
+      comments: [],
+      outcome: { kind: 'merged', at: '2024-01-06T04:00:00Z', by: 'bob' },
+    },
+    {
+      type: 'pr',
+      number: 10,
+      title: 'Count in steps',
+      author: 'bob',
+      body: 'Stacked on #8. Adds a step helper on top of the counter.',
+      labels: [],
+      branch: 'counter-step',
+      openedAt: '2024-01-06T02:00:00Z',
+      base: 8,
+      commits: [
+        {
+          key: 'c-step',
+          at: '2024-01-06T03:00:00Z',
+          author: 'bob',
+          message: 'Count in steps.',
+          files: {
+            'src/step.js': 'export function step() {\n  return 2;\n}\n',
+          },
+        },
+      ],
+      reviews: [],
+      comments: [],
+      outcome: { kind: 'merged', at: '2024-01-06T05:00:00Z', by: 'ada' },
     },
   ],
   answerKey: [
