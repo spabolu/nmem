@@ -132,6 +132,34 @@ def balances_for(rows):
     return balances
 `;
 
+const ledgerRound = `def add_expense(balances, payer, cents, names, mode="payer"):
+    if mode == "first":
+        base, extra = divmod(cents, len(names))
+        shares = [base + (1 if i < extra else 0) for i in range(len(names))]
+    else:
+        shares = [cents // len(names)] * len(names)
+    for name, share in zip(names, shares):
+        if name == payer:
+            continue
+        balances[name] = balances.get(name, 0) - share
+        balances[payer] = balances.get(payer, 0) + share
+
+
+def add_payment(balances, src, dst, cents):
+    balances[src] = balances.get(src, 0) + cents
+    balances[dst] = balances.get(dst, 0) - cents
+
+
+def balances_for(rows, mode="payer"):
+    balances = {}
+    for row in rows:
+        if row["kind"] == "expense":
+            add_expense(balances, row["payer"], row["cents"], row["split"], mode)
+        else:
+            add_payment(balances, row["src"], row["dst"], row["cents"])
+    return balances
+`;
+
 const ledgerNoPay = `def add_expense(balances, payer, cents, names):
     base, extra = divmod(cents, len(names))
     for i, name in enumerate(names):
@@ -178,7 +206,12 @@ def main(argv=None):
     return 0
 `;
 
-function cliPy({ data, pay, settle, dollars, importName, guard }) {
+function cliPy({ data, pay, settle, dollars, importName, guard, roundMode, dataFlag, noteDefault }) {
+  const fileFlag = dataFlag || '--data';
+  const note = noteDefault || 'misc';
+  const fileArg = fileFlag === '--data'
+    ? `    parser.add_argument("${fileFlag}", default="${data}")`
+    : `    parser.add_argument("${fileFlag}", dest="data", default="${data}")`;
   const lines = [
     'import argparse',
     'import sys',
@@ -202,13 +235,18 @@ function cliPy({ data, pay, settle, dollars, importName, guard }) {
     '',
     'def build_parser():',
     '    parser = argparse.ArgumentParser(prog="tally")',
-    `    parser.add_argument("--data", default="${data}")`,
+    fileArg,
+  );
+  if (roundMode) {
+    lines.push(`    parser.add_argument("--round", choices=["payer", "first"], default="${roundMode}")`);
+  }
+  lines.push(
     '    sub = parser.add_subparsers(dest="cmd")',
     '    add = sub.add_parser("add")',
     '    add.add_argument("--date", required=True)',
     '    add.add_argument("--payer", required=True)',
     '    add.add_argument("--cents", type=int, required=True)',
-    '    add.add_argument("--note", default="misc")',
+    `    add.add_argument("--note", default="${note}")`,
     '    add.add_argument("--split", required=True)',
   );
   if (pay) {
@@ -218,7 +256,7 @@ function cliPy({ data, pay, settle, dollars, importName, guard }) {
       '    pay.add_argument("--from", dest="src", required=True)',
       '    pay.add_argument("--to", dest="dst", required=True)',
       '    pay.add_argument("--cents", type=int, required=True)',
-      '    pay.add_argument("--note", default="misc")',
+      `    pay.add_argument("--note", default="${note}")`,
     );
   }
   if (settle) lines.push('    sub.add_parser("settle")');
@@ -274,7 +312,7 @@ function cliPy({ data, pay, settle, dollars, importName, guard }) {
     );
   }
   lines.push(
-    '    balances = balances_for(rows)',
+    roundMode ? '    balances = balances_for(rows, args.round)' : '    balances = balances_for(rows)',
     '    if args.cmd == "balances":',
     '        for name in sorted(balances):',
     '            print("%s %s" % (name, show(balances[name])))',
@@ -858,6 +896,7 @@ This page is for the roommates. No code.
 Someone pays, then types it in. Say who paid, the amount in cents, a
 short note, and who shares it. Rent, groceries, the internet bill.
 Type the amount in cents. 1860 is eighteen dollars and sixty cents.
+A negative amount is refused.
 
 ## A payback
 
@@ -2224,6 +2263,182 @@ README still describes the database. Leaving that for the docs pass so this stay
     {
       type: 'pr',
       number: 20,
+      title: 'Add a --round flag',
+      author: 'owenbriggs',
+      body: `Adds --round so a bill can split two ways.
+
+payer keeps the floor split. first hands extra cents to the earliest names. Default is payer, so a command with no flag still matches the notebook.
+
+The choice is not stored on the row. balances and settle use whatever --round says when they run.`,
+      labels: ['feature'],
+      requestedReviewers: ['lenavoss'],
+      branch: 'round-flag',
+      openedAt: '2023-10-22T16:05:00Z',
+      commits: [
+        {
+          key: 'c-round',
+          at: '2023-10-22T16:22:00Z',
+          author: 'owenbriggs',
+          message: 'add --round flag',
+          files: {
+            'tally/ledger.py': ledgerRound,
+            'tally/cli.py': cliPy({ data: 'ledger.json', pay: true, settle: true, dollars: true, roundMode: 'payer' }),
+          },
+        },
+      ],
+      reviews: [
+        {
+          id: 'pr-round-rv',
+          author: 'lenavoss',
+          at: '2023-10-23T15:10:00Z',
+          state: 'APPROVED',
+          body: 'Default payer matches the floor split. Fine to try.',
+          threads: [],
+        },
+      ],
+      comments: [],
+      checks: [
+        {
+          name: 'smoke',
+          commit: 'c-round',
+          at: '2023-10-22T16:40:00Z',
+          conclusion: 'success',
+          summary: 'balances command exits 0',
+        },
+        {
+          name: 'test',
+          commit: 'c-round',
+          at: '2023-10-22T16:55:00Z',
+          conclusion: 'success',
+          summary: 'unit tests passed',
+        },
+      ],
+      outcome: { kind: 'merged', at: '2023-10-24T17:00:00Z', by: 'lenavoss' },
+    },
+    {
+      type: 'pr',
+      number: 21,
+      title: 'Default --round to first',
+      author: 'owenbriggs',
+      body: `Changes the default of --round from payer to first.
+
+A command that omits the flag now hands extra cents to the earliest names instead of flooring. Pass --round payer for the old split.`,
+      labels: ['feature'],
+      requestedReviewers: ['lenavoss'],
+      branch: 'round-default',
+      openedAt: '2023-10-25T15:05:00Z',
+      commits: [
+        {
+          key: 'c-round-default',
+          at: '2023-10-25T15:20:00Z',
+          author: 'owenbriggs',
+          message: 'default --round to first',
+          files: {
+            'tally/cli.py': cliPy({ data: 'ledger.json', pay: true, settle: true, dollars: true, roundMode: 'first' }),
+          },
+        },
+      ],
+      reviews: [
+        {
+          id: 'pr-round-def-rv',
+          author: 'lenavoss',
+          at: '2023-10-26T16:00:00Z',
+          state: 'APPROVED',
+          body: 'I will run this week\'s groceries with the new default.',
+          threads: [],
+        },
+      ],
+      comments: [],
+      checks: [
+        {
+          name: 'smoke',
+          commit: 'c-round-default',
+          at: '2023-10-25T15:40:00Z',
+          conclusion: 'success',
+          summary: 'balances command exits 0',
+        },
+        {
+          name: 'test',
+          commit: 'c-round-default',
+          at: '2023-10-25T15:55:00Z',
+          conclusion: 'success',
+          summary: 'unit tests passed',
+        },
+      ],
+      outcome: { kind: 'merged', at: '2023-10-27T16:30:00Z', by: 'lenavoss' },
+    },
+    {
+      type: 'pr',
+      number: 22,
+      title: 'Revert the rounding flag',
+      author: 'owenbriggs',
+      body: `Reverts #20 and #21.
+
+Maya ran this week's groceries and the totals no longer matched Owen's notebook. The flag is not stored on the row, so the new default changed older bills too. Both commits come out. The floor split is back.`,
+      labels: [],
+      requestedReviewers: ['lenavoss'],
+      branch: 'revert-round',
+      openedAt: '2023-10-28T18:05:00Z',
+      commits: [
+        {
+          key: 'c-revert-round-default',
+          at: '2023-10-28T18:20:00Z',
+          author: 'owenbriggs',
+          message: 'Revert "default --round to first"',
+          files: {
+            'tally/cli.py': cliPy({ data: 'ledger.json', pay: true, settle: true, dollars: true, roundMode: 'payer' }),
+          },
+        },
+        {
+          key: 'c-revert-round',
+          at: '2023-10-29T15:10:00Z',
+          author: 'owenbriggs',
+          message: 'Revert "add --round flag"',
+          files: {
+            'tally/ledger.py': ledgerPy(true),
+            'tally/cli.py': cliPy({ data: 'ledger.json', pay: true, settle: true, dollars: true }),
+          },
+        },
+      ],
+      reviews: [
+        {
+          id: 'pr-round-rev-rv',
+          author: 'lenavoss',
+          at: '2023-10-30T16:00:00Z',
+          state: 'APPROVED',
+          body: 'Both commits are out. Floor split is back.',
+          threads: [],
+        },
+      ],
+      comments: [
+        {
+          id: 'pr-round-maya',
+          author: 'mayaruiz',
+          at: '2023-10-29T19:20:00Z',
+          body: 'The groceries do not match Owen\'s notebook. Please put the old split back.',
+        },
+      ],
+      checks: [
+        {
+          name: 'smoke',
+          commit: 'c-revert-round',
+          at: '2023-10-29T15:30:00Z',
+          conclusion: 'success',
+          summary: 'balances command exits 0',
+        },
+        {
+          name: 'test',
+          commit: 'c-revert-round',
+          at: '2023-10-29T15:45:00Z',
+          conclusion: 'success',
+          summary: 'unit tests passed',
+        },
+      ],
+      outcome: { kind: 'merged', at: '2023-11-01T17:00:00Z', by: 'lenavoss' },
+    },
+    {
+      type: 'pr',
+      number: 23,
       title: 'Docs for 1.0, and fix the README',
       author: 'kitalvarez',
       body: `README still told people to open ledger.db. The code has been writing ledger.json since #18. Fixed.
@@ -2333,6 +2548,41 @@ Also:
       },
     },
     {
+      type: 'commit',
+      key: 'c-ledger-flag',
+      at: '2023-11-14T16:20:00Z',
+      author: 'owenbriggs',
+      message: 'cli: call the file flag --ledger',
+      files: {
+        'tally/cli.py': cliPy({
+          data: 'ledger.json',
+          pay: true,
+          settle: true,
+          dollars: true,
+          guard: true,
+          dataFlag: '--ledger',
+        }),
+      },
+    },
+    {
+      type: 'commit',
+      key: 'c-note-default',
+      at: '2023-11-15T15:05:00Z',
+      author: 'owenbriggs',
+      message: 'cli: default note is unmarked',
+      files: {
+        'tally/cli.py': cliPy({
+          data: 'ledger.json',
+          pay: true,
+          settle: true,
+          dollars: true,
+          guard: true,
+          dataFlag: '--ledger',
+          noteDefault: 'unmarked',
+        }),
+      },
+    },
+    {
       type: 'tag',
       name: 'v1.0.0',
       at: '2023-11-18T16:00:00Z',
@@ -2348,7 +2598,7 @@ The list of bills is a plain file named ledger.json. tally settle prints the few
     },
     {
       type: 'issue',
-      number: 21,
+      number: 24,
       title: 'can rent just repeat every month',
       author: 'mayaruiz',
       at: '2023-11-20T18:00:00Z',
@@ -2397,7 +2647,7 @@ The list of bills is a plain file named ledger.json. tally settle prints the few
       question: 'Where should a roommate start reading, and where should a developer start?',
       answers: {
         technical:
-          'docs/index.md (c-docs, PR #20, 2023-11-04) splits the docs. "For roommates" links how-it-works.md and the README. "For the people who change the code" links the README and the four decision records with their current status. The README at c-readme-fix points roommates at docs/how-it-works.md.',
+          'docs/index.md (c-docs, PR #23, 2023-11-04) splits the docs. "For roommates" links how-it-works.md and the README. "For the people who change the code" links the README and the four decision records with their current status. The README at c-readme-fix points roommates at docs/how-it-works.md.',
         nonTechnical:
           'Roommates should start with the page that explains how a bill becomes a payment. The people who change the app start with the front page and the written decision records. A contents page links all of them.',
       },
@@ -2405,7 +2655,7 @@ The list of bills is a plain file named ledger.json. tally settle prints the few
         { kind: 'file', path: 'docs/index.md', at: 'c-docs', quote: '## For roommates' },
         { kind: 'file', path: 'docs/index.md', at: 'c-docs', quote: '## For the people who change the code' },
         { kind: 'file', path: 'README.md', at: 'c-readme-fix', quote: 'Start with' },
-        { kind: 'pr', number: 20, quote: 'roommates vs people who change the code' },
+        { kind: 'pr', number: 23, quote: 'roommates vs people who change the code' },
       ],
     },
     {
@@ -2472,14 +2722,14 @@ The list of bills is a plain file named ledger.json. tally settle prints the few
       question: 'After the switch back to a plain text file, when did the README catch up?',
       answers: {
         technical:
-          'PR #18 merged on 2023-10-14 without editing README.md. At c-adr4 the README still says "The ledger is a SQLite database file named ledger.db." Lena flagged it in the PR #18 review thread on 2023-10-11 and called it not blocking. Kit fixes it in PR #20, commit c-readme-fix (2023-11-04), merged 2023-11-08. The new sentence is "The ledger is a plain JSON file named ledger.json." That is 21 days after the reversal merged.',
+          'PR #18 merged on 2023-10-14 without editing README.md. At c-adr4 the README still says "The ledger is a SQLite database file named ledger.db." Lena flagged it in the PR #18 review thread on 2023-10-11 and called it not blocking. Kit fixes it in PR #23, commit c-readme-fix (2023-11-04), merged 2023-11-08. The new sentence is "The ledger is a plain JSON file named ledger.json." That is 21 days after the reversal merged.',
         nonTechnical:
           'For about three weeks after the switch back to a plain text file, the front page still told people to open the small database file. Someone noticed while looking at that change, and the front page was corrected in early November 2023.',
       },
       evidence: [
         { kind: 'file', path: 'README.md', at: 'c-adr4', quote: 'The ledger is a SQLite database file named ledger.db.' },
         { kind: 'comment', id: 'pr10-thread-lena', quote: 'README still says sqlite. not blocking, fix it in the docs pass.' },
-        { kind: 'pr', number: 20, quote: 'README still told people to open ledger.db.' },
+        { kind: 'pr', number: 23, quote: 'README still told people to open ledger.db.' },
         { kind: 'file', path: 'README.md', at: 'c-readme-fix', quote: 'The ledger is a plain JSON file named ledger.json.' },
         { kind: 'commit', key: 'c-readme-fix', quote: 'README: ledger is a json file, not sqlite' },
       ],
@@ -2735,7 +2985,7 @@ The list of bills is a plain file named ledger.json. tally settle prints the few
       question: 'How many distinct people wrote the app, if a laptop shows a second name for Lena?',
       answers: {
         technical:
-          'Three people wrote product code: Lena Voss, Owen Briggs, and Kit Alvarez. c-dollars and c-usage are authored in git as Lena P <lena@laptop.local> with no linked login, but that identity belongs to lenavoss. She says so on PR #3, and Kit repeats it on PR #20. The squash of PR #3 on main is authored as Lena Voss, not as Lena P. dependabot[bot] only changed the actions/checkout pin in the test workflow in PR #17 and did not change product behavior. That squash on main is authored by dependabot[bot].',
+          'Three people wrote product code: Lena Voss, Owen Briggs, and Kit Alvarez. c-dollars and c-usage are authored in git as Lena P <lena@laptop.local> with no linked login, but that identity belongs to lenavoss. She says so on PR #3, and Kit repeats it on PR #23. The squash of PR #3 on main is authored as Lena Voss, not as Lena P. dependabot[bot] only changed the actions/checkout pin in the test workflow in PR #17 and did not change product behavior. That squash on main is authored by dependabot[bot].',
         nonTechnical:
           'Three people wrote the app: Lena, Owen, and Kit. A laptop of Lena\'s signed some changes as Lena P, but that is still Lena. An automated helper later updated a setup file and did not change how bills are split.',
       },
@@ -2835,13 +3085,169 @@ The list of bills is a plain file named ledger.json. tally settle prints the few
         { kind: 'comment', id: 'pr8-maya', quote: "I don't need a website." },
       ],
     },
+    {
+      id: 'catch-up-round-net',
+      view: 'timeline',
+      facet: 'reversal',
+      question: 'What is the net change to rounding between 2023-10-22 and 2023-11-01?',
+      answers: {
+        technical:
+          'None. It was added, changed, and reverted. PR #20 added a --round flag defaulting to payer, the same floor split as before. PR #21 changed that default to first. PR #22 reverted both after the new default changed older bills. tally/ledger.py after the revert uses floor division again, and the flag is gone.',
+        nonTechnical:
+          'None. It was added, then changed, and then reverted. Splitting a bill at the end of that window matches the start.',
+      },
+      evidence: [
+        { kind: 'pr', number: 20, quote: 'Adds --round so a bill can split two ways.' },
+        { kind: 'pr', number: 21, quote: 'Changes the default of --round from payer to first.' },
+        { kind: 'pr', number: 22, quote: 'Reverts #20 and #21.' },
+        { kind: 'pr', number: 22, quote: "the totals no longer matched Owen's notebook" },
+        { kind: 'file', path: 'tally/cli.py', at: 'c-round-default', quote: 'choices=["payer", "first"], default="first"' },
+        { kind: 'commit', key: 'c-revert-round', quote: 'Revert "add --round flag"' },
+        { kind: 'file', path: 'tally/ledger.py', at: 'c-revert-round', quote: 'each = cents // len(names)' },
+      ],
+    },
+    {
+      id: 'catch-up-storage-net',
+      view: 'timeline',
+      facet: 'growth',
+      question: 'What is the net change to how bills are stored between 2023-03-26 and 2023-11-08?',
+      answers: {
+        technical:
+          'The list moved from a space-separated text file to a JSON file. PR #4 stored lines in ledger.txt. PR #9 moved that to a SQLite file. PR #18 replaced it with ledger.json. PR #23 updated the README on 2023-11-04, merged 2023-11-08. SQLite did not stick. The file at main is ledger.json.',
+        nonTechnical:
+          'The bill list moved from a text file to a plain file the roommates can copy between laptops. A small database file was used in the summer and then dropped. The front page matched the new file in November.',
+      },
+      evidence: [
+        { kind: 'pr', number: 4, quote: 'adds ledger.txt' },
+        { kind: 'file', path: 'README.md', at: 'c-store-txt', quote: 'The ledger is a text file, ledger.txt.' },
+        { kind: 'pr', number: 9, quote: 'replaces tally/store.py with sqlite3' },
+        { kind: 'file', path: 'tally/store.py', at: 'c-sqlite', quote: 'sqlite3.connect' },
+        { kind: 'pr', number: 18, quote: 'tally/store.py now writes ledger.json' },
+        { kind: 'file', path: 'tally/store.py', at: 'c-json', quote: 'json.dump' },
+        { kind: 'pr', number: 23, quote: 'README still told people to open ledger.db.' },
+        { kind: 'file', path: 'README.md', at: 'c-readme-fix', quote: 'The ledger is a plain JSON file named ledger.json.' },
+      ],
+    },
+    {
+      id: 'currency-cents-still',
+      view: 'docs',
+      facet: 'overview',
+      job: 'currency',
+      question: 'Is it still true that every amount in the ledger is an integer number of cents?',
+      answers: {
+        technical:
+          'Yes. ADR-0003 at c-adr3 says every amount in the ledger is an integer number of cents. tally/cli.py at main still takes --cents as an int, and tally/ledger.py still divides with whole cents.',
+        nonTechnical:
+          'Yes. A written decision from June 2023 says amounts are whole cents. The app still takes amounts that way, and the bill list still stores whole cents.',
+      },
+      evidence: [
+        { kind: 'file', path: 'docs/adr/0003-amounts-are-integer-cents.md', at: 'c-adr3', quote: 'Every amount in the ledger is an integer number of cents.' },
+        { kind: 'file', path: 'tally/cli.py', at: 'c-note-default', quote: '--cents", type=int' },
+        { kind: 'file', path: 'tally/ledger.py', at: 'c-note-default', quote: 'each = cents // len(names)' },
+      ],
+    },
+    {
+      id: 'currency-sqlite-stale',
+      view: 'docs',
+      facet: 'overview',
+      job: 'currency',
+      question: 'Is it still true that the ledger is a SQLite database file named ledger.db?',
+      answers: {
+        technical:
+          'No. README.md at c-adr2 says the ledger is a SQLite database file named ledger.db. tally/store.py at main writes JSON with json.dump, and tally/cli.py defaults to ledger.json.',
+        nonTechnical:
+          'No. The front page used to say the bill list lived in a small database file with that name. The app now writes a plain file the roommates can copy. That old sentence is no longer true.',
+      },
+      evidence: [
+        { kind: 'file', path: 'README.md', at: 'c-adr2', quote: 'The ledger is a SQLite database file named ledger.db.' },
+        { kind: 'file', path: 'tally/store.py', at: 'c-note-default', quote: 'json.dump' },
+        { kind: 'file', path: 'tally/cli.py', at: 'c-note-default', quote: 'default="ledger.json"' },
+      ],
+    },
+    {
+      id: 'currency-negative-later',
+      view: 'docs',
+      facet: 'how',
+      job: 'currency',
+      question: 'Is it still true that a negative amount is refused?',
+      answers: {
+        technical:
+          'Yes, but only after a later fix. docs/how-it-works.md at c-docs says a negative amount is refused. That page landed on 2023-11-04, when tally/cli.py still accepted a negative amount. c-fix-tests on 2023-11-12 added the check, and tally/cli.py at main still has it.',
+        nonTechnical:
+          'Yes, but only after a later fix. The roommate guide said a negative amount is refused before the app actually refused one. A change eight days later made the app match the guide, and it still refuses one.',
+      },
+      evidence: [
+        { kind: 'file', path: 'docs/how-it-works.md', at: 'c-docs', quote: 'A negative amount is refused.' },
+        { kind: 'file', path: 'tally/cli.py', at: 'c-fix-tests', quote: 'if args.cents < 0:' },
+        { kind: 'file', path: 'tally/cli.py', at: 'c-note-default', quote: 'if args.cents < 0:' },
+      ],
+    },
+    {
+      id: 'why-flag-rename',
+      view: 'timeline',
+      facet: 'unwritten-why',
+      expect: 'gap',
+      question: 'Why did the file flag change from --data to --ledger?',
+      answers: {
+        technical:
+          'c-ledger-flag on 2023-11-14 renames the file flag from --data to --ledger. The commit message names the rename and does not say why. No issue, review, or doc records a reason. The record does not explain it. Ask Owen Briggs.',
+        nonTechnical:
+          'Owen renamed the flag that picks the bill file. The notes do not say why. Ask Owen.',
+      },
+      evidence: [
+        { kind: 'commit', key: 'c-ledger-flag', quote: 'cli: call the file flag --ledger' },
+        { kind: 'file', path: 'tally/cli.py', at: 'c-fix-tests', quote: 'parser.add_argument("--data"' },
+        { kind: 'file', path: 'tally/cli.py', at: 'c-ledger-flag', quote: 'parser.add_argument("--ledger"' },
+      ],
+      truth: 'Maya taped a blue index card inside the laundromat receipt book and circled the path, and Owen renamed the flag so she would stop asking what data meant.',
+      notRecorded: ['blue index card', 'laundromat receipt book'],
+    },
+    {
+      id: 'why-note-default',
+      view: 'timeline',
+      facet: 'unwritten-why',
+      expect: 'gap',
+      question: 'Why did the default note change from misc to unmarked?',
+      answers: {
+        technical:
+          'c-note-default on 2023-11-15 changes the default note from misc to unmarked. The commit message does not say why. The record does not explain it. Ask Owen Briggs.',
+        nonTechnical:
+          'Owen changed the word stored when a bill has no short note. The notes do not say why. Ask Owen.',
+      },
+      evidence: [
+        { kind: 'commit', key: 'c-note-default', quote: 'cli: default note is unmarked' },
+        { kind: 'file', path: 'tally/cli.py', at: 'c-ledger-flag', quote: 'default="misc"' },
+        { kind: 'file', path: 'tally/cli.py', at: 'c-note-default', quote: 'default="unmarked"' },
+      ],
+      truth: 'Kit said misc reminded him of a mislabeled lab drawer at work, and he asked Owen to change the default so he would stop flinching at unmarked bills.',
+      notRecorded: ['mislabeled lab drawer', 'stop flinching'],
+    },
+    {
+      id: 'example-ten-dollar-split',
+      view: 'docs',
+      facet: 'how',
+      question: 'If Owen pays 1000 cents split across lena, owen, and maya, what balances should tally record?',
+      answers: {
+        technical:
+          'tests/test_settle.py at main feeds a 1000 cent expense paid by owen, split lena, owen, maya. It expects lena at -333, owen at 666, and maya at -333.',
+        nonTechnical:
+          'If Owen pays 1000 cents and Lena, Owen, and Maya share the bill, Lena and Maya should each owe 333 cents, and Owen should be owed 666 cents.',
+      },
+      evidence: [
+        { kind: 'file', path: 'tests/test_settle.py', at: 'c-note-default', quote: '"payer": "owen"' },
+        { kind: 'file', path: 'tests/test_settle.py', at: 'c-note-default', quote: '"cents": 1000' },
+        { kind: 'file', path: 'tests/test_settle.py', at: 'c-note-default', quote: 'balances["lena"], -333' },
+        { kind: 'file', path: 'tests/test_settle.py', at: 'c-note-default', quote: 'balances["owen"], 666' },
+        { kind: 'file', path: 'tests/test_settle.py', at: 'c-note-default', quote: '["lena", "owen", "maya"]' },
+      ],
+    },
   ],
   noise: [
     {
       id: 'noise-identity-split',
       kind: 'identity-split',
       description:
-        'Lena Voss also commits as Lena P <lena@laptop.local> with linked false, on c-usage (PR #3) and c-dollars (direct to main). Git shows a second name and no login. The truth is one person, lenavoss. She says so on PR #3, and Kit notes the dollars change on PR #20. The squash of PR #3 on main is authored as Lena Voss. c-usage on the pull request head remains Lena P.',
+        'Lena Voss also commits as Lena P <lena@laptop.local> with linked false, on c-usage (PR #3) and c-dollars (direct to main). Git shows a second name and no login. The truth is one person, lenavoss. She says so on PR #3, and Kit notes the dollars change on PR #23. The squash of PR #3 on main is authored as Lena Voss. c-usage on the pull request head remains Lena P.',
       evidence: [
         { kind: 'comment', id: 'pr3-lena', quote: 'lena@laptop.local' },
         { kind: 'comment', id: 'pr20-kit', quote: 'That is her laptop.' },
@@ -2935,9 +3341,9 @@ The list of bills is a plain file named ledger.json. tally settle prints the few
       id: 'noise-dangling',
       kind: 'dangling-reference',
       description:
-        'Issue #21 mentions #19. Owen opened #19 and then deleted it, so GitHub skipped the number and the link dangles. #19 is not an issue, pull request, or discussion. The open rent request is #21, not a continuation of the deleted item.',
+        'Issue #24 mentions #19. Owen opened #19 and then deleted it, so GitHub skipped the number and the link dangles. #19 is not an issue, pull request, or discussion. The open rent request is #24, not a continuation of the deleted item.',
       evidence: [
-        { kind: 'issue', number: 21, quote: 'I cannot find #19' },
+        { kind: 'issue', number: 24, quote: 'I cannot find #19' },
       ],
     },
   ],
