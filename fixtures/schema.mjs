@@ -141,6 +141,9 @@
  * }} NoiseNote
  *   Deliberate mess planted to test robustness. Listed so an evaluation can tell planted noise from generator bugs.
  *
+ * description is for fixture readers (ANSWER_KEY.md). about is the one-line GitHub "About" text a real repo shows; only
+ * about reaches github.json, so it must not describe the team or answer any key question.
+ *
  * Output shape (github.json) follows the GitHub API, not the spec: times are UTC with "Z", and comments, reviews and
  * threads carry numeric ids derived deterministically from the spec id. A stacked PR's `base` is its current base
  * branch name ("main" once retargeted) and `baseHistory` lists each base with the instant it took effect. Spec ids never appear in github.json; they are
@@ -148,7 +151,7 @@
  * not a cross-reference.
  *
  * @typedef {{
- *   slug: string, name: string, owner: string, description: string,
+ *   slug: string, name: string, owner: string, description: string, about: string,
  *   people: Record<Handle, Person>,
  *   steps: Step[],
  *   answerKey: AnswerKeyEntry[],

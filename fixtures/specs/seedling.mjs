@@ -1341,6 +1341,7 @@ const spec = {
   slug: 'seedling',
   name: 'Seedling',
   owner: 'eastside-commons',
+  about: 'Watering shift sign-ups and reminders for the Eastside Commons garden.',
   description:
     'A small volunteer-built Go web app that schedules watering shifts for the Eastside Commons community garden and reminds volunteers. Two developers, a garden coordinator, and a volunteer, April 2024 to March 2025.',
   people: {

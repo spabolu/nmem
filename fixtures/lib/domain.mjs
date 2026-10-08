@@ -1786,7 +1786,7 @@ export function parseSpec(input, expectedSlug) {
     entryIds: new Set(),
   };
   const spec = object(raw, expectedSlug, ctx);
-  const known = ['slug', 'name', 'owner', 'description', 'people', 'steps', 'answerKey', 'noise'];
+  const known = ['slug', 'name', 'owner', 'description', 'about', 'people', 'steps', 'answerKey', 'noise'];
   rejectUnknown(spec, expectedSlug, ctx, known);
   for (const key of known) {
     if (key === 'noise') continue;
@@ -1821,6 +1821,7 @@ export function parseSpec(input, expectedSlug) {
     name: nonEmpty(spec.name, 'name', ctx),
     owner: refName(spec.owner, 'owner', ctx, 'owner'),
     description: text(spec.description, 'description', ctx),
+    about: text(spec.about, 'about', ctx),
     people: ctx.people,
     steps,
     githubIds,
@@ -2176,10 +2177,10 @@ export function githubDocument(spec, repo) {
     repo: {
       name: spec.name,
       owner: spec.owner,
-      description: spec.description,
+      description: spec.about,
       defaultBranch: 'main',
     },
-    people: spec.people,
+    users: Object.entries(spec.people).map(([login, person]) => ({ login, name: person.name, type: person.kind ?? 'User' })),
     pulls: repo.pulls,
     issues: repo.issues,
     discussions: repo.discussions,

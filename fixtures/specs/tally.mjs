@@ -951,6 +951,7 @@ const spec = {
   slug: 'tally',
   name: 'tally',
   owner: 'hearthware',
+  about: 'Split shared house bills and see who owes whom.',
   description:
     'A small Python 3 command-line app that splits shared household expenses between roommates and prints who owes whom. Two developers, a part-time contributor, and one roommate who is not a developer, February 2023 to November 2023.',
   people: {

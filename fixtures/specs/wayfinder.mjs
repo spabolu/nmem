@@ -1148,6 +1148,7 @@ const spec = {
   slug: 'wayfinder',
   name: 'Wayfinder',
   owner: 'northwind-labs',
+  about: 'Rate limiting for the Northwind public API.',
   description:
     'A TypeScript rate limiter for the Northwind public API, also published for other teams. Staff engineer, backend engineer, SRE, and a product manager, March 2024 to December 2024.',
   people: {

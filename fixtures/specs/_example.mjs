@@ -3,6 +3,7 @@ const spec = {
   slug: '_example',
   name: 'Example',
   owner: 'acme',
+  about: 'Greeting helpers.',
   description: 'A tiny fixture covering every step type, every evidence ref, and a two-PR stack.',
   people: {
     ada: {

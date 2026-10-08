@@ -66,6 +66,8 @@ export function initRepo(repoDir) {
   // A line starting with # is message text, not a commentary line for the editor.
   git(repoDir, ['config', '--local', 'commit.cleanup', 'verbatim']);
   git(repoDir, ['config', '--local', 'core.excludesFile', '/dev/null']);
+  // The generator's own checkouts would otherwise leave the operator's name and host in .git/logs.
+  git(repoDir, ['config', '--local', 'core.logAllRefUpdates', 'false']);
 }
 
 export function writeChanges(repoDir, files) {
