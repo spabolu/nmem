@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import spec from './specs/_example.mjs';
-import { assertNoSpecLeaks, buildRepo, githubDocument, parseSpec, SpecError } from './lib/domain.mjs';
+import { assertNoSpecLeaks, buildRepo, githubDocument, parseSpec, resolveAnswers, SpecError } from './lib/domain.mjs';
 
 function issue(copy, number) {
   return copy.steps.find((step) => step.type === 'issue' && step.number === number);
@@ -68,6 +68,31 @@ const cases = [
       copy.steps[0].via = 'email';
     },
   },
+  {
+    name: 'gap entry missing truth',
+    expect: 'gap entries require truth',
+    mutate(copy) {
+      const entry = copy.answerKey.find((item) => item.id === 'why-greeting');
+      entry.expect = 'gap';
+      entry.notRecorded = ['unspoken parish reason'];
+    },
+  },
+  {
+    name: 'noise entry without job',
+    expect: 'no default job',
+    mutate(copy) {
+      const entry = copy.answerKey.find((item) => item.id === 'planted-dangling');
+      delete entry.job;
+    },
+  },
+  {
+    name: 'answer entry carrying notRecorded',
+    expect: 'answer entries must not set notRecorded',
+    mutate(copy) {
+      const entry = copy.answerKey.find((item) => item.id === 'why-greeting');
+      entry.notRecorded = ['hallway decision'];
+    },
+  },
 ];
 
 let failed = 0;
@@ -85,6 +110,32 @@ for (const item of cases) {
       console.log(`FAIL ${item.name}: ${message}`);
       failed += 1;
     }
+  }
+}
+
+{
+  const name = 'notRecorded phrase that appears in a PR comment';
+  const copy = structuredClone(spec);
+  const entry = copy.answerKey.find((item) => item.id === 'why-greeting');
+  entry.expect = 'gap';
+  entry.truth = 'The real reason was the hallway decision.';
+  entry.notRecorded = ['hallway decision'];
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'nmem-gap-leak-'));
+  try {
+    const parsed = parseSpec(copy, '_example');
+    const repo = buildRepo(parsed, path.join(dir, 'repo'));
+    resolveAnswers(parsed, repo);
+    console.log(`FAIL ${name}: expected throw`);
+    failed += 1;
+  } catch (err) {
+    const message = err instanceof SpecError ? err.message : String(err);
+    if (message.includes('hallway decision') && message.includes('pr#3')) console.log(`PASS ${name}`);
+    else {
+      console.log(`FAIL ${name}: ${message}`);
+      failed += 1;
+    }
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
   }
 }
 

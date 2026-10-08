@@ -32,6 +32,19 @@ export class SpecError extends Error {
 
 const VIEWS = ['timeline', 'docs'];
 const FACETS = ['growth', 'decision', 'adr', 'reversal', 'unwritten-why', 'how', 'who', 'overview', 'noise'];
+const JOBS = ['find-context', 'currency', 'catch-up', 'why'];
+const EXPECTS = ['answer', 'gap'];
+const FACET_JOB = {
+  growth: 'catch-up',
+  decision: 'why',
+  adr: 'why',
+  reversal: 'catch-up',
+  'unwritten-why': 'why',
+  how: 'find-context',
+  who: 'find-context',
+  overview: 'find-context',
+  noise: null,
+};
 const REVIEW_STATES = ['APPROVED', 'CHANGES_REQUESTED', 'COMMENTED'];
 const CATEGORIES = ['Ideas', 'Q&A', 'General', 'Announcements'];
 const CHECK_CONCLUSIONS = ['success', 'failure', 'cancelled', 'skipped'];
@@ -1509,14 +1522,44 @@ function parseRef(raw, path, ctx) {
   return resolver.parse(obj, path, ctx);
 }
 
+function parseJob(obj, path, ctx, facet) {
+  if (Object.hasOwn(obj, 'job')) return oneOf(obj.job, `${path}.job`, ctx, JOBS);
+  if (!Object.hasOwn(FACET_JOB, facet)) ctx.fail(`${path}.facet`, `no job rule for ${JSON.stringify(facet)}`);
+  const derived = FACET_JOB[facet];
+  if (!derived) ctx.fail(`${path}.job`, `facet ${JSON.stringify(facet)} has no default job`);
+  return derived;
+}
+
+function parseExpect(obj, path, ctx) {
+  if (!Object.hasOwn(obj, 'expect')) return 'answer';
+  return oneOf(obj.expect, `${path}.expect`, ctx, EXPECTS);
+}
+
+function parseRecordedTruth(obj, path, ctx, expect) {
+  const hasTruth = Object.hasOwn(obj, 'truth');
+  const hasPhrases = Object.hasOwn(obj, 'notRecorded');
+  if (expect === 'answer') {
+    if (hasTruth) ctx.fail(`${path}.truth`, 'answer entries must not set truth');
+    if (hasPhrases) ctx.fail(`${path}.notRecorded`, 'answer entries must not set notRecorded');
+    return {};
+  }
+  if (!hasTruth) ctx.fail(`${path}.truth`, 'gap entries require truth');
+  if (!hasPhrases) ctx.fail(`${path}.notRecorded`, 'gap entries require notRecorded');
+  const truth = nonEmpty(obj.truth, `${path}.truth`, ctx);
+  if (!Array.isArray(obj.notRecorded) || obj.notRecorded.length === 0) {
+    ctx.fail(`${path}.notRecorded`, 'expected non-empty array');
+  }
+  return {
+    truth,
+    notRecorded: obj.notRecorded.map((phrase, i) => nonEmpty(phrase, `${path}.notRecorded[${i}]`, ctx)),
+  };
+}
+
 function parseAnswer(raw, path, ctx) {
   const obj = object(raw, path, ctx);
-  const known = ['id', 'view', 'facet', 'question', 'answers', 'evidence', 'onlyOutsideGit'];
+  const known = ['id', 'view', 'facet', 'job', 'question', 'answers', 'evidence', 'onlyOutsideGit', 'expect', 'truth', 'notRecorded'];
   rejectUnknown(obj, path, ctx, known);
-  for (const key of known) {
-    if (key === 'onlyOutsideGit') continue;
-    if (!Object.hasOwn(obj, key)) ctx.fail(`${path}.${key}`, 'missing');
-  }
+  requireFields(obj, path, ctx, ['id', 'view', 'facet', 'question', 'answers', 'evidence']);
   const id = nonEmpty(obj.id, `${path}.id`, ctx);
   if (ctx.entryIds.has(id)) ctx.fail(`${path}.id`, `duplicate answer-key id ${JSON.stringify(id)}`);
   ctx.entryIds.add(id);
@@ -1525,16 +1568,21 @@ function parseAnswer(raw, path, ctx) {
   if (!Array.isArray(obj.evidence) || obj.evidence.length < 1) {
     ctx.fail(`${path}.evidence`, 'expected at least one evidence ref');
   }
+  const facet = oneOf(obj.facet, `${path}.facet`, ctx, FACETS);
+  const expect = parseExpect(obj, path, ctx);
   const entry = {
     id,
     view: oneOf(obj.view, `${path}.view`, ctx, VIEWS),
-    facet: oneOf(obj.facet, `${path}.facet`, ctx, FACETS),
+    facet,
+    job: parseJob(obj, path, ctx, facet),
     question: nonEmpty(obj.question, `${path}.question`, ctx),
     answers: {
       technical: nonEmpty(answers.technical, `${path}.answers.technical`, ctx),
       nonTechnical: nonEmpty(answers.nonTechnical, `${path}.answers.nonTechnical`, ctx),
     },
     evidence: obj.evidence.map((ref, i) => parseRef(ref, `${path}.evidence[${i}]`, ctx)),
+    expect,
+    ...parseRecordedTruth(obj, path, ctx, expect),
   };
   if (Object.hasOwn(obj, 'onlyOutsideGit')) {
     if (!Array.isArray(obj.onlyOutsideGit)) ctx.fail(`${path}.onlyOutsideGit`, 'expected array');
@@ -1766,6 +1814,73 @@ function assertQuote(slug, fieldPath, quote, parts, label) {
   );
 }
 
+function addSurface(out, where, text) {
+  out.push({ where, text });
+}
+
+function addRevisions(out, where, comment) {
+  const revisions = comment.editHistory?.length
+    ? comment.editHistory.map((edit) => edit.body)
+    : [comment.body];
+  revisions.forEach((body, revision) => addSurface(out, `${where} revision ${revision}`, body));
+}
+
+function githubSurfaces(repo) {
+  const out = [];
+  for (const pull of repo.pulls) {
+    addSurface(out, `pr#${pull.number} title`, pull.title);
+    addSurface(out, `pr#${pull.number} body`, pull.body);
+    for (const review of pull.reviews) {
+      addSurface(out, `pr#${pull.number} review ${review.id} body`, review.body);
+      for (const thread of review.threads) {
+        for (const comment of thread.comments) {
+          addRevisions(out, `pr#${pull.number} review thread comment ${comment.id}`, comment);
+        }
+      }
+    }
+    for (const comment of pull.comments) addRevisions(out, `pr#${pull.number} comment ${comment.id}`, comment);
+  }
+  for (const issue of repo.issues) {
+    addSurface(out, `issue#${issue.number} title`, issue.title);
+    addSurface(out, `issue#${issue.number} body`, issue.body);
+    for (const comment of issue.comments) addRevisions(out, `issue#${issue.number} comment ${comment.id}`, comment);
+  }
+  for (const discussion of repo.discussions) {
+    addSurface(out, `discussion#${discussion.number} title`, discussion.title);
+    addSurface(out, `discussion#${discussion.number} body`, discussion.body);
+    for (const comment of discussion.comments) {
+      addRevisions(out, `discussion#${discussion.number} comment ${comment.id}`, comment);
+      for (const reply of comment.replies) {
+        addRevisions(out, `discussion#${discussion.number} reply ${reply.id}`, reply);
+      }
+    }
+  }
+  for (const release of repo.releases) {
+    addSurface(out, `release:${release.tag} title`, release.title);
+    addSurface(out, `release:${release.tag} body`, release.body);
+  }
+  return out;
+}
+
+function recordSurfaces(corpus, repo) {
+  const out = [];
+  for (const blob of corpus.blobs) addSurface(out, `git file content at ${blob.path}`, blob.text);
+  for (const commit of corpus.messages) addSurface(out, `commit message ${commit.sha}`, commit.message);
+  for (const tag of corpus.tags) addSurface(out, `tag message ${tag.name}`, tag.message);
+  out.push(...githubSurfaces(repo));
+  return out;
+}
+
+function assertNotRecorded(slug, entry, index, surfaces) {
+  if (!entry.notRecorded) return;
+  entry.notRecorded.forEach((phrase, m) => {
+    const fieldPath = `answerKey[${index}].notRecorded[${m}]`;
+    const hit = surfaces.find((surface) => includesCI(surface.text, phrase));
+    if (!hit) return;
+    throw new SpecError(slug, fieldPath, `phrase ${JSON.stringify(phrase)} appears in ${hit.where}`);
+  });
+}
+
 function assertMarkers(slug, entry, index, resolved, corpus) {
   if (!entry.onlyOutsideGit) return;
   entry.onlyOutsideGit.forEach((marker, m) => {
@@ -1810,18 +1925,26 @@ function resolveEvidence(spec, repo, refs, pathFor) {
 
 export function resolveAnswers(spec, repo) {
   const corpus = gitCorpus(repo.dir);
+  const surfaces = recordSurfaces(corpus, repo);
   return spec.answerKey.map((entry, i) => {
     const resolved = resolveEvidence(spec, repo, entry.evidence, (j) => `answerKey[${i}].evidence[${j}]`);
     assertMarkers(spec.slug, entry, i, resolved.map((item) => item.hit), corpus);
+    assertNotRecorded(spec.slug, entry, i, surfaces);
     const emitted = {
       id: entry.id,
       view: entry.view,
       facet: entry.facet,
+      job: entry.job,
       question: entry.question,
       answers: { technical: entry.answers.technical, nonTechnical: entry.answers.nonTechnical },
       evidence: resolved.map((item) => item.emitted),
     };
     if (entry.onlyOutsideGit) emitted.onlyOutsideGit = entry.onlyOutsideGit;
+    emitted.expect = entry.expect;
+    if (entry.expect === 'gap') {
+      emitted.truth = entry.truth;
+      emitted.notRecorded = entry.notRecorded;
+    }
     return emitted;
   });
 }
@@ -1864,6 +1987,14 @@ function specLeakStrings(spec) {
   return forbidden;
 }
 
+function truthStrings(spec) {
+  const forbidden = new Set();
+  for (const entry of spec.answerKey) {
+    if (entry.truth) forbidden.add(entry.truth);
+  }
+  return forbidden;
+}
+
 function unlinkedPullCommits(spec) {
   const found = [];
   for (const step of spec.steps) {
@@ -1900,6 +2031,10 @@ export function assertNoSpecLeaks(spec, github) {
   const hit = findStringValue(github, specLeakStrings(spec), '');
   if (hit) {
     throw new SpecError(spec.slug, hit.path, `leaked spec id ${JSON.stringify(hit.value)}`);
+  }
+  const truthHit = findStringValue(github, truthStrings(spec), '');
+  if (truthHit) {
+    throw new SpecError(spec.slug, truthHit.path, `leaked fixture truth ${JSON.stringify(truthHit.value)}`);
   }
   const pulls = github?.pulls;
   // A direct call may pass a fragment. The handle check needs the built pull list.
@@ -1962,15 +2097,19 @@ function renderEvidence(refs) {
 
 function renderGroups(entries) {
   const lines = [];
-  for (const view of VIEWS) {
+  for (const job of JOBS) {
     for (const facet of FACETS) {
-      const group = entries.filter((entry) => entry.view === view && entry.facet === facet);
+      const group = entries.filter((entry) => entry.job === job && entry.facet === facet);
       if (group.length === 0) continue;
-      lines.push(`## ${view} / ${facet}`, '');
+      lines.push(`## ${job} / ${facet}`, '');
       for (const entry of group) {
         lines.push(`### ${entry.id}`, '', entry.question, '');
         lines.push(`Technical reader: ${entry.answers.technical}`, '');
         lines.push(`Non-technical reader: ${entry.answers.nonTechnical}`, '');
+        if (entry.expect === 'gap') {
+          lines.push(`Not in the record (fixture truth): ${entry.truth}`, '');
+          lines.push(`Not recorded: ${entry.notRecorded.join(', ')}`, '');
+        }
         lines.push(...renderEvidence(entry.evidence), '');
         if (entry.onlyOutsideGit && entry.onlyOutsideGit.length > 0) {
           lines.push(`Only outside git: ${entry.onlyOutsideGit.join(', ')}`, '');
@@ -2016,8 +2155,14 @@ function counted(n, singular, plural) {
   return `${n} ${n === 1 ? singular : plural}`;
 }
 
+function jobSummary(entries) {
+  const counts = Object.fromEntries(JOBS.map((job) => [job, 0]));
+  for (const entry of entries) counts[entry.job] += 1;
+  return JOBS.map((job) => `${job} ${counts[job]}`).join(', ');
+}
+
 export function summaryLine(item) {
-  const { spec, counts, head } = item;
+  const { spec, counts, head, entries } = item;
   const parts = [
     counted(counts.commits, 'commit', 'commits'),
     `${counted(counts.prs, 'PR', 'PRs')} (${counts.merged} merged, ${counts.closed} closed)`,
@@ -2025,6 +2170,7 @@ export function summaryLine(item) {
     counted(counts.discussions, 'discussion', 'discussions'),
     counted(counts.tags, 'tag', 'tags'),
     counted(counts.entries, 'answer-key entry', 'answer-key entries'),
+    `jobs ${jobSummary(entries)}`,
     `main ${head}`,
   ];
   return `${spec.slug}: ${parts.join(', ')}`;

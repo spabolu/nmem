@@ -301,6 +301,7 @@ const spec = {
       id: 'first-snapshot',
       view: 'docs',
       facet: 'overview',
+      job: 'currency',
       question: 'What did the first snapshot record?',
       answers: {
         technical: 'c-init wrote README.md, and v0.1.0 tags that history.',
@@ -332,9 +333,28 @@ const spec = {
       onlyOutsideGit: ['hallway decision', 'ticket lives in the issue'],
     },
     {
+      id: 'version-tag-gap',
+      view: 'timeline',
+      facet: 'unwritten-why',
+      expect: 'gap',
+      question: 'Why was 0.1.0 tagged?',
+      answers: {
+        technical: 'v0.1.0 tags the history after PR #7 wrote a version line into README.md. The record does not say why that tag was cut.',
+        nonTechnical: 'The team marked a first version after adding a version line. The notes do not say why they chose that moment.',
+      },
+      evidence: [
+        { kind: 'tag', name: 'v0.1.0', quote: 'First tagged snapshot.' },
+        { kind: 'file', path: 'README.md', at: 'c-version', quote: 'Version 0.1.0.' },
+        { kind: 'pr', number: 7, quote: 'Note the version' },
+      ],
+      truth: 'Ada cut 0.1.0 because the parish hall booking was the next morning.',
+      notRecorded: ['parish hall booking'],
+    },
+    {
       id: 'planted-dangling',
       view: 'timeline',
       facet: 'noise',
+      job: 'find-context',
       question: 'What dangling reference was planted?',
       answers: {
         technical: 'Commit c-init mentions #99, which does not exist.',

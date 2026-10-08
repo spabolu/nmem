@@ -108,13 +108,24 @@
  *   id: string,
  *   view: "timeline" | "docs",
  *   facet: "growth" | "decision" | "adr" | "reversal" | "unwritten-why" | "how" | "who" | "overview" | "noise",
+ *   job?: "find-context" | "currency" | "catch-up" | "why",
  *   question: string,
  *   answers: { technical: string, nonTechnical: string },
  *   evidence: Ref[],
- *   onlyOutsideGit?: string[]
+ *   onlyOutsideGit?: string[],
+ *   expect?: "answer" | "gap",
+ *   truth?: string,
+ *   notRecorded?: string[]
  * }} AnswerKeyEntry
+ *   job is the user job the question tests (docs/research-takeaways.md). When omitted it is derived from facet:
+ *   growth and reversal -> catch-up; decision, adr and unwritten-why -> why; how, who and overview -> find-context;
+ *   noise has no default and must set job.
  *   onlyOutsideGit: marker phrases that must appear in at least one cited PR, issue, comment or discussion text and
  *   nowhere in git (no file content at any commit, no commit message, no tag message).
+ *   expect "gap" means the correct answer is that the record does not say. The answers explain what is and is not
+ *   recorded; evidence cites what does exist (the change itself). truth is the real reason, known only to the fixture
+ *   author, and is never emitted into github.json or the repo. notRecorded lists phrases from that truth that must
+ *   appear nowhere at all: no git content, commit or tag message, and no GitHub-side text. Both are required for a gap.
  *   Typed mentions in answer text ("PR #4", "issue #7", "discussion #3") must name an existing item of that kind.
  *
  * @typedef {{

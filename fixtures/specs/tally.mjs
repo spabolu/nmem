@@ -2731,6 +2731,7 @@ The list of bills is a plain file named ledger.json. tally settle prints the few
       id: 'noise-who-wrote',
       view: 'timeline',
       facet: 'noise',
+      job: 'find-context',
       question: 'How many distinct people wrote the app, if a laptop shows a second name for Lena?',
       answers: {
         technical:
@@ -2749,6 +2750,7 @@ The list of bills is a plain file named ledger.json. tally settle prints the few
       id: 'noise-fix-tests',
       view: 'timeline',
       facet: 'noise',
+      job: 'catch-up',
       question: 'What did the change labeled "fix tests" actually change?',
       answers: {
         technical:
@@ -2766,6 +2768,7 @@ The list of bills is a plain file named ledger.json. tally settle prints the few
       id: 'noise-bot-behavior',
       view: 'timeline',
       facet: 'noise',
+      job: 'catch-up',
       question: 'Did the automated dependency update change how bills are split or stored?',
       answers: {
         technical:
@@ -2783,6 +2786,7 @@ The list of bills is a plain file named ledger.json. tally settle prints the few
       id: 'noise-text-edit',
       view: 'timeline',
       facet: 'noise',
+      job: 'why',
       question: 'Lena first agreed to add text messages. What was the final decision?',
       answers: {
         technical:
@@ -2800,6 +2804,7 @@ The list of bills is a plain file named ledger.json. tally settle prints the few
       id: 'noise-kit-time',
       view: 'timeline',
       facet: 'noise',
+      job: 'catch-up',
       question: 'What local time did Kit fix the roommates spelling, and in what clock?',
       answers: {
         technical:
@@ -2816,6 +2821,7 @@ The list of bills is a plain file named ledger.json. tally settle prints the few
       id: 'noise-web-claim',
       view: 'timeline',
       facet: 'noise',
+      job: 'why',
       question: 'Did Maya ask for the local web page?',
       answers: {
         technical:
