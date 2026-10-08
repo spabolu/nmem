@@ -2214,22 +2214,21 @@ I did not read every line of the generated types. Please skim them.`,
       checks: matrixChecks('c-clock', '2024-11-21T16:18:00Z', 'success', 'clock tests passed'),
       outcome: { kind: 'merged', at: '2024-11-22T10:30:00Z', by: 'mira-chen' },
     },
-    // checkoutNewBranch always starts from main, so a pull request cannot be based on
-    // another pull request's branch. PR 18 declares the dependency and lands after PR 17.
     {
       type: 'pr',
       number: 18,
       title: 'Round retry waits to the clock step',
       author: 'jon-okonkwo',
-      body: `${q.depends17} roundRetryMs calls clockStepMs from that change. Land that one first.`,
+      body: `Stacked on #17. ${q.depends17} roundRetryMs calls clockStepMs from that change. Land that one first.`,
       labels: ['feature'],
       requestedReviewers: ['mira-chen'],
       branch: 'retry-round',
-      openedAt: '2024-11-25T13:15:00Z',
+      base: 17,
+      openedAt: '2024-11-21T17:30:00Z',
       commits: [
         {
           key: 'c-retry-round',
-          at: '2024-11-25T14:40:00Z',
+          at: '2024-11-21T18:10:00Z',
           author: 'jon-okonkwo',
           message: 'round retry waits to the clock step',
           files: {
@@ -2242,15 +2241,15 @@ I did not read every line of the generated types. Please skim them.`,
         {
           id: 'pr18-rv-mira',
           author: 'mira-chen',
-          at: '2024-11-25T17:10:00Z',
+          at: '2024-11-22T09:55:00Z',
           state: 'APPROVED',
-          body: 'Rounding looks right.',
+          body: 'Rounding looks right. Merge after #17.',
           threads: [],
         },
       ],
       comments: [],
-      checks: matrixChecks('c-retry-round', '2024-11-25T14:55:00Z', 'success', 'retry rounding tests passed'),
-      outcome: { kind: 'merged', at: '2024-11-26T11:20:00Z', by: 'mira-chen' },
+      checks: matrixChecks('c-retry-round', '2024-11-21T18:25:00Z', 'success', 'retry rounding tests passed'),
+      outcome: { kind: 'merged', at: '2024-11-22T11:05:00Z', by: 'mira-chen' },
     },
     {
       type: 'commit',
@@ -2319,6 +2318,26 @@ I did not read every line of the generated types. Please skim them.`,
     },
   ],
   answerKey: [
+    {
+      id: 'stack-retry-round',
+      view: 'timeline',
+      facet: 'growth',
+      job: 'catch-up',
+      question: 'PRs #17 and #18 were reviewed together. In what order did they have to land, and why?',
+      answers: {
+        technical:
+          'PR #18 was stacked on PR #17. It branched from the clock-step branch at c-clock and targeted that branch, so roundRetryMs in src/retry.ts could call clockStepMs from src/clock.ts. PR #17 merged first on 2024-11-22, GitHub then retargeted PR #18 to main, and it merged 35 minutes later. Landing #18 alone would have referenced a function main did not have yet.',
+        nonTechnical:
+          'The second change was built on top of the first, because it reuses a helper the first one added. The first had to go in before the second, and they went in about half an hour apart on November 22, 2024.',
+      },
+      evidence: [
+        { kind: 'pr', number: 18, quote: 'Stacked on #17.' },
+        { kind: 'pr', number: 17, quote: 'round waits to a step' },
+        { kind: 'comment', id: 'pr18-rv-mira', quote: 'Merge after #17.' },
+        { kind: 'file', path: 'src/clock.ts', at: 'c-clock', quote: 'export function clockStepMs' },
+        { kind: 'commit', key: 'c-retry-round', quote: 'round retry waits to the clock step' },
+      ],
+    },
     {
       id: 'what-is-it',
       view: 'docs',
