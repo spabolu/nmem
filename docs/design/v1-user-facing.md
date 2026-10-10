@@ -39,6 +39,16 @@ Each topic page shows, top to bottom:
 - Routine work is one counted strip, for example "14 routine changes, 2,285 lines". It opens to a list, and each row gives the reason nmem treats it as routine.
 - Changes that were added and later undone collapse into one "no net change" bracket.
 
+## What a decision is
+
+- A decision is a choice someone made on purpose: an ADR, an agreement in a review or issue thread, or a choice stated in a PR or commit. A deliberate behavior change with no recorded reason is also a decision, shown as "Nobody wrote down why."
+- A change that looks accidental, such as a header dropped during a cleanup, is not a decision. It is **Worth a look**.
+- A decision's date is the day it took effect on the default branch. A decision with no code change is dated the day it was written.
+- One list of decisions feeds the topic pages and the timeline, so every count agrees. Every decision appears on the timeline as a **Decision** card, including decisions with no code change. A change that carries out a decision links to it.
+- When cards crowd, the timeline keeps **Decision** cards visible first, then **Behavior change**, then **Worth a look**.
+- The timeline summary names at most three items in total, chosen in that same order.
+- A topic shows an example only when a test or a run backs it. Otherwise it shows none.
+
 ## Rules for every screen
 
 - The answer comes first. A headline has at most 45 words. A card has at most three points.
@@ -53,7 +63,7 @@ Each topic page shows, top to bottom:
 - **Doc claims.** Each sentence in a written doc, its topic, and whether it is true at the latest commit. If false, the change that broke it.
 - **Decisions.** What was decided, by whom, when, and the reason with its source, or a marker that no reason was recorded. Each decision belongs to one or more topics.
 - **Changes.** Every merged PR and direct commit, the date it went live, the topics it touched, its kind, and its line counts. A routine change carries its reason. An undone sequence is grouped.
-- **Topic pages.** Headline, example, and who to ask, in engineer and plain versions.
+- **Topic pages.** Headline and example, in engineer and plain versions. "Who to ask" lives on each decision.
 - **Sources.** Kind, author, date, exact quote, and GitHub URL for every claim.
 
 ## Not in v1
