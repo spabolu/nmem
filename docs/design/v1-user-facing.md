@@ -41,11 +41,11 @@ Each topic page shows, top to bottom:
 
 ## What a decision is
 
-- A decision is a choice someone made on purpose: an ADR, an agreement in a review or issue thread, or a choice stated in a PR or commit. A deliberate behavior change with no recorded reason is also a decision, shown as "Nobody wrote down why."
+- A decision is a choice someone made on purpose: an ADR, an agreement in a review or issue thread, or a choice stated in a PR or commit. The record must show intent. A behavior change whose PR says nothing about it, or says "no behavior change intended", is a **Behavior change** with "Nobody wrote down why", not a decision.
 - A change that looks accidental, such as a header dropped during a cleanup, is not a decision. It is **Worth a look**.
 - A decision's date is the day it took effect on the default branch. A decision with no code change is dated the day it was written.
 - One list of decisions feeds the topic pages and the timeline, so every count agrees. Every decision appears on the timeline as a **Decision** card, including decisions with no code change. A change that carries out a decision links to it.
-- When cards crowd, the timeline keeps **Decision** cards visible first, then **Behavior change**, then **Worth a look**.
+- The timeline has two rows of cards. **Decision** cards sit above the time axis. **Behavior change** and **Worth a look** cards sit below it. Each row folds its own crowded cards into "+N more", so neither kind hides the other.
 - The timeline summary names at most three items in total, chosen in that same order.
 - A topic shows an example only when a test or a run backs it. Otherwise it shows none.
 
