@@ -6,7 +6,7 @@
     "node": ">=24"
   },
   "exports": {
-    "./protocol": "./protocol.ts",
+    "./contract": "./contract.ts",
     "./package.json": "./package.json"
   },
   "bin": {

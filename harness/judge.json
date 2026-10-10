@@ -1,6 +1,5 @@
 {
-  "model": "xai/grok-4.7",
-  "family": "xai",
-  "provider": { "kind": "command", "argv": ["./judge-shim.sh"] },
+  "model": "grok-4.7",
+  "provider": { "kind": "github-copilot", "tokenEnv": "GITHUB_COPILOT_TOKEN" },
   "concurrency": 8
 }

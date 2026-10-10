@@ -1,27 +1,44 @@
 /**
- * The judge: a pluggable model behind six fixed tasks, a content-addressed cache, and an offline mode.
- * Metrics never build prompts or parse model text. They call ask(kind, input) and get typed verdicts back.
+ * The judge: one model behind five fixed tasks, a content-addressed cache, and an offline mode. Metrics never build
+ * prompts or parse model text. They call ask(kind, input) and get typed verdicts back.
  *
- * Bias controls built into the shape:
- * - Extraction over grading wherever the comparison can be deterministic. currency-verdict and stance never see the
- *   key. They report what the answer says, and metrics.ts compares that to the key in code.
- * - Facts over holistic grades. check-facts marks each frozen fact supported, contradicted, or absent, so every lost
- *   point has a named fact behind it, and length cannot earn points.
- * - The judge sees answer text through renderForJudge only: markdown flattened, the subject's name redacted. It never
- *   sees which system or participant wrote an answer, which run it came from, or any gap's truth.
- * - The judge's model family must differ from every subject's declared families, or the run refuses.
+ * Kept from the Q&A harness: fixed tasks with versions, typed verdicts, the write-once cache, offline mode, redaction.
+ * Changed: one provider (GitHub Copilot), and families derived from model ids instead of declared. Deleted tasks:
+ * `segment` (no statements to cut), `currency-verdict` (claims carry typed verdicts), `stance` (a recorded why on a gap
+ * is structural, and reason-scan reads every not-recorded gap object).
  */
-import type { CurrencyVerdict } from './key.ts';
-import type { Audience, ModelFamily, Statement } from './protocol.ts';
+export type ModelFamily = 'anthropic' | 'openai' | 'xai' | 'google' | 'meta' | 'mistral';
 
+/**
+ * The one table. A family is the model vendor, never the transport. A system on Copilot's claude-* and a judge on
+ * Copilot's grok-* do not share a family. A new model is one row. An unknown id throws, naming it, in parseManifest and
+ * parseJudgeConfig, so a typo cannot pass as a different family.
+ */
+export const FAMILY_BY_PREFIX = [
+  ['claude-', 'anthropic'],
+  ['gpt-', 'openai'],
+  ['o1', 'openai'],
+  ['o3', 'openai'],
+  ['o4', 'openai'],
+  ['grok-', 'xai'],
+  ['gemini-', 'google'],
+  ['llama-', 'meta'],
+  ['mistral-', 'mistral'],
+] as const satisfies readonly (readonly [string, ModelFamily])[];
+
+export function familyOf(model: string): ModelFamily {
+  // TODO: strip a provider prefix ("github-copilot/", "xai/") and a "#variant" suffix, then the first matching prefix.
+  throw new Error('not implemented');
+}
+
+/**
+ * harness/judge.json. There is no family field, because familyOf derives it. There is one provider kind. The command
+ * shim and the OpenAI-compatible provider are deleted, and parseJudgeConfig rejects them by name.
+ */
 export type JudgeConfig = {
-  /** Exact model id. It is part of every cache key, so a shim that silently swaps models must change this string. */
   readonly model: string;
-  readonly family: ModelFamily;
-  readonly provider:
-    /** Any CLI. Gets {"system","user"} JSON on stdin, prints the model's reply on stdout. */
-    | { readonly kind: 'command'; readonly argv: readonly [string, ...string[]] }
-    | { readonly kind: 'openai-compatible'; readonly baseUrl: string; readonly apiKeyEnv: string };
+  /** A GitHub token with Copilot access, read from this env var. Never written to disk, run.json, or the cache. */
+  readonly provider: { readonly kind: 'github-copilot'; readonly tokenEnv: string };
   readonly concurrency: number;
 };
 
@@ -32,64 +49,76 @@ export function parseJudgeConfig(file: string): JudgeConfig {
 /** offline = cache-only. A miss is reported as skipped, never as a zero. */
 export type JudgeMode = { readonly kind: 'live'; readonly config: JudgeConfig } | { readonly kind: 'offline'; readonly model: string | null };
 
-export type Prompt = { readonly system: string; readonly user: string };
+/**
+ * The Copilot adapter. Nothing above it knows the transport. Every endpoint, header, and model id below is unverified
+ * until the first live call. The interface does not change if they move.
+ *
+ *  1. Exchange: GET https://api.github.com/copilot_internal/v2/token with "Authorization: token <github token>". Keep the
+ *     short-lived Copilot token in memory and refresh it 60 s before expires_at, or once on a 401. A 403 is a
+ *     provider-error naming tokenEnv, never a retry loop. A pre-exchanged token in config is not accepted.
+ *  2. Pin: GET https://api.githubcopilot.com/models once per process. The configured model must be listed and enabled
+ *     for chat. Its listed version goes into run.json, every cache key, and the stamp, so a silent model update under
+ *     the same alias invalidates the cache instead of mixing verdicts.
+ *  3. Call: POST https://api.githubcopilot.com/chat/completions with the Copilot token only. The GitHub token is never
+ *     sent to the completions host. Editor-Version and Copilot-Integration-Id are constants here, not config.
+ *     Temperature 0. 429 and 5xx back off honoring retry-after, three tries, then JudgeUnavailable('provider-error').
+ */
+export type CopilotSession = { readonly model: string; readonly version: string };
 
-/** What a judge prompt shows of an answer: numbered lines like "[2] (unknown) Nothing written down says why." */
-export type JudgeAnswer = string & { readonly __brand: 'JudgeAnswer' };
+export function openCopilot(config: JudgeConfig): Promise<CopilotSession> {
+  throw new Error('not implemented');
+}
 
-export function renderForJudge(statements: readonly Statement[], redact: readonly string[]): JudgeAnswer {
-  // TODO: one line per statement, "[i] (basis) text"; strip markdown emphasis, headers and bullets; collapse
-  // whitespace; replace each redact string (case-insensitive) with "[subject]"; clip at 8,000 chars with "[clipped]".
+/** Throws naming subject, model, and family when the judge's derived family is any subject's, unless allowShared. */
+export function assertFamilySeparation(judge: JudgeConfig, subjects: readonly { readonly name: string; readonly models: readonly string[] }[], allowShared: boolean): void {
   throw new Error('not implemented');
 }
 
 export type FactVerdict = 'supported' | 'contradicted' | 'absent';
 export type SupportVerdict = 'yes' | 'partly' | 'no';
-export type Stance = { readonly unrecorded: 'no' | 'detail' | 'main'; readonly reason: 'none' | 'guess' | 'fact' };
+export type ReasonScan = 'none' | 'guess' | 'fact';
 
-/** A statement as the segment task cut it from free text. It still goes through protocol.parseStatements. */
-export type SegmentedStatement = { readonly basis: 'record' | 'inference' | 'unknown'; readonly text: string; readonly cite: readonly string[] };
-
-type Task<In, Out> = {
-  /** Bumping version invalidates exactly this task's cache entries. */
-  readonly version: number;
-  readonly prompt: (input: In) => Prompt;
-  /** Parses the model's reply into domain values or throws. This is the judge's input boundary. */
-  readonly parse: (reply: string, input: In) => Out;
-};
+type Prompt = { readonly system: string; readonly user: string };
+type Task<In, Out> = { readonly version: number; readonly prompt: (input: In) => Prompt; readonly parse: (reply: string, input: In) => Out };
 
 export const TASKS = {
-  /** Run only by `facts`. Its output is frozen into harness/facts/<slug>.json and reviewed in the diff. */
+  /**
+   * Run only by `facts`. Splits one gold prose field into atomic facts, headline marked, and rewrites each gold
+   * sentence with no 6-gram in common with it (the paraphrase reference). A paraphrase that shares a 6-gram is re-asked.
+   */
   'extract-facts': {
     version: 1,
-    prompt: (input: { question: string; answer: string; audience: Audience; gap: boolean }) => {
-      // TODO: "Split this reference answer into atomic facts a reader must get. Mark as headline the fact(s) that
-      // directly answer the question. For a question whose answer is that the record does not say, the not-recorded
-      // fact is the headline." Ask for {"headline": [..], "supporting": [..]}, at most 8 total.
+    prompt: (input: { field: string; audience: 'eng' | 'plain'; sentences: readonly string[] }): Prompt => {
       throw new Error('not implemented');
     },
-    parse: (reply: string): { headline: readonly [string, ...string[]]; supporting: readonly string[] } => {
+    parse: (reply: string): { readonly headline: readonly [string, ...string[]]; readonly supporting: readonly string[]; readonly paraphrase: readonly [string, ...string[]] } => {
       throw new Error('not implemented');
     },
   },
+  /** Run only by `facts`, on a model of another family (owner decision: an AI cross-check first). Any "no" flags the set. */
+  'cross-check-facts': {
+    version: 1,
+    prompt: (input: { text: string; facts: readonly string[] }): Prompt => {
+      throw new Error('not implemented');
+    },
+    parse: (reply: string): { readonly unstated: readonly number[]; readonly missing: readonly string[] } => {
+      throw new Error('not implemented');
+    },
+  },
+  /** Per frozen fact: supported, contradicted, or absent. Extra true detail is neutral. Never mentions length or style. */
   'check-facts': {
     version: 1,
-    prompt: (input: { question: string; facts: readonly { id: string; text: string }[]; answer: JudgeAnswer }) => {
-      // TODO: per fact: supported (the answer states it or something equivalent), contradicted (the answer states
-      // something incompatible), absent. Extra true detail is neither rewarded nor punished. Hedged wording counts as
-      // stated. Reply {"f1": "supported", ...}. The prompt never mentions length or style.
+    prompt: (input: { field: string; facts: readonly { id: string; text: string }[]; text: string }): Prompt => {
       throw new Error('not implemented');
     },
     parse: (reply: string, input: { facts: readonly { id: string }[] }): Readonly<Record<string, FactVerdict>> => {
-      // TODO: exactly the input fact ids, each one of the three values.
       throw new Error('not implemented');
     },
   },
+  /** One batch per object: each sentence against its one excerpt (a record quote, or a proof's computed output). */
   'check-support': {
     version: 1,
-    prompt: (input: { pairs: readonly { statement: string; excerpts: readonly { header: string; text: string }[] }[] }) => {
-      // TODO: for each pair, does the union of excerpts support the whole statement? yes, partly, or no.
-      // One batch per item keeps calls at one per answer, not one per citation.
+    prompt: (input: { pairs: readonly { sentence: string; excerpt: { header: string; text: string } }[] }): Prompt => {
       throw new Error('not implemented');
     },
     parse: (reply: string, input: { pairs: readonly unknown[] }): readonly SupportVerdict[] => {
@@ -97,51 +126,16 @@ export const TASKS = {
     },
   },
   /**
-   * Key-blind. Reports which of the four verdicts the answer gives about whether a doc statement holds at main, so
-   * metrics.ts can compare it to the key's structured `currency` field in code. Definitions the prompt gives:
-   * still-true (true at main and true since it was written), no-longer-true (false at main), true-since (true at main,
-   * but only since a later change), depends (true under some conditions and not others).
+   * Key-blind. Asked only when a gap object carries a guess. Given what the object is about and every sentence it shows,
+   * the guess under its label included, does any sentence give a reason: none, only as a labelled guess, or as fact?
+   * The template "Nobody wrote down why" is not shown, so it cannot be read as a reason or an excuse.
    */
-  'currency-verdict': {
+  'reason-scan': {
     version: 1,
-    prompt: (input: { question: string; answer: JudgeAnswer }) => {
+    prompt: (input: { subject: string; sentences: readonly string[] }): Prompt => {
       throw new Error('not implemented');
     },
-    parse: (reply: string): CurrencyVerdict | 'unstated' => {
-      throw new Error('not implemented');
-    },
-  },
-  /** Key-blind. Does the answer claim the asked-for thing is unrecorded, and does it give a reason as fact or as a guess? */
-  stance: {
-    version: 1,
-    prompt: (input: { question: string; answer: JudgeAnswer }) => {
-      // TODO: two questions. (a) Does the answer say the record does not contain what the question asks for: no,
-      // only for a side detail, or for the main thing? (b) Does it give a reason for what the question asks about:
-      // none, only as a labelled guess, or as fact? Statements tagged (inference) count as labelled guesses only if
-      // the wording also hedges. An "(inference)" tag on confident prose is still a reason given as fact.
-      throw new Error('not implemented');
-    },
-    parse: (reply: string): Stance => {
-      throw new Error('not implemented');
-    },
-  },
-  /**
-   * Answer sheets only. Cuts a person's free text into typed statements without adding or rewording anything, so a
-   * sheet reaches the same scorer as a system. Every score built on its output is labelled judge-segmented.
-   */
-  segment: {
-    version: 1,
-    prompt: (input: { question: string; audience: Audience; text: string; links: readonly string[] }) => {
-      // TODO: "Split this answer into statements. Copy each statement's words from the answer exactly. Mark it record
-      // when the person points to a source for it (a pasted link, or a mention like 'PR #22 says'), inference when it
-      // is their own conclusion, unknown when they say the record does not say or they could not find it. List the
-      // sources each record statement points to, as written." Never shows the key or the facts.
-      throw new Error('not implemented');
-    },
-    parse: (reply: string, input: { text: string; links: readonly string[] }): readonly SegmentedStatement[] => {
-      // TODO: every statement text is a whitespace-normalized substring of input.text (the judge cannot invent or
-      // reword content); every cite is one of input.links or a mention that appears in input.text; the statements
-      // cover every sentence of input.text. Any violation throws, which becomes a re-ask, then bad-reply.
+    parse: (reply: string): ReasonScan => {
       throw new Error('not implemented');
     },
   },
@@ -151,7 +145,7 @@ export type TaskKind = keyof typeof TASKS;
 export type TaskInput<K extends TaskKind> = Parameters<(typeof TASKS)[K]['prompt']>[0];
 export type TaskOutput<K extends TaskKind> = ReturnType<(typeof TASKS)[K]['parse']>;
 
-/** sample > 0 draws an independent verdict (a separate cache slot), used to measure test-retest agreement. */
+/** sample > 0 draws an independent verdict (a separate cache slot), used for test-retest. */
 export type Ask = <K extends TaskKind>(kind: K, input: TaskInput<K>, options?: { readonly sample?: number }) => Promise<TaskOutput<K>>;
 
 export type UnavailableReason = 'offline-miss' | 'bad-reply' | 'provider-error';
@@ -164,26 +158,12 @@ export class JudgeUnavailable extends Error {
   }
 }
 
-export type JudgeStats = { readonly calls: number; readonly cached: number; readonly misses: number; readonly badReplies: number };
+export type Judge = { readonly ask: Ask; readonly model: string | null; readonly version: string | null };
 
-export type Judge = { readonly ask: Ask; readonly model: string | null; stats(): JudgeStats };
-
-export function openJudge(mode: JudgeMode, cacheDir: string): Judge {
-  // TODO:
-  // key = hashOf(kind, TASKS[kind].version, model, sample ?? 0, input)
-  // hit: read <cacheDir>/judge/<key[0..2]>/<key>.json, then re-parse the stored reply through TASKS[kind].parse, so a
-  //      parser fix applies to old cache entries without a model call.
-  // miss + offline: throw JudgeUnavailable('offline-miss'). Offline mode reads only this cache and calls nothing.
-  // miss + live: semaphore(config.concurrency); provider call with 3 retries and backoff on transport errors;
-  //      one re-ask with "Reply with JSON only" on a parse failure, then JudgeUnavailable('bad-reply').
-  //      Persist {key, kind, version, model, sample, input, reply, at}: write a temp file, then link() it to the final
-  //      name. EEXIST means another worker won and its verdict stands. A key is never rewritten, so no lock.
-  // Concurrent asks for the same key share one in-flight promise.
-  throw new Error('not implemented');
-}
-
-export function assertFamilySeparation(judge: JudgeConfig, subjects: readonly { readonly name: string; readonly modelFamilies: readonly ModelFamily[] }[], allowShared: boolean): void {
-  // TODO: throw naming the subject and family when judge.family is in any subject's modelFamilies, unless allowShared.
-  // Then run.json records it and every report table caption says "judge shares a model family with X".
+export function openJudge(mode: JudgeMode, cacheDir: string): Promise<Judge> {
+  // TODO, unchanged from the Q&A harness except the key gains the pinned version:
+  // key = hashOf(kind, TASKS[kind].version, model, version, sample ?? 0, input). Hit: re-parse the stored reply.
+  // Miss + offline: JudgeUnavailable('offline-miss'). Miss + live: semaphore(concurrency), openCopilot, one re-ask on a
+  // parse failure, then 'bad-reply'. Persist by temp file and link(), so concurrent writers need no lock.
   throw new Error('not implemented');
 }

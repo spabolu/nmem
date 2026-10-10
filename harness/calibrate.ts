@@ -1,61 +1,55 @@
 /**
- * Proves the instrument separates before anyone trusts it. References are real processes speaking the same protocol
- * as a system (reference/system.ts), so calibration exercises the workspace, spawn, parse, citation resolution,
- * judge, and aggregation paths a real run uses.
+ * Proves the instrument separates before anyone trusts a number. References are real processes writing snapshots
+ * (reference/system.ts), so calibration exercises the workspace, parse, proof runs, alignment, judge, and aggregation
+ * paths a real run uses. A pass writes a stamp keyed by (harness source, judge model and version, facts, gold).
+ * `run` refuses to report without one.
  *
- * - oracle: the key's own answers, split into statements and cited with the key's evidence.
- * - null: "The record does not say." for everything.
- * - corruptions: one per failure mode, each a transform of the oracle (corruptions.ts).
- *
- * Nothing here lists metrics. Each metric's oracle and null bands, and the corruptions that must move it, come from
- * METRICS. The corruption-to-metric matrix is derived from them at load.
- *
- * A passing calibration writes a stamp keyed by (harness source, judge model, facts, fixtures). `run` refuses to
- * report without one.
+ * Nothing here lists metrics. Bands and the corruptions that must move each metric come from METRICS, and the
+ * corruption-to-metric matrix is derived at load.
  */
 import { CORRUPTIONS } from './corruptions.ts';
-import type { CorruptionId } from './corruptions.ts';
+import type { CorruptionId, InvariantId } from './corruptions.ts';
+import { FLOORS } from './gold.ts';
+import type { Gold, GroupKey, ReviewGap } from './gold.ts';
 import type { Hash } from './hash.ts';
 import type { JudgeMode } from './judge.ts';
-import type { RepoKey, Slug } from './key.ts';
 import { METRICS } from './metrics.ts';
 import type { ClaimedCorruption, ItemScore, MetricId } from './metrics.ts';
-import type { Audience, SystemManifest } from './protocol.ts';
-import type { RunConfig } from './run.ts';
 
-export type ReferenceId = 'oracle' | 'null' | CorruptionId;
+export type ReferenceId = 'oracle' | 'null' | 'paraphrase' | CorruptionId | InvariantId;
 
-/** Methodology thresholds. Per-metric bands live on each METRICS entry. */
 export const CRITERIA = {
-  /** A targeted metric must fall at least this far (absolute, 0..1) on the corrupted items. */
+  /** A targeted metric must fall at least this far (absolute, 0..1) on the touched items. */
   minDrop: 0.4,
-  /** Every other metric must move less than this on the same items. */
+  /** Every metric in neither movedBy nor mayMove must move less than this on the same items. */
   maxCollateral: 0.1,
-  /** Usable is checked per audience: plain answers are a standing requirement, so each audience must separate. */
+  /** Every metric, every audience, every touched item, for relabel, alt-anchor, and head-revs. */
+  maxInvariantMove: 0.02,
+  /** The paraphrase reference: every metric within this of the oracle, and zero leak findings. */
+  paraphrase: { maxMove: 0.1, leaks: 0 },
+  /** Usable rate per group and audience. */
   usable: { oracle: 0.85, null: 0.05 },
-  /** Share of oracle items the leak detector must flag. The null must have none. */
+  /** Groups where asserting nothing is correct. The null must be usable on them. */
+  absence: ['claim/holds'] as readonly GroupKey[],
+  absenceNull: 0.95,
+  /** Share of oracle objects the leak detector must flag. The oracle copies gold prose, so it must trip. */
   leakRecall: 0.95,
-  /** Test-retest agreement per judge task on a stratified sample. */
   judgeAgreement: 0.9,
   judgeSample: 60,
 } as const;
 
 export type MatrixRow = {
   readonly corruption: CorruptionId;
-  /** Must drop by CRITERIA.minDrop or more. */
   readonly targets: readonly [MetricId, ...MetricId[]];
-  /** May move; the collateral check skips them. Every metric in neither list must hold still. */
   readonly exempt: readonly MetricId[];
 };
 
-/** Compile-time half of the check below: names any corruption no metric claims. */
 type Unclaimed = Exclude<CorruptionId, ClaimedCorruption>;
 true satisfies [Unclaimed] extends [never] ? true : { unclaimed: Unclaimed };
 
 /**
- * The matrix, derived from METRICS[*].movedBy and mayMove. Throws at load when a corruption is claimed by no metric,
- * so a transform nobody expects to move anything can never pass calibration by moving nothing, and when a metric lists
- * one corruption as both required and optional.
+ * Derived from METRICS[*].movedBy and mayMove. Throws at load when no metric claims a corruption, so a transform nobody
+ * expects to move anything can never pass by moving nothing, and when a metric lists one corruption in both lists.
  */
 export function deriveMatrix(): readonly MatrixRow[] {
   const rows: MatrixRow[] = [];
@@ -80,73 +74,54 @@ export function deriveMatrix(): readonly MatrixRow[] {
 
 export const MATRIX: readonly MatrixRow[] = deriveMatrix();
 
-/** Manifests synthesized in code. References run as processes like any system and never live in a file. */
-export function referenceManifest(id: ReferenceId, outDir: string, harnessDir: string): SystemManifest {
-  // TODO: answer = ['node', '<harnessDir>/reference/system.ts', id, outDir], ingest null, no model families,
-  // timeouts seconds(60).
+/** Each one blocks a stamp and names what the owner or the evaluator must do. */
+export type Precondition =
+  /** Owner decision: the owner confirms every claim verdict before the harness relies on it. */
+  | { readonly kind: 'currency-review'; readonly gaps: readonly ReviewGap[] }
+  /** Owner decision: AI cross-check, then the owner checks every flagged fact set plus a seeded random 20. */
+  | { readonly kind: 'facts-unreviewed'; readonly keys: readonly string[] }
+  /** Owner decision: at least FLOORS.gaps gap objects and FLOORS.claims currency claims across the repos. */
+  | { readonly kind: 'too-few-cases'; readonly gaps: number; readonly claims: number; readonly floors: typeof FLOORS }
+  | { readonly kind: 'judge-family'; readonly detail: string };
+
+export function preconditions(golds: readonly Gold[], reviewedDir: string, factsDir: string, judge: JudgeMode): readonly Precondition[] {
   throw new Error('not implemented');
 }
-
-export type Cell = {
-  readonly metric: MetricId | 'usable';
-  readonly audience: Audience;
-  readonly affected: number;
-  readonly oracle: number;
-  readonly corrupted: number;
-  readonly drop: number;
-  readonly role: 'target' | 'exempt' | 'collateral';
-  readonly pass: boolean;
-};
 
 export type CalibrationFailure = {
   readonly what: string;
   /** What this means for someone reading the numbers. */
   readonly meaning: string;
-  readonly worst: readonly { readonly item: string; readonly oracle: string; readonly corrupted: string }[];
+  readonly worst: readonly { readonly item: string; readonly oracle: string; readonly reference: string }[];
 };
-
-export type BaselineCell = { readonly kind: 'mean'; readonly value: number; readonly n: number } | { readonly kind: 'withheld' | 'na'; readonly n: number };
 
 export type CalibrationResult = {
   readonly pass: boolean;
-  readonly baselines: Readonly<Record<'oracle' | 'null', Readonly<Record<Audience, Readonly<Record<MetricId | 'usable', BaselineCell>>>>>>;
-  readonly matrix: Readonly<Record<CorruptionId, readonly Cell[]>>;
-  readonly leakRecall: number;
-  readonly agreement: Readonly<Record<string, number>> | null;
+  readonly preconditions: readonly Precondition[];
   readonly failures: readonly CalibrationFailure[];
 };
 
-/** Pure: per-item scores of every reference in, verdict out. This is the function calibration's own tests call. */
-export function judgeSeparation(scores: ReadonlyMap<ReferenceId, readonly ItemScore[]>, keys: readonly RepoKey[]): CalibrationResult {
-  // TODO:
-  // bands: for each metric m and each reference r in {oracle, null}, per audience where m applies: the cell must land
-  //   in m.bands[r]. 'withheld' means every applicable item is withheld; 'na' means every item is na. A metric whose
-  //   null band is 'withheld' proves the null cannot earn presentation points.
-  // usable, per audience: oracle >= CRITERIA.usable.oracle, null <= CRITERIA.usable.null. Usable for references is
-  //   computed with leak policy 'record'.
-  // leak: oracle items with a key-phrasing or canary finding / oracle items >= leakRecall; null items with any finding = 0.
-  // each MATRIX row: affected = items where the corruption applies. For each metric scored (not na, skipped, or
-  //   withheld) on both sides of an affected item: drop = mean(oracle) - mean(corrupted). Targets need drop >= minDrop;
-  //   exempt metrics are reported but not judged; all others need |drop| <= maxCollateral; usable must drop >= minDrop
-  //   in each audience the corruption touches.
-  // Every failure names the 3 items with the largest move and a meaning line, e.g. for pad -> correctness:
-  //   "the judge rewards or punishes length, so correctness would partly measure length".
-  void MATRIX;
+/**
+ * Pure: every reference's item scores in, verdict out.
+ * - each metric's oracle and null band, per audience where it applies;
+ * - usable per group and audience: oracle >= 0.85; null <= 0.05, except absence groups where null >= 0.95;
+ * - each MATRIX row on its touched items: targets drop >= minDrop, exempt unjudged, others move <= maxCollateral,
+ *   usable drops >= minDrop in each touched group;
+ * - each invariant: every metric and usable moves <= maxInvariantMove on its touched items;
+ * - paraphrase: every metric within CRITERIA.paraphrase.maxMove of the oracle, and no leak finding;
+ * - leak: the oracle flagged on >= leakRecall of its objects, the null on none;
+ * - judge test-retest per task >= judgeAgreement on a stratified sample.
+ * A failure names the three items that moved most and what that means, e.g. for relabel -> facts: "topic alignment
+ * depends on ids, so a system that names topics differently is scored as missing them".
+ */
+export function judgeSeparation(scores: ReadonlyMap<ReferenceId, readonly ItemScore[]>, leaks: ReadonlyMap<ReferenceId, number>): CalibrationResult {
   throw new Error('not implemented');
 }
 
-export type StampInputs = { readonly harness: Hash; readonly judge: string | 'offline'; readonly facts: Hash; readonly fixtures: Hash };
+export type StampInputs = { readonly harness: Hash; readonly judge: string; readonly facts: Hash; readonly gold: Hash; readonly currencyReview: Hash };
 
-export async function calibrate(
-  config: Pick<RunConfig, 'outDir' | 'runsDir' | 'factsDir' | 'cacheDir' | 'judge' | 'concurrency'> & { readonly slugs: readonly Slug[] },
-  options: { readonly repeats: number; readonly secondJudge: JudgeMode | null },
-): Promise<CalibrationResult> {
-  // TODO: run() with subjects = referenceManifest(id) for every ReferenceId (trials 1, calibration 'reference').
-  // Corruptions reuse the oracle's judge cache on every item they leave unchanged, so a full calibration costs about
-  // two oracle runs, not eleven. Then judgeSeparation. Then test-retest: a stratified sample (group x audience) of
-  // oracle, fabricate-reason and swap-answers items, re-asked with sample = 1..repeats; agreement = share of identical
-  // verdicts per task. Then an optional second-judge agreement (a limiter in reports, not a gate). On pass, write
-  // <cacheDir>/stamps/<hashOf(StampInputs)>.json by temp file and rename.
+/** Refuses before any reference runs when a precondition fails. On pass, writes <cacheDir>/stamps/<hashOf(StampInputs)>.json. */
+export async function calibrate(golds: readonly Gold[], options: { readonly reviewedDir: string; readonly factsDir: string; readonly cacheDir: string; readonly judge: JudgeMode; readonly repeats: number }): Promise<CalibrationResult> {
   throw new Error('not implemented');
 }
 

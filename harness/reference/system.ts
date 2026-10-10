@@ -1,27 +1,25 @@
 /**
- * The process every calibration reference runs as. It speaks the same protocol as a real system. It is the one
- * process allowed to read the key, because producing the key's answers is its job.
+ * The build command every calibration reference runs as. It writes a Snapshot like any system, so references go
+ * through the same parse, proof, alignment, and scoring path. It is the one process allowed to read gold, so it runs
+ * outside the build sandbox.
  *
- *   node harness/reference/system.ts <referenceId> <outDir> <workspace> <state>   (request on stdin)
+ *   node harness/reference/system.ts <referenceId> <outDir> <workspace> <out.json>
  */
 import type { ReferenceId } from '../calibrate.ts';
-import { CORRUPTIONS, nullResponse, oracleResponse } from '../corruptions.ts';
-import { discoverRepos, loadKey } from '../key.ts';
-import { encodeResponse } from '../protocol.ts';
-import { openRecord } from '../record.ts';
+import { CORRUPTIONS, INVARIANTS, nullSnapshot, paraphraseSnapshot } from '../corruptions.ts';
+import { encodeSnapshot } from '../contract.ts';
+import { discoverRepos, loadFacts, loadGold } from '../gold.ts';
+import { factsOf, openRecord } from '../record.ts';
 
-export async function answer(referenceId: ReferenceId, outDir: string, workspace: string, stdin: string): Promise<string> {
-  // TODO:
-  // slug = the repo under outDir whose github.json repo {owner, name} equals the workspace's.
-  // entry = the key entry whose question equals request.question exactly. Questions are unique per repo.
-  //   A miss throws, because it means the harness sent a question the key does not have.
-  // 'null' -> nullResponse. 'oracle' -> oracleResponse. A corruption id -> appliesTo(entry) ? transform(oracle) : oracle.
-  // Unaffected items are byte-identical to the oracle's, so their judge verdicts come from the cache.
-  void [CORRUPTIONS, nullResponse, oracleResponse, discoverRepos, loadKey, encodeResponse, openRecord];
+export async function build(referenceId: ReferenceId, outDir: string, workspace: string, outFile: string): Promise<void> {
+  // TODO: slug = the repo under outDir whose github.json owner and name equal the workspace's.
+  // 'oracle' -> gold.oracle. 'null' -> nullSnapshot(factsOf(record)). 'paraphrase' -> paraphraseSnapshot(gold, facts).
+  // A corruption or invariant id -> its transform of the oracle. Untouched objects stay byte-identical to the oracle's,
+  // so their judge verdicts come from the cache.
+  void [CORRUPTIONS, INVARIANTS, nullSnapshot, paraphraseSnapshot, encodeSnapshot, discoverRepos, loadFacts, loadGold, factsOf, openRecord];
   throw new Error('not implemented');
 }
 
 if (import.meta.main) {
-  // TODO: validate argv[2] against 'oracle' | 'null' | CORRUPTIONS ids; read stdin; print answer().
   throw new Error('not implemented');
 }

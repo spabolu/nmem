@@ -1,13 +1,14 @@
 /**
- * The public record of one repo: what a system is allowed to see, and how a citation into it resolves.
- * This module must never import key.ts. The blinding boundary is that import edge.
+ * The public record of one repo: the workspace a system is given, how a record source resolves, how a proof runs,
+ * and the facts git and github.json give the view kernel. This module must never import gold.ts. The blinding
+ * boundary is that import edge.
  *
- * github.json is handed over byte-identical. The fixtures were fixed at the source (commit fb3873d: users carry
- * only login, name, and type; repo.description is a realistic About line; repos have no reflog), so the harness
- * keeps no projection. The clone scrub and the canary audit stay as defense in depth.
+ * github.json is handed over byte-identical. The fixtures were fixed at the source (commit fb3873d), so the harness
+ * keeps no projection. The clone scrub and the canary audit stay as defense in depth behind the build sandbox.
  */
+import type { ChangeId, Proof, RecordRef, RecordSource, RepoIdentity, Run } from './contract.ts';
 import type { Hash } from './hash.ts';
-import type { ObjectRef, RepoIdentity } from './protocol.ts';
+import type { RepoFacts } from './view.ts';
 
 export type Sha = string & { readonly __brand: 'Sha' };
 
@@ -20,79 +21,102 @@ export type Workspace = {
 };
 
 /**
- * Builds <parent>/<random>/<repo name>/{repo, github.json}. <parent> is the OS temp dir for runs and the
- * participant directory for card sets, never a path under the nmem checkout, so walking up never reaches out/.
- * Idempotent: the same fixture dir always yields the same fixtureHash and byte-identical content.
+ * Builds <parent>/<random>/<repo name>/{repo, github.json}. <parent> is the OS temp dir for runs and the participant
+ * directory for card sets, never a path under the nmem checkout. Idempotent: the same fixture always yields the same
+ * fixtureHash and byte-identical content.
  */
 export async function buildWorkspace(fixtureDir: string, parent: string): Promise<Workspace> {
-  // TODO:
-  // 1. git clone --no-local --no-hardlinks <fixture>/repo <ws>/repo, then fetch '+refs/pull/*:refs/pull/*',
-  //    '+refs/heads/*:refs/heads/*' and tags (every branch local, as the generator had them).
-  // 2. Scrub what the clone itself writes. Measured on wayfinder: a fresh clone names the fixture path in
-  //    .git/config, .git/logs/HEAD, .git/logs/refs/heads/main and .git/logs/refs/remotes/origin/HEAD, and that path
-  //    leads straight to out/<slug>/answer-key.json. Remove .git/logs, ORIG_HEAD, FETCH_HEAD, COMMIT_EDITMSG and
-  //    refs/remotes/*, set remote.origin.url to https://github.com/<owner>/<name>.git, then pack-refs.
-  // 3. Copy github.json byte-identical.
-  // 4. chmod -R a-w so a system cannot write into the workspace.
-  // fixtureHash = hashOf(main SHA, every ref name -> SHA, github.json bytes).
+  // TODO, unchanged from the Q&A harness:
+  // 1. git clone --no-local --no-hardlinks, then fetch '+refs/pull/*:refs/pull/*', '+refs/heads/*:refs/heads/*', tags.
+  // 2. Scrub what the clone writes. Measured on wayfinder: a fresh clone names the fixture path in .git/config,
+  //    .git/logs/HEAD, .git/logs/refs/heads/main and .git/logs/refs/remotes/origin/HEAD. Remove .git/logs, ORIG_HEAD,
+  //    FETCH_HEAD, COMMIT_EDITMSG and refs/remotes/*, set remote.origin.url to https://github.com/<owner>/<name>.git,
+  //    then pack-refs.
+  // 3. Copy github.json byte-identical. 4. chmod -R a-w.
   throw new Error('not implemented');
 }
 
-export type Canary = { readonly text: string; readonly source: 'spec-key' | 'not-recorded' | 'source-path' };
-
-/** Words that must not appear in any path, ref name, git config value, or env var a system can see. Not applied to question text. */
+/** Words that must not appear in any path, ref name, git config value, or env var a system can see. */
 export const HARNESS_WORDS = ['eval', 'judge', 'rubric', 'score', 'benchmark', 'answer-key', 'fixture', 'harness', 'oracle'] as const;
 
-export type AuditFinding = { readonly what: Canary | { readonly text: string; readonly source: 'harness-word' }; readonly where: string };
+export type AuditFinding = { readonly text: string; readonly source: 'canary' | 'harness-word'; readonly where: string };
 
-/**
- * Proves the real artifact handed to a system is clean. It does not trust that the generator or the scrub did
- * their job. key.ts supplies the canaries, so this file never sees the key.
- */
-export function auditWorkspace(ws: Workspace, canaries: readonly Canary[]): readonly AuditFinding[] {
-  // TODO: scan every text file under ws.dir (github.json, the working tree, and every non-object file under .git),
-  // every commit message and tag message, every path name and every ref name, for each canary, case-insensitive,
-  // bounded by non-word, non-hyphen characters. Scan path names, ref names and git config for HARNESS_WORDS.
+/** Proves the real handoff is clean. Canary text comes from gold.ts through the caller, so this file never sees gold. */
+export function auditWorkspace(ws: Workspace, canaries: readonly string[]): readonly AuditFinding[] {
   throw new Error('not implemented');
 }
 
 export type RecordObject = {
-  readonly ref: ObjectRef;
-  /** One line for the judge: "PR #16 by jon-okonkwo, head ec966ff, merged 2024-11-19: Regenerate the typed client and restyle the limiter". */
+  readonly ref: RecordRef;
+  /** One line for the judge: "PR #16 by jon-okonkwo, merged 2024-11-19: Regenerate the typed client and restyle the limiter". */
   readonly header: string;
   /** Text revisions in time order. Comments carry github.json's editHistory. Everything else has one. */
   readonly revisions: readonly [string, ...string[]];
 };
-
-export type QuoteMatch = { readonly found: true; readonly revision: number } | { readonly found: false };
 
 export type Gram = string & { readonly __brand: 'Gram' };
 
 export type RepoRecord = {
   readonly workspace: Workspace;
   /** Canonicalizes revs to full SHAs. null when the object does not exist or a short SHA is ambiguous. */
-  resolve(ref: ObjectRef): RecordObject | null;
-  /** Every 6-gram of every text a system could read. The leak detector subtracts it from key text. */
+  resolve(ref: RecordRef): RecordObject | null;
+  /** Every 6-gram of every text a system could read. The leak detector subtracts it from gold prose. */
   corpusGrams(): ReadonlySet<Gram>;
-  /** Every ref name, in full and short form, lowercased. key.ts excludes these from the spec-key canaries. */
   refNames(): ReadonlySet<string>;
 };
 
 export function openRecord(ws: Workspace): RepoRecord {
-  // TODO: index github.json once: pulls, issues and discussions by number, and every comment-like thing by numeric
-  // id (PR comments, review bodies, thread comments, issue comments, discussion comments and replies), with
-  // editHistory as revisions. Git objects resolve lazily through `git -C repo cat-file --batch`, one long-lived child
-  // per record, memoized by (sha, path). A PR, issue or discussion is title + body; a tag is its message plus its
-  // release title and body. The excerpt a citation shows is its quote, else lines[], else the first 2,000 chars.
   throw new Error('not implemented');
 }
 
-export function findQuote(object: RecordObject, quote: string): QuoteMatch {
-  // TODO: whitespace-collapsed, case-sensitive substring over each revision. The newest revision is tried first.
+/** Whitespace-collapsed, case-sensitive substring over each revision, newest first. */
+export function findQuote(object: RecordObject, quote: string): { readonly found: true; readonly revision: number; readonly span: readonly [number, number] } | { readonly found: false } {
   throw new Error('not implemented');
 }
 
-/** The single text normalizer for n-gram work. Lowercases, drops punctuation except inside tokens like ledger.py. */
+/** The single text normalizer for n-gram work. */
 export function grams(text: string, n?: number): ReadonlySet<Gram> {
+  throw new Error('not implemented');
+}
+
+/** gold.ts AnchorResolver over this record: the object identity and quote span, or null. */
+export function spanOf(record: RepoRecord, source: RecordSource): { readonly object: string; readonly revision: number; readonly span: readonly [number, number] } | null {
+  throw new Error('not implemented');
+}
+
+/**
+ * Everything the view kernel needs from git and github.json. Changes are enumerated here and only here.
+ * First-parent walk of main: a merge or squash commit that github.json maps to PR n (mergeCommitSha) is "pr#n"; any
+ * other commit is its 7-hex SHA. live = committer day of that first-parent commit. touched = numstat of before..after.
+ * end = the max over every commit date and every github.json timestamp. Throws unless every non-merge commit reachable
+ * from main lies in exactly one change.
+ */
+export function factsOf(record: RepoRecord): RepoFacts {
+  throw new Error('not implemented');
+}
+
+export function changeIds(facts: RepoFacts): ReadonlySet<ChangeId> {
+  return new Set(facts.changes.map((c) => c.id));
+}
+
+export type ProofOutput = { readonly header: string; readonly text: string };
+export type ProofFailure = { readonly failed: 'bad-rev' | 'bad-path' | 'no-such-run' | 'run-error' | 'run-flaky' | 'timeout' };
+
+/**
+ * Runs a proof against the workspace and returns the text the page shows under the proof's trust words. The
+ * implementation is fixtures/lib/checks.mjs, re-exported, so gold proofs and system proofs run through one piece of
+ * code. Output is cached by (fixtureHash, formatProof(proof)), and for `run` also by the run's source hash.
+ *
+ *   grep        git grep -l [-i] [-E] -e <pattern> <rev> [-- paths]; strip "<rev>:"; sort; "(no matches)".
+ *   files       git diff-tree -r --name-status; JSON manifests summarized by changed fields.
+ *   diff        git diff --shortstat from..to, "(no differences)" when empty.
+ *   restyle     tokenize both sides per language; equal token streams list the classes that differed; else "code changed".
+ *   lockfile    parse both package-lock.json files: package.json changes, version changes, removals, additions, which
+ *               additions any non-lock file references, install scripts.
+ *   introduced  git log --reverse -S<needle> --format='%h %as %an' main -- <path>, first line.
+ *   run         git archive <rev> into scratch; run the source in the build sandbox with no network, 30 s, twice;
+ *               different stdout is run-flaky.
+ */
+export function resolveProof(proof: Proof, ws: Workspace, runs: readonly Run[]): Promise<ProofOutput | ProofFailure> {
   throw new Error('not implemented');
 }

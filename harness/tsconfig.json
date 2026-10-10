@@ -8,11 +8,13 @@
     "erasableSyntaxOnly": true,
     "verbatimModuleSyntax": true,
     "allowImportingTsExtensions": true,
+    "allowJs": true,
+    "checkJs": false,
     "module": "nodenext",
     "moduleResolution": "nodenext",
     "target": "es2023",
     "lib": ["es2023"],
     "types": ["node"]
   },
-  "include": ["*.ts", "reference/*.ts"]
+  "include": ["*.ts", "reference/*.ts", "examples/*.ts"]
 }

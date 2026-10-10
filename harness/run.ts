@@ -1,49 +1,76 @@
 /**
- * Runs subjects against workspaces and owns everything under runs/<runId>/. A subject is either a system (a process,
- * run for N trials) or a session condition (answer sheets, one draw per participant). Both end in the same scorer.
- *
- * Each (subject, draw, repo) cell and each request writes its own files, so concurrent workers never share a write
- * target. The report merges them at read time. A crashed run resumes from the same run.json and converges on the
- * same files.
+ * The shell: one sandboxed build per (system, trial, repo), scoring from the raw snapshot, and the run directory.
+ * Kept from the Q&A harness: scrubbed workspaces, per-run secrets, write-once files, --resume, --rescore from raw output.
  *
  * runs/<runId>/
- *   run.json                                      plan and provenance, written once before any work
- *   <subject>/<draw>/<slug>/ingest.json           systems only: one ingest per trial (the invariant scoring checks)
- *   <subject>/<draw>/<slug>/answers/<rid>.json    raw stdout or raw sheet text, kept verbatim
- *   <subject>/<draw>/<slug>/scores/<rid>.json     derived from answers + key + judge; --rescore replaces them
- *   report.json, report.md                        derived from everything above
+ *   run.json                                  plan and provenance, written before any work
+ *   <system>/<trial>/<slug>/build.json        exit, wall time, max RSS, snapshot bytes, usage, stderr tail
+ *   <system>/<trial>/<slug>/snapshot.json     raw output, verbatim, the single source for --rescore
+ *   <system>/<trial>/<slug>/scores.json       per item and audience, replaced by --rescore
+ *   report.json, report.md
  */
+import type { Seconds, SystemManifest, SystemName, Usage } from './contract.ts';
+import type { Gold, Slug } from './gold.ts';
 import type { Hash } from './hash.ts';
 import type { JudgeMode } from './judge.ts';
-import type { EntryId, ItemKey, Slug } from './key.ts';
-import type { ItemScore, Segmentation, SystemFailure } from './metrics.ts';
-import type { Audience, Request, Seconds, SystemManifest, SystemName, Usage } from './protocol.ts';
-import type { Sha } from './record.ts';
-import type { CardSetId } from './session.ts';
+import type { ItemScore, SystemFailure } from './metrics.ts';
+import type { Sha, Workspace } from './record.ts';
 
 export type RunId = string & { readonly __brand: 'RunId' };
-export type RequestId = string & { readonly __brand: 'RequestId' };
-/** "t1".."tN" for a system's trials, "p-<participant>" for a session condition's participants. */
-export type DrawId = string & { readonly __brand: 'DrawId' };
+/** "t1".."tN". */
+export type TrialId = string & { readonly __brand: 'TrialId' };
 
-export type IngestMode = 'per-trial' | 'once';
+/**
+ * Reads system.json. Rejects unknown keys; name matches /^[a-z][a-z0-9-]{0,31}$/; every model resolves through
+ * judge.ts familyOf (an unknown id throws, naming it); passEnv entries are set now, so a missing token fails before any
+ * work; buildSec goes through seconds(); the directory is outside the nmem checkout.
+ */
+export function parseManifest(file: string): SystemManifest {
+  throw new Error('not implemented');
+}
 
-/** One or the other, never both: `run --system` and `run --sheets` are one union, so a mixed run cannot be built. */
-export type Subjects =
-  | { readonly kind: 'systems'; readonly systems: readonly [SystemManifest, ...SystemManifest[]]; readonly trials: number; readonly ingest: IngestMode }
-  | { readonly kind: 'sheets'; readonly dir: string; readonly sessionsDir: string };
+/**
+ * Leak prevention before detection. Gold now holds kinds, dates, and change splits that no n-gram detector sees, so
+ * the build runs where it cannot read the nmem checkout:
+ *   darwin  sandbox-exec with (deny file-read* (subpath "<checkout>")); network only when the manifest lists models;
+ *   linux   bwrap with the checkout not bound.
+ * With no sandbox, run refuses unless --unblinded, and every table of that report is captioned UNBLINDED. Reference
+ * systems are the harness's own and run unsandboxed, because reading gold is their job.
+ */
+export type Sandbox = { readonly kind: 'sandbox-exec' | 'bwrap' } | { readonly kind: 'none-unblinded' };
+
+export function detectSandbox(unblinded: boolean): Sandbox {
+  throw new Error('not implemented');
+}
+
+export type BuildRecord = {
+  readonly exit: 'ok' | 'timeout' | 'crash';
+  readonly wallMs: number;
+  readonly maxRssBytes: number | null;
+  readonly snapshotBytes: number;
+  readonly usage: Usage | null;
+  readonly stderrTail: string;
+};
+
+/**
+ * build <workspace> <out.json>, with env PATH, HOME, LANG, TMPDIR (a fresh scratch dir) plus passEnv, nothing named
+ * HARNESS_* or NMEM_*. Kills the process group after buildSec * 1000 ms, the one place seconds become milliseconds.
+ */
+export function spawnBuild(manifest: SystemManifest, ws: Workspace, outFile: string, sandbox: Sandbox, timeout: Seconds): Promise<BuildRecord> {
+  throw new Error('not implemented');
+}
 
 export type RunConfig = {
   readonly outDir: string;
   readonly runsDir: string;
   readonly factsDir: string;
+  readonly reviewedDir: string;
   readonly cacheDir: string;
-  readonly subjects: Subjects;
+  readonly systems: readonly [SystemManifest, ...SystemManifest[]];
+  readonly trials: number;
   readonly slugs: readonly Slug[];
-  readonly concurrency: number;
   readonly judge: JudgeMode;
-  /** Restricts to some items, for a quick look. Absent means every item. */
-  readonly only: ReadonlySet<ItemKey> | null;
+  readonly sandbox: Sandbox;
   /** Stamp hash, 'reference' for calibration's own runs, or 'uncalibrated' when the operator forced it. */
   readonly calibration: Hash | 'reference' | 'uncalibrated';
   readonly allowSharedJudgeFamily: boolean;
@@ -53,129 +80,44 @@ export type RunConfig = {
 export type RunManifest = {
   readonly id: RunId;
   readonly startedAt: string;
-  /** Opaque per-run secret. Request ids and item order derive from it, so they cannot be guessed and resume can rebuild them. */
   readonly secret: string;
   readonly harness: Hash;
-  readonly concurrency: number;
-  readonly judge: { readonly model: string; readonly family: string; readonly sharedWith: readonly string[] } | 'offline';
+  readonly judge: { readonly model: string; readonly version: string; readonly family: string; readonly sharedWith: readonly string[] } | 'offline';
   readonly calibration: RunConfig['calibration'];
-  readonly subjects:
-    | { readonly kind: 'systems'; readonly trials: number; readonly ingest: IngestMode; readonly systems: readonly { readonly name: SystemName; readonly manifest: Hash; readonly modelFamilies: readonly string[] }[] }
-    | { readonly kind: 'sheets'; readonly set: CardSetId; readonly conditions: readonly { readonly name: string; readonly participants: readonly string[]; readonly modelFamilies: readonly string[] }[] };
-  readonly repos: readonly { readonly slug: Slug; readonly fixture: Hash; readonly key: Hash; readonly facts: Hash; readonly main: Sha }[];
+  readonly sandbox: Sandbox['kind'];
+  readonly trials: number;
+  readonly systems: readonly { readonly name: SystemName; readonly manifest: Hash; readonly models: readonly string[] }[];
+  readonly repos: readonly { readonly slug: Slug; readonly fixture: Hash; readonly gold: Hash; readonly facts: Hash; readonly main: Sha }[];
 };
 
-export type IngestRecord = {
-  readonly ingestId: string;
-  readonly outcome: { readonly kind: 'ok' } | SystemFailure | { readonly kind: 'reused' } | { readonly kind: 'none' };
-  readonly wallMs: number;
-  readonly stateBytes: number;
-  readonly stateFiles: number;
-  /** From /usr/bin/time when the platform has it. null otherwise, and the report shows a dash. */
-  readonly maxRssBytes: number | null;
-  readonly usage: Usage | null;
-  readonly stderrTail: string;
-};
-
-/** The raw material scoring re-reads. Parsing happens at score time, so a parser fix applies to old runs. */
-export type RawAnswer =
-  | {
-      readonly kind: 'process';
-      readonly ingestId: string;
-      readonly exit: { readonly kind: 'exited'; readonly code: number } | { readonly kind: 'timeout' };
-      readonly stdout: string;
-      readonly latencyMs: number;
-      readonly stderrTail: string;
-    }
-  | {
-      readonly kind: 'sheet';
-      readonly text: Readonly<Partial<Record<Audience, string>>>;
-      readonly links: readonly string[];
-      readonly seconds: number | null;
-    };
-
-export type AnswerRecord = {
-  readonly requestId: RequestId;
-  readonly entry: EntryId;
-  readonly request: Request;
-  readonly raw: RawAnswer;
-};
-
-export type ScoreRecord = {
-  readonly requestId: RequestId;
-  readonly harness: Hash;
-  readonly judge: string | null;
-  readonly segmentation: Segmentation;
-  readonly usage: Usage | null;
-  readonly items: readonly ItemScore[];
-};
-
+/**
+ * 1. Plan: resume ? read run.json : write it. assertFamilySeparation. loadGold per slug; stale facts throw, naming `facts`.
+ * 2. Per system, trial, and slug, sequentially so build timings never contend: a fresh buildWorkspace at a new random
+ *    path, auditWorkspace with gold's canaries (a finding aborts the run), spawnBuild, keep snapshot.json verbatim.
+ * 3. scoreCell every cell without scores for the current harness hash.
+ */
 export async function run(config: RunConfig, resume: RunId | null): Promise<RunId> {
-  // TODO:
-  // 1. Plan: resume ? read run.json : write run.json (fresh id r-<date>-<4 hex>, fresh secret). Then
-  //    assertFamilySeparation over every subject's declared families, and loadKey for each slug (stale or missing
-  //    facts throw, naming `facts`).
-  // 2. systems: per system, per trial, per slug, sequentially, so ingest timings never contend:
-  //    a. ingest.json exists and its state dir still exists -> reuse. Otherwise delete this cell's answers (one ingest
-  //       per trial is the invariant) and ingest into a fresh $TMPDIR/<random>/state against a fresh buildWorkspace
-  //       (a new random path each trial, so a cache keyed on the path cannot carry over). auditWorkspace with the
-  //       key's canaries; any finding aborts the run (the handoff itself leaked). Then chmod -R a-w the state dir.
-  //       ingest 'once' -> trials 2..n reuse trial 1's state and record outcome 'reused'.
-  //    b. Order = entries shuffled with seed hashOf(secret, system, trial, slug). Request id = hashOf(secret, system,
-  //       trial, slug, entry) as 12 hex.
-  //    c. For each entry without answers/<rid>.json: spawnSystem(answer argv + [workspace, state], timeout
-  //       manifest.timeouts.answerSec), one process per question so no question can see another, config.concurrency
-  //       in flight; write the AnswerRecord to a temp file and rename it (atomic, idempotent).
-  // 3. sheets: readSheets; per condition, per participant (one draw each), per answered card, write an AnswerRecord
-  //    with raw kind 'sheet'. No ingest.
-  // 4. Score each answer without a scores/<rid>.json for the current harness hash (scoreAnswer).
-  // 5. Return the id. Building the report is the caller's job.
   throw new Error('not implemented');
 }
 
 /**
- * Turns one AnswerRecord into ItemScores, one per requested audience. The only fork is how statements are obtained:
- * a process's stdout goes through protocol.parseResponse; a sheet's free text goes through the judge's segment task
- * and then protocol.parseStatements. Everything after that is scoreItem, for both.
+ * One cell: parseSnapshot against factsOf's enumeration. A rejected snapshot fails every item of the cell with one
+ * cause listing its defect paths. Otherwise resolve every source (record.ts), align, findLeaks, and scoreItem per gold
+ * item and audience. Everything after parse is the same code for systems and references.
  */
-export async function scoreAnswer(record: AnswerRecord, cell: { readonly subject: string; readonly slug: Slug }, config: RunConfig): Promise<ScoreRecord> {
-  // TODO:
-  // process: timeout or non-zero exit -> failed input (crash, detail = stderrTail). parseResponse !ok -> failed
-  //   malformed. segmentation 'system'.
-  // sheet: per audience with non-blank text, ask('segment', { question, audience, text, links }) then parseStatements.
-  //   Blank text -> empty statements (a legal, scoreable non-answer). A JudgeUnavailable here skips every metric on the
-  //   item (usable unknown), never zeroes it. segmentation 'judge'.
-  // Then per audience: ctx = { item, statements, citations: checkCitations(...), facts, record, key, keyOnly,
-  //   redact: [subject name, participant name], segmentation } -> scoreItem(ctx, judge.ask, 'invalidate').
+export async function scoreCell(cell: { readonly system: SystemName; readonly trial: TrialId; readonly slug: Slug }, gold: Gold, config: RunConfig): Promise<readonly ItemScore[]> {
   throw new Error('not implemented');
 }
 
 export async function rescore(runId: RunId, config: Pick<RunConfig, 'runsDir' | 'outDir' | 'factsDir' | 'cacheDir' | 'judge'>): Promise<void> {
-  // TODO: delete every scores/ file whose harness hash differs, then scoreAnswer every answer again. Systems never rerun.
   throw new Error('not implemented');
 }
 
-export type SpawnResult = {
-  readonly exit: Extract<RawAnswer, { kind: 'process' }>['exit'];
-  readonly stdout: string;
-  readonly stderrTail: string;
-  readonly wallMs: number;
-  readonly maxRssBytes: number | null;
-};
-
-export async function spawnSystem(
-  argv: readonly [string, ...string[]],
-  args: readonly string[],
-  options: { readonly cwd: string; readonly passEnv: readonly string[]; readonly stdin: string; readonly timeout: Seconds },
-): Promise<SpawnResult> {
-  // TODO: env = { PATH, HOME, LANG, LC_ALL, TMPDIR: fresh scratch dir } + passEnv. Nothing else, and nothing named
-  // HARNESS_* or NMEM_*. Kill the process group after options.timeout * 1000 ms (the one place seconds become ms).
-  // Keep the last 4 KB of stderr. Wrap with /usr/bin/time -l (darwin) or -v (linux) when present, and strip its lines
-  // from stderrTail.
-  throw new Error('not implemented');
-}
-
-/** Conformance on out/_example: ingest, all 5 questions, protocol parse, citation resolution. No key, no judge. */
+/**
+ * Conformance on out/_example: build once, parseSnapshot, resolve every source and run every proof, then print every
+ * page and the whole-life timeline in both audiences through view.ts. No gold, no judge. A rejected snapshot prints
+ * every defect by path, the same errors a scored run records.
+ */
 export async function checkSystem(manifest: SystemManifest, outDir: string): Promise<{ readonly ok: boolean; readonly lines: readonly string[] }> {
   throw new Error('not implemented');
 }
@@ -183,16 +125,16 @@ export async function checkSystem(manifest: SystemManifest, outDir: string): Pro
 export type LoadedRun = {
   readonly manifest: RunManifest;
   readonly cells: readonly {
-    readonly subject: string;
-    readonly draw: DrawId;
+    readonly system: SystemName;
+    readonly trial: TrialId;
     readonly slug: Slug;
-    readonly ingest: IngestRecord | null;
-    readonly answers: readonly AnswerRecord[];
-    readonly scores: readonly ScoreRecord[];
+    readonly build: BuildRecord;
+    readonly failure: SystemFailure | null;
+    readonly scores: readonly ItemScore[];
   }[];
 };
 
+/** Refuses when score files disagree on harness hash or judge version. A report never mixes scorers. */
 export function loadRun(runsDir: string, runId: RunId): LoadedRun {
-  // TODO: refuse (throw) when score records disagree on harness hash or judge model. A report never mixes scorers.
   throw new Error('not implemented');
 }

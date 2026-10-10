@@ -1,125 +1,109 @@
 # harness
 
-Scores anything that answers questions about a GitHub repository against the synthetic repos in `out/`: the three storage prototypes, the product later, and people answering task cards in moderated sessions. Every subject goes through one scorer.
+Scores storage-plus-engine prototypes on whether they produce what nmem v1's topic tree and timeline need, against private gold generated from the fixture specs. It also guards the real build (`compare`) and runs the moderated user test (`cards`).
 
-The design and its reasons are in [docs/design/scoring-harness.md](../docs/design/scoring-harness.md). This directory is a typed sketch: real types and signatures, `not implemented` bodies.
+The design and its reasons are in [docs/design/scoring-harness.md](../docs/design/scoring-harness.md). This directory is a typed sketch, with real types and signatures and `not implemented` bodies. `npm run typecheck` checks it, including the negative checks in `types.test-d.ts` and the snapshot fragments in `examples/`.
 
-## Before the first run
+## Before the first scored run
 
-1. Add the structured currency verdict to the answer key (prerequisite 1 in the design doc). `loadKey` refuses a currency entry without it.
-2. Move the jargon word list from `fixtures/check-plain.mjs` into `fixtures/lib/plain.mjs` so the fixture check and the `jargon` metric read one list (prerequisite 2).
-3. Build the fixtures: `node fixtures/generate.mjs --check`.
+1. Add the `views` key to each spec (typed in [`fixtures/views.schema.mjs`](../fixtures/views.schema.mjs)), then run `node fixtures/generate.mjs --check`. It writes private `out/<slug>/gold.json` and `canaries.json`, and refuses with fewer than 10 gap objects or 10 currency claims across the repos.
+2. The owner writes `harness/reviewed/currency.json`, confirming every gold claim's verdict and change.
+3. `node harness/cli.ts facts` freezes prose facts and paraphrases into `harness/facts/<slug>.json`. The owner checks every flagged set plus a seeded random 20.
+4. Move the jargon word list from `fixtures/check-plain.mjs` into `fixtures/lib/plain.mjs`, so the fixture check and the `jargon` metric read one list.
 
 ## Evaluators
 
 ```sh
-node harness/cli.ts check-system ../proto/eventlog/system.json   # protocol conformance on out/_example, no key, no judge
-node harness/cli.ts facts --check                                # frozen key facts are current with answer-key.json
+node harness/cli.ts check-system ../proto/eventlog/system.json   # build on out/_example, parse, resolve, print every page
 node harness/cli.ts calibrate                                    # proves the metrics separate, then writes a stamp
-node harness/cli.ts run --system ../proto/eventlog/system.json --system ../proto/livedocs/system.json --system ../proto/search/system.json
+node harness/cli.ts run --system ../proto/eventlog/system.json --system ../proto/livedocs/system.json
 node harness/cli.ts report <runId>                               # re-render a finished run
+node harness/cli.ts render --run <runId> --system eventlog --repo wayfinder --topic counting
+node harness/cli.ts compare <runA> <runB>                        # items whose usable verdict flipped
 ```
 
-`run` refuses to print numbers until a calibration stamp exists for the same harness source, judge, facts, and fixtures. If none exists, it calibrates first. `--offline` uses only deterministic metrics plus judge verdicts already in `harness/.cache/`, and it never calls a model. `--resume <runId> --rescore` re-scores a finished run from its raw answers without running any system again.
+`run` refuses to print numbers without a calibration stamp for the same harness source, judge model and version, facts, gold, and currency review. It refuses to build without a sandbox (`sandbox-exec` on macOS, `bwrap` on Linux) unless you pass `--unblinded`, which captions every table. `--offline` uses only judge verdicts already in `harness/.cache/`. `--resume <runId> --rescore` re-scores from the raw snapshots without building again.
 
-The report leads with the usable rate per group and audience, technical and plain side by side. A rank appears only when the subjects' trial intervals separate and the paired item interval excludes zero. Fabricated reasons on gap questions are listed by entry id per subject. They never enter a mean.
+The judge runs through GitHub Copilot (`judge.json`). Set `GITHUB_COPILOT_TOKEN` to a GitHub token with Copilot access. The judge's model family must differ from every system's.
 
 ## Moderated sessions
 
 ```sh
-node harness/cli.ts cards --out ~/session-2026-10/cards            # participant directory: cards, a blank sheet, workspaces
-node harness/cli.ts run --sheets ~/session-2026-10/filled          # same scorer as systems
+node harness/cli.ts cards --condition gold --out ~/session-2026-10/p1
+node harness/cli.ts score-sheets ~/session-2026-10/filled
 ```
 
-The participant directory never contains the map from card to answer-key entry. That map lives in `harness/sessions/<set>/map.json`. People write free text, so the judge cuts each answer into statements before scoring, and every score from a sheet is labelled judge-segmented.
+A condition is `gold`, `github-only`, or `<runId>/<system>/<trial>`. The participant reads the website rendered from that condition and answers answer-key questions. Scores are labelled judge-scored and never ranked against systems. The map from card to entry lives only under `harness/sessions/<set>/`.
 
 ## System authors
 
-A system is a manifest and one or two commands, in any language.
+A system is a manifest and one command, in any language.
 
 ```json
-{
-  "name": "eventlog",
-  "ingest": ["python3", "-m", "eventlog.ingest"],
-  "answer": ["python3", "-m", "eventlog.answer"],
-  "passEnv": ["ANTHROPIC_API_KEY"],
-  "modelFamilies": ["anthropic"],
-  "timeouts": { "ingestSec": 1800, "answerSec": 300 }
-}
+{ "name": "eventlog", "build": ["python3", "-m", "eventlog.build"], "models": ["claude-opus-5.5"],
+  "passEnv": ["GITHUB_COPILOT_TOKEN"], "buildSec": 3600 }
 ```
 
-Timeouts are whole seconds. Commands run with the manifest's directory as the working directory and `TMPDIR` pointing at a fresh scratch directory.
+`build <workspace> <out.json>` runs once per repo per trial, in a sandbox that cannot read the nmem checkout, so keep your system outside it. `<workspace>` is read-only and holds `repo/` (a git clone with every branch, tag, and `refs/pull/<n>/head`) and `github.json`. `models` lists the model ids you call. The harness derives their families.
 
-- `ingest <workspace> <state>` runs once per repo per trial. `<state>` is yours to fill. Exit 0 when done. Omit `ingest` if the system does all its work at question time.
-- `answer <workspace> <state>` runs once per question, as a separate process, so no question can see another. It reads one JSON request on stdin and writes one JSON response on stdout. `<workspace>` and `<state>` are read-only by then.
+Write one `Snapshot` (`contract.ts`) to `<out.json>`:
 
-`<workspace>` contains `repo/`, a git clone with every branch, every tag, and `refs/pull/<n>/head`, plus `github.json`, the GitHub-side record. Nothing else.
-
-### Request
-
-```json
-{ "question": "Why did the starting allowance become twice the configured limit?", "audiences": ["technical", "plain"] }
-```
-
-### Response
-
-One list of statements per requested audience. Every statement says what it rests on.
-
-```json
-{
-  "technical": [
-    { "basis": "record", "text": "Since ec966ff, src/limit.ts passes options.limit * 2 to take(), so a new key starts with twice the configured limit.",
-      "cite": [{ "ref": "ec966ff:src/limit.ts", "quote": "options.limit * 2" }] },
-    { "basis": "unknown", "text": "No commit message, review, issue, or discussion says why the allowance doubled. Ask Jon Okonkwo, who wrote the change." }
-  ],
-  "plain": [
-    { "basis": "record", "text": "A new caller can now use twice its set number of requests before it is blocked.", "cite": [{ "ref": "ec966ff:src/limit.ts" }] },
-    { "basis": "unknown", "text": "Nothing written down says why. Ask Jon Okonkwo, who made the change." }
-  ],
-  "usage": { "inputTokens": 5120, "outputTokens": 140 }
-}
-```
-
-| basis | meaning | citations |
+| array | one entry per | you decide |
 | --- | --- | --- |
-| `record` | the record says this | at least one, required |
-| `inference` | the system concluded this | optional |
-| `unknown` | the record does not say this | none |
+| `topics` | topic, one with `parent: null` as the root | files, Start here, docs, headline, an example only when a test or run backs it |
+| `changes` | change the harness enumerates (`pr#16` for a merged PR, the 7-hex SHA for a direct commit) | findings (behavior or check) and routine parts with a proof |
+| `decisions` | choice the record shows someone made on purpose | the intent quote, topics, the carrying change, why or who to ask |
+| `claims` | doc sentence you judge not plainly true | `no-longer-true` or `depends` with `brokenBy`, or `true-since` with `since`, and the source that shows it |
+| `undone` | add-then-undo sequence | its member changes |
+| `runs` | script you ran | its source and revision |
 
-A `quote` is optional. When present it must appear verbatim (whitespace-insensitive) in the cited object. `usage` is optional and reported as self-reported.
+Do not write kinds, dates, deciders, status, line counts, template sentences, or proof output. The kernel derives them, and an unknown key rejects the whole snapshot. [`examples/wayfinder-pr16.ts`](examples/wayfinder-pr16.ts) and [`examples/tally-round.ts`](examples/tally-round.ts) are checked fragments. The JSON you write is the same objects.
 
-### Citing
+### Sources
 
-| ref | object |
+Every sentence is `{ "eng", "plain", "source" }`. A source is a quote in a record object or a proof the harness runs.
+
+```json
+{ "kind": "record", "ref": "aedc535:src/limit.ts", "quote": "options.limit * 2" }
+{ "kind": "proof", "proof": "lockfile ad30eda..72df7a0" }
+```
+
+| record `ref` | object |
 | --- | --- |
 | `ec966ff` (7-40 hex) | commit message |
-| `ec966ff:src/limit.ts`, optional `#L16` or `#L16-L18` | file at that commit (a branch or tag name works in place of the SHA) |
+| `ec966ff:src/limit.ts`, optional `#L16` or `#L16-L18` | file at that commit (a branch or tag works in place of the SHA) |
 | `pr#16`, `issue#7`, `discussion#10` | title and body |
 | `comment:1200261458`, `review:1200428264` (an `on pr#16` suffix is allowed) | that comment, review body, thread comment, or reply, including earlier edits |
 | `tag:v1.0.0` | tag message and release notes |
 | any `https://github.com/<owner>/<repo>/...` link to the above | same object |
 
-These are the locators `answer-key.json` already uses. All 425 of them parse and resolve with this grammar.
+| `proof` | the page shows |
+| --- | --- |
+| `grep <rev> [-i] [-E] <pattern> [-- <path>...]` | matching paths, under "we searched" |
+| `files <rev>` or `files <rev>..<rev>` | changed files and manifest fields |
+| `diff <rev>..<rev>` | "(no differences)" or the shortstat |
+| `restyle <rev>..<rev>:<path>` | whether only formatting changed |
+| `lockfile <rev>..<rev>` | version changes, additions, and whether anything uses them |
+| `introduced <path> <needle>` | the first commit that added it |
+| `run <id>` | stdout of `runs[id]`, run by the harness twice, under "we ran it" |
 
-### Types for TypeScript systems
-
-`import type { Request, Response, Statement } from 'nmem-harness/protocol'` is the only import the package allows. Every other module is behind the `exports` wall in `package.json`, so `nmem-harness/key.ts` fails with `ERR_PACKAGE_PATH_NOT_EXPORTED`.
+A decision's intent and a recorded reason must be record sources. A routine reason must be a proof. Never send a proof's output. The harness computes it.
 
 ## What gets measured
 
-Each question is scored once per audience. An answer is usable when it passes every gate that applies to it. Concision and jargon are withheld, not scored, when correctness misses its gate, so a short or plain wrong answer earns nothing.
+Each gold object is scored once per audience. An item is usable when it passes every gate that applies.
 
-| metric | applies to | how | gate |
-| --- | --- | --- | --- |
-| correctness | all | judge checks the frozen key facts: supported, contradicted, or absent | headline fact supported, nothing contradicted, half the facts covered |
-| currency verdict | currency questions | judge extracts the answer's verdict without seeing the key, and the harness compares it to the key's `currency` field | exact match of still-true, no-longer-true, true-since, or depends |
-| gap honesty | gap questions | statement bases plus a key-blind judge stance, tallied as honest, hedged, silent, or fabricated | honest, or a labelled guess next to "not recorded" |
-| false gap | answerable questions | key-blind judge stance | does not claim the answer is unrecorded |
-| citations resolve | answers with citations | deterministic: object exists, quote present | all resolve |
-| grounded | answers with `record` statements | judge reads each statement against its cited excerpts | three quarters supported |
-| concision | all, once correct | words relative to the key answer | at most twice the key |
-| jargon | plain, once correct | the shared word list plus SHA, path, flag, code, and `#n` detectors | none |
-| evidence recall | technical | deterministic match against the key's evidence objects | diagnostic |
-| anchors | technical | deterministic: SHAs, `#n`, dates, paths, and flags from the key answer | diagnostic |
+| metric | how | gate |
+| --- | --- | --- |
+| facts | typed fields compared in code (kind, status, verdict, change, severity, day, topics, members, counts) | headline facts right, half of all facts |
+| prose | judge checks frozen facts per field | no contradiction, headline fact present, half covered |
+| gap honesty | structural; one key-blind judge call only when a guess is present | honest, or a labelled guess |
+| false gap | structural | never "nobody wrote down why" where the record says why |
+| reason | judge checks a recorded reason against gold's | half covered |
+| cites resolve | quote found in its object, proof runs | all |
+| supported | judge reads each sentence against its one excerpt or proof output | three quarters |
+| proof | the source kind v1 demands, such as a test or run for an example and code at HEAD for a claim | all |
+| fits | 45-word headlines, three card points, twice gold's words, once correct | three quarters |
+| jargon | plain strings, once correct, against the shared list and code detectors | none |
 
-Any answer that contains a key canary (a spec commit key, a `notRecorded` phrase, or the fixture path) or a quarter of the entry's key-only 6-grams is a leak. One leak invalidates that subject's run.
+A snapshot containing a canary, a quarter of an object's gold-only 6-grams, or the decoy decision is a leak. One leak invalidates that system's run.
