@@ -7,6 +7,7 @@ import {
   countAdrs,
   ensureMain,
   forEachRefRaw,
+  git,
   gitCorpus,
   initRepo,
   mergeNoFf,
@@ -18,17 +19,23 @@ import {
   verifyRev,
   writeChanges,
 } from './git.mjs';
+import {
+  boolean,
+  filePath,
+  integer,
+  nonEmpty,
+  object,
+  oneOf,
+  positive,
+  rejectUnknown,
+  requireFields,
+  SpecError,
+  text,
+} from './fields.mjs';
+import { goldOf, parseViews } from './views.mjs';
 
 export { countAdrs, forEachRefRaw, revParseRaw };
-
-export class SpecError extends Error {
-  constructor(slug, fieldPath, detail) {
-    super(`${slug}: ${fieldPath}: ${detail}`);
-    this.name = 'SpecError';
-    this.slug = slug;
-    this.fieldPath = fieldPath;
-  }
-}
+export { SpecError };
 
 const VIEWS = ['timeline', 'docs'];
 const FACETS = ['growth', 'decision', 'adr', 'reversal', 'unwritten-why', 'how', 'who', 'overview', 'noise'];
@@ -65,61 +72,6 @@ const TIME_KEYS = new Set([
 // Rank stride exceeds the 0..999 mix, so a later creation time always yields a larger id.
 const GITHUB_ID_BASE = 1_200_000_000;
 const GITHUB_ID_STRIDE = 7919;
-
-function object(value, path, ctx) {
-  if (value === null || typeof value !== 'object' || Array.isArray(value)) {
-    ctx.fail(path, 'expected object');
-  }
-  return value;
-}
-
-function rejectUnknown(value, path, ctx, known) {
-  for (const key of Object.keys(value)) {
-    if (!known.includes(key)) ctx.fail(`${path}.${key}`, 'unknown field');
-  }
-}
-
-function requireFields(obj, path, ctx, keys) {
-  for (const key of keys) {
-    if (!Object.hasOwn(obj, key)) ctx.fail(`${path}.${key}`, 'missing');
-  }
-}
-
-function nonEmpty(value, path, ctx) {
-  if (typeof value !== 'string' || value.length === 0) {
-    ctx.fail(path, `expected non-empty string, got ${JSON.stringify(value)}`);
-  }
-  return value;
-}
-
-function text(value, path, ctx) {
-  if (typeof value !== 'string') ctx.fail(path, `expected string, got ${JSON.stringify(value)}`);
-  return value;
-}
-
-function integer(value, path, ctx) {
-  if (typeof value !== 'number' || !Number.isInteger(value)) {
-    ctx.fail(path, `expected integer, got ${JSON.stringify(value)}`);
-  }
-  return value;
-}
-
-function positive(value, path, ctx) {
-  const n = integer(value, path, ctx);
-  if (n < 1) ctx.fail(path, `expected positive integer, got ${n}`);
-  return n;
-}
-
-function boolean(value, path, ctx) {
-  if (typeof value !== 'boolean') ctx.fail(path, `expected boolean, got ${JSON.stringify(value)}`);
-  return value;
-}
-
-function oneOf(value, path, ctx, options) {
-  const s = text(value, path, ctx);
-  if (!options.includes(s)) ctx.fail(path, `expected one of ${options.join(', ')}, got ${JSON.stringify(s)}`);
-  return s;
-}
 
 function timeParts(value) {
   const match = ISO_TIME.exec(value);
@@ -196,18 +148,6 @@ function refName(value, path, ctx, what) {
     ctx.fail(path, `invalid ${what} ${JSON.stringify(name)}`);
   }
   return name;
-}
-
-function filePath(value, path, ctx) {
-  const rel = nonEmpty(value, path, ctx);
-  const bad = rel.startsWith('/')
-    || rel.includes('\\')
-    || rel.includes(':')
-    || rel === '.git'
-    || rel.startsWith('.git/')
-    || rel.split('/').some((seg) => seg === '' || seg === '.' || seg === '..');
-  if (bad) ctx.fail(path, `invalid file path ${JSON.stringify(rel)}`);
-  return rel;
 }
 
 function files(value, path, ctx) {
@@ -1786,10 +1726,10 @@ export function parseSpec(input, expectedSlug) {
     entryIds: new Set(),
   };
   const spec = object(raw, expectedSlug, ctx);
-  const known = ['slug', 'name', 'owner', 'description', 'about', 'people', 'steps', 'answerKey', 'noise'];
+  const known = ['slug', 'name', 'owner', 'description', 'about', 'people', 'steps', 'answerKey', 'noise', 'views'];
   rejectUnknown(spec, expectedSlug, ctx, known);
   for (const key of known) {
-    if (key === 'noise') continue;
+    if (key === 'noise' || key === 'views') continue;
     if (!Object.hasOwn(spec, key)) ctx.fail(key, 'missing');
   }
   const slug = nonEmpty(spec.slug, 'slug', ctx);
@@ -1816,6 +1756,7 @@ export function parseSpec(input, expectedSlug) {
     if (!Array.isArray(spec.noise)) ctx.fail('noise', 'expected array');
     noise = spec.noise.map((note, i) => parseNoise(note, `noise[${i}]`, ctx));
   }
+  const views = Object.hasOwn(spec, 'views') ? parseViews(spec.views, viewsContext(ctx, steps, answerKey)) : null;
   return {
     slug,
     name: nonEmpty(spec.name, 'name', ctx),
@@ -1827,6 +1768,19 @@ export function parseSpec(input, expectedSlug) {
     githubIds,
     answerKey,
     noise,
+    views,
+  };
+}
+
+function viewsContext(ctx, steps, answerKey) {
+  const merged = steps.filter((step) => step.type === 'pr' && step.outcome.kind === 'merged').map((step) => step.number);
+  const direct = steps.filter((step) => step.type === 'commit').map((step) => step.key);
+  return {
+    ...ctx,
+    ref: (raw, path) => parseRef(raw, path, ctx),
+    changeKeys: new Set([...merged.map((n) => `pr#${n}`), ...direct]),
+    revKeys: new Set([...ctx.commitKeys, ...merged.map((n) => `merge-pr-${n}`), 'head']),
+    answerIds: new Set(answerKey.map((entry) => entry.id)),
   };
 }
 
@@ -2032,9 +1986,19 @@ function resolveEvidence(spec, repo, refs, pathFor) {
   });
 }
 
+function corpusOf(repo) {
+  repo.corpus ??= gitCorpus(repo.dir);
+  return repo.corpus;
+}
+
+function surfacesOf(repo) {
+  repo.surfaces ??= recordSurfaces(corpusOf(repo), repo);
+  return repo.surfaces;
+}
+
 export function resolveAnswers(spec, repo) {
-  const corpus = gitCorpus(repo.dir);
-  const surfaces = recordSurfaces(corpus, repo);
+  const corpus = corpusOf(repo);
+  const surfaces = surfacesOf(repo);
   return spec.answerKey.map((entry, i) => {
     const resolved = resolveEvidence(spec, repo, entry.evidence, (j) => `answerKey[${i}].evidence[${j}]`);
     assertMarkers(spec.slug, entry, i, resolved.map((item) => item.hit), corpus);
@@ -2070,6 +2034,119 @@ export function resolveNoise(spec, repo) {
   });
 }
 
+function commitLogin(spec, commit) {
+  if (!commit.identity) return commit.author;
+  return spec.people[commit.author].identities[commit.identity].linked ? commit.author : null;
+}
+
+// Who wrote each record object and when, read from the spec the record was built from.
+function recordIndex(spec, repo) {
+  const comments = new Map();
+  const commits = new Map();
+  const add = (comment, kind, parent) => comments.set(comment.id, { author: comment.author, at: comment.at, edits: comment.edits ?? [], kind, parent });
+  for (const step of spec.steps) {
+    if (step.type === 'commit') commits.set(step.key, step);
+    if (step.type === 'issue') step.comments.forEach((c) => add(c, 'comment', { kind: 'issue', number: step.number }));
+    if (step.type === 'discussion') {
+      const parent = { kind: 'discussion', number: step.number };
+      for (const c of step.comments) [c, ...c.replies].forEach((item) => add(item, 'comment', parent));
+    }
+    if (step.type !== 'pr') continue;
+    const parent = { kind: 'pr', number: step.number };
+    step.commits.forEach((c) => commits.set(c.key, c));
+    for (const review of step.reviews) {
+      add({ id: review.id, author: review.author, at: review.at }, 'review', parent);
+      review.threads.forEach((thread) => thread.comments.forEach((c) => add(c, 'thread', parent)));
+    }
+    step.comments.forEach((c) => add(c, 'comment', parent));
+  }
+  const bySha = new Map([...commits].map(([key, commit]) => [repo.commits.get(key), { author: commitLogin(spec, commit), at: commit.at }]));
+  for (const step of spec.steps) {
+    if (step.type !== 'pr' || step.outcome.kind !== 'merged') continue;
+    const sha = repo.manifest[`merge-pr-${step.number}`];
+    if (!bySha.has(sha)) bySha.set(sha, { author: step.outcome.method === 'squash' ? step.author : step.outcome.by, at: step.outcome.at });
+  }
+  return { comments, commits, bySha };
+}
+
+const PARENT_PATH = { pr: 'pull', issue: 'issues', discussion: 'discussions' };
+const COMMENT_ANCHOR = {
+  review: () => 'pullrequestreview-',
+  thread: () => 'discussion_r',
+  comment: (parent) => (parent.kind === 'discussion' ? 'discussioncomment-' : 'issuecomment-'),
+};
+
+function numbered(spec, type, number) {
+  return spec.steps.find((step) => step.type === type && step.number === number);
+}
+
+/**
+ * Author, time, and GitHub path of a resolved ref. A file's author is whoever added the file on main, so an ADR's
+ * decider is the person who added it.
+ */
+const REF_FACTS = {
+  commit(ref, { spec, repo, index }) {
+    const commit = index.commits.get(ref.key);
+    return { author: commitLogin(spec, commit), at: commit.at, path: `commit/${repo.commits.get(ref.key)}` };
+  },
+  file(ref, { repo, index, hit }) {
+    const adds = git(repo.dir, ['log', '--diff-filter=A', '--format=%H', 'main', '--', ref.path]).stdout.split('\n').filter(Boolean);
+    const added = index.bySha.get(adds.at(-1));
+    return { author: added?.author ?? null, at: added?.at ?? index.commits.get(ref.at).at, path: `blob/${hit.sha}/${ref.path}` };
+  },
+  pr: (ref, { spec }) => {
+    const step = numbered(spec, 'pr', ref.number);
+    return { author: step.author, at: step.openedAt, path: `pull/${ref.number}` };
+  },
+  issue: (ref, { spec }) => {
+    const step = numbered(spec, 'issue', ref.number);
+    return { author: step.author, at: step.at, path: `issues/${ref.number}` };
+  },
+  discussion: (ref, { spec }) => {
+    const step = numbered(spec, 'discussion', ref.number);
+    return { author: step.author, at: step.at, path: `discussions/${ref.number}` };
+  },
+  comment(ref, { spec, index }) {
+    const comment = index.comments.get(ref.id);
+    const revisions = [comment.at, ...comment.edits.map((edit) => edit.at)];
+    const at = ref.revision === undefined ? revisions.at(-1) : revisions[ref.revision];
+    const anchor = `${COMMENT_ANCHOR[comment.kind](comment.parent)}${githubId(spec, ref.id)}`;
+    return { author: comment.author, at, path: `${PARENT_PATH[comment.parent.kind]}/${comment.parent.number}#${anchor}` };
+  },
+  tag: (ref, { spec }) => {
+    const step = spec.steps.find((item) => item.type === 'tag' && item.name === ref.name);
+    return { author: step.by, at: step.at, path: `releases/tag/${ref.name}` };
+  },
+};
+
+/** The record as views.mjs sees it: quote resolution, who wrote what, and the never-recorded phrase search. */
+function viewsRecord(spec, repo, github) {
+  const index = recordIndex(spec, repo);
+  const base = `https://github.com/${spec.owner}/${spec.name}`;
+  return {
+    slug: spec.slug,
+    dir: repo.dir,
+    head: repo.head,
+    github,
+    people: spec.people,
+    answerKey: spec.answerKey,
+    specKeys: specLeakStrings(spec),
+    rev: (key) => repo.manifest[key],
+    resolveRef(ref, fieldPath) {
+      const hit = REF_RESOLVERS[ref.kind].resolve(repo, ref, fieldPath);
+      assertQuote(spec.slug, fieldPath, ref.quote, hit.parts, hit.label);
+      const who = REF_FACTS[ref.kind](ref, { spec, repo, index, hit });
+      return { locator: hit.locator, author: who.author, day: utcIso(who.at).slice(0, 10), url: `${base}/${who.path}` };
+    },
+    foundIn: (phrase) => surfacesOf(repo).find((surface) => includesCI(surface.text, phrase))?.where ?? null,
+  };
+}
+
+/** Private gold for a spec with views: { gold, canaries, summary }. */
+export function resolveViews(spec, repo, github) {
+  return goldOf(spec.views, viewsRecord(spec, repo, github));
+}
+
 function utcIso(iso) {
   return new Date(instant(iso)).toISOString().replace(/\.\d{3}Z$/, 'Z');
 }
@@ -2101,6 +2178,7 @@ function truthStrings(spec) {
   for (const entry of spec.answerKey) {
     if (entry.truth) forbidden.add(entry.truth);
   }
+  for (const truth of spec.views?.truths ?? []) forbidden.add(truth);
   return forbidden;
 }
 

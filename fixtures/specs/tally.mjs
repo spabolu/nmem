@@ -947,6 +947,168 @@ between roommates and says who should pay whom.
 `;
 
 /** @type {import('../schema.mjs').RepoSpec} */
+const tallyHead = 'c-note-default';
+const pr = (number, quote) => ({ kind: 'pr', number, quote });
+const askOwen = { notRecorded: { ask: ['owenbriggs'] } };
+const ownCheck = {
+  eng: 'Owen pays 1000 cents split three ways and is owed 666, while Lena and Maya each owe 333.',
+  plain: 'Owen pays $10.00 for three people and is owed $6.66, while Lena and Maya each owe $3.33.',
+  ev: { kind: 'file', path: 'tests/test_settle.py', at: tallyHead, quote: 'self.assertEqual(balances["owen"], 666)' },
+};
+const quiet = { count: 0, lines: 0 };
+
+// The --round slice of tally's view truth: PR #20 adds the flag, PR #21 flips its default, PR #22 reverts both and
+// carries the decision. The rest of tally's views are ported in U1b.
+const views = {
+  topics: [
+    {
+      id: 'root',
+      parent: null,
+      name: { eng: 'Shared bills', plain: 'Shared bills' },
+      core: [],
+      files: [],
+      start: { path: 'tally/cli.py', quote: 'def main(argv=None):', lines: 43 },
+      docs: ['README.md', 'docs/index.md'],
+      headline: [
+        {
+          eng: 'tally splits shared household bills between roommates and prints the fewest payments that settle everyone up.',
+          plain: 'tally splits shared household bills between roommates and says who should pay whom.',
+          ev: { kind: 'file', path: 'tally/cli.py', at: tallyHead, quote: 'transfers = minimal_transfers(balances)' },
+        },
+      ],
+      example: ownCheck,
+    },
+    {
+      id: 'leftover',
+      parent: 'root',
+      name: { eng: 'Leftover cents', plain: 'Leftover cents' },
+      core: ['tally/ledger.py'],
+      files: ['tally/ledger.py', 'tally/cli.py', 'tests/test_settle.py'],
+      start: { path: 'tally/ledger.py', quote: 'def add_expense(balances, payer, cents, names):', lines: 7 },
+      docs: [],
+      headline: [
+        {
+          eng: 'From the code: each share is rounded down to whole cents, so the payer covers the leftover cent.',
+          plain: 'From the code: each share is rounded down to whole cents, so the person who paid covers any leftover cent.',
+          ev: { kind: 'file', path: 'tally/ledger.py', at: tallyHead, quote: 'each = cents // len(names)' },
+        },
+      ],
+      example: ownCheck,
+    },
+  ],
+  changes: {
+    'pr#20': {
+      topics: ['leftover'],
+      findings: [
+        {
+          id: 'f-round-unstored',
+          severity: 'check',
+          topics: ['leftover'],
+          anchors: [pr(20, 'The choice is not stored on the row.')],
+          name: { eng: '--round is not stored per bill', plain: 'The rounding choice is not saved with each bill' },
+          says: [
+            {
+              eng: 'balances and settle read --round at run time, so a later default changes old bills.',
+              plain: 'Changing the setting later would change totals for bills already entered.',
+              ev: pr(20, 'balances and settle use whatever --round says when they run.'),
+            },
+          ],
+          why: askOwen,
+        },
+      ],
+    },
+    'pr#21': {
+      topics: ['leftover'],
+      findings: [
+        {
+          id: 'f-round-default',
+          severity: 'behavior',
+          topics: ['leftover'],
+          anchors: [pr(21, 'Changes the default of --round from payer to first.')],
+          name: { eng: 'Extra cents go to the earliest names', plain: 'Leftover cents now go to the first people listed' },
+          says: [
+            {
+              eng: 'Commands without --round stop flooring the split.',
+              plain: 'Bills split without the setting now hand out the spare cents differently.',
+              ev: pr(21, 'A command that omits the flag now hands extra cents to the earliest names instead of flooring.'),
+            },
+          ],
+          why: askOwen,
+        },
+      ],
+    },
+    'pr#22': { topics: ['leftover'] },
+  },
+  decisions: [
+    {
+      id: 'd-round-revert',
+      what: {
+        eng: 'Reverted --round and its default, back to the floor split.',
+        plain: 'Went back to the old way of splitting leftover cents.',
+        ev: pr(22, 'Reverts #20 and #21.'),
+      },
+      topics: ['leftover'],
+      carriedBy: 'pr#22',
+      why: {
+        reason: {
+          eng: 'The flag was not stored per bill, so the new default changed older bills.',
+          plain: 'The new setting quietly changed totals on bills already entered.',
+          ev: pr(22, 'The flag is not stored on the row, so the new default changed older bills too.'),
+        },
+      },
+    },
+  ],
+  claims: [],
+  undone: [
+    {
+      changes: ['pr#20', 'pr#21', 'pr#22'],
+      name: { eng: 'The --round experiment', plain: 'A short-lived rounding setting' },
+      says: [
+        {
+          eng: 'The code after PR #22 equals the code before PR #20.',
+          plain: 'Everything went back to how it was.',
+          ev: { verb: 'diff', from: 'c-codeowners', to: 'merge-pr-22', shows: '(no differences)' },
+        },
+      ],
+      covers: ['catch-up-round-net'],
+    },
+  ],
+  runs: [],
+  screens: [
+    { kind: 'page', topic: 'root', status: { eng: 'Up to date', plain: 'Up to date' } },
+    { kind: 'page', topic: 'leftover', status: { eng: 'Never written down', plain: 'Never written down' } },
+    {
+      kind: 'timeline',
+      topic: 'root',
+      from: '2023-10-22',
+      to: '2023-11-01',
+      counts: { decision: 1, net: 1 },
+      named: ['d-round-revert', 'undone:pr#20'],
+      routine: quiet,
+    },
+    {
+      kind: 'timeline',
+      topic: 'root',
+      from: '2023-10-25',
+      to: '2023-10-30',
+      counts: { behavior: 1 },
+      named: ['f-round-default'],
+      notes: { 'pr#21': 'part-of-later-undo' },
+      routine: quiet,
+    },
+    {
+      kind: 'timeline',
+      topic: 'root',
+      from: '2023-10-30',
+      to: '2023-11-05',
+      counts: { decision: 1 },
+      named: ['d-round-revert'],
+      notes: { 'pr#22': 'undoes-earlier' },
+      routine: quiet,
+    },
+  ],
+};
+
 const spec = {
   slug: 'tally',
   name: 'tally',
@@ -3348,6 +3510,7 @@ The list of bills is a plain file named ledger.json. tally settle prints the few
       ],
     },
   ],
+  views,
 };
 
 export default spec;

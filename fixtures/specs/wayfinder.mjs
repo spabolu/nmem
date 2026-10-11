@@ -1144,6 +1144,263 @@ const indexV5 = indexV4.replace(
 );
 
 /** @type {import('../schema.mjs').RepoSpec} */
+const head = 'c-changelog-100';
+const headFile = (path, quote) => ({ kind: 'file', path, at: head, quote });
+const assistFile = (path, quote) => ({ kind: 'file', path, at: 'c-assist', quote });
+const pr16 = (quote) => ({ kind: 'pr', number: 16, quote });
+const askJon = { notRecorded: { ask: ['jon-okonkwo'] } };
+const restyled = (path, eng, plain, shows) => ({
+  files: [path],
+  name: { eng: `restyle of ${path}`, plain: 'formatting' },
+  reason: { eng, plain, ev: { verb: 'restyle', from: 'merge-pr-15', to: 'merge-pr-16', path, shows } },
+});
+const pr16Day = { eng: 'Out of date since PR #16, Nov 19, 2024', plain: 'Out of date since Nov 19, 2024' };
+
+// The PR #16 slice of wayfinder's view truth: the change, its findings and routine parts, the rename decision, and
+// the two doc sentences it broke. The rest of wayfinder's views are ported in U1b.
+const views = {
+  topics: [
+    {
+      id: 'root',
+      parent: null,
+      name: { eng: 'Request limiting', plain: 'Request limiting' },
+      core: [],
+      files: [],
+      start: { path: 'src/limit.ts', quote: 'export function createLimiter(options: Options) {', lines: 26 },
+      docs: ['README.md', 'docs/index.md'],
+      headline: [
+        {
+          eng: 'Wayfinder limits how many requests each API key can make to the Northwind public API.',
+          plain: "Wayfinder limits how many requests each caller can send to Northwind's public service.",
+          ev: headFile('README.md', q.lead),
+        },
+      ],
+      example: {
+        eng: 'A new key with limit 2 that sends five requests at once gets four through, and the fifth gets a 429.',
+        plain: 'A new caller allowed 2 requests that sends five at once gets four through, and the fifth is blocked.',
+        ev: headFile('test/limit.test.ts', q.burstAssert),
+      },
+    },
+    {
+      id: 'counting',
+      parent: 'root',
+      name: { eng: 'Counting', plain: 'Counting' },
+      core: ['src/bucket.ts', 'test/bucket.test.ts', 'test/limit.test.ts'],
+      files: ['src/bucket.ts', 'test/bucket.test.ts', 'test/limit.test.ts', 'src/limit.ts', 'docs/concepts/limits.md', 'docs/adr/0003-token-bucket.md'],
+      start: { path: 'src/bucket.ts', quote: 'export function take(', lines: 27 },
+      docs: ['docs/concepts/limits.md'],
+      headline: [
+        {
+          eng: 'Each key has a bucket of permits that refills over time, and a request below one permit is rejected with 429.',
+          plain: 'Each caller has an allowance that refills over time, and a request is blocked when less than one is left.',
+          ev: headFile('src/bucket.ts', 'if (refilled < 1) {'),
+        },
+      ],
+      example: {
+        eng: 'test/limit.test.ts sends five requests at once from a new key at limit 2 and expects four 200s, then a 429.',
+        plain: "The app's own check sends five requests at once from a new caller allowed 2, and expects four through, then a block.",
+        ev: headFile('test/limit.test.ts', q.burstAssert),
+      },
+    },
+    {
+      id: 'replies',
+      parent: 'root',
+      name: { eng: 'Replies to callers', plain: 'Replies to callers' },
+      core: ['src/headers.ts', 'test/headers.test.ts', 'docs/concepts/headers.md'],
+      files: ['src/headers.ts', 'test/headers.test.ts', 'docs/concepts/headers.md', 'src/limit.ts'],
+      start: { path: 'src/headers.ts', quote: 'export function rateLimitHeaders(', lines: 13 },
+      docs: ['docs/concepts/headers.md'],
+      headline: [
+        {
+          eng: 'Each response tells the caller its limit and what is left, and a blocked one also says when to retry.',
+          plain: 'Each reply tells the caller its allowance and what is left, and a blocked reply also says when to try again.',
+          ev: headFile('src/headers.ts', 'if (retryAfterSec > 0) headers["Retry-After"] = String(retryAfterSec);'),
+        },
+      ],
+      example: {
+        eng: 'rateLimitHeaders(10, -0.2, 3) gives RateLimit-Remaining 0 and Retry-After 3.',
+        plain: 'With nothing left and 3 seconds to wait, a reply says 0 are left and to try again in 3 seconds.',
+        ev: headFile('test/headers.test.ts', "assert.equal(empty['Retry-After'], '3');"),
+      },
+    },
+  ],
+  changes: {
+    'pr#16': {
+      topics: ['counting', 'replies'],
+      findings: [
+        {
+          id: 'f-double',
+          severity: 'behavior',
+          topics: ['counting'],
+          anchors: [assistFile('src/limit.ts', q.burstCall), assistFile('test/limit.test.ts', q.burstAssert)],
+          name: { eng: 'New keys get twice the limit', plain: 'New callers get twice their allowance' },
+          says: [
+            {
+              eng: 'test/limit.test.ts expects four 200s, then a 429, at limit 2.',
+              plain: "The app's own check lets four requests through on an allowance of two.",
+              ev: headFile('test/limit.test.ts', q.burstAssert),
+            },
+            {
+              eng: 'PR #16 says "no behavior change intended."',
+              plain: 'The write-up said nothing would change.',
+              ev: pr16(q.mostlyMechanical),
+            },
+          ],
+          why: askJon,
+          covers: ['why-burst-gap', 'assist-behavior'],
+        },
+        {
+          id: 'f-rename',
+          severity: 'behavior',
+          topics: ['counting'],
+          anchors: [assistFile('src/limit.ts', 'refillWindowMs: number;')],
+          name: { eng: 'windowMs is silently ignored', plain: 'The old setting name stopped working' },
+          says: [
+            {
+              eng: 'Nothing in src or test reads windowMs, so a caller still passing it has that option ignored.',
+              plain: 'Callers still using the old setting name get no error, and the setting is ignored.',
+              ev: { verb: 'grep', at: head, pattern: 'windowMs', paths: ['src', 'test'], shows: '(no matches)' },
+            },
+            {
+              eng: 'With windowMs: 1000 at limit 2, all ten requests get a 200, so the old name means no limit at all.',
+              plain: 'We tried the old setting name with an allowance of 2, and all ten requests went through.',
+              ev: { verb: 'run', id: 'old-option-name', shows: 'windowMs 1000, limit 2, 10 requests: 200 200 200 200 200 200 200 200 200 200' },
+            },
+          ],
+          why: askJon,
+        },
+        {
+          id: 'f-reset',
+          severity: 'check',
+          topics: ['replies'],
+          anchors: [assistFile('src/limit.ts', q.omitReset), { kind: 'issue', number: 20, quote: 'Allowed responses are missing RateLimit-Reset' }],
+          name: { eng: 'Allowed responses lose RateLimit-Reset', plain: 'Allowed requests no longer say when the allowance refills' },
+          says: [
+            {
+              eng: 'Issue #20 reports the missing header on allowed responses.',
+              plain: 'Someone on the team noticed the refill time was missing.',
+              ev: { kind: 'issue', number: 20, quote: 'Allowed responses are missing RateLimit-Reset' },
+            },
+          ],
+          why: askJon,
+          covers: ['assist-risky'],
+        },
+      ],
+      routine: [
+        {
+          files: ['package-lock.json'],
+          name: { eng: 'lockfile refresh', plain: 'refreshed package list' },
+          reason: {
+            eng: 'No package changed version, and nothing uses the added entries.',
+            plain: 'No tool changed version, and nothing uses the new entries.',
+            ev: { verb: 'lockfile', from: 'merge-pr-15', to: 'merge-pr-16', shows: 'versions changed: none; removed: none; added: 75, used by any other file: none' },
+          },
+        },
+        {
+          files: ['src/generated/northwind-api.ts'],
+          name: { eng: 'regenerated client', plain: 'regenerated partner code' },
+          reason: {
+            eng: 'No file in src or test names the generated client.',
+            plain: 'Nothing else in the app uses the regenerated code yet.',
+            ev: { verb: 'grep', at: 'merge-pr-16', pattern: 'northwind-api', paths: ['src', 'test'], shows: '(no matches)' },
+          },
+        },
+        restyled('src/headers.ts', 'Only quote marks changed.', 'Only the punctuation changed.', 'only quote marks changed'),
+        restyled('src/key.ts', 'Only quote marks changed.', 'Only the punctuation changed.', 'only quote marks changed'),
+        restyled('src/metrics.ts', 'Only spacing and trailing commas changed.', 'Only spacing and punctuation changed.', 'only spacing and trailing commas changed'),
+      ],
+    },
+  },
+  decisions: [
+    {
+      id: 'd-rename',
+      what: { eng: 'Renamed the windowMs option to refillWindowMs.', plain: 'The refill setting got a new name.', ev: pr16('Renamed windowMs to refillWindowMs.') },
+      topics: ['counting'],
+      carriedBy: 'pr#16',
+      why: askJon,
+    },
+  ],
+  claims: [
+    {
+      id: 'claim-balance-cap',
+      doc: 'docs/concepts/limits.md',
+      quote: q.balanceCap,
+      topic: 'counting',
+      verdict: 'no-longer-true',
+      brokenBy: 'pr#16',
+      why: {
+        eng: 'Since PR #16 a new key starts with twice the limit.',
+        plain: 'New callers now start with twice their allowance.',
+        ev: { verb: 'introduced', path: 'src/limit.ts', needle: q.burstCall, shows: 'on 2024-11-19 by Jon Okonkwo' },
+      },
+    },
+    {
+      id: 'claim-allowed-headers',
+      doc: 'docs/concepts/headers.md',
+      quote: q.allowedSame,
+      topic: 'replies',
+      verdict: 'no-longer-true',
+      brokenBy: 'pr#16',
+      why: {
+        eng: 'Allowed responses drop RateLimit-Reset.',
+        plain: 'Replies that let a request through no longer say when the allowance refills.',
+        ev: headFile('src/limit.ts', q.omitReset),
+      },
+      covers: ['currency-allowed-headers'],
+    },
+  ],
+  undone: [],
+  runs: [
+    {
+      id: 'old-option-name',
+      at: head,
+      lang: 'node',
+      source: `import { createLimiter } from './src/limit.ts';
+
+const limit = createLimiter({ limit: 2, windowMs: 1000, now: () => 5000 });
+const seen = [];
+for (let i = 0; i < 10; i += 1) {
+  const res = { statusCode: 200, setHeader() {}, end() {} };
+  await limit({ headers: { 'x-api-key': 'partner-live' } }, res, () => {});
+  seen.push(res.statusCode);
+}
+console.log(\`windowMs 1000, limit 2, 10 requests: \${seen.join(' ')}\`);
+`,
+    },
+  ],
+  screens: [
+    { kind: 'page', topic: 'counting', status: pr16Day },
+    { kind: 'page', topic: 'replies', status: pr16Day },
+    {
+      kind: 'timeline',
+      topic: 'root',
+      from: '2024-11-19',
+      to: '2024-11-19',
+      counts: { decision: 1, behavior: 2, check: 1 },
+      named: ['d-rename', 'f-double', 'f-reset'],
+      routine: { count: 0, lines: 0 },
+    },
+    {
+      kind: 'timeline',
+      topic: 'counting',
+      from: '2024-11-19',
+      to: '2024-11-19',
+      counts: { decision: 1, behavior: 2 },
+      named: ['d-rename', 'f-double', 'f-rename'],
+      routine: { count: 0, lines: 0 },
+    },
+    {
+      kind: 'timeline',
+      topic: 'replies',
+      from: '2024-11-19',
+      to: '2024-11-19',
+      counts: { check: 1 },
+      named: ['f-reset'],
+      routine: { count: 0, lines: 0 },
+    },
+  ],
+};
+
 const spec = {
   slug: 'wayfinder',
   name: 'Wayfinder',
@@ -2941,6 +3198,7 @@ I did not read every line of the generated types. Please skim them.`,
       ],
     },
   ],
+  views,
 };
 
 export default spec;

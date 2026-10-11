@@ -195,7 +195,7 @@ Gold:
 - `pr#22`, Nov 1 (3d17009). Carries decision `d-round-revert`, intent "Reverts #20 and #21.", recorded reason "The flag is not stored on the row, so the new default changed older bills too." The decider, owenbriggs, derives from the PR's author.
 - Undone group `{pr#20, pr#21, pr#22}`. The kernel's proof is `diff 49d209b..3d17009`, which gives "(no differences)" (measured, empty shortstat).
 - The timeline ends Nov 21, 2023, the latest `github.json` timestamp, not HEAD's Nov 15 (measured).
-- Hand-computed screens in the spec, which the generator checks against `view.timelineOf(gold)`:
+- Hand-computed screens in the spec, which the generator checks against `view.rangeOf(gold)`, the part of `timelineOf` a screen asserts:
   - root from Oct 22 to Nov 1 counts decision 1 and net 1, naming `d-round-revert` and the bracket;
   - Oct 25 to 30 counts behavior 1, `pr#21` with "Part of a change later undone.";
   - Oct 30 to Nov 5 counts decision 1, with "Undoes a change that started before this range."
@@ -283,4 +283,4 @@ A system that names the bracket "the `--round` experiment" loses nothing. Bracke
 
 ## Next implementation step
 
-Add the `views` key to the fixture schema for one slice, wayfinder PR #16 and tally's `--round` bracket, with a shared `fixtures/lib/checks.mjs` that both the generator and `record.ts` use, and prove that `view.timelineOf` reproduces the spec's hand-computed screens for both slices with no prototype import and no judge.
+Add the `views` key to the fixture schema for one slice, wayfinder PR #16 and tally's `--round` bracket, with a shared `fixtures/lib/checks.mjs` that both the generator and `record.ts` use, and prove that `view.rangeOf` reproduces the spec's hand-computed screens for both slices with no prototype import and no judge. Done in U1a. `timelineOf` adds the summary sentence and each row's fold, and waits on a fold rule.

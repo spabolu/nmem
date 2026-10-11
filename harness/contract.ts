@@ -81,17 +81,21 @@ export function formatRef(ref: RecordRef): string {
 // Proofs are rerunnable checks. A system names one, and the harness runs it and shows its output.
 
 /**
- * Grammar, one string each. Patterns and needles are JSON strings when they contain spaces. Flags outside the listed
- * ones make the string unreadable, so a proof can never shell out. Output is computed by record.ts resolveProof, which
- * is fixtures/lib/checks.mjs, the code the generator uses on gold:
+ * Grammar, one string each. A pattern, needle, or path is a JSON string when it is empty, holds whitespace or a double
+ * quote, or starts with "-". Flags outside the listed ones make the string unreadable, so a proof can never pass git
+ * an option. Output is computed by record.ts resolveProof, which is fixtures/lib/checks.mjs, the code the generator
+ * uses on gold. parseProof here must accept exactly what checks.mjs parseProof accepts:
  *
- *   grep <rev> [-i] [-E] <pattern> [-- <path>...]   sorted matching paths, or "(no matches)"
+ *   grep <rev> [-i] [-E] <pattern> [-- <path>...]   sorted matching paths, space-separated, or "(no matches)"
  *   files <rev> | files <rev>..<rev>                "path (new); path (deleted); package.json: version a -> b"
  *   diff <rev>..<rev>                               "(no differences)" or git's --shortstat line
  *   restyle <rev>..<rev>:<path>                     "only quote marks, spacing and trailing commas changed" or "code changed"
- *   lockfile <rev>..<rev>                           "package.json unchanged; versions changed: none; added: 75, used by any other file: none"
+ *   lockfile <rev>..<rev>                           "package.json unchanged; versions changed: none; removed: none;
+ *                                                    added: 75, used by any other file: none, with an install script: none"
  *   introduced <path> <needle>                      "first added in ec966ff on 2024-11-19 by Jon Okonkwo"
  *   run <id>                                        stdout of Snapshot.runs[id], run by the harness twice in its sandbox
+ *
+ * `files <rev>` compares the commit with its first parent, so it also describes a merge.
  *
  * The verb also fixes the trust words the page shows ("we searched", "we ran it"), in view.ts TRUST_WORDS.
  */

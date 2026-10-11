@@ -3,9 +3,11 @@
  * nmem v1's topic tree and timeline, limited to the judgment a person must author. The generator derives everything git and
  * github.json give (dates, line numbers, authors, deciders, proof output) and proves the rest against the built repo.
  *
- * Not wired yet. parseSpec still rejects a `views` key. The first implementation step adds it to parseSpec's known
- * keys, ports one slice (wayfinder PR #16 and tally's --round bracket), and writes private out/<slug>/gold.json and
- * out/<slug>/canaries.json. Public output (repo/, github.json) does not change.
+ * parseSpec parses this key (fixtures/lib/views.mjs parseViews). generate.mjs resolves it against the built repo
+ * (goldOf) and writes private out/<slug>/gold.json and out/<slug>/canaries.json beside repo/ and github.json, which do
+ * not change. gold.json is { version, slug, oracle, extras }: oracle is a contract Snapshot whose ids are spec ids, and
+ * extras holds core files, accepted anchors, finding ids per change, claim and undone ids, covers, uncovered, and the
+ * hand-computed screens in change-id form.
  *
  * Text on every view object uses the harness wire names, `eng` and `plain`, so gold.json is a contract Snapshot with no
  * renaming. Refs reuse schema.mjs's Ref (commit keys and spec comment ids), so view evidence and answer-key evidence
@@ -14,21 +16,23 @@
  * @typedef {import('./schema.mjs').Ref} Ref
  * @typedef {string} Handle  key into RepoSpec.people
  * @typedef {string} CommitKey
- * @typedef {string} ChangeKey  "pr#16" for a pull request step, or the key of a direct commit step ("c-init")
+ * @typedef {string} RevKey  a CommitKey, "merge-pr-<n>" for a merged pull request's landing commit, or "head"
+ * @typedef {string} ChangeKey  "pr#16" for a merged pull request step, or the key of a direct commit step ("c-init")
  * @typedef {{ eng: string, plain: string }} Text
  *
  * @typedef {(
- *   | { verb: "grep", at: CommitKey, pattern: string, flags?: Array<"i" | "E">, paths?: string[], shows: string }
- *   | { verb: "files", at: CommitKey, from?: CommitKey, shows: string }
- *   | { verb: "diff", from: CommitKey, to: CommitKey, shows: string }
- *   | { verb: "restyle", from: CommitKey, to: CommitKey, path: string, shows: string }
- *   | { verb: "lockfile", from: CommitKey, to: CommitKey, shows: string }
+ *   | { verb: "grep", at: RevKey, pattern: string, flags?: Array<"i" | "E">, paths?: string[], shows: string }
+ *   | { verb: "files", at: RevKey, from?: RevKey, shows: string }
+ *   | { verb: "diff", from: RevKey, to: RevKey, shows: string }
+ *   | { verb: "restyle", from: RevKey, to: RevKey, path: string, shows: string }
+ *   | { verb: "lockfile", from: RevKey, to: RevKey, shows: string }
  *   | { verb: "introduced", path: string, needle: string, shows: string }
  *   | { verb: "run", id: string, shows: string }
  * )} ProofSpec
  *   A proof is a request. gold.json carries the request and never its output. The generator runs it with
  *   fixtures/lib/checks.mjs, the same code the harness runs, and asserts `shows` is a substring of the output, so a
- *   spec author cannot state what a proof shows without the proof showing it.
+ *   spec author cannot state what a proof shows without the proof showing it. Revs are RevKeys because a routine
+ *   proof usually compares the landing commits around a change. Keep SHAs out of shows; the generator computes them.
  *
  * @typedef {Text & { ev: Ref | ProofSpec }} SaidSpec  one sentence in both audiences, one source
  * @typedef {Text & { ev: Ref }} RecordSaidSpec  a sentence whose source must be a record object, never a proof
@@ -38,7 +42,10 @@
  *   | { notRecorded: { ask: [Handle, ...Handle[]], guess?: Text, truth?: string, phrases?: string[] } }
  * )} WhySpec
  *   truth is the real reason, known only to the author. It becomes leak 6-grams in canaries.json and nothing else.
- *   phrases must appear nowhere in the record (the existing assertNotRecorded check). Both are optional here.
+ *   phrases must appear nowhere in the record (the existing assertNotRecorded check). Both are optional here. The
+ *   answer key's truth and notRecorded phrases already feed canaries.json and the gold check, so an object that covers
+ *   a gap entry does not repeat them. No never-recorded phrase may appear anywhere in gold. A finding asks people who wrote its change. A decision asks
+ *   its decider.
  *
  * @typedef {{
  *   id: string, parent: string | null, name: Text,
@@ -50,21 +57,29 @@
  *   words?: string[],
  *   covers?: string[]
  * }} TopicSpec
- *   core is the subset of files alignment matches on. start.quote is a line at HEAD; the generator finds its number.
- *   An example's ev is a test file at HEAD or a run. covers lists answer-key entry ids this object answers.
+ *   core is the subset of files alignment matches on. The root lists no files and no core. start.quote is exactly one
+ *   whole line at HEAD; the generator finds its number. start.lines is how many lines Start here shows, and the line
+ *   after them must be blank, missing, or no deeper than the first, so the range never stops mid-block. An example's ev
+ *   is a test file at HEAD or a run. covers lists answer-key entry ids this object answers. Headlines total at most 45
+ *   words per audience.
  *
  * @typedef {{
  *   id: string, severity: "behavior" | "check", topics: string[],
  *   anchors: [Ref, ...Ref[]], name: Text, says: [SaidSpec, ...SaidSpec[]], why: WhySpec,
  *   covers?: string[]
  * }} FindingSpec
- *   anchors are record refs. The first is the oracle's. Any of them aligns a system finding to this one.
+ *   anchors are record refs. The first is the oracle's. Any of them aligns a system finding to this one. Ids of
+ *   findings, decisions, and claims are hyphenated, so each is a canary. A finding's topics are among its change's,
+ *   and each topic of a change with findings holds at least one of them.
  *
  * @typedef {{
  *   topics: string[],
  *   findings?: FindingSpec[],
  *   routine?: Array<{ files: [string, ...string[]], name: Text, reason: Text & { ev: ProofSpec } }>
  * }} ChangeSpec
+ *   topics are child topics whose files the change touched. A routine part names touched files, no file twice, and its
+ *   reason is always a proof. The change must classify: a finding, a decision it carries, or routine parts that
+ *   partition every touched file.
  *
  * @typedef {{
  *   id: string,
@@ -78,7 +93,9 @@
  * }} DecisionSpec
  *   what.ev is the intent. There is no who. The decider is the author of the intent object, or the person who added
  *   the cited file. Every alsoIntent anchor must derive the same decider, so an alternative anchor cannot change the
- *   name a page shows.
+ *   name a page shows. The decider must be a person with a GitHub account, not a bot. An intent quote that says "no
+ *   behavior change" shows no intent and is rejected: that change is a Behavior change finding, not a decision.
+ *   carriedBy names a change with an entry in changes, and every topic but the root is one of that change's topics.
  *
  * @typedef {(
  *   | { verdict: "still-true" }
@@ -93,16 +110,24 @@
  *   harness/reviewed/currency.json, not here.
  *
  * @typedef {{ changes: [ChangeKey, ChangeKey, ...ChangeKey[]], name: Text, says: SaidSpec[], covers?: string[] }} UndoneSpec
- * @typedef {{ id: string, at: CommitKey, lang: "node" | "python" | "go" | "sh", source: string }} RunSpec
+ *   Members in the order they went live, each with an entry in changes. The generator runs diff from the first
+ *   member's parent to the last member and requires "(no differences)". Its gold id is "undone:<first change>".
+ * @typedef {{ id: string, at: RevKey, lang: "node" | "python" | "go" | "sh", source: string }} RunSpec
  *
- * @typedef {{
- *   topic: string, from: string, to: string,
- *   counts: Partial<Record<"decision" | "behavior" | "check" | "net", number>>,
- *   named: string[],
- *   routine: { count: number, lines: number }
- * }} ScreenSpec
- *   A timeline screen a person computed by hand. The generator renders gold through the harness kernel
- *   (harness/view.ts timelineOf) and fails on any difference. named holds finding, decision, or "undone:<first change>" ids.
+ * @typedef {(
+ *   | {
+ *       kind: "timeline", topic: string, from: string, to: string,
+ *       counts: Partial<Record<"decision" | "behavior" | "check" | "net", number>>,
+ *       named: string[],
+ *       notes?: Record<ChangeKey, "part-of-later-undo" | "undoes-earlier">,
+ *       routine: { count: number, lines: number }
+ *     }
+ *   | { kind: "page", topic: string, status: Text }
+ * )} ScreenSpec
+ *   A screen a person computed by hand. The generator renders gold through the harness kernel and fails on any
+ *   difference: a timeline through harness/view.ts rangeOf (the part of timelineOf a screen asserts), a page's status
+ *   line through statusOf and TEMPLATES.status. named is the summary's picks in order, as finding ids, decision ids,
+ *   change keys, or "undone:<first change>". notes are the undone notes on the cards of a bracket the range cuts.
  *
  * @typedef {{
  *   topics: TopicSpec[],
@@ -114,14 +139,17 @@
  *   screens: ScreenSpec[],
  *   uncovered?: Array<{ key: string, why: string }>
  * }} ViewsSpec
- *   changes keys must equal the harness's change enumeration exactly. Every answer-key entry is covered by a view
- *   object, has every evidence locator used as some object's ev, or is listed in uncovered with a reason.
+ *   The target: changes keys equal the harness's change enumeration exactly, and every answer-key entry is covered
+ *   by a view object, has every evidence locator used as some object's ev, or is listed in uncovered with a reason.
+ *   Today the generator checks that every key is an enumerated change and reports how many are classified. The
+ *   exhaustive checks and the floors below are enforced once wayfinder, tally, and seedling carry full views.
  */
 
 /**
- * The owner's floors (2026-10-10), counted across every repo. The generator refuses to write gold, and calibrate refuses
- * a stamp, below either one. A gap object is a decision or finding whose why is notRecorded. A currency claim is any
- * ClaimSpec, whatever its verdict. These are the only copies. generate.mjs and the harness import them.
+ * The owner's floors (2026-10-10), counted across every repo. The generator will refuse to write gold, and calibrate will
+ * refuse a stamp, below either one, once every repo carries full views (see ViewsSpec). A gap object is a decision or
+ * finding whose why is notRecorded. A currency claim is any ClaimSpec, whatever its verdict. These are the only copies.
+ * harness/gold.ts imports them, and generate.mjs will when it enforces them.
  */
 export const MIN_GAP_OBJECTS = 10;
 export const MIN_CURRENCY_CLAIMS = 10;

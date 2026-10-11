@@ -12,6 +12,7 @@ import {
   renderCombined,
   resolveAnswers,
   resolveNoise,
+  resolveViews,
   SpecError,
   summaryLine,
   buildRepo,
@@ -75,6 +76,20 @@ function writeJson(file, value) {
   fs.writeFileSync(file, `${JSON.stringify(value, null, 2)}\n`);
 }
 
+const PRIVATE_FILES = ['gold.json', 'canaries.json'];
+
+// Gold and canaries are private: they sit beside repo/ and github.json and never inside them.
+function writeGold(slugDir, spec, repo, github) {
+  if (!spec.views) {
+    for (const file of PRIVATE_FILES) fs.rmSync(path.join(slugDir, file), { force: true });
+    return null;
+  }
+  const { gold, canaries, summary } = resolveViews(spec, repo, github);
+  writeJson(path.join(slugDir, 'gold.json'), gold);
+  writeJson(path.join(slugDir, 'canaries.json'), canaries);
+  return summary;
+}
+
 function emitAll(outDir, specs) {
   fs.mkdirSync(outDir, { recursive: true });
   const built = specs.map((spec) => {
@@ -92,7 +107,9 @@ function emitAll(outDir, specs) {
     writeJson(path.join(slugDir, 'answer-key.json'), { entries });
     writeJson(path.join(slugDir, 'noise.json'), noise);
     fs.writeFileSync(path.join(slugDir, 'ANSWER_KEY.md'), answerMd);
+    const gold = writeGold(slugDir, spec, repo, github);
     return {
+      gold,
       spec,
       repo,
       entries,
@@ -107,13 +124,19 @@ function emitAll(outDir, specs) {
   return built;
 }
 
+function goldLine(line, gold) {
+  if (!gold) return line;
+  return `${line}; gold: ${gold.changes} of ${gold.of} changes classified, ${gold.gaps} gap objects, ${gold.claims} claims, ${gold.screens} screens match the kernel`;
+}
+
 function compareSlug(dirA, dirB, slug) {
-  const files = ['manifest.json', 'github.json', 'answer-key.json', 'ANSWER_KEY.md', 'noise.json'];
+  const files = ['manifest.json', 'github.json', 'answer-key.json', 'ANSWER_KEY.md', 'noise.json', ...PRIVATE_FILES];
   const diffs = [];
   for (const file of files) {
-    const a = fs.readFileSync(path.join(dirA, slug, file));
-    const b = fs.readFileSync(path.join(dirB, slug, file));
-    if (!a.equals(b)) diffs.push(`${file} differs`);
+    const a = path.join(dirA, slug, file);
+    const b = path.join(dirB, slug, file);
+    if (!fs.existsSync(a) && !fs.existsSync(b)) continue;
+    if (!fs.existsSync(a) || !fs.existsSync(b) || !fs.readFileSync(a).equals(fs.readFileSync(b))) diffs.push(`${file} differs`);
   }
   const repoA = path.join(dirA, slug, 'repo');
   const repoB = path.join(dirB, slug, 'repo');
@@ -152,7 +175,7 @@ async function main() {
   let failed = failures.size > 0;
   for (const item of built) {
     const problem = failures.get(item.spec.slug);
-    const line = summaryLine(item);
+    const line = goldLine(summaryLine(item), item.gold);
     if (!args.check) {
       console.log(line);
       continue;

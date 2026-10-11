@@ -150,6 +150,20 @@ export function annotatedTag(repoDir, name, identity, message) {
   });
 }
 
+export function extractTree(repoDir, rev, dir) {
+  const archive = spawnSync('git', ['--no-pager', 'archive', '--format=tar', rev], {
+    cwd: repoDir,
+    env: gitEnv(),
+    maxBuffer: 1 << 28,
+  });
+  if (archive.error) throw new GitError(['archive', rev], -1, archive.error.message);
+  if (archive.status !== 0) throw new GitError(['archive', rev], archive.status ?? -1, archive.stderr.toString());
+  const untar = spawnSync('tar', ['-x', '-C', dir], { input: archive.stdout });
+  if (untar.error || untar.status !== 0) {
+    throw new GitError(['archive', rev], untar.status ?? -1, untar.error?.message ?? untar.stderr.toString());
+  }
+}
+
 export function showFile(repoDir, sha, filePath) {
   const result = git(repoDir, ['show', `${sha}:${filePath}`], { allowStatus: [0, 128] });
   return result.status === 0 ? result.stdout : null;
