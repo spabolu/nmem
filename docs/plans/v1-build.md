@@ -12,22 +12,23 @@ All of these hold, each shown by a command anyone can rerun:
 4. The website renders the topic tree and the timeline for all three repos from any snapshot, gold or engine, in Engineer and Non-engineer modes. A scripted headless-Chrome check passes the v1 screen rules.
 5. `harness run` scores the engine on all three repos, and the report shows usable rates per row in both audiences, with fabricated reasons listed by id.
 
-## Units, in order
+## Slices, smallest first
 
-Each unit ends in its own check. A unit starts only after the unit it depends on passes.
+The run grows one vertical slice at a time. Each slice runs end to end, from gold through the harness and the engine to the website and a score, before the next slice widens it. Each unit ends in its own check, and a unit starts only after the one it depends on passes.
 
-| Unit | Builds | Ends when |
-| --- | --- | --- |
-| U1a | `views` schema in the fixtures, `fixtures/lib/checks.mjs` (proof runners shared with the harness), generator checks, gold for the wayfinder PR #16 slice and tally's `--round` bracket | `generate --check` passes and the slice's hand-computed screens match |
-| U1b | Full `views` for wayfinder and tally, ported from the prototype through spec refs. Nothing is copied by hand. | `generate --check` passes, all prototype facts are reproduced or each difference is named |
-| U1c | Seedling `views`, plus planted cases that bring gap objects and currency claims to at least 10 each, with an owner review sheet | floors pass, `check-breaks` covers the new rules |
-| U2 | Harness core: contract parse, workspace, the view kernel (`view.ts`), gold loading, alignment, deterministic metrics, `check-system`, `render` | kernel reproduces every hand-computed screen; gold passes `check-system`; deterministic metrics score gold at 1 |
-| U3 | `nmem auth copilot` device login, the Copilot judge adapter and cache, judged metrics, corruptions, calibration, `run`, `report`, `compare` | calibration passes (labelled unreviewed until the owner signs) |
-| U4 | The engine and its storage, designed by the architect skill, then built | `check-system` passes on all three repos; first scored run recorded |
-| U5 | The website: both views from a snapshot through the shared kernel | screen-rule check passes on gold and on the engine's snapshots |
-| U6 | Raise the engine's scores, one hypothesis at a time, under the hillclimb playbook | stops when gains stall; every accepted change is one commit with before and after numbers |
+| Slice | Unit | Builds | Ends when |
+| --- | --- | --- | --- |
+| done | U1a | `views` schema, `fixtures/lib/checks.mjs`, generator checks, gold for the PR #16 slice and the `--round` bracket | `generate --check` passes, 10 hand-computed screens match (commit 7e69aa0) |
+| 1. Tally, facts only | S1a | Complete tally gold: every change classified, the topic tree, decisions, claims | `generate --check` passes with every tally change classified |
+| | S1b | Harness core with no judge: snapshot parse, view kernel, alignment, deterministic metrics, `check-system`, `render`, `report` with judged metrics shown as skipped | gold scores 1 on every deterministic metric, and the null scores at most 0.05 |
+| | S1c | Engine v0 for tally, designed by the architect skill: ingest, storage, snapshot | `check-system` passes, and the first deterministic score is recorded |
+| | S1d | Website v0: topic tree and timeline for tally from any snapshot | a headless-Chrome screen-rule check passes on gold and on the engine's snapshot |
+| 2. Judge | S2 | `nmem auth copilot` device login, the Copilot judge and cache, judged metrics, corruptions, calibration labelled unreviewed | calibration passes on tally |
+| 3. Wayfinder | S3 | Full wayfinder gold, with the engine and website widened to it | wayfinder scored, and screens pass |
+| 4. Seedling and floors | S4 | Seedling gold, planted cases up to 10 gap and 10 currency, owner review sheets | floors pass; scores become final once the owner signs |
+| 5. Better engine | S5 | Engine improvements, one hypothesis at a time, under the hillclimb playbook | gains stall; each accepted change is one commit with before and after numbers |
 
-U2 and the U4 design run in parallel after U1a. U5 starts after U2's kernel lands. Parallel units work in separate git worktrees.
+S1b and the S1c design run in parallel. S1d starts after S1b's kernel lands. Parallel units work in separate git worktrees.
 
 ## Rules for the run
 
