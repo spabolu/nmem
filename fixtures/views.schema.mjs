@@ -70,16 +70,18 @@
  * }} FindingSpec
  *   anchors are record refs. The first is the oracle's. Any of them aligns a system finding to this one. Ids of
  *   findings, decisions, and claims are hyphenated, so each is a canary. A finding's topics are among its change's,
- *   and each topic of a change with findings holds at least one of them.
+ *   and each topic of a change with findings holds at least one of them. A finding of a root-only change lists none.
  *
  * @typedef {{
  *   topics: string[],
  *   findings?: FindingSpec[],
- *   routine?: Array<{ files: [string, ...string[]], name: Text, reason: Text & { ev: ProofSpec } }>
+ *   routine?: Array<{ files: [string, ...string[]], name: Text, reason: Text & { ev: ProofSpec } }>,
+ *   covers?: string[]
  * }} ChangeSpec
- *   topics are child topics whose files the change touched. A routine part names touched files, no file twice, and its
+ *   topics are child topics whose files the change touched. An empty list means the change shows on the root only,
+ *   such as one that touched only files gone at HEAD. A routine part names touched files, no file twice, and its
  *   reason is always a proof. The change must classify: a finding, a decision it carries, or routine parts that
- *   partition every touched file.
+ *   partition every touched file. covers on a change records it under its change id.
  *
  * @typedef {{
  *   id: string,
@@ -96,6 +98,7 @@
  *   name a page shows. The decider must be a person with a GitHub account, not a bot. An intent quote that says "no
  *   behavior change" shows no intent and is rejected: that change is a Behavior change finding, not a decision.
  *   carriedBy names a change with an entry in changes, and every topic but the root is one of that change's topics.
+ *   topics [<root id>] is repo-wide, so its carrier must not touch only one child topic's core files.
  *
  * @typedef {(
  *   | { verdict: "still-true" }
@@ -130,6 +133,7 @@
  *   change keys, or "undone:<first change>". notes are the undone notes on the cards of a bracket the range cuts.
  *
  * @typedef {{
+ *   scope: "slice" | "full",
  *   topics: TopicSpec[],
  *   changes: Record<ChangeKey, ChangeSpec>,
  *   decisions: DecisionSpec[],
@@ -139,17 +143,18 @@
  *   screens: ScreenSpec[],
  *   uncovered?: Array<{ key: string, why: string }>
  * }} ViewsSpec
- *   The target: changes keys equal the harness's change enumeration exactly, and every answer-key entry is covered
- *   by a view object, has every evidence locator used as some object's ev, or is listed in uncovered with a reason.
- *   Today the generator checks that every key is an enumerated change and reports how many are classified. The
- *   exhaustive checks and the floors below are enforced once wayfinder, tally, and seedling carry full views.
+ *   Every changes key is an enumerated change. With scope "full", changes keys equal the harness's change
+ *   enumeration exactly, and every answer-key entry is in some object's covers or listed in uncovered with a reason.
+ *   A "slice" is checked only on what it lists. In both, a gap entry is covered by exactly one not-recorded object and
+ *   a currency entry by exactly one claim or superseded decision, and neither may be listed uncovered.
  */
 
 /**
- * The owner's floors (2026-10-10), counted across every repo. The generator will refuse to write gold, and calibrate will
- * refuse a stamp, below either one, once every repo carries full views (see ViewsSpec). A gap object is a decision or
- * finding whose why is notRecorded. A currency claim is any ClaimSpec, whatever its verdict. These are the only copies.
- * harness/gold.ts imports them, and generate.mjs will when it enforces them.
+ * The owner's floors (2026-10-10), counted across every repo. Once every repo's views have scope "full", the
+ * generator refuses to write gold below either one (fixtures/lib/views.mjs floorsOf), and calibrate refuses a stamp.
+ * A slice, or a repo with no views, keeps them waiting. A gap object is a decision or finding whose why is
+ * notRecorded. A currency claim is any ClaimSpec, whatever its verdict. These are the only copies. harness/gold.ts
+ * and fixtures/lib/views.mjs import them.
  */
 export const MIN_GAP_OBJECTS = 10;
 export const MIN_CURRENCY_CLAIMS = 10;

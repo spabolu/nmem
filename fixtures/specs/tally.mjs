@@ -946,20 +946,31 @@ between roommates and says who should pay whom.
   - [ADR-0004](adr/0004-store-the-ledger-in-a-json-file.md) Store the ledger in a JSON file. Accepted.
 `;
 
-/** @type {import('../schema.mjs').RepoSpec} */
 const tallyHead = 'c-note-default';
 const pr = (number, quote) => ({ kind: 'pr', number, quote });
+const comment = (id, quote) => ({ kind: 'comment', id, quote });
+const commit = (key, quote) => ({ kind: 'commit', key, quote });
+const headFile = (path, quote) => ({ kind: 'file', path, at: tallyHead, quote });
 const askOwen = { notRecorded: { ask: ['owenbriggs'] } };
+const askLena = { notRecorded: { ask: ['lenavoss'] } };
 const ownCheck = {
   eng: 'Owen pays 1000 cents split three ways and is owed 666, while Lena and Maya each owe 333.',
   plain: 'Owen pays $10.00 for three people and is owed $6.66, while Lena and Maya each owe $3.33.',
-  ev: { kind: 'file', path: 'tests/test_settle.py', at: tallyHead, quote: 'self.assertEqual(balances["owen"], 666)' },
+  ev: headFile('tests/test_settle.py', 'self.assertEqual(balances["owen"], 666)'),
 };
 const quiet = { count: 0, lines: 0 };
+const upToDate = { eng: 'Up to date', plain: 'Up to date' };
+const adr = {
+  one: 'docs/adr/0001-record-architecture-decisions.md',
+  sqlite: 'docs/adr/0002-store-the-ledger-in-sqlite.md',
+  cents: 'docs/adr/0003-amounts-are-integer-cents.md',
+  json: 'docs/adr/0004-store-the-ledger-in-a-json-file.md',
+};
+const guide = 'docs/how-it-works.md';
+const listed = (at, eng, plain, shows) => ({ eng, plain, ev: { verb: 'files', at, shows } });
 
-// The --round slice of tally's view truth: PR #20 adds the flag, PR #21 flips its default, PR #22 reverts both and
-// carries the decision. The rest of tally's views are ported in U1b.
 const views = {
+  scope: 'full',
   topics: [
     {
       id: 'root',
@@ -973,14 +984,53 @@ const views = {
         {
           eng: 'tally splits shared household bills between roommates and prints the fewest payments that settle everyone up.',
           plain: 'tally splits shared household bills between roommates and says who should pay whom.',
-          ev: { kind: 'file', path: 'tally/cli.py', at: tallyHead, quote: 'transfers = minimal_transfers(balances)' },
+          ev: headFile('tally/cli.py', 'transfers = minimal_transfers(balances)'),
+        },
+        {
+          eng: '`tally add` saves a bill, `balances_for()` splits every saved bill again, and `minimal_transfers()` turns the balances into payments.',
+          plain: 'Each bill is saved, every saved bill is split again each time, and the shares become the fewest payments.',
+          ev: headFile('tally/cli.py', 'balances = balances_for(rows)'),
         },
       ],
       example: ownCheck,
+      words: ['bills', 'split', 'settle', 'roommates'],
+      covers: ['what-is-tally', 'docs-map', 'example-ten-dollar-split'],
+    },
+    {
+      id: 'adding',
+      parent: 'root',
+      name: { eng: 'Adding a bill', plain: 'Adding a bill' },
+      core: ['tests/test_cli.py'],
+      files: ['tally/cli.py', 'tests/test_cli.py'],
+      start: { path: 'tally/cli.py', quote: '    if args.cmd == "add":', lines: 14 },
+      docs: [guide],
+      headline: [
+        {
+          eng: '`tally add` takes who paid, the amount in whole cents, a note, and who shares the bill.',
+          plain: 'You type who paid, the amount in cents, a short note, and who shares the bill.',
+          ev: headFile('tally/cli.py', 'add.add_argument("--cents", type=int, required=True)'),
+        },
+        {
+          eng: 'A negative amount is refused.',
+          plain: 'A negative amount is refused.',
+          ev: headFile('tally/cli.py', 'print("cents must be zero or more", file=sys.stderr)'),
+        },
+        {
+          eng: 'The check arrived in a commit titled only "fix tests".',
+          plain: 'The check arrived in a change labeled only as a test fix.',
+          ev: commit('c-fix-tests', 'fix tests'),
+        },
+      ],
+      example: {
+        eng: 'tests/test_cli.py adds a bill of -5 cents and expects main() to return 2.',
+        plain: "The app's own check adds a bill of minus 5 cents and expects it to be refused.",
+        ev: headFile('tests/test_cli.py', 'self.assertEqual(code, 2)'),
+      },
+      words: ['add', 'bill', 'cents', 'note', 'negative'],
     },
     {
       id: 'leftover',
-      parent: 'root',
+      parent: 'adding',
       name: { eng: 'Leftover cents', plain: 'Leftover cents' },
       core: ['tally/ledger.py'],
       files: ['tally/ledger.py', 'tally/cli.py', 'tests/test_settle.py'],
@@ -990,13 +1040,247 @@ const views = {
         {
           eng: 'From the code: each share is rounded down to whole cents, so the payer covers the leftover cent.',
           plain: 'From the code: each share is rounded down to whole cents, so the person who paid covers any leftover cent.',
-          ev: { kind: 'file', path: 'tally/ledger.py', at: tallyHead, quote: 'each = cents // len(names)' },
+          ev: headFile('tally/ledger.py', 'each = cents // len(names)'),
         },
       ],
       example: ownCheck,
+      words: ['leftover', 'cent', 'rounded down', 'split', 'payer'],
+      covers: ['docs-cent-gap', 'example-ten-dollar-split'],
+    },
+    {
+      id: 'settling',
+      parent: 'root',
+      name: { eng: 'Who pays whom', plain: 'Who pays whom' },
+      core: ['tally/settle.py'],
+      files: ['tally/settle.py', 'tests/test_settle.py'],
+      start: { path: 'tally/settle.py', quote: 'def minimal_transfers(balances):', lines: 26 },
+      docs: [guide],
+      headline: [
+        {
+          eng: '`minimal_transfers()` has the person who owes most pay the person owed most, and repeats until everyone is at zero.',
+          plain: 'The app has the person who owes the most pay the person owed the most, and repeats until everyone is even.',
+          ev: headFile('tally/settle.py', 'pay = min(debtors[i][1], creditors[j][1])'),
+        },
+        {
+          eng: 'Ties go by name.',
+          plain: 'Ties go by name.',
+          ev: headFile('tally/settle.py', 'key=lambda item: (-item[1], item[0]),'),
+        },
+      ],
+      example: {
+        eng: 'Balances lena 500, owen -200, maya -300 give maya pays lena 300, then owen pays lena 200.',
+        plain: 'If Lena is owed $5.00, Owen owes $2.00 and Maya owes $3.00, Maya pays Lena $3.00 first, then Owen pays Lena $2.00.',
+        ev: headFile('tests/test_settle.py', '[("maya", "lena", 300), ("owen", "lena", 200)],'),
+      },
+      words: ['settle', 'pays', 'owes', 'ties', 'payments'],
+      covers: ['how-settle'],
+    },
+    {
+      id: 'paybacks',
+      parent: 'root',
+      name: { eng: 'Paybacks', plain: 'Paybacks' },
+      core: ['tests/test_pay.py'],
+      files: ['tests/test_pay.py', 'tally/ledger.py'],
+      start: { path: 'tally/ledger.py', quote: 'def add_payment(balances, src, dst, cents):', lines: 3 },
+      docs: [guide],
+      headline: [
+        {
+          eng: '`tally pay` records money one roommate paid another without deleting the bill, so the history stays and the balance clears.',
+          plain: 'A payback records money one roommate paid another without deleting the bill, so the history stays and the balance clears.',
+          ev: headFile('tests/test_pay.py', '{"kind": "payment", "src": "maya", "dst": "lena", "cents": 300},'),
+        },
+      ],
+      example: {
+        eng: 'Lena pays 900 cents split three ways and Maya pays her back 300, so Maya ends at 0.',
+        plain: 'Lena pays $9.00 for three people and Maya pays her back $3.00, so Maya is even.',
+        ev: headFile('tests/test_pay.py', 'self.assertEqual(balances["maya"], 0)'),
+      },
+      words: ['pay', 'payback', 'paid', 'balance'],
+    },
+    {
+      id: 'storage',
+      parent: 'root',
+      name: { eng: 'Where bills are kept', plain: 'Where bills are kept' },
+      core: ['tally/store.py', adr.sqlite, adr.json],
+      files: ['tally/store.py', adr.sqlite, adr.json, 'README.md', 'tally/cli.py'],
+      start: { path: 'tally/store.py', quote: 'def load(path):', lines: 13 },
+      docs: ['README.md', guide, adr.json],
+      headline: [
+        {
+          eng: 'Bills live in ledger.json, a plain JSON file.',
+          plain: 'Bills live in one plain file.',
+          ev: headFile('tally/store.py', 'json.dump({"entries": rows}, fh, indent=2)'),
+        },
+        {
+          eng: 'The --ledger option picks which file to use.',
+          plain: 'A setting picks which file to use.',
+          ev: headFile('tally/cli.py', 'parser.add_argument("--ledger", dest="data", default="ledger.json")'),
+        },
+      ],
+      example: {
+        eng: '--ledger picks the file, while the old name --data exits 2 and writes nothing.',
+        plain: 'The setting that picks the file has a new name, and the old name fails and saves nothing.',
+        ev: { verb: 'run', id: 'old-file-flag', shows: 'file written: no\nnew name --ledger: exit 0' },
+      },
+      words: ['store', 'ledger.json', 'JSON', 'SQLite', 'file', 'Dropbox'],
+      covers: ['storage-now'],
+    },
+    {
+      id: 'money',
+      parent: 'root',
+      name: { eng: 'One kind of money', plain: 'One kind of money' },
+      core: [adr.cents],
+      files: [adr.cents, 'tally/cli.py'],
+      start: { path: 'tally/cli.py', quote: 'def show(cents):', lines: 4 },
+      docs: [adr.cents],
+      headline: [
+        {
+          eng: 'Every amount is a whole number of cents.',
+          plain: 'Every amount is a whole number of cents.',
+          ev: headFile('tally/cli.py', 'add.add_argument("--cents", type=int, required=True)'),
+        },
+        {
+          eng: 'Nothing in the code names a currency.',
+          plain: 'Nothing in the app names a kind of money.',
+          ev: { verb: 'grep', at: 'head', pattern: 'currenc', flags: ['i'], shows: '(no matches)' },
+        },
+      ],
+      example: null,
+      words: ['currency', 'cents', 'exchange rate'],
     },
   ],
   changes: {
+    'c-init': {
+      topics: [],
+      routine: [
+        {
+          files: ['.gitignore', 'README.md'],
+          name: { eng: 'project start', plain: 'project start' },
+          reason: listed('c-init', 'Only a README and a .gitignore, no code yet.', 'Only a front page and a setup file, no code yet.', '.gitignore (new); README.md (new)'),
+        },
+      ],
+    },
+    'pr#1': {
+      topics: [],
+      findings: [
+        {
+          id: 'f-first-names',
+          severity: 'behavior',
+          topics: [],
+          anchors: [
+            { kind: 'file', path: 'tally.py', at: 'c-script', quote: 'return [base + (1 if i < extra else 0) for i in range(n)]' },
+            comment('pr1-rv-owen', 'Lena is a cent higher because she is typed first.'),
+          ],
+          name: { eng: 'Extra cents go to the first names typed', plain: 'Leftover cents go to whoever is typed first' },
+          says: [
+            {
+              eng: 'Owen Briggs found Lena a cent higher than his notebook because she was typed first.',
+              plain: 'Owen Briggs noticed Lena paid a cent more because her name was typed first.',
+              ev: comment('pr1-rv-owen', 'Numbers match my notebook except Lena is a cent higher because she is typed first.'),
+            },
+          ],
+          why: askLena,
+        },
+      ],
+    },
+    'pr#3': {
+      topics: [],
+      findings: [
+        {
+          id: 'f-decimal-sentence',
+          severity: 'behavior',
+          topics: [],
+          anchors: [pr(3, 'A decimal used to throw a traceback. It now prints that cents must be a whole number and exits.')],
+          name: { eng: 'A decimal amount prints a sentence, not a traceback', plain: 'Typing 10.50 shows a plain sentence instead of an error' },
+          says: [
+            {
+              eng: 'tally.py catches the ValueError from int() and prints that cents must be a whole number.',
+              plain: 'Typing an amount with a decimal point now says what went wrong.',
+              ev: { kind: 'file', path: 'tally.py', at: 'c-usage', quote: 'print("cents must be a whole number", file=sys.stderr)' },
+            },
+          ],
+          why: {
+            reason: {
+              eng: 'Maya Ruiz typed 10.50, got a long red error, and asked for it to say what she did wrong.',
+              plain: 'Maya Ruiz typed 10.50, got a long red error, and asked the app to say what she did wrong.',
+              ev: { kind: 'issue', number: 2, quote: 'It printed a long red error and stopped. Can it say what I did wrong?' },
+            },
+          },
+        },
+      ],
+    },
+    'pr#4': { topics: ['storage'] },
+    'c-typo': {
+      topics: [],
+      routine: [
+        {
+          files: ['README.md'],
+          name: { eng: 'spelling fix', plain: 'spelling fix' },
+          reason: listed('c-typo', 'Only README.md changed.', 'Only the front page changed.', 'README.md'),
+        },
+      ],
+    },
+    'pr#6': { topics: ['paybacks'] },
+    'pr#9': { topics: ['storage'] },
+    'pr#12': { topics: ['settling', 'money'] },
+    'c-remainder': { topics: ['leftover'] },
+    'c-dollars': {
+      topics: ['money'],
+      findings: [
+        {
+          id: 'f-dollars',
+          severity: 'behavior',
+          topics: ['money'],
+          anchors: [
+            { kind: 'file', path: 'tally/cli.py', at: 'c-dollars', quote: 'return "%s$%d.%02d" % (sign, cents // 100, cents % 100)' },
+            commit('c-dollars', 'print dollars, not raw cents'),
+          ],
+          name: { eng: 'Amounts print as dollars, not raw cents', plain: 'Amounts show as dollars and cents' },
+          says: [
+            {
+              eng: 'show() formats every printed amount as dollars and cents.',
+              plain: 'Every amount the app prints is now in dollars and cents.',
+              ev: headFile('tally/cli.py', 'return "%s$%d.%02d" % (sign, cents // 100, cents % 100)'),
+            },
+            {
+              eng: 'git shows the author as Lena P, and Lena Voss said on PR #3 that the name is her laptop.',
+              plain: "It was made from Lena Voss's laptop, which shows a different name.",
+              ev: comment('pr3-lena', 'git will say Lena P and lena@laptop.local. That is still me.'),
+            },
+          ],
+          why: {
+            reason: {
+              eng: 'ADR-0003 already said dollars are printed only when a person is reading the output.',
+              plain: 'An earlier written decision said amounts are shown in dollars only when a person reads them.',
+              ev: headFile(adr.cents, 'Dollars are printed only when a person is reading the output.'),
+            },
+          },
+          covers: ['noise-who-wrote'],
+        },
+      ],
+    },
+    'pr#17': {
+      topics: [],
+      routine: [
+        {
+          files: ['.github/workflows/test.yml'],
+          name: { eng: 'actions/checkout bump', plain: 'automatic checks updated' },
+          reason: listed('merge-pr-17', 'Only the test workflow changed, nothing in tally/.', 'Only the automatic checks changed, nothing in the app.', '.github/workflows/test.yml'),
+        },
+      ],
+      covers: ['noise-bot-behavior'],
+    },
+    'pr#18': { topics: ['storage'] },
+    'c-codeowners': {
+      topics: [],
+      routine: [
+        {
+          files: ['.github/CODEOWNERS'],
+          name: { eng: 'CODEOWNERS added', plain: 'reviewer list added' },
+          reason: listed('c-codeowners', 'Only .github/CODEOWNERS, the list of reviewers, was added.', 'Only the list of who reviews what was added.', '.github/CODEOWNERS (new)'),
+        },
+      ],
+    },
     'pr#20': {
       topics: ['leftover'],
       findings: [
@@ -1038,8 +1322,99 @@ const views = {
       ],
     },
     'pr#22': { topics: ['leftover'] },
+    'pr#23': {
+      topics: ['storage'],
+      routine: [
+        {
+          files: ['README.md', guide, 'docs/index.md', 'tally/__init__.py'],
+          name: { eng: 'guides and 1.0', plain: 'guides and version 1.0' },
+          reason: listed(
+            'merge-pr-23',
+            'Only README.md, two new guides, and the version string changed.',
+            'Only the front page, two new guides, and the version number changed.',
+            'README.md; docs/how-it-works.md (new); docs/index.md (new); tally/__init__.py: __version__ "0.3.0" -> "1.0.0"',
+          ),
+        },
+      ],
+    },
+    'c-fix-tests': {
+      topics: ['adding'],
+      findings: [
+        {
+          id: 'f-negative',
+          severity: 'behavior',
+          topics: ['adding'],
+          anchors: [{ kind: 'file', path: 'tally/cli.py', at: 'c-fix-tests', quote: 'if args.cents < 0:' }, commit('c-fix-tests', 'fix tests')],
+          name: { eng: 'Negative amounts are refused', plain: 'A negative amount is now refused' },
+          says: [
+            {
+              eng: 'The commit message says only "fix tests".',
+              plain: 'The note on the change says only that it fixes tests.',
+              ev: commit('c-fix-tests', 'fix tests'),
+            },
+            {
+              eng: 'tests/test_cli.py adds a bill of -5 cents and expects exit code 2.',
+              plain: "The app's own check adds a bill of minus 5 cents and expects it to be refused.",
+              ev: headFile('tests/test_cli.py', 'self.assertEqual(code, 2)'),
+            },
+          ],
+          why: askOwen,
+          covers: ['noise-fix-tests'],
+        },
+      ],
+    },
+    'c-ledger-flag': {
+      topics: ['storage', 'adding'],
+      findings: [
+        {
+          id: 'f-old-flag',
+          severity: 'behavior',
+          topics: ['storage', 'adding'],
+          anchors: [{ kind: 'file', path: 'tally/cli.py', at: 'c-ledger-flag', quote: 'parser.add_argument("--ledger", dest="data", default="ledger.json")' }],
+          name: { eng: 'The old file option --data now fails', plain: 'The old name for the bill file setting now fails' },
+          says: [
+            {
+              eng: 'With --data, add exits 2 and writes no file.',
+              plain: 'Using the old setting name fails and saves nothing.',
+              ev: { verb: 'run', id: 'old-file-flag', shows: 'old name --data: exit 2, file written: no' },
+            },
+            {
+              eng: 'The commit message names only the rename.',
+              plain: 'The note on the change only gives the new name.',
+              ev: commit('c-ledger-flag', 'cli: call the file flag --ledger'),
+            },
+          ],
+          why: askOwen,
+        },
+      ],
+    },
+    'c-note-default': { topics: ['adding'] },
   },
   decisions: [
+    {
+      id: 'd-note',
+      what: {
+        eng: 'The default note changed from misc to unmarked.',
+        plain: 'A bill with no note is now marked unmarked instead of misc.',
+        ev: commit('c-note-default', 'cli: default note is unmarked'),
+      },
+      topics: ['adding'],
+      carriedBy: 'c-note-default',
+      why: askOwen,
+      covers: ['why-note-default'],
+    },
+    {
+      id: 'd-flag',
+      what: {
+        eng: 'The file option --data was renamed --ledger.',
+        plain: 'The setting that names the bill file got a new name.',
+        ev: commit('c-ledger-flag', 'cli: call the file flag --ledger'),
+      },
+      topics: ['storage', 'adding'],
+      carriedBy: 'c-ledger-flag',
+      why: askOwen,
+      covers: ['why-flag-rename'],
+    },
     {
       id: 'd-round-revert',
       what: {
@@ -1057,8 +1432,254 @@ const views = {
         },
       },
     },
+    {
+      id: 'd-json',
+      what: {
+        eng: 'The ledger moved back to a plain JSON file, ledger.json (ADR-0004).',
+        plain: 'The list of bills went back to one plain file.',
+        ev: headFile(adr.json, 'tally/store.py writes ledger.json, a list of entries in the same shape'),
+      },
+      alsoIntent: [pr(18, 'tally/store.py now writes ledger.json.')],
+      topics: ['storage'],
+      carriedBy: 'pr#18',
+      why: {
+        reason: {
+          eng: 'Dropbox copied ledger.db while tally had it open, and the file came back malformed twice.',
+          plain: 'The shared folder copied the database file while the app had it open, and it broke twice.',
+          ev: pr(18, 'Dropbox copied ledger.db while tally had it open and the file came back malformed. Twice.'),
+        },
+      },
+      covers: ['storage-twice', 'storage-now', 'adrs-current', 'growth-arc', 'catch-up-storage-net'],
+    },
+    {
+      id: 'd-web',
+      what: {
+        eng: 'No local web page for balances. Kit Alvarez closed PR #14.',
+        plain: 'No web page for the app.',
+        ev: comment('pr8-kit', 'Closing this.'),
+      },
+      topics: ['root'],
+      carriedBy: null,
+      why: {
+        reason: {
+          eng: 'Maya does not want a page, and Kit could not win Lena over on a server in the apartment.',
+          plain: 'Maya did not want a page, and Kit could not win Lena over on a program running in the apartment.',
+          ev: comment('pr8-kit', 'Maya does not want a page, and I am not going to win Lena over on a server in the apartment.'),
+        },
+      },
+      covers: ['web-closed'],
+    },
+    {
+      id: 'd-texts',
+      what: { eng: 'No text reminders.', plain: 'No text reminders.', ev: comment('iss13-lena', 'We are not adding texts.') },
+      topics: ['root'],
+      carriedBy: null,
+      why: {
+        reason: {
+          eng: 'The living room laptop is not a pager, and Lena will not babysit a notification setup.',
+          plain: 'The shared laptop is not a pager, and Lena will not look after a reminder setup.',
+          ev: comment('iss13-lena', 'The living room laptop is not a pager, and I will not babysit a notification setup.'),
+        },
+      },
+      covers: ['declined-texts', 'noise-text-edit'],
+    },
+    {
+      id: 'd-floor',
+      what: {
+        eng: 'Shares round down, and the payer covers the leftover cent.',
+        plain: 'The person who paid covers any leftover cent.',
+        ev: comment('pr7-thread-lena', 'So the remainder rides with the payer.'),
+      },
+      topics: ['leftover'],
+      carriedBy: 'c-remainder',
+      why: {
+        reason: {
+          eng: 'The payer already fronted the cash, and it stops depending on whose name got typed first.',
+          plain: 'The person who paid already put the money up front, and it stops depending on whose name was typed first.',
+          ev: comment('pr7-thread-lena', 'They already fronted the cash, and it stops depending on whose name got typed first.'),
+        },
+      },
+      covers: ['leftover-cent', 'docs-cent-gap'],
+    },
+    {
+      id: 'd-ties',
+      what: {
+        eng: '`tally settle` prints the fewest payments, largest debt against largest credit, with ties broken by name.',
+        plain: 'Settling up uses the fewest payments, and ties go by name.',
+        ev: pr(12, 'Largest debt against largest credit, ties broken by name'),
+      },
+      alsoIntent: [comment('iss10-lena', 'Fewest payments, same file always prints the same lines.')],
+      topics: ['settling'],
+      carriedBy: 'pr#12',
+      why: {
+        reason: {
+          eng: 'So the same file always prints the same lines.',
+          plain: 'So the same bills always print the same payments.',
+          ev: pr(12, 'so the same file always prints the same lines.'),
+        },
+      },
+      covers: ['who-settle', 'how-settle', 'growth-arc'],
+    },
+    {
+      id: 'd-cents',
+      what: {
+        eng: 'Every amount in the ledger is an integer number of cents (ADR-0003).',
+        plain: 'Every amount is kept as whole cents.',
+        ev: headFile(adr.cents, 'Every amount in the ledger is an integer number of cents.'),
+      },
+      topics: ['money'],
+      carriedBy: 'pr#12',
+      why: {
+        reason: {
+          eng: 'A float cannot represent 10 cents exactly, and a grocery bill would drift.',
+          plain: 'A number with a decimal point cannot hold 10 cents exactly, so a grocery bill would drift.',
+          ev: headFile(adr.cents, 'A float cannot represent 10 cents exactly,\nand a grocery bill would drift.'),
+        },
+      },
+      covers: ['adrs-current'],
+    },
+    {
+      id: 'd-sqlite',
+      what: {
+        eng: 'The ledger moved into a SQLite file, ledger.db (ADR-0002).',
+        plain: 'The list of bills moved into a small database file.',
+        ev: pr(9, 'This replaces tally/store.py with sqlite3 and ledger.db.'),
+      },
+      alsoIntent: [headFile(adr.sqlite, 'tally/store.py keeps the ledger in a SQLite database file named')],
+      topics: ['storage'],
+      carriedBy: 'pr#9',
+      replacedBy: 'd-json',
+      why: {
+        reason: {
+          eng: 'ledger.txt cannot hold a note with a space, so "ikea lamp" becomes two fields.',
+          plain: 'The old text file could not hold a note with a space in it.',
+          ev: pr(9, 'ledger.txt cannot hold a note with a space. "ikea lamp" becomes two fields.'),
+        },
+      },
+      covers: ['currency-sqlite-stale', 'sqlite-adopted', 'storage-twice', 'adrs-current', 'growth-arc', 'catch-up-storage-net'],
+    },
+    {
+      id: 'd-currency',
+      what: {
+        eng: 'One currency, and no rate table.',
+        plain: 'One kind of money, with no exchange rates.',
+        ev: comment('disc5-lena', 'Not building a rate table.'),
+      },
+      alsoIntent: [comment('disc5-lena-2', 'Settled then. One currency.')],
+      topics: ['money'],
+      carriedBy: null,
+      why: {
+        reason: {
+          eng: 'The roommates still did not agree on the exchange rate, and Maya asked that the app not pick one for them.',
+          plain: 'The roommates still did not agree on an exchange rate, and Maya asked the app not to pick one for them.',
+          ev: comment('disc5-maya', "Please do not pick one for us. we still don't agree on the kiosk rate."),
+        },
+      },
+      covers: ['no-multicurrency', 'docs-currency-gap'],
+    },
+    {
+      id: 'd-paybacks',
+      what: {
+        eng: 'A payback is its own line, so a Venmo clears the balance without deleting the expense.',
+        plain: 'A payback is recorded on its own, and the bill stays.',
+        ev: pr(6, 'A Venmo should clear the balance without deleting the expense.'),
+      },
+      topics: ['paybacks'],
+      carriedBy: 'pr#6',
+      why: {
+        reason: {
+          eng: 'Maya did not want to erase the lamp, or they would forget who bought it.',
+          plain: 'Maya did not want to erase the lamp bill, or they would forget who bought it.',
+          ev: { kind: 'discussion', number: 5, quote: "I don't want to erase the lamp, then we forget who bought it." },
+        },
+      },
+      covers: ['pay-from-maya'],
+    },
+    {
+      id: 'd-textfile',
+      what: {
+        eng: 'tally became a package that keeps every bill in ledger.txt.',
+        plain: 'The app started keeping every bill in a text file.',
+        ev: pr(4, 'This moves the split into a package and adds ledger.txt.'),
+      },
+      topics: ['storage'],
+      carriedBy: 'pr#4',
+      replacedBy: 'd-sqlite',
+      why: {
+        reason: {
+          eng: 'The one-shot script was fine for a single detergent bottle and useless for a month of groceries.',
+          plain: 'One bill at a time was useless for a month of groceries.',
+          ev: pr(4, 'The one-shot script is fine for a single detergent bottle. It is useless for a month of groceries.'),
+        },
+      },
+      covers: ['growth-arc', 'catch-up-storage-net'],
+    },
+    {
+      id: 'd-record-decisions',
+      what: {
+        eng: 'Hard-to-reverse choices go in docs/adr/, numbered, with a status line (ADR-0001).',
+        plain: 'Big choices are written down and numbered, with a line saying whether each still applies.',
+        ev: headFile(adr.one, 'Hard-to-reverse choices go in docs/adr/, numbered, with a status line.'),
+      },
+      topics: ['root'],
+      carriedBy: 'pr#4',
+      why: {
+        reason: {
+          eng: 'Lena, Owen, and Kit will not all remember why a choice was made six months later.',
+          plain: 'Lena, Owen, and Kit will not all remember why a choice was made six months later.',
+          ev: headFile(adr.one, 'Lena, Owen, and Kit will not all\nremember why a choice was made six months later.'),
+        },
+      },
+      covers: ['adrs-current'],
+    },
   ],
-  claims: [],
+  claims: [
+    {
+      id: 'claim-cents',
+      doc: adr.cents,
+      quote: 'Every amount in the ledger is an integer number of cents.',
+      topic: 'money',
+      verdict: 'still-true',
+      covers: ['currency-cents-still'],
+    },
+    {
+      id: 'claim-negative',
+      doc: guide,
+      quote: 'A negative amount is refused.',
+      topic: 'adding',
+      verdict: 'true-since',
+      since: 'c-fix-tests',
+      why: {
+        eng: 'The check that refuses a negative amount first appeared in tally/cli.py in a later commit by Owen Briggs.',
+        plain: 'The app only started refusing a negative amount in a later change by Owen Briggs.',
+        ev: { verb: 'introduced', path: 'tally/cli.py', needle: 'if args.cents < 0:', shows: 'by Owen Briggs' },
+      },
+      covers: ['currency-negative-later'],
+    },
+    {
+      id: 'claim-ties',
+      doc: guide,
+      quote: 'If two people owe the same\namount, the one whose name comes first in the alphabet pays first, so\nthe same bills always print the same payments.',
+      topic: 'settling',
+      verdict: 'still-true',
+      covers: ['how-settle'],
+    },
+    {
+      id: 'claim-payback',
+      doc: guide,
+      quote: 'The payback just says money moved.',
+      topic: 'paybacks',
+      verdict: 'still-true',
+    },
+    {
+      id: 'claim-json-readme',
+      doc: 'README.md',
+      quote: 'The ledger is a plain JSON file named ledger.json.',
+      topic: 'storage',
+      verdict: 'still-true',
+      covers: ['storage-now'],
+    },
+  ],
   undone: [
     {
       changes: ['pr#20', 'pr#21', 'pr#22'],
@@ -1073,9 +1694,30 @@ const views = {
       covers: ['catch-up-round-net'],
     },
   ],
-  runs: [],
+  runs: [
+    {
+      id: 'old-file-flag',
+      at: tallyHead,
+      lang: 'python',
+      source: `import os
+import subprocess
+import sys
+
+
+def attempt(flag, path):
+    args = [sys.executable, "-m", "tally", flag, path, "add", "--date", "2024-01-01",
+            "--payer", "lena", "--cents", "900", "--split", "lena,owen,maya"]
+    code = subprocess.run(args, capture_output=True).returncode
+    return code, "yes" if os.path.exists(path) else "no"
+
+
+print("old name --data: exit %d, file written: %s" % attempt("--data", "old.json"))
+print("new name --ledger: exit %d, file written: %s" % attempt("--ledger", "new.json"))
+`,
+    },
+  ],
   screens: [
-    { kind: 'page', topic: 'root', status: { eng: 'Up to date', plain: 'Up to date' } },
+    { kind: 'page', topic: 'root', status: upToDate },
     { kind: 'page', topic: 'leftover', status: { eng: 'Never written down', plain: 'Never written down' } },
     {
       kind: 'timeline',
@@ -1106,9 +1748,39 @@ const views = {
       notes: { 'pr#22': 'undoes-earlier' },
       routine: quiet,
     },
+    { kind: 'page', topic: 'settling', status: upToDate },
+    { kind: 'page', topic: 'paybacks', status: upToDate },
+    { kind: 'page', topic: 'storage', status: upToDate },
+    { kind: 'page', topic: 'money', status: upToDate },
+    {
+      kind: 'timeline',
+      topic: 'root',
+      from: '2023-02-11',
+      to: '2023-11-21',
+      counts: { decision: 14, behavior: 5, net: 1 },
+      named: ['d-note', 'f-old-flag', 'd-flag'],
+      routine: { count: 5, lines: 91 },
+    },
+    {
+      kind: 'timeline',
+      topic: 'storage',
+      from: '2023-02-11',
+      to: '2023-11-21',
+      counts: { decision: 4, behavior: 1 },
+      named: ['d-flag', 'f-old-flag', 'd-json'],
+      routine: { count: 1, lines: 11 },
+    },
+  ],
+  uncovered: [
+    { key: 'readme-caught-up', why: 'v1 shows whether a doc is true today. The three weeks the README still named the database file are history that no view object holds.' },
+    { key: 'spaces-from-maya', why: 'd-sqlite cites the reason PR #9 gives. Who first reported the problem, in issue #8, is not a view field.' },
+    { key: 'ci-caught-import', why: 'Test runs inside a pull request are not view objects. PR #12 shows only as the two decisions it carries.' },
+    { key: 'noise-kit-time', why: 'v1 shows days, not clock times or time zones.' },
+    { key: 'noise-web-claim', why: "Kit's claim and Maya's correction sit in a closed pull request's thread. d-web shows only Kit's closing reason." },
   ],
 };
 
+/** @type {import('../schema.mjs').RepoSpec} */
 const spec = {
   slug: 'tally',
   name: 'tally',

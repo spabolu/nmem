@@ -8,6 +8,7 @@
  * domain.mjs and the dependency runs one way.
  */
 import { kindOf, rangeOf, statusOf, TEMPLATES } from '../../harness/view.ts';
+import { MIN_CURRENCY_CLAIMS, MIN_GAP_OBJECTS } from '../views.schema.mjs';
 import { formatProof, MAX_RUN_SOURCE_BYTES, PROOF_VERBS, RUN_LANGS, runProof } from './checks.mjs';
 import { EMPTY_TREE, factsOf } from './facts.mjs';
 import { array, filePath, integer, nonEmpty, object, oneOf, positive, rejectUnknown, requireFields, SpecError } from './fields.mjs';
@@ -17,6 +18,7 @@ const GOLD_ID = /^[a-z0-9]+(?:-[a-z0-9]+)+$/;
 const TOPIC_ID = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const RUN_ID = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
+const SCOPES = ['slice', 'full'];
 const SEVERITIES = ['behavior', 'check'];
 const COUNTED = ['decision', 'behavior', 'check', 'net'];
 const NOTES = ['part-of-later-undo', 'undoes-earlier'];
@@ -120,14 +122,15 @@ function person(value, path, ctx) {
   return handle;
 }
 
-function parseCovers(obj, path, ctx, id) {
+/** change is true when id is a change key, which gold names by its change id. */
+function parseCovers(obj, path, ctx, id, change = false) {
   if (!Object.hasOwn(obj, 'covers')) return [];
   const covers = uniqueList(obj.covers, `${path}.covers`, ctx, (raw, at) => {
     const entry = nonEmpty(raw, at, ctx);
     if (!ctx.answerIds.has(entry)) ctx.fail(at, `unknown answer-key entry ${JSON.stringify(entry)}`);
     return entry;
   });
-  for (const entry of covers) ctx.covers.push({ entry, id, path: `${path}.covers` });
+  for (const entry of covers) ctx.covers.push({ entry, id, change, path: `${path}.covers` });
   return covers;
 }
 
@@ -246,7 +249,7 @@ function parseFinding(raw, path, ctx) {
   return {
     id,
     severity: oneOf(obj.severity, `${path}.severity`, ctx, SEVERITIES),
-    topics: uniqueList(obj.topics, `${path}.topics`, ctx, (t, at) => nonEmpty(t, at, ctx), { min: 1 }),
+    topics: uniqueList(obj.topics, `${path}.topics`, ctx, (t, at) => nonEmpty(t, at, ctx)),
     anchors: array(obj.anchors, `${path}.anchors`, ctx, { min: 1 }).map((a, i) => parseAnchor(a, `${path}.anchors[${i}]`, ctx)),
     name: parseText(obj.name, `${path}.name`, ctx),
     says: parsePoints(obj.says, `${path}.says`, ctx, { min: 1 }),
@@ -269,15 +272,16 @@ function parseRoutine(raw, path, ctx) {
 function parseChange(key, raw, path, ctx) {
   changeKey(key, path, ctx);
   const obj = object(raw, path, ctx);
-  rejectUnknown(obj, path, ctx, ['topics', 'findings', 'routine']);
+  rejectUnknown(obj, path, ctx, ['topics', 'findings', 'routine', 'covers']);
   requireFields(obj, path, ctx, ['topics']);
   const list = (field, parse) => (Object.hasOwn(obj, field) ? array(obj[field], `${path}.${field}`, ctx).map((x, i) => parse(x, `${path}.${field}[${i}]`, ctx)) : []);
   return {
     key,
     path,
-    topics: uniqueList(obj.topics, `${path}.topics`, ctx, (t, at) => nonEmpty(t, at, ctx), { min: 1 }),
+    topics: uniqueList(obj.topics, `${path}.topics`, ctx, (t, at) => nonEmpty(t, at, ctx)),
     findings: list('findings', parseFinding),
     routine: list('routine', parseRoutine),
+    covers: parseCovers(obj, path, ctx, key, true),
   };
 }
 
@@ -478,11 +482,12 @@ function linkViews(views, ctx) {
 export function parseViews(raw, specCtx) {
   const ctx = { ...specCtx, goldIds: new Map(), covers: [], phrases: [], truths: [], runProofs: [] };
   const obj = object(raw, 'views', ctx);
-  const known = ['topics', 'changes', 'decisions', 'claims', 'undone', 'runs', 'screens', 'uncovered'];
+  const known = ['scope', 'topics', 'changes', 'decisions', 'claims', 'undone', 'runs', 'screens', 'uncovered'];
   rejectUnknown(obj, 'views', ctx, known);
   requireFields(obj, 'views', ctx, known.slice(0, -1));
   const list = (field, parse) => array(obj[field], `views.${field}`, ctx).map((x, i) => parse(x, `views.${field}[${i}]`, ctx));
   const views = {
+    scope: oneOf(obj.scope, 'views.scope', ctx, SCOPES),
     topics: list('topics', parseTopic),
     changes: Object.entries(object(obj.changes, 'views.changes', ctx)).map(([key, c]) => parseChange(key, c, `views.changes[${JSON.stringify(key)}]`, ctx)),
     decisions: list('decisions', parseDecision),
@@ -763,6 +768,76 @@ function canariesOf(views, record, goldIds) {
   return [...found.keys()].sort().map((key) => found.get(key));
 }
 
+/** A decision tagged with the root alone is repo-wide, so its carrier must not sit inside one child topic's core files. */
+function checkRootOnly(views, ctx) {
+  const root = views.topics.find((t) => t.parent === null).id;
+  const children = views.topics.filter((t) => t.parent !== null);
+  for (const d of views.decisions) {
+    if (d.carriedBy === null || d.topics.length !== 1 || d.topics[0] !== root) continue;
+    const touched = [...ctx.byId.get(ctx.changeId(d.carriedBy, `${d.path}.carriedBy`)).touched.keys()];
+    const home = children.find((t) => touched.length > 0 && touched.every((file) => t.core.includes(file)));
+    if (home) ctx.fail(`${d.path}.topics`, `${d.carriedBy} touches only ${home.id}'s core files, so the decision belongs to ${home.id}, not to the root alone`);
+  }
+}
+
+/** What may cover an entry that tests a gap or currency. Each takes exactly one such object and is never uncovered. */
+const COVER_RULES = {
+  gap: 'a decision or finding that says why was not recorded',
+  currency: 'a claim or a superseded decision',
+};
+
+function ruleOf(entry) {
+  if (entry.expect === 'gap') return 'gap';
+  if (entry.job === 'currency') return 'currency';
+  return null;
+}
+
+/**
+ * Answer-key entry -> the gold ids that cover it, under the coverage contract (docs/design/scoring-harness.md, decision
+ * 6). allowed maps each COVER_RULES kind to the gold ids that may cover such an entry. Full views cover every entry or
+ * list it in uncovered with a reason.
+ */
+function coverageOf(views, record, ctx, allowed) {
+  const goldIdOf = ({ id, change, path }) => {
+    if (change) return ctx.changeId(id, path);
+    return id.startsWith('undone:') ? `undone:${ctx.changeId(id.slice('undone:'.length), path)}` : id;
+  };
+  const covers = {};
+  for (const item of views.covers) (covers[item.entry] ??= []).push({ id: goldIdOf(item), path: item.path });
+  const uncovered = new Map(views.uncovered.map((u, i) => [u.key, `views.uncovered[${i}].key`]));
+  for (const entry of record.answerKey) {
+    const by = covers[entry.id] ?? [];
+    const rule = ruleOf(entry);
+    const listed = uncovered.get(entry.id);
+    if (listed && by.length) ctx.fail(listed, `${entry.id} is covered by ${by.map((x) => x.id).join(', ')}, so it is not uncovered`);
+    if (listed && rule) ctx.fail(listed, `${entry.id} is a ${rule} entry, so ${COVER_RULES[rule]} must cover it`);
+    if (rule) {
+      const wrong = by.find((x) => !allowed[rule].has(x.id));
+      if (wrong) ctx.fail(wrong.path, `${entry.id} is a ${rule} entry, so only ${COVER_RULES[rule]} may cover it`);
+      if (by.length > 1) ctx.fail(by[1].path, `${entry.id} is a ${rule} entry already covered by ${by[0].id}; exactly one object covers it`);
+    }
+    if (views.scope === 'full' && !listed && by.length === 0) {
+      ctx.fail('views.uncovered', `${entry.id} is covered by no view object; give covers to the objects that answer it, or list it in uncovered with a reason`);
+    }
+  }
+  return Object.fromEntries(Object.entries(covers).map(([entry, list]) => [entry, list.map((x) => x.id)]));
+}
+
+/**
+ * The owner's floors count gap objects and currency claims across every repo, so they hold only once every repo's
+ * views are full. A repo whose views are a slice, or that has none, keeps them waiting (docs/plans/v1-build.md, slice
+ * 4). repos are { slug, scope: "slice" | "full" | null, gaps, claims }.
+ */
+export function floorsOf(repos) {
+  const gaps = repos.reduce((n, r) => n + r.gaps, 0);
+  const claims = repos.reduce((n, r) => n + r.claims, 0);
+  const counts = `${gaps} gap objects (floor ${MIN_GAP_OBJECTS}), ${claims} currency claims (floor ${MIN_CURRENCY_CLAIMS})`;
+  const partial = repos.filter((r) => r.scope !== 'full').map((r) => `${r.slug} ${r.scope === 'slice' ? 'is a slice' : 'has no views'}`);
+  if (partial.length) return { status: 'waiting', line: `floors wait for full views in every repo (${partial.join(', ')}): ${counts}` };
+  const met = gaps >= MIN_GAP_OBJECTS && claims >= MIN_CURRENCY_CLAIMS;
+  return { status: met ? 'pass' : 'fail', line: `floors ${met ? 'met' : 'not met'}: ${counts}` };
+}
+
 /**
  * Resolves parsed views into { gold, canaries, summary }. gold is { version, slug, oracle, extras }: oracle is a contract
  * Snapshot whose ids are gold ids, and extras holds what gold knows beyond a snapshot (harness/gold.ts GoldExtras) plus
@@ -823,6 +898,12 @@ export function goldOf(views, record) {
       fail(change.path, 'classifies as nothing: give it a finding, a decision it carries, or routine parts that cover every file it touched');
     }
   }
+  if (views.scope === 'full') {
+    const entered = new Set(changes.map((c) => c.id));
+    const missing = facts.changes.filter((c) => !entered.has(c.id)).map((c) => c.id);
+    if (missing.length) fail('views.changes', `full views classify every change git enumerates; missing ${missing.join(', ')}`);
+  }
+  checkRootOnly(views, ctx);
   const screens = views.screens.map((screen) => checkScreen(screen, oracle, kernelFacts, ctx));
 
   for (const { phrase, path } of views.phrases) {
@@ -836,13 +917,10 @@ export function goldOf(views, record) {
   }
 
   const gapIds = new Set([...changes.flatMap((c) => c.findings.map((f, j) => (f.why.kind === 'not-recorded' ? ctx.findingIds[c.id][j] : null))), ...decisions.map((d) => (d.why.kind === 'not-recorded' ? d.id : null))].filter(Boolean));
-  const covers = {};
-  for (const { entry, id, path } of views.covers) {
-    const isGap = record.answerKey.find((e) => e.id === entry).expect === 'gap';
-    if (isGap && !gapIds.has(id)) fail(path, `${entry} is a gap entry, so only a decision or finding that says why was not recorded may cover it`);
-    if (isGap && covers[entry]) fail(path, `${entry} is a gap entry already covered by ${covers[entry][0]}; exactly one object covers a gap`);
-    (covers[entry] ??= []).push(id);
-  }
+  const covers = coverageOf(views, record, ctx, {
+    gap: gapIds,
+    currency: new Set([...views.claims.map((c) => c.id), ...views.decisions.filter((d) => d.replacedBy !== null).map((d) => d.id)]),
+  });
 
   const goldIds = [...views.topics, ...views.changes.flatMap((c) => c.findings), ...views.decisions, ...views.claims].map((x) => x.id);
   const gold = {
@@ -863,6 +941,14 @@ export function goldOf(views, record) {
   return {
     gold,
     canaries: canariesOf(views, record, goldIds),
-    summary: { changes: changes.length, of: facts.changes.length, gaps: gapIds.size, claims: claims.length, screens: screens.length },
+    summary: {
+      scope: views.scope,
+      changes: changes.length,
+      of: facts.changes.length,
+      gaps: gapIds.size,
+      claims: claims.length,
+      entries: { covered: Object.keys(covers).length, uncovered: views.uncovered.length, of: record.answerKey.length },
+      screens: screens.length,
+    },
   };
 }

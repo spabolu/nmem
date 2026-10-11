@@ -20,6 +20,7 @@ import {
   revParseRaw,
 } from './lib/domain.mjs';
 import { GitError } from './lib/git.mjs';
+import { floorsOf } from './lib/views.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -77,6 +78,7 @@ function writeJson(file, value) {
 }
 
 const PRIVATE_FILES = ['gold.json', 'canaries.json'];
+const FLOOR_WORDS = { waiting: 'WAIT', pass: 'PASS', fail: 'FAIL' };
 
 // Gold and canaries are private: they sit beside repo/ and github.json and never inside them.
 function writeGold(slugDir, spec, repo, github) {
@@ -126,7 +128,8 @@ function emitAll(outDir, specs) {
 
 function goldLine(line, gold) {
   if (!gold) return line;
-  return `${line}; gold: ${gold.changes} of ${gold.of} changes classified, ${gold.gaps} gap objects, ${gold.claims} claims, ${gold.screens} screens match the kernel`;
+  const { covered, uncovered, of } = gold.entries;
+  return `${line}; gold (${gold.scope}): ${gold.changes} of ${gold.of} changes classified, ${gold.gaps} gap objects, ${gold.claims} claims, ${covered} of ${of} key entries covered and ${uncovered} listed uncovered, ${gold.screens} screens match the kernel`;
 }
 
 function compareSlug(dirA, dirB, slug) {
@@ -190,6 +193,14 @@ async function main() {
   if (failures.has('*')) {
     failed = true;
     console.log(`FAIL ${failures.get('*')}`);
+  }
+  if (!args.only) {
+    const floors = floorsOf(built.map(({ spec, gold }) => ({ slug: spec.slug, scope: spec.views?.scope ?? null, gaps: gold?.gaps ?? 0, claims: gold?.claims ?? 0 })));
+    if (floors.status === 'fail') {
+      failed = true;
+      for (const { spec } of built) for (const file of PRIVATE_FILES) fs.rmSync(path.join(args.out, spec.slug, file), { force: true });
+    }
+    console.log(`${FLOOR_WORDS[floors.status]} ${floors.line}`);
   }
   if (failed) process.exitCode = 1;
 }

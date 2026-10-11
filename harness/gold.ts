@@ -32,8 +32,9 @@ export type GoldExtras = {
   /** Gold ids of oracle.claims and oracle.undone, in order. */
   readonly claims: readonly GoldId[];
   readonly undone: readonly GoldId[];
-  /** Answer-key entry -> the view objects that cover it. The user-test cards read this. */
-  readonly covers: ReadonlyMap<EntryId, readonly GoldId[]>;
+  /** Answer-key entry -> the view objects that cover it, by gold id or, for a change, its change id. The user-test
+   *  cards read this. */
+  readonly covers: ReadonlyMap<EntryId, readonly (GoldId | ChangeId)[]>;
 };
 
 export type Gold = {

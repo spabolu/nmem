@@ -5,6 +5,7 @@ import spec from './specs/_example.mjs';
 import tallySpec from './specs/tally.mjs';
 import wayfinderSpec from './specs/wayfinder.mjs';
 import { assertNoSpecLeaks, buildRepo, githubDocument, parseSpec, resolveAnswers, resolveViews, SpecError } from './lib/domain.mjs';
+import { floorsOf } from './lib/views.mjs';
 
 function issue(copy, number) {
   return copy.steps.find((step) => step.type === 'issue' && step.number === number);
@@ -458,6 +459,73 @@ const viewCases = [
       views.claims[0] = { ...claim, verdict: 'true-since', since: brokenBy };
     },
   },
+  {
+    name: 'views without a scope',
+    slug: 'wayfinder',
+    expect: 'views.scope: missing',
+    mutate(views) {
+      delete views.scope;
+    },
+  },
+  {
+    name: 'full views that leave a change out',
+    slug: 'tally',
+    expect: 'full views classify every change git enumerates; missing 9cc54c2',
+    mutate(views) {
+      delete views.changes['c-typo'];
+    },
+  },
+  {
+    name: 'full views with an answer-key entry neither covered nor listed uncovered',
+    slug: 'tally',
+    expect: 'web-closed is covered by no view object',
+    mutate(views) {
+      delete decision(views, 'd-web').covers;
+    },
+  },
+  {
+    name: 'answer-key entry both covered and listed uncovered',
+    slug: 'tally',
+    expect: 'web-closed is covered by d-web, so it is not uncovered',
+    mutate(views) {
+      views.uncovered.push({ key: 'web-closed', why: 'not shown' });
+    },
+  },
+  {
+    name: 'gap entry listed uncovered',
+    slug: 'tally',
+    expect: 'why-note-default is a gap entry, so a decision or finding that says why was not recorded must cover it',
+    mutate(views) {
+      delete decision(views, 'd-note').covers;
+      views.uncovered.push({ key: 'why-note-default', why: 'not shown' });
+    },
+  },
+  {
+    name: 'currency entry covered by a decision nothing replaced',
+    slug: 'tally',
+    expect: 'currency-cents-still is a currency entry, so only a claim or a superseded decision may cover it',
+    mutate(views) {
+      delete views.claims.find((c) => c.id === 'claim-cents').covers;
+      decision(views, 'd-cents').covers = ['currency-cents-still'];
+    },
+  },
+  {
+    name: 'currency entry covered by two claims',
+    slug: 'tally',
+    expect: 'currency-cents-still is a currency entry already covered by claim-cents',
+    mutate(views) {
+      views.claims.find((c) => c.id === 'claim-payback').covers = ['currency-cents-still'];
+    },
+  },
+  {
+    name: 'root-only decision carried by a change inside one topic\'s core',
+    slug: 'tally',
+    expect: "c-note-default touches only adding's core files, so the decision belongs to adding",
+    mutate(views) {
+      decision(views, 'd-note').topics = ['root'];
+      views.topics.find((t) => t.id === 'adding').core.push('tally/cli.py');
+    },
+  },
 ];
 
 // Owner decision 2026-10-10: depends reads "Out of date since", the same line as no-longer-true.
@@ -511,6 +579,46 @@ try {
   }
 } finally {
   fs.rmSync(buildDir, { recursive: true, force: true });
+}
+
+const floorCases = [
+  {
+    name: 'floors wait while any repo is a slice or has no views',
+    repos: [
+      { slug: 'tally', scope: 'full', gaps: 20, claims: 20 },
+      { slug: 'wayfinder', scope: 'slice', gaps: 0, claims: 0 },
+      { slug: 'seedling', scope: null, gaps: 0, claims: 0 },
+    ],
+    status: 'waiting',
+    line: 'floors wait for full views in every repo (wayfinder is a slice, seedling has no views): 20 gap objects (floor 10), 20 currency claims (floor 10)',
+  },
+  {
+    name: 'floors fail when every repo is full and gaps fall short',
+    repos: [
+      { slug: 'tally', scope: 'full', gaps: 5, claims: 6 },
+      { slug: 'wayfinder', scope: 'full', gaps: 4, claims: 4 },
+    ],
+    status: 'fail',
+    line: 'floors not met: 9 gap objects (floor 10), 10 currency claims (floor 10)',
+  },
+  {
+    name: 'floors pass when every repo is full and both counts reach 10',
+    repos: [
+      { slug: 'tally', scope: 'full', gaps: 6, claims: 6 },
+      { slug: 'wayfinder', scope: 'full', gaps: 4, claims: 4 },
+    ],
+    status: 'pass',
+    line: 'floors met: 10 gap objects (floor 10), 10 currency claims (floor 10)',
+  },
+];
+
+for (const item of floorCases) {
+  const got = floorsOf(item.repos);
+  if (got.status === item.status && got.line === item.line) console.log(`PASS ${item.name}`);
+  else {
+    console.log(`FAIL ${item.name}: got ${JSON.stringify(got)}`);
+    failed += 1;
+  }
 }
 
 if (failed) process.exitCode = 1;

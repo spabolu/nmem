@@ -1157,8 +1157,9 @@ const restyled = (path, eng, plain, shows) => ({
 const pr16Day = { eng: 'Out of date since PR #16, Nov 19, 2024', plain: 'Out of date since Nov 19, 2024' };
 
 // The PR #16 slice of wayfinder's view truth: the change, its findings and routine parts, the rename decision, and
-// the two doc sentences it broke. The rest of wayfinder's views are ported in U1b.
+// the two doc sentences it broke. Slice 3 of docs/plans/v1-build.md completes it.
 const views = {
+  scope: 'slice',
   topics: [
     {
       id: 'root',
