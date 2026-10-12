@@ -1247,21 +1247,21 @@
     "flags": []
   },
   "tally/f-first-names/card/plain": {
-    "source": "429c5ea5274470577b8b394bf086cd8c",
+    "source": "d4d8754b6ff3896a27efe5611ace5521",
     "headline": [
       {
         "id": "f1",
-        "text": "Lena paid a cent more because her name was typed first."
+        "text": "Lena came out a cent higher because her name was typed first."
       }
     ],
     "supporting": [
       {
         "id": "f2",
-        "text": "Owen Briggs noticed it."
+        "text": "Owen Briggs noticed that Lena came out a cent higher."
       }
     ],
     "paraphrase": [
-      "Owen Briggs saw Lena paid one extra cent because her name was entered first."
+      "Owen Briggs saw that Lena finished one cent above, since her name had been entered ahead."
     ],
     "review": "auto",
     "flags": []
@@ -1342,26 +1342,26 @@
     "flags": []
   },
   "tally/f-old-flag/card/plain": {
-    "source": "74371cb259acf60ba739a68c4d3c79ac",
+    "source": "0d7b52b280ae03f547a750a200c2a3a2",
     "headline": [
       {
         "id": "f1",
-        "text": "Using the old setting name fails."
+        "text": "Using the old setting name fails and saves nothing."
       },
       {
         "id": "f2",
-        "text": "Using the old setting name saves nothing."
+        "text": "The note on the change says the file setting now has a new name."
       }
     ],
     "supporting": [
       {
         "id": "f3",
-        "text": "The note on the change only gives the new name."
+        "text": "The note on the change says nothing else."
       }
     ],
     "paraphrase": [
-      "The old setting name does not succeed and keeps nothing stored.",
-      "Only the updated name appears in the note about the change."
+      "Trying the previous option name fails and stores nothing.",
+      "The remark about the change states only that the option for the file now has a different name."
     ],
     "review": "auto",
     "flags": []

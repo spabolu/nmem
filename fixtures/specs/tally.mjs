@@ -1175,7 +1175,7 @@ const views = {
           says: [
             {
               eng: 'Owen Briggs found Lena a cent higher than his notebook because she was typed first.',
-              plain: 'Owen Briggs noticed Lena paid a cent more because her name was typed first.',
+              plain: 'Owen Briggs noticed Lena came out a cent higher because her name was typed first.',
               ev: comment('pr1-rv-owen', 'Numbers match my notebook except Lena is a cent higher because she is typed first.'),
             },
           ],
@@ -1380,7 +1380,7 @@ const views = {
             },
             {
               eng: 'The commit message names only the rename.',
-              plain: 'The note on the change only gives the new name.',
+              plain: 'The note on the change says the file setting now has a new name, and nothing else.',
               ev: commit('c-ledger-flag', 'cli: call the file flag --ledger'),
             },
           ],
