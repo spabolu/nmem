@@ -201,3 +201,25 @@ test('a 429 is retried after retry-after, three 500s fail, and a 401 fails at on
   assert.deepEqual(slept, [0, 1000, 2000]);
   assert.equal(server.seen.filter((seen) => seen.path === '/chat/completions').length, 6);
 });
+
+test('a reply split into a text choice and a tool-call choice is read, and a reply with no call is cached as bad', async () => {
+  const split = { json: { choices: [{ finish_reason: 'tool_calls', message: { content: 'Here is my answer.' } }, { finish_reason: 'tool_calls', message: { tool_calls: [{ function: { name: 'answer', arguments: '{"stance":"chose"}' } }] } }], usage: { prompt_tokens: 7, completion_tokens: 3 } } };
+  const prose = { json: { choices: [{ finish_reason: 'stop', message: { content: 'I would rather explain.' } }], usage: { prompt_tokens: 5, completion_tokens: 4 } } };
+  let chats = 0;
+  const server = await fakeServer((seen, url) => {
+    if (seen.path === '/copilot_internal/v2/token') return EXCHANGE(url);
+    chats += 1;
+    return chats === 1 ? split : prose;
+  });
+  const store = temp();
+  try {
+    const client = openClient({ store, mode: 'live', credential: CREDENTIAL, hosts: { web: server.url, api: server.url }, sleep: noWait });
+    assert.deepEqual((await client.call(REQUEST)).value, { stance: 'chose' });
+    await assert.rejects(client.call({ ...REQUEST, sample: 1 }), { message: 'the reply has no tool call (finish stop): I would rather explain.' });
+    await assert.rejects(client.call({ ...REQUEST, sample: 1 }), { message: 'the reply has no tool call (finish stop): I would rather explain.' });
+    assert.deepEqual(client.totals(), { live: 2, cached: 1, usage: { inputTokens: 17, outputTokens: 11 } });
+  } finally {
+    await server.close();
+  }
+  assert.equal(chats, 2);
+});

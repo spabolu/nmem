@@ -1,6 +1,6 @@
 /**
  * The engine's Copilot client: the `nmem auth copilot` device login, the token exchange, chat completions at
- * temperature 0 with one forced tool, and a content-addressed, write-once reply cache under --store. The harness judge
+ * temperature 0 with one tool, and a content-addressed, write-once reply cache under --store. The harness judge
  * keeps its own client, so the engine and the judge share neither a vendor family nor a cache.
  *
  * The client id, endpoints, and editor headers are the ones editors use for Copilot. They are unverified until the
@@ -196,7 +196,8 @@ export function callKey(request: ChatRequest): CallKey {
   return createHash('sha256').update(canonical(keyed(request))).digest('hex') as CallKey;
 }
 
-type Entry = { readonly key: CallKey; readonly request: unknown; readonly value: unknown; readonly usage: Usage };
+/** A reply without a usable tool call is stored too, with bad set, so a rerun fails the same way and calls nothing. */
+type Entry = { readonly key: CallKey; readonly request: unknown; readonly value: unknown; readonly usage: Usage; readonly bad: string | null };
 
 /** Write once: link() a finished temp file into place, so a crash leaves no entry and the first writer wins a race. */
 function publish(file: string, entry: Entry): Entry {
@@ -214,18 +215,27 @@ function publish(file: string, entry: Entry): Entry {
   }
 }
 
-function answerOf(body: unknown, label: string): { readonly value: unknown; readonly usage: Usage } {
-  const reply = body as { choices?: { message?: { tool_calls?: { function?: { arguments?: unknown } }[] } }[]; usage?: { prompt_tokens?: unknown; completion_tokens?: unknown } };
-  const args = reply.choices?.[0]?.message?.tool_calls?.[0]?.function?.arguments;
-  if (typeof args !== 'string') throw new ModelUnavailable('bad-reply', label, 'the reply has no tool call');
-  let value: unknown;
-  try {
-    value = JSON.parse(args);
-  } catch {
-    throw new ModelUnavailable('bad-reply', label, 'the tool call arguments are not JSON');
-  }
+function usageOf(body: unknown): Usage {
+  const usage = (body as { usage?: { prompt_tokens?: unknown; completion_tokens?: unknown } }).usage;
   const count = (n: unknown): number => (typeof n === 'number' ? n : 0);
-  return { value, usage: { inputTokens: count(reply.usage?.prompt_tokens), outputTokens: count(reply.usage?.completion_tokens) } };
+  return { inputTokens: count(usage?.prompt_tokens), outputTokens: count(usage?.completion_tokens) };
+}
+
+/** The tool call's arguments as JSON, or why the reply has none. */
+function answerOf(body: unknown): { readonly value: unknown; readonly bad: null } | { readonly value: null; readonly bad: string } {
+  const reply = body as { choices?: { finish_reason?: unknown; message?: { content?: unknown; tool_calls?: { function?: { arguments?: unknown } }[] } }[] };
+  // Copilot can split one Claude reply into several choices, the text in one and the tool call in another (measured).
+  const args = reply.choices?.flatMap((choice) => choice.message?.tool_calls ?? []).find((call) => typeof call.function?.arguments === 'string')?.function?.arguments;
+  if (typeof args !== 'string') {
+    const choice = reply.choices?.[0];
+    const said = typeof choice?.message?.content === 'string' ? choice.message.content.replace(/\s+/g, ' ').slice(0, 300) : '';
+    return { value: null, bad: `the reply has no tool call (finish ${String(choice?.finish_reason ?? 'unknown')}): ${said}` };
+  }
+  try {
+    return { value: JSON.parse(args), bad: null };
+  } catch {
+    return { value: null, bad: 'the tool call arguments are not JSON' };
+  }
 }
 
 /**
@@ -261,6 +271,7 @@ export function openClient(options: { readonly store: string; readonly mode: Cli
       if (fs.existsSync(file)) {
         const hit = JSON.parse(fs.readFileSync(file, 'utf8')) as Entry;
         count(hit.usage, false);
+        if (hit.bad) throw new ModelUnavailable('bad-reply', request.label, hit.bad);
         return { key, value: hit.value, usage: hit.usage, cached: true };
       }
       if (options.mode === 'offline') throw new ModelUnavailable('offline-miss', request.label, `no cached reply for ${request.label} (${key})`);
@@ -278,9 +289,11 @@ export function openClient(options: { readonly store: string; readonly mode: Cli
           tool_choice: 'auto',
         }),
       }, request.label, sleep);
-      const answer = answerOf(await response.json(), request.label);
-      const stored = publish(file, { key, request: keyed(request), value: answer.value, usage: answer.usage });
+      const body: unknown = await response.json();
+      const answer = answerOf(body);
+      const stored = publish(file, { key, request: keyed(request), value: answer.value, usage: usageOf(body), bad: answer.bad });
       count(stored.usage, true);
+      if (stored.bad) throw new ModelUnavailable('bad-reply', request.label, stored.bad);
       return { key, value: stored.value, usage: stored.usage, cached: false };
     },
     totals() {
