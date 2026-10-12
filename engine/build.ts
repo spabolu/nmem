@@ -27,8 +27,8 @@ function undoneOf(group: UndoneProof): Undone {
   const last = label(group.changes[group.changes.length - 1] ?? group.changes[1]);
   return {
     changes: group.changes,
-    name: { eng: `Added in ${first} and undone by ${last}`, plain: 'Added and later undone' },
-    says: [{ eng: `The code after ${last} equals the code before ${first}.`, plain: 'Everything went back to how it was.', source: { kind: 'proof', proof: group.proof } }],
+    name: { eng: `Tried in ${first}, reverted by ${last}`, plain: 'Tried, then taken back out' },
+    says: [{ eng: `No difference between the tree before ${first} and the tree after ${last}.`, plain: 'Once it was taken back out, nothing had changed.', source: { kind: 'proof', proof: group.proof } }],
   };
 }
 
