@@ -20,6 +20,9 @@ export type Command =
 
 const USAGE = 'usage: nmem build <workspace> <out.json> [--store <dir>] [--no-model]\n       nmem auth copilot';
 
+// The account's real home, not $HOME: the harness gives each build a scratch HOME, and paid-for replies must outlive it and any git worktree.
+const DEFAULT_STORE = path.join(os.userInfo().homedir, '.cache', 'nmem', 'engine');
+
 export function parseArgs(argv: readonly string[]): Command {
   const [command, ...rest] = argv;
   if (command === 'auth' && rest.length === 1 && rest[0] === 'copilot') return { kind: 'auth-copilot' };
@@ -62,7 +65,7 @@ export async function main(argv: readonly string[]): Promise<number> {
   let client: ModelClient | null = null;
   if (command.model) {
     try {
-      client = limited(openClient({ store: command.store ?? path.join(os.homedir(), '.cache', 'nmem'), mode: 'live', credential: loadCredential(process.env, os.homedir()) }), 4);
+      client = limited(openClient({ store: command.store ?? DEFAULT_STORE, mode: 'live', credential: loadCredential(process.env, os.homedir()) }), 4);
     } catch (error) {
       console.error((error as Error).message);
       return 1;

@@ -17,6 +17,7 @@
  * Exit codes: 0 ok, 1 a check failed (conformance, stale facts, calibration, precondition, leak), 2 bad usage.
  */
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { calibrate, findStamp, loadStamp, renderCalibration, stampInputs } from './calibrate.ts';
@@ -152,7 +153,8 @@ export function parseArgs(argv: readonly string[]): Command {
 
 const HARNESS_DIR = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HARNESS_DIR, '..');
-const CACHE_DIR = path.join(HARNESS_DIR, '.cache');
+// Outside the checkout, so removing a git worktree never deletes paid-for judge verdicts.
+const CACHE_DIR = path.join(os.homedir(), '.cache', 'nmem', 'harness');
 const FACTS_DIR = path.join(HARNESS_DIR, 'facts');
 const REVIEWS_DIR = path.join(HARNESS_DIR, 'reviews');
 
