@@ -204,6 +204,14 @@ test('a reply that skips a unit or a fact re-asks only those units once, then re
   await server.close();
 });
 
+test('a fact named by its exact text counts as that fact, as grok-4.7 answered live', async () => {
+  const server = await fakeCopilot((seen) => called({ results: itemIds(seen).map((id) => ({ id, verdicts: [{ fact: 'Ties go by name.', verdict: 'supported' }, { fact: 'f1', verdict: 'absent' }] })) }));
+  const judge = await openJudge({ kind: 'live', config: config() }, scratch(), { env, home: scratch(), hosts: server.hosts });
+  const input = { field: 'what', facts: [{ id: 'f1', text: 'Settling up uses the fewest payments.' }, { id: 'f2', text: 'Ties go by name.' }], text: 'Name order breaks ties.' };
+  assert.deepEqual(await judge.ask('check-facts', input), { f1: 'absent', f2: 'supported' });
+  await server.close();
+});
+
 test('an OpenAI-family judge is sent no temperature', async () => {
   const server = await fakeCopilot(everyYes);
   const judge = await openJudge({ kind: 'live', config: config('gpt-5.5') }, scratch(), { env, home: scratch(), hosts: server.hosts });

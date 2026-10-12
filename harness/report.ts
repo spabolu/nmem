@@ -6,7 +6,6 @@
  * Every number carries its n, its spread across trials, and its interval across items. A slice under 10 items prints
  * as a count. A rank is printed only when trial intervals separate and the paired item interval excludes zero.
  */
-import type { CalibrationResult } from './calibrate.ts';
 import type { Claim, SystemName } from './contract.ts';
 import { groupOf } from './gold.ts';
 import type { Gold, GoldId, GroupKey, Slug } from './gold.ts';
@@ -64,7 +63,8 @@ export type SystemSection = {
 
 export type Report = {
   readonly run: RunManifest;
-  readonly calibration: { readonly kind: 'stamp'; readonly key: Hash; readonly result: CalibrationResult } | { readonly kind: 'uncalibrated' };
+  /** A stamp is UNREVIEWED until the owner signs the currency review and the fact spot-check and the case floors pass. */
+  readonly calibration: { readonly kind: 'stamp'; readonly key: Hash; readonly label: 'UNREVIEWED' | 'final'; readonly open: readonly string[] } | { readonly kind: 'uncalibrated' };
   /** UNBLINDED when the build ran without a sandbox. Every table caption repeats it. */
   readonly blinded: boolean;
   readonly headline: readonly HeadlineRow[];
@@ -151,11 +151,22 @@ export function buildReport(run: LoadedRun, golds: readonly Gold[], calibration:
       }
     }
     const leaks = cells.flatMap((cell) => cell.leaks.map((leak) => `${cell.slug}/${leak.kind}` as ItemRef));
+    const metrics: Partial<Record<MetricId, Partial<Record<Audience, Summary>>>> = {};
+    for (const metric of METRICS) {
+      for (const audience of AUDIENCES) {
+        const values = cells.flatMap((cell) => cell.scores.filter((score) => score.audience === audience).flatMap((score) => {
+          const got = score.scores[metric.id];
+          return got?.kind === 'scored' ? [got.value] : [];
+        }));
+        if (values.length === 0) continue;
+        metrics[metric.id] = { ...metrics[metric.id], [audience]: summarize([values], () => 0) };
+      }
+    }
     return {
       system: name,
       status: leaks.length > 0 && name !== 'oracle' && name !== 'null' ? { kind: 'invalid', leaks } : { kind: 'valid' },
       usable: { eng: {}, plain: {} },
-      metrics: {},
+      metrics,
       fabricated,
       extras,
       adjudicate: cells.flatMap((cell) => (cell.extras?.claims ?? []).map((claim) => ({ slug: cell.slug, claim }))),
@@ -173,8 +184,12 @@ export function buildReport(run: LoadedRun, golds: readonly Gold[], calibration:
     systems,
     limiters: [
       run.manifest.sandbox === 'none-unblinded' ? 'UNBLINDED: the build ran without a sandbox' : 'blinded',
-      'judged metrics are skipped, not scored 0, when no judge is configured',
-      calibration.kind === 'uncalibrated' ? 'uncalibrated' : 'calibrated',
+      run.manifest.judge === 'none'
+        ? 'no judge: prose, reason, supported, and gap-honesty are skipped, not scored 0'
+        : `judged by ${run.manifest.judge.model}@${run.manifest.judge.version} (${run.manifest.judge.family})`,
+      calibration.kind === 'uncalibrated'
+        ? 'uncalibrated: no stamp matches this harness, judge, gold, and facts'
+        : `calibrated, stamp ${calibration.key}, ${calibration.label}${calibration.open.length > 0 ? `: ${calibration.open.join('; ')}` : ''}`,
     ],
   };
 }
@@ -210,6 +225,13 @@ export function renderMarkdown(report: Report): string {
   }
   for (const system of report.systems) {
     lines.push('', `## ${system.system}`, '');
+    const measured = METRICS.filter((metric) => system.metrics[metric.id]);
+    if (measured.length > 0) {
+      lines.push('| metric | eng | plain |', '| --- | --- | --- |');
+      const cell = (summary: Summary | undefined): string => (summary?.kind === 'mean' ? `${summary.mean.toFixed(2)} (n ${summary.n})` : '');
+      for (const metric of measured) lines.push(`| ${metric.id} | ${cell(system.metrics[metric.id]?.eng)} | ${cell(system.metrics[metric.id]?.plain)} |`);
+      lines.push('');
+    }
     const skippedMetrics = Object.entries(system.failures.eng).filter(([key]) => key.startsWith('skipped:'));
     if (skippedMetrics.length > 0) lines.push(`Skipped metrics (not scored 0): ${skippedMetrics.map(([key, n]) => `${key.slice('skipped:'.length)} ${n}`).join(', ')}.`);
     if (system.fabricated.length > 0) lines.push(`Fabricated: ${system.fabricated.map((item) => item.item).join(', ')}.`);

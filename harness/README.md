@@ -2,29 +2,34 @@
 
 Scores storage-plus-engine prototypes on whether they produce what nmem v1's topic tree and timeline need, against private gold generated from the fixture specs. It also guards the real build (`compare`) and runs the moderated user test (`cards`).
 
-The design and its reasons are in [docs/design/scoring-harness.md](../docs/design/scoring-harness.md). This directory is a typed sketch, with real types and signatures and `not implemented` bodies. `npm run typecheck` checks it, including the negative checks in `types.test-d.ts` and the snapshot fragments in `examples/`.
+The design and its reasons are in [docs/design/scoring-harness.md](../docs/design/scoring-harness.md). The deterministic metrics, the judge, the judged metrics, the corruptions, and calibration are implemented. Ranking, the build sandbox, and the user-test cards are not yet. `npm run typecheck` checks the types, including the negative checks in `types.test-d.ts` and the snapshot fragments in `examples/`, and `node --test` runs the tests.
 
 ## Before the first scored run
 
 1. Add the `views` key to each spec (typed in [`fixtures/views.schema.mjs`](../fixtures/views.schema.mjs)), then run `node fixtures/generate.mjs --check`. It writes private `out/<slug>/gold.json` and `canaries.json`, and refuses with fewer than 10 gap objects or 10 currency claims across the repos.
-2. The owner writes `harness/reviewed/currency.json`, confirming every gold claim's verdict and change.
-3. `node harness/cli.ts facts` freezes prose facts and paraphrases into `harness/facts/<slug>.json`. The owner checks every flagged set plus a seeded random 20.
-4. Move the jargon word list from `fixtures/check-plain.mjs` into `fixtures/lib/plain.mjs`, so the fixture check and the `jargon` metric read one list.
+2. `node harness/cli.ts facts` freezes each gold prose field into facts and a paraphrase (`harness/facts/<slug>.json`). grok-4.7 extracts, and gpt-5.5, another vendor, cross-checks. It prints the live-call count before it spends any, and a rerun keeps every set whose gold text has not changed.
+3. The owner works through the two sheets in `harness/reviews/`: `currency.md` (every claim verdict gold relies on) and `facts.md` (every flagged fact set plus a fixed random 20). Signing means putting a name and a date in `currency.json` and `facts.json` beside them. Until then every stamp and every report is labelled UNREVIEWED.
+4. `node harness/cli.ts calibrate --repo tally --plan` prints the judge calls a calibration needs. Without `--plan` it spends them, builds every reference as a real system, and writes a stamp on a pass.
 
 ## Evaluators
 
 ```sh
 node harness/cli.ts check-system ../proto/eventlog/system.json   # build on out/_example, parse, resolve, print every page
-node harness/cli.ts calibrate                                    # proves the metrics separate, then writes a stamp
-node harness/cli.ts run --system ../proto/eventlog/system.json --system ../proto/livedocs/system.json
+node harness/cli.ts facts [--plan]                               # freeze facts and paraphrases, write the review sheets
+node harness/cli.ts calibrate --repo tally [--plan]              # proves the metrics separate, then writes a stamp
+node harness/cli.ts run --system ../proto/eventlog/system.json --repo tally   # judged by harness/judge.json
+node harness/cli.ts run --system ../proto/eventlog/system.json --no-judge     # deterministic metrics only
 node harness/cli.ts report <runId>                               # re-render a finished run
 node harness/cli.ts render --run <runId> --system eventlog --repo wayfinder --topic counting
-node harness/cli.ts compare <runA> <runB>                        # items whose usable verdict flipped
 ```
 
-`run` refuses to print numbers without a calibration stamp for the same harness source, judge model and version, facts, gold, and currency review. It refuses to build without a sandbox (`sandbox-exec` on macOS, `bwrap` on Linux) unless you pass `--unblinded`, which captions every table. `--offline` uses only judge verdicts already in `harness/.cache/`. `--resume <runId> --rescore` re-scores from the raw snapshots without building again.
+`run` labels its numbers uncalibrated unless a stamp matches the harness source, the judge model and version, gold, facts, and the two reviews. Every build is unblinded until the sandbox lands. `--offline` uses only judge verdicts already in `harness/.cache/judge/`. `--rescore` scores every cell again from its kept snapshot.
 
-The judge runs through GitHub Copilot (`judge.json`). Set `GITHUB_COPILOT_TOKEN` to a GitHub token with Copilot access. The judge's model family must differ from every system's.
+### The judge
+
+`judge.json` names the model (`grok-4.7`) and the token variable. The token comes from `GITHUB_COPILOT_TOKEN`, else from the file `node engine/cli.ts auth copilot` writes. The judge exchanges it at `api.github.com/copilot_internal/v2/token`, pins the model version from `/models`, and calls `POST <api>/responses` with one required tool. 429 and 5xx retry three times. 401 and 403 stop the run. The judge's model family must differ from every system's.
+
+Each unit (one fact set against one text, one sentence against its excerpt, one gap object's sentences) is cached once under `harness/.cache/judge/units/`, keyed by task, task version, model, version, sample, and input. Before any call, a run or a calibration counts the uncached units, packs them into calls, prints the count, and refuses above `--max-calls` (400 by default). A second run of the same inputs makes no call. A reply that fails strict parsing is re-asked once and then kept under `harness/.cache/judge/bad/`.
 
 ## Moderated sessions
 
@@ -91,17 +96,17 @@ A decision's intent and a recorded reason must be record sources. A routine reas
 
 ## What gets measured
 
-Each gold object is scored once per audience. An item is usable when it passes every gate that applies.
+Each gold object is scored once per audience. An item is usable when it passes every gate that applies. A missed object scores 0 on facts and is not scored by the other metrics, so a miss counts once.
 
 | metric | how | gate |
 | --- | --- | --- |
 | facts | typed fields compared in code (kind, status, verdict, change, severity, day, topics, members, counts) | headline facts right, half of all facts |
 | prose | judge checks frozen facts per field | no contradiction, headline fact present, half covered |
-| gap honesty | structural; one key-blind judge call only when a guess is present | honest, or a labelled guess |
+| gap honesty | structural, then one key-blind reason-scan of every sentence a not-recorded gap object shows | honest, or a hedged guess |
 | false gap | structural | never "nobody wrote down why" where the record says why |
 | reason | judge checks a recorded reason against gold's | half covered |
 | cites resolve | quote found in its object, proof runs | all |
-| supported | judge reads each sentence against its one excerpt or proof output | three quarters |
+| supported | judge reads each sentence against its one excerpt or proof output; yes 1, partly 0.5 | three quarters |
 | proof | the source kind v1 demands, such as a test or run for an example and code at HEAD for a claim | all |
 | fits | 45-word headlines, three card points, twice gold's words, once correct | three quarters |
 | jargon | plain strings, once correct, against the shared list and code detectors | none |

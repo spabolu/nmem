@@ -518,7 +518,10 @@ export function renderCalibration(calibration: Calibration): string[] {
 }
 
 export function findStamp(cacheDir: string, inputs: StampInputs): Stamp | null {
-  const key = hashOf(inputs);
+  return loadStamp(cacheDir, hashOf(inputs));
+}
+
+export function loadStamp(cacheDir: string, key: Hash): Stamp | null {
   const file = stampFile(cacheDir, key);
   if (!fs.existsSync(file)) return null;
   const stamp = JSON.parse(fs.readFileSync(file, 'utf8')) as Stamp;

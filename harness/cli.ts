@@ -19,7 +19,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { calibrate, findStamp, renderCalibration, stampInputs } from './calibrate.ts';
+import { calibrate, findStamp, loadStamp, renderCalibration, stampInputs } from './calibrate.ts';
 import { freezeFacts } from './facts.ts';
 import { discoverRepos, loadGold } from './gold.ts';
 import type { Gold, Slug } from './gold.ts';
@@ -249,7 +249,7 @@ export async function main(argv: readonly string[]): Promise<number> {
     }, command.resume as RunId | null, judge);
     if (judge) say(judgeLine(judge));
     const loaded = loadRun(runsDir, runId);
-    const report = buildReport(loaded, golds, stamp ? { kind: 'stamp', key: stamp.key, result: stamp } : { kind: 'uncalibrated' });
+    const report = buildReport(loaded, golds, stamp ? { kind: 'stamp', key: stamp.key, label: stamp.label, open: stamp.open } : { kind: 'uncalibrated' });
     const dir = path.join(runsDir, runId);
     fs.writeFileSync(path.join(dir, 'report.json'), `${JSON.stringify(report, null, 2)}\n`);
     fs.writeFileSync(path.join(dir, 'report.md'), renderMarkdown(report));
@@ -258,7 +258,8 @@ export async function main(argv: readonly string[]): Promise<number> {
   }
   if (command.kind === 'report') {
     const loaded = loadRun(runsDir, command.runId as RunId);
-    const report = buildReport(loaded, loaded.manifest.repos.map((repo) => loadGold(outDir, repo.slug)), { kind: 'uncalibrated' });
+    const stamp = loaded.manifest.calibration === 'uncalibrated' || loaded.manifest.calibration === 'reference' ? null : loadStamp(CACHE_DIR, loaded.manifest.calibration);
+    const report = buildReport(loaded, loaded.manifest.repos.map((repo) => loadGold(outDir, repo.slug)), stamp ? { kind: 'stamp', key: stamp.key, label: stamp.label, open: stamp.open } : { kind: 'uncalibrated' });
     fs.writeFileSync(path.join(runsDir, command.runId, 'report.md'), renderMarkdown(report));
     console.log(renderMarkdown(report));
     return 0;
