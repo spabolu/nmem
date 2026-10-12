@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
@@ -9,7 +10,7 @@ import { nullSnapshot } from './corruptions.ts';
 import { groupOf, loadGold } from './gold.ts';
 import { METRICS } from './metrics.ts';
 import { factsOf, openFixture } from './record.ts';
-import { scoreSnapshot } from './run.ts';
+import { parseManifest, run, scoreSnapshot } from './run.ts';
 import { renderTimeline } from './view.ts';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -211,4 +212,46 @@ test('marking a true-since claim still-true scores that claim 0', async () => {
     'claim-json-readme eng 1',
     'claim-json-readme plain 1',
   ]);
+});
+
+function treeBytes(dir: string): string {
+  const files: string[] = [];
+  const walk = (current: string): void => {
+    for (const name of fs.readdirSync(current).sort()) {
+      const full = path.join(current, name);
+      if (fs.statSync(full).isDirectory()) walk(full);
+      else files.push(`${path.relative(dir, full)}\n${fs.readFileSync(full)}`);
+    }
+  };
+  walk(dir);
+  return files.join('\n');
+}
+
+test('running the tally oracle twice leaves the run directory unchanged', async () => {
+  const runsDir = fs.mkdtempSync(path.join(os.tmpdir(), 'nmem-idem-'));
+  const manifest = parseManifest(path.join(root, 'harness', 'reference', 'oracle.json'));
+  const config = {
+    outDir,
+    runsDir,
+    factsDir: path.join(root, 'harness', 'facts'),
+    reviewedDir: path.join(root, 'harness', 'reviewed'),
+    cacheDir: path.join(root, 'harness', '.cache'),
+    systems: [manifest] as [typeof manifest],
+    trials: 1,
+    slugs: ['tally' as never],
+    judge: { kind: 'offline' as const, model: null },
+    sandbox: { kind: 'none-unblinded' as const },
+    calibration: 'uncalibrated' as const,
+    allowSharedJudgeFamily: true,
+  };
+  const id = await run(config, null);
+  const snapshot = JSON.parse(fs.readFileSync(path.join(runsDir, id, 'oracle', 't1', 'tally', 'snapshot.json'), 'utf8')) as Snapshot;
+  assert.equal(snapshot.head, 'f01e078fb8078de4ae5cd32111cc88f9730c3074');
+  assert.equal(snapshot.decisions.length, 14);
+  assert.equal(snapshot.topics.find((topic) => topic.parent === null)?.id, 'root');
+  const before = treeBytes(path.join(runsDir, id));
+  const again = await run(config, null);
+  assert.equal(again, id);
+  assert.equal(treeBytes(path.join(runsDir, again)), before);
+  fs.rmSync(runsDir, { recursive: true, force: true });
 });

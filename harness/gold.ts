@@ -16,6 +16,7 @@ import type { Hash } from './hash.ts';
 import { kindOf, screensOf } from './view.ts';
 import type { Audience, RepoFacts } from './view.ts';
 import { factsOf as gitFacts } from '../fixtures/lib/facts.mjs';
+import { mentions } from './record.ts';
 import { MIN_CURRENCY_CLAIMS, MIN_GAP_OBJECTS } from '../fixtures/views.schema.mjs';
 
 export type Slug = string & { readonly __brand: 'Slug' };
@@ -465,7 +466,7 @@ export function findLeaks(system: Snapshot, canaries: readonly Canary[], goldOnl
   const text = prose.join('\n');
   const findings: LeakFinding[] = [];
   for (const canary of canaries) {
-    if (text.includes(canary.text)) findings.push({ kind: 'canary', canary, where: 'snapshot' });
+    if (mentions(text, canary.text)) findings.push({ kind: 'canary', canary, where: 'snapshot' });
   }
   for (const [id, grams] of goldOnlyGrams) {
     if (grams.size === 0) continue;

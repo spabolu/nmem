@@ -187,10 +187,10 @@ export type RunManifest = {
 };
 
 /**
- * 1. Plan: resume ? read run.json : write it. assertFamilySeparation. loadGold per slug; stale facts throw, naming `facts`.
- * 2. Per system, trial, and slug, sequentially so build timings never contend: a fresh buildWorkspace at a new random
- *    path, auditWorkspace with gold's canaries (a finding aborts the run), spawnBuild, keep snapshot.json verbatim.
- * 3. scoreCell every cell without scores for the current harness hash.
+ * 1. Plan: the id is a hash of the inputs. An existing run.json is kept. A missing one is written.
+ * 2. Per system, trial, and slug: a finished cell is left alone. A missing snapshot or build record is built again.
+ *    auditWorkspace with gold's canaries (a finding aborts the run), spawnBuild, keep snapshot.json verbatim.
+ * 3. scoreCell every cell whose scores.json is missing or unreadable.
  */
 function cellDir(config: Pick<RunConfig, 'runsDir'>, runId: RunId, system: SystemName, trial: TrialId, slug: Slug): string {
   return path.join(config.runsDir, runId, system, trial, slug);
@@ -202,27 +202,59 @@ function harnessHash(): Hash {
   return hashFiles(files);
 }
 
+function repoPlans(config: RunConfig): RunManifest['repos'][number][] {
+  return config.slugs.map((slug) => {
+    const record = openFixture(path.join(config.outDir, slug));
+    const gold = loadGold(config.outDir, slug);
+    return { slug, fixture: record.workspace.fixtureHash, gold: gold.hash, facts: hashOf('no-judge'), main: record.workspace.mainSha };
+  });
+}
+
+/** Same inputs, same directory. A clock or a random secret would make a repeated run a different run. */
+function planId(config: RunConfig, repos: RunManifest['repos']): RunId {
+  return `r${hashOf(
+    harnessHash(),
+    config.trials,
+    config.sandbox.kind,
+    config.calibration,
+    config.judge,
+    config.systems.map((system) => [system.name, system.dir, system.build, system.models, system.passEnv, system.buildSec]),
+    repos.map((repo) => [repo.slug, repo.fixture, repo.gold, repo.main]),
+  ).slice(0, 12)}` as RunId;
+}
+
+function readJson(file: string): unknown {
+  if (!fs.existsSync(file)) return null;
+  try {
+    return JSON.parse(fs.readFileSync(file, 'utf8'));
+  } catch {
+    return null;
+  }
+}
+
+function scoresReady(file: string): boolean {
+  const parsed = readJson(file);
+  return typeof parsed === 'object' && parsed !== null && Array.isArray((parsed as { scores?: unknown }).scores);
+}
+
 export async function run(config: RunConfig, resume: RunId | null): Promise<RunId> {
-  const id = (resume ?? (`r${hashOf(Date.now(), Math.random()).slice(0, 12)}`)) as RunId;
+  const repos = repoPlans(config);
+  const id = resume ?? planId(config, repos);
   const dir = path.join(config.runsDir, id);
   fs.mkdirSync(dir, { recursive: true });
   const manifestPath = path.join(dir, 'run.json');
-  if (!resume || !fs.existsSync(manifestPath)) {
+  if (readJson(manifestPath) === null) {
     const manifest: RunManifest = {
       id,
       startedAt: new Date().toISOString(),
-      secret: hashOf(Math.random()),
+      secret: hashOf(id, 'secret'),
       harness: harnessHash(),
       judge: 'offline',
       calibration: config.calibration,
       sandbox: config.sandbox.kind,
       trials: config.trials,
       systems: config.systems.map((system) => ({ name: system.name, manifest: hashOf(system), models: system.models })),
-      repos: config.slugs.map((slug) => {
-        const record = openFixture(path.join(config.outDir, slug));
-        const gold = loadGold(config.outDir, slug);
-        return { slug, fixture: record.workspace.fixtureHash, gold: gold.hash, facts: hashOf('no-judge'), main: record.workspace.mainSha };
-      }),
+      repos,
     };
     fs.writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
   }
@@ -233,20 +265,25 @@ export async function run(config: RunConfig, resume: RunId | null): Promise<RunI
         const cell = cellDir(config, id, system.name, trialId, slug);
         fs.mkdirSync(cell, { recursive: true });
         const snapshotFile = path.join(cell, 'snapshot.json');
-        if (!fs.existsSync(snapshotFile)) {
+        const buildFile = path.join(cell, 'build.json');
+        const scoresFile = path.join(cell, 'scores.json');
+        if (readJson(snapshotFile) === null || readJson(buildFile) === null) {
+          fs.rmSync(snapshotFile, { force: true });
+          fs.rmSync(buildFile, { force: true });
+          fs.rmSync(scoresFile, { force: true });
           const workspace = await buildWorkspace(path.join(config.outDir, slug), os.tmpdir());
           const gold = loadGold(config.outDir, slug);
           const canaries = loadCanaries(config.outDir, slug).map((canary) => canary.text);
           const audit = auditWorkspace(workspace, canaries);
           if (audit.length > 0) throw new Error(`workspace audit failed: ${audit.map((finding) => `${finding.text} in ${finding.where}`).join('; ')}`);
           const build = await spawnBuild(system, workspace, snapshotFile, config.sandbox, system.buildSec);
-          fs.writeFileSync(path.join(cell, 'build.json'), `${JSON.stringify({ ...build, workspace: workspace.dir }, null, 2)}\n`);
+          fs.writeFileSync(buildFile, `${JSON.stringify({ ...build, workspace: workspace.dir }, null, 2)}\n`);
           if (build.exit !== 'ok') {
             await writeScores(cell, gold, null, { kind: 'crash', detail: build.stderrTail || build.exit }, harnessHash());
             continue;
           }
         }
-        if (!fs.existsSync(path.join(cell, 'scores.json'))) await scoreCell({ system: system.name, trial: trialId, slug }, loadGold(config.outDir, slug), config, id);
+        if (!scoresReady(scoresFile)) await scoreCell({ system: system.name, trial: trialId, slug }, loadGold(config.outDir, slug), config, id);
       }
     }
   }

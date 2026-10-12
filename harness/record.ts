@@ -143,6 +143,13 @@ function walkPaths(dir: string, base: string, out: string[]): void {
   }
 }
 
+/** A canary is a whole token. "d-flag" must not match the branch name round-flag. */
+export function mentions(text: string, needle: string): boolean {
+  if (needle.length === 0) return false;
+  const escaped = needle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(`(?:^|[^A-Za-z0-9])${escaped}(?:$|[^A-Za-z0-9])`).test(text);
+}
+
 /** Proves the real handoff is clean. Canary text comes from gold.ts through the caller, so this file never sees gold. */
 export function auditWorkspace(ws: Workspace, canaries: readonly string[]): readonly AuditFinding[] {
   const repoDir = path.join(ws.dir, 'repo');
@@ -165,7 +172,7 @@ export function auditWorkspace(ws: Workspace, canaries: readonly string[]): read
       if (surface.text.toLowerCase().includes(word)) findings.push({ text: word, source: 'harness-word', where: surface.where });
     }
     for (const canary of canaries) {
-      if (canary.length > 0 && surface.text.includes(canary)) findings.push({ text: canary, source: 'canary', where: surface.where });
+      if (mentions(surface.text, canary)) findings.push({ text: canary, source: 'canary', where: surface.where });
     }
   }
   return findings;
