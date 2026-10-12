@@ -1,0 +1,146 @@
+import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import test from 'node:test';
+import { fileURLToPath } from 'node:url';
+import { parseSnapshot } from '../harness/contract.ts';
+import type { Snapshot } from '../harness/contract.ts';
+import { changeIds, factsOf, openFixture } from '../harness/record.ts';
+import { kindOf } from '../harness/view.ts';
+import { checkoutNewBranch, commitAll, git, initRepo, mergeNoFf, writeChanges } from '../fixtures/lib/git.mjs';
+import { assemble } from './build.ts';
+import { ingest, segment } from './record.ts';
+import { noModel } from './steps.ts';
+
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const tally = path.join(root, 'out', 'tally');
+
+function nmem(...args: string[]): { status: number | null; stderr: string } {
+  const result = spawnSync('node', [path.join(root, 'engine', 'cli.ts'), ...args], { encoding: 'utf8' });
+  return { status: result.status, stderr: result.stderr };
+}
+
+function buildTally(): { bytes: string; snapshot: Snapshot } {
+  const out = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'nmem-engine-')), 'tally.json');
+  const run = nmem('build', tally, out, '--no-model');
+  assert.equal(run.stderr, 'tally: 20 changes (5 routine), 5 decisions, 1 undone, 1 topics, 0 claims; no model\n');
+  assert.equal(run.status, 0);
+  const bytes = fs.readFileSync(out, 'utf8');
+  return { bytes, snapshot: JSON.parse(bytes) as Snapshot };
+}
+
+test('two builds of tally write identical bytes that the contract accepts', () => {
+  const first = buildTally();
+  const second = buildTally();
+  assert.equal(second.bytes, first.bytes);
+  const facts = factsOf(openFixture(tally));
+  const parsed = parseSnapshot(first.bytes, { repo: { owner: 'hearthware', name: 'tally' }, head: facts.head, changes: changeIds(facts) });
+  assert.deepEqual(parsed.ok ? { head: parsed.snapshot.head, changes: parsed.snapshot.changes.length } : parsed.errors, { head: 'f01e078fb8078de4ae5cd32111cc88f9730c3074', changes: 20 });
+});
+
+test('pr#22 carries the revert as a decision whose reason is not recorded', () => {
+  const { snapshot } = buildTally();
+  const revert = snapshot.decisions.filter((decision) => decision.carriedBy === 'pr#22');
+  assert.deepEqual(revert.map((decision) => ({ what: decision.what, why: decision.why, replacedBy: decision.replacedBy })), [
+    {
+      what: { eng: 'Reverted PR #20 and PR #21.', plain: 'Undid 2 earlier changes.', source: { kind: 'record', ref: 'pr#22', quote: 'Reverts #20 and #21.' } },
+      why: { kind: 'not-recorded', ask: ['owenbriggs'], guess: null },
+      replacedBy: null,
+    },
+  ]);
+});
+
+test('the five routine tally changes are proven by a files proof on the change itself', () => {
+  const { snapshot } = buildTally();
+  const facts = factsOf(openFixture(tally));
+  const routine = snapshot.changes
+    .filter((change) => kindOf(change.id, snapshot, facts) === 'routine')
+    .map((change) => [change.id, change.routine.flatMap((part) => part.files), change.routine.map((part) => part.reason.source.proof)]);
+  assert.deepEqual(routine, [
+    ['b97eafe', ['.gitignore', 'README.md'], ['files b97eafe']],
+    ['9cc54c2', ['README.md'], ['files 9cc54c2']],
+    ['pr#17', ['.github/workflows/test.yml'], ['files 41fd59c']],
+    ['49d209b', ['.github/CODEOWNERS'], ['files 49d209b']],
+    ['pr#23', ['README.md', 'docs/how-it-works.md', 'docs/index.md', 'tally/__init__.py'], ['files b259cec']],
+  ]);
+});
+
+test('the --round experiment is one undone group whose diff proof spans it', () => {
+  const { snapshot } = buildTally();
+  assert.deepEqual(snapshot.undone.map((group) => [group.changes, group.says.map((said) => said.source)]), [
+    [['pr#20', 'pr#21', 'pr#22'], [{ kind: 'proof', proof: 'diff 49d209b..3d17009' }]],
+  ]);
+});
+
+test('ADR decisions name their carrier, and the superseded one points at its replacement', () => {
+  const { snapshot } = buildTally();
+  const byQuote = new Map(snapshot.decisions.map((decision) => [decision.id, decision.what.source.quote]));
+  assert.deepEqual(
+    snapshot.decisions.filter((decision) => decision.what.source.ref.includes('docs/adr/')).map((decision) => [decision.carriedBy, decision.why.kind === 'not-recorded' ? decision.why.ask : [], decision.replacedBy && byQuote.get(decision.replacedBy)]),
+    [
+      ['pr#4', ['lenavoss'], null],
+      ['pr#9', ['kitalvarez'], 'tally/store.py writes ledger.json, a list of entries in the same shape\nthe commands already build.'],
+      ['pr#12', ['lenavoss'], null],
+      ['pr#18', ['owenbriggs'], null],
+    ],
+  );
+});
+
+test('a sentence is a title, a list item with its continuation, or a prose sentence', () => {
+  const text = '# Plan\n\nWe ship it. tally is the editor, e.g. for notes.\n\n- `remind` sends mail from the\n  garden account. Sending is free.\n\n    code is skipped\n';
+  assert.deepEqual(segment(text).map((span) => [span.unit, text.slice(span.start, span.end)]), [
+    ['heading', 'Plan'],
+    ['prose', 'We ship it.'],
+    ['prose', 'tally is the editor, e.g. for notes.'],
+    ['item', '`remind` sends mail from the\n  garden account.'],
+    ['item', 'Sending is free.'],
+  ]);
+});
+
+const ANA = { name: 'Ana Lima', email: 'ana@example.com' };
+
+function toyWorkspace(pulls: readonly { readonly title: string; readonly body: string; readonly files: Readonly<Record<string, string | null>> }[]): string {
+  const workspace = fs.mkdtempSync(path.join(os.tmpdir(), 'nmem-toy-'));
+  const repoDir = path.join(workspace, 'repo');
+  initRepo(repoDir);
+  writeChanges(repoDir, { 'README.md': '# toy\n\nToy prints a greeting.\n' });
+  commitAll(repoDir, { ...ANA, date: '2024-01-01T10:00:00Z' }, 'Initial commit');
+  const merged = pulls.map((pull, i) => {
+    const number = i + 1;
+    checkoutNewBranch(repoDir, `topic-${number}`);
+    writeChanges(repoDir, pull.files);
+    const sha = commitAll(repoDir, { ...ANA, date: `2024-01-0${number + 1}T10:00:00Z` }, pull.title) as string;
+    git(repoDir, ['checkout', '--quiet', 'main']);
+    const merge = mergeNoFf(repoDir, `topic-${number}`, { ...ANA, date: `2024-01-0${number + 1}T11:00:00Z` }, `Merge pull request #${number}`) as string;
+    return { number, title: pull.title, body: pull.body, author: 'ana', mergeCommitSha: merge, commits: [{ sha, authorLogin: 'ana' }], comments: [], reviews: [] };
+  });
+  const github = { repo: { owner: 'acme', name: 'toy' }, users: [{ login: 'ana', name: ANA.name, type: 'User' }], pulls: merged, issues: [], discussions: [] };
+  fs.writeFileSync(path.join(workspace, 'github.json'), JSON.stringify(github));
+  return workspace;
+}
+
+test('a denial sentence never becomes an intent, from a revert line or from classify', async () => {
+  const workspace = toyWorkspace([
+    { title: 'Add a farewell', body: 'Adds a farewell line.', files: { 'farewell.txt': 'bye\n' } },
+    { title: 'Revert the farewell', body: 'Reverts #1, with no behavior change.', files: { 'farewell.txt': null } },
+    { title: 'Tidy the greeting', body: 'Moves the greeting to stdout. No behavior change intended.', files: { 'README.md': '# toy\n\nToy prints a greeting to stdout.\n' } },
+  ]);
+  const record = ingest(workspace);
+  const built = await assemble(record, {
+    ...noModel(record),
+    classify: async (change) => ({
+      choices: change.objects
+        .filter((object) => object.ref.startsWith('pr#'))
+        .flatMap((object) => object.sentences.filter((sentence) => sentence.unit === 'prose'))
+        .map((sentence) => ({ sentence, stance: 'chose' as const, what: { eng: sentence.text, plain: sentence.text }, carriedBy: change.id })),
+      findings: [],
+    }),
+  });
+  const snapshot = JSON.parse(built.bytes) as Snapshot;
+  assert.deepEqual(snapshot.decisions.map((decision) => [decision.carriedBy, decision.what.source.quote]).sort(), [
+    ['pr#1', 'Adds a farewell line.'],
+    ['pr#3', 'Moves the greeting to stdout.'],
+  ]);
+});
