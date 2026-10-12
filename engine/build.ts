@@ -3,18 +3,19 @@
  * contract's parser and checks every quote against the ingested record before anything is written.
  */
 import { encodeSnapshot, parseSnapshot } from '../harness/contract.ts';
-import type { Change as Entry, ChangeId, Finding, RecordSource, Snapshot, Undone, Usage } from '../harness/contract.ts';
+import type { Change as Entry, ChangeId, Decision, Finding, RecordSource, Snapshot, Undone, Usage } from '../harness/contract.ts';
 import { decide, settledChoices } from './choices.ts';
 import { classifyChange } from './classify.ts';
-import { scanReasons, whyOf } from './why.ts';
 import { ModelUnavailable } from './copilot.ts';
 import type { ModelClient } from './copilot.ts';
 import { describeRoutine, proveRoutine, proveUndone } from './proofs.ts';
 import type { UndoneProof } from './proofs.ts';
 import { ingest } from './record.ts';
 import type { RepoRecord } from './record.ts';
-import { collapse, noModel } from './steps.ts';
-import type { Steps } from './steps.ts';
+import { collapse, noModel, ROOT } from './steps.ts';
+import type { Placeable, Steps, TreeSignals } from './steps.ts';
+import { formTopics, overlapping, placeItems } from './topics.ts';
+import { scanReasons, whyOf } from './why.ts';
 
 function label(id: ChangeId): string {
   const pull = /^pr#(\d+)$/.exec(id);
@@ -66,26 +67,42 @@ async function settleFinding(steps: Steps, finding: Finding, carriedBy: ChangeId
 
 export async function assemble(record: RepoRecord, steps: Steps, usage: () => Usage | null = () => null): Promise<Built> {
   const classified = await Promise.all(record.changes.map((change) => steps.classify(change)));
-  const settled = await Promise.all(record.changes.map(async (change, i) => {
-    const found = await Promise.all((classified[i]?.findings ?? []).map((item) => settleFinding(steps, item.finding, change.id)));
-    return found.filter((finding): finding is Finding => finding !== null);
+  const found = await Promise.all(record.changes.map(async (change, i) => {
+    const items = await Promise.all((classified[i]?.findings ?? []).map(async (item) => ({ finding: await settleFinding(steps, item.finding, change.id), files: item.files })));
+    return items.flatMap((item) => (item.finding === null ? [] : [{ finding: item.finding, files: item.files }]));
   }));
+  const decided = await decide(record, steps, classified.flatMap((item) => item.choices));
+  const signals: TreeSignals = {
+    items: [
+      ...decided.map((item) => ({ kind: 'decision' as const, what: item.decision.what.eng, files: item.files })),
+      ...found.flat().map((item) => ({ kind: 'finding' as const, what: item.finding.name.eng, files: item.files })),
+    ],
+  };
+  const topics = await steps.topics(signals);
+  const placeable: Placeable[] = [
+    ...decided.map((item, i) => ({ key: `decision ${i + 1}`, kind: 'decision' as const, what: item.decision.what.eng, candidates: overlapping(topics, item.files) })),
+    ...found.flatMap((items, i) => items.map((item, j) => ({ key: `finding ${i + 1}.${j + 1}`, kind: 'finding' as const, what: item.finding.name.eng, candidates: overlapping(topics, item.files) }))),
+  ];
+  const placed = await steps.place(topics, placeable);
   const changes: Entry[] = record.changes.map((change, i) => {
     const proof = proveRoutine(record.repoDir, change);
     const words = proof ? describeRoutine(proof) : null;
     return {
       id: change.id,
-      topics: [],
-      findings: settled[i] ?? [],
+      topics: overlapping(topics, [...change.touched.keys()]),
+      findings: (found[i] ?? []).map((item, j) => ({ ...item.finding, topics: placed.get(`finding ${i + 1}.${j + 1}`) ?? [] })),
       routine: proof && words ? [{ files: proof.files, name: words.name, reason: { ...words.reason, source: { kind: 'proof', proof: proof.proof } } }] : [],
     };
   });
-  const decisions = await decide(record, steps, classified.flatMap((item) => item.choices));
+  const decisions: Decision[] = decided.map((item, i) => {
+    const [first, ...rest] = placed.get(`decision ${i + 1}`) ?? [];
+    return { ...item.decision, topics: first === undefined ? [ROOT] : [first, ...rest] };
+  });
   const undone = proveUndone(record.repoDir, record.changes).map(undoneOf);
   const snapshot: Snapshot = {
     version: 1,
     head: record.head,
-    topics: await steps.topics(),
+    topics,
     changes,
     decisions,
     claims: await steps.claims(),
@@ -139,6 +156,23 @@ export function modelSteps(record: RepoRecord, client: ModelClient, notes: Notes
       } catch (error) {
         fallback(notes, `why ${label}`, error);
         return floor.why(subject);
+      }
+    },
+    topics: async (signals) => {
+      const root = (await floor.topics(signals))[0];
+      try {
+        return await formTopics(record, client, signals, root, (line) => notes.push(line));
+      } catch (error) {
+        fallback(notes, 'topics', error);
+        return [root];
+      }
+    },
+    place: async (tree, items) => {
+      try {
+        return await placeItems(client, tree, items, (line) => notes.push(line));
+      } catch (error) {
+        fallback(notes, 'place', error);
+        return floor.place(tree, items);
       }
     },
     scan: async (subject, shown) => {

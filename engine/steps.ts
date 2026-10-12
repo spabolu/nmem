@@ -2,7 +2,7 @@
  * The model steps of engine.md's pipeline, as typed functions. This slice ships each step's one honest fallback, the
  * output a build writes when no model answers. A model-backed step replaces one entry of Steps and keeps its type.
  */
-import type { ChangeId, Claim, Finding, Login, Named, RecordSource, Said, Topic, Why } from '../harness/contract.ts';
+import type { ChangeId, Claim, Finding, LocalId, Login, Named, RecordSource, Said, Topic, Why } from '../harness/contract.ts';
 import { plainHits } from '../fixtures/lib/plain.mjs';
 import type { Change, RepoRecord, Sentence } from './record.ts';
 
@@ -25,6 +25,12 @@ export type Choice = {
 export type Found = { readonly finding: Finding; readonly files: readonly string[] };
 
 export type Classification = { readonly choices: readonly Choice[]; readonly findings: readonly Found[] };
+
+/** What the tree is formed from: the decisions and findings classification produced, with the files each is about. */
+export type TreeSignals = { readonly items: readonly { readonly kind: 'decision' | 'finding'; readonly what: string; readonly files: readonly string[] }[] };
+
+/** An item to place on topics, with the topics whose files it touches. */
+export type Placeable = { readonly key: string; readonly kind: 'decision' | 'finding'; readonly what: string; readonly candidates: readonly LocalId[] };
 
 /**
  * What a reason is sought for: a decision's intent or a finding's anchor, what it says, the change carrying it, and
@@ -50,7 +56,9 @@ export type Steps = {
   /** Doc sentences judged not plainly true. */
   readonly claims: () => Promise<readonly Claim[]>;
   /** The tree, formed after classification. */
-  readonly topics: () => Promise<readonly [Topic, ...Topic[]]>;
+  readonly topics: (signals: TreeSignals) => Promise<readonly [Topic, ...Topic[]]>;
+  /** Each item's topics among its candidates. */
+  readonly place: (tree: readonly Topic[], items: readonly Placeable[]) => Promise<ReadonlyMap<string, readonly LocalId[]>>;
 };
 
 /** The first candidate a non-engineer can read, else the fallback. */
@@ -104,7 +112,8 @@ export function rootTopic(record: RepoRecord): Topic {
 
 /**
  * No model: nothing is classified or linked, every reason is not recorded with the subject's ask, nothing is scanned
- * because no model wrote any prose, no doc sentence is judged, and the tree is the root alone.
+ * because no model wrote any prose, no doc sentence is judged, the tree is the root alone, and every item keeps all
+ * its candidate topics.
  */
 export function noModel(record: RepoRecord): Steps {
   return {
@@ -114,5 +123,6 @@ export function noModel(record: RepoRecord): Steps {
     scan: async (_subject, shown) => shown.map(() => false),
     claims: async () => [],
     topics: async () => [rootTopic(record)],
+    place: async (_tree, items) => new Map(items.map((item) => [item.key, item.candidates])),
   };
 }

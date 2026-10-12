@@ -226,7 +226,7 @@ test('classify copies record text for handles, refuses a denial as intent or anc
     ['classify pr#1', 1, 'nmem classify v3'],
   ]);
   assert.match(client.seen[2]?.user ?? '', /- choices\[1\]: S3 is marked \(denial\) or \(bot\), so it is never chose\n- findings\[0\]\.anchor: S3 is a denial sentence, which can never be an anchor$/);
-  assert.deepEqual(notes, []);
+  assert.deepEqual(notes, ['topics fell back: no canned answer for form topics sample 1']);
   assert.deepEqual(snapshot.decisions.map((decision) => [decision.carriedBy, decision.what]), [
     ['pr#1', { eng: 'One farewell line.', plain: 'The app says goodbye once.', source: { kind: 'record', ref: 'pr#1', quote: 'Use one farewell line.' } }],
   ]);
@@ -248,7 +248,11 @@ test('a bad reply after the re-ask leaves the change unclassified and says so', 
   const notes: string[] = [];
   const snapshot = JSON.parse((await assemble(record, modelSteps(record, fakeClient({}), notes))).bytes) as Snapshot;
   assert.deepEqual(snapshot.changes.filter((change) => change.id.startsWith('pr#')).map((change) => [change.id, change.findings.length]), [['pr#1', 0], ['pr#2', 0]]);
-  assert.deepEqual(notes, ['classify pr#1 fell back: no canned answer for classify pr#1 sample 1', 'classify pr#2 fell back: no canned answer for classify pr#2 sample 1']);
+  assert.deepEqual(notes, [
+    'classify pr#1 fell back: no canned answer for classify pr#1 sample 1',
+    'classify pr#2 fell back: no canned answer for classify pr#2 sample 1',
+    'topics fell back: no canned answer for form topics sample 1',
+  ]);
 });
 
 test('a reason is recorded only when a second call agrees, and the scan drops a card point that states one', async () => {
@@ -279,7 +283,52 @@ test('a reason is recorded only when a second call agrees, and the scan drops a 
   ]);
   const finding = snapshot.changes.find((change) => change.id === 'pr#1')?.findings[0];
   assert.deepEqual([finding?.says.map((said) => said.eng), finding?.why], [['It prints bye.'], { kind: 'not-recorded', ask: ['ana'], guess: null }]);
-  assert.deepEqual(notes, ['scan dropped a sentence that states a reason: Users wanted it.']);
+  assert.deepEqual(notes, ['scan dropped a sentence that states a reason: Users wanted it.', 'topics fell back: no canned answer for form topics sample 1']);
   const why = client.seen.find((request) => request.label === 'why finding pr#1: Says bye' && request.sample === 1);
   assert.match(why?.user ?? '', /- reason: S4 is marked \(denial\) or \(bot\), so it can never be a reason$/);
+});
+
+test('topics: the tree is checked against HEAD, Start here is computed, and pages cite lines and test lines by handle', async () => {
+  const record = ingest(toyWorkspace([{
+    title: 'Greet by name',
+    body: 'Greet people by name.',
+    files: { 'src/greet.py': 'def greet(name):\n    return "hi " + name\n', 'tests/test_greet.py': 'from src.greet import greet\n\nassert greet("ana") == "hi ana"\n' },
+  }]));
+  const head7 = record.head.slice(0, 7);
+  const topic = (files: readonly string[]) => [
+    { slug: 'toy', parent: null, name: { eng: 'Toy greeter', plain: 'Toy greeter' }, files: [], docs: ['README.md'], words: [], start: 'L1' },
+    { slug: 'greeting', parent: 'toy', name: { eng: 'Greeting', plain: 'Greeting' }, files, docs: [], words: ['hi'], start: 'L1' },
+  ];
+  const client = fakeClient({
+    'classify pr#1': [{ choices: [{ sentence: 'S2', stance: 'chose', carried: 'this', restates: null, what: { eng: 'Greets by name.', plain: 'Greets by name.' }, files: ['src/greet.py'] }], findings: [] }],
+    'why decision pr#1: Greets by name.': [{ reason: null, said: null }],
+    'scan Greets by name.': [{ stated: [] }],
+    'form topics': [{ topics: topic(['src/greet.py', 'tests/test_greet.py', 'nope.py']) }, { topics: topic(['src/greet.py', 'tests/test_greet.py']) }],
+    'page root': [{ headline: [{ eng: 'Toy prints a greeting.', plain: 'Toy prints a greeting.', source: 'S2' }], example: null }],
+    'page greeting': [
+      { headline: [{ eng: 'greet() says hi.', plain: 'It says hi.', source: 'L2' }], example: { eng: 'Ana gets hi ana.', plain: 'Ana gets a hello.', source: 'L1' } },
+      { headline: [{ eng: 'greet() says hi.', plain: 'It says hi.', source: 'L2' }], example: { eng: 'Ana gets hi ana.', plain: 'Ana gets a hello.', source: 'L4' } },
+    ],
+  });
+  const notes: string[] = [];
+  const snapshot = JSON.parse((await assemble(record, modelSteps(record, client, notes))).bytes) as Snapshot;
+  const start = { kind: 'record', ref: `${head7}:src/greet.py#L1-L2`, quote: 'def greet(name):' };
+  assert.deepEqual(snapshot.topics, [
+    { id: 'root', parent: null, name: { eng: 'Toy greeter', plain: 'Toy greeter' }, files: [], words: [], start, docs: ['README.md'], headline: [{ eng: 'Toy prints a greeting.', plain: 'Toy prints a greeting.', source: { kind: 'record', ref: `${head7}:README.md`, quote: 'Toy prints a greeting.' } }], example: null },
+    {
+      id: 'greeting',
+      parent: 'root',
+      name: { eng: 'Greeting', plain: 'Greeting' },
+      files: ['src/greet.py', 'tests/test_greet.py'],
+      words: ['hi'],
+      start,
+      docs: [],
+      headline: [{ eng: 'greet() says hi.', plain: 'It says hi.', source: { kind: 'record', ref: `${head7}:src/greet.py`, quote: 'return "hi " + name' } }],
+      example: { eng: 'Ana gets hi ana.', plain: 'Ana gets a hello.', source: { kind: 'record', ref: `${head7}:tests/test_greet.py`, quote: 'assert greet("ana") == "hi ana"' } },
+    },
+  ]);
+  assert.deepEqual([snapshot.decisions.map((decision) => decision.topics), snapshot.changes.map((change) => [change.id, change.topics])], [[['greeting']], [[snapshot.changes[0]?.id, []], ['pr#1', ['greeting']]]]);
+  assert.match(client.seen.find((request) => request.label === 'form topics' && request.sample === 1)?.user ?? '', /- topics\[1\]\.files: nope\.py not at HEAD$/);
+  assert.match(client.seen.find((request) => request.label === 'page greeting' && request.sample === 1)?.user ?? '', /- example\.source: L1 is not a test line$/);
+  assert.deepEqual(notes, []);
 });

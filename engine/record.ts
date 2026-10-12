@@ -88,6 +88,8 @@ export type RepoRecord = {
   readonly threads: ReadonlyMap<string, readonly RecordObject[]>;
   /** The root ref of the thread each object belongs to. Commit messages and files belong to none. */
   readonly rootOf: ReadonlyMap<string, string>;
+  /** Every text file at HEAD, by path. */
+  readonly files: readonly FileObject[];
   /** Markdown at HEAD. */
   readonly docs: readonly FileObject[];
   readonly adrs: readonly Adr[];
@@ -448,7 +450,13 @@ export function ingest(workspace: string): RepoRecord {
   const head7 = facts.head.slice(0, 7);
   const docs: FileObject[] = [];
   const adrs: Adr[] = [];
-  for (const file of lines(git(repoDir, ['ls-tree', '-r', '--name-only', facts.head]).stdout).filter((name) => /\.(md|markdown)$/i.test(name))) {
+  const atHead = lines(git(repoDir, ['ls-tree', '-r', '--name-only', facts.head]).stdout);
+  const files: FileObject[] = [];
+  for (const file of atHead.filter((name) => !/\.(md|markdown)$/i.test(name))) {
+    const body = (showFile(repoDir, facts.head, file) as string | null) ?? '';
+    if (!body.includes('\0')) files.push(add(fileObject(`${head7}:${file}`, file, null, body)));
+  }
+  for (const file of atHead.filter((name) => /\.(md|markdown)$/i.test(name))) {
     const body = (showFile(repoDir, facts.head, file) as string | null) ?? '';
     const added = lines(git(repoDir, ['log', '--reverse', '--diff-filter=A', '--format=%H%x09%an', 'main', '--', file]).stdout)[0] ?? '';
     const [sha = '', name = ''] = added.split('\t');
@@ -457,9 +465,10 @@ export function ingest(workspace: string): RepoRecord {
     const object = objectOf(ref, sha ? commitAuthor(sha, name) : null, body, bots, segment(body), status?.kind === 'superseded');
     const doc = add({ ...object, path: file, lines: body.replace(/\n$/, '').split('\n').map((line, i) => ({ handle: `${ref}#L${i + 1}` as Handle, number: i + 1, text: line })) });
     docs.push(doc);
+    files.push(doc);
     const number = /(?:^|\/)0*(\d+)-[^/]*$/.exec(file)?.[1];
     if (status && number !== undefined && /^#{1,6}\s+Decision\s*$/im.test(body)) adrs.push({ file: doc, number: Number(number), status, decision: decisionOf(doc) });
   }
 
-  return { repoDir, identity: github.repo, head: facts.head, changes, objects, threads, rootOf, docs, adrs, bots };
+  return { repoDir, identity: github.repo, head: facts.head, changes, objects, threads, rootOf, files: files.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0)), docs, adrs, bots };
 }

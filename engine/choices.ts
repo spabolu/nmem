@@ -82,10 +82,10 @@ function idOf(intent: Intent): LocalId {
 
 /**
  * The decision list: deterministic choices plus whatever classify and link return, through the intent gate, each with
- * its why. replacedBy comes from ADR status lines. Ordered by the carrying change, then by intent, so a rerun writes
- * the same list.
+ * its why and the files its choice is about, which place it once the tree exists. replacedBy comes from ADR status
+ * lines. Ordered by the carrying change, then by intent, so a rerun writes the same list.
  */
-export async function decide(record: RepoRecord, steps: Steps, classified: readonly Choice[]): Promise<Decision[]> {
+export async function decide(record: RepoRecord, steps: Steps, classified: readonly Choice[]): Promise<readonly { readonly decision: Decision; readonly files: readonly string[] }[]> {
   const adrs = adrChoices(record);
   const linked = await steps.link([...revertChoices(record), ...adrs.map((item) => item.choice), ...classified]);
   const position = new Map<ChangeId | null, number>(record.changes.map((change, i) => [change.id, i]));
@@ -108,11 +108,14 @@ export async function decide(record: RepoRecord, steps: Steps, classified: reado
   const kept: readonly { readonly choice: Choice; readonly intent: Intent; readonly id: LocalId; readonly why: Why; readonly adr: Adr | undefined }[] = settled.flat();
   const byAdr = new Map(kept.flatMap(({ id, adr }) => (adr ? [[adr.number, id] as const] : [])));
   return kept.map(({ choice, intent, id, why, adr }) => ({
-    id,
-    what: { ...choice.what, source: { kind: 'record', ref: intent.ref, quote: intent.text } },
-    topics: [ROOT],
-    carriedBy: choice.carriedBy,
-    replacedBy: adr?.status.kind === 'superseded' && adr.status.by !== null ? byAdr.get(adr.status.by) ?? null : null,
-    why,
+    decision: {
+      id,
+      what: { ...choice.what, source: { kind: 'record', ref: intent.ref, quote: intent.text } },
+      topics: [ROOT],
+      carriedBy: choice.carriedBy,
+      replacedBy: adr?.status.kind === 'superseded' && adr.status.by !== null ? byAdr.get(adr.status.by) ?? null : null,
+      why,
+    },
+    files: choice.files,
   }));
 }
