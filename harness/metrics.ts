@@ -8,16 +8,16 @@
  * is structural, with one key-blind judge call when a guess is present.
  */
 import { parseProof, parseRef } from './contract.ts';
-import type { Change, ChangeId, Claim, Decision, Finding, Run, Said, Snapshot, Topic, Undone } from './contract.ts';
+import type { Change, ChangeId, Claim, Decision, Finding, Proof, Run, Said, Snapshot, Topic, Undone } from './contract.ts';
 import type { CorruptionId } from './corruptions.ts';
 import { factKey, PROSE_FIELD_LABEL, proseFields } from './gold.ts';
 import type { Alignment, AnchorResolver, FactKey, FactSet, Gold, GoldId, GoldItem, LeakFinding, ProseField, ProseObject } from './gold.ts';
 import { JudgeUnavailable, NO_JUDGE } from './judge.ts';
 import type { Ask, FactVerdict, UnavailableReason } from './judge.ts';
-import { findQuote, resolveProof, spanOf } from './record.ts';
+import { factsOf, findQuote, resolveProof, spanOf } from './record.ts';
 import type { RepoRecord } from './record.ts';
 import { hashOf } from './hash.ts';
-import { decisionDay, kindOf, pageOf, presets, rangeOf, statusOf, TEMPLATES, TRUST_WORDS } from './view.ts';
+import { decisionDay, kindOf, labelChange, pageOf, presets, rangeOf, statusOf, TEMPLATES, TRUST_WORDS } from './view.ts';
 import type { Audience, RepoFacts } from './view.ts';
 import { plainHits } from '../fixtures/lib/plain.mjs';
 
@@ -710,7 +710,7 @@ const prose = {
   tally: { kind: 'mean' },
   bands: { oracle: { kind: 'at-least', value: 0.85 }, null: { kind: 'at-most', value: 0.1 } },
   movedBy: ['swap-prose'],
-  mayMove: ['reason-in-prose'],
+  mayMove: ['reason-in-prose', 'merge-topics'],
   judged: true,
   compute: proseCompute,
 } as const satisfies Metric<'prose'>;
@@ -964,17 +964,33 @@ export async function scoreItem(input: ScoreInput, ask: Ask): Promise<ItemScore>
   return { item: input.ctx.item, audience: input.ctx.audience, scores, usable, view: itemView(input.ctx) };
 }
 
-/** Lines of context kept on each side of a quoted line when a file source names no line range. */
-const EXCERPT_LINES = 12;
+/** A file up to this many lines is shown whole. A longer one is cut to the quote and this many lines each side. */
+const WHOLE_FILE_LINES = 200;
+const EXCERPT_LINES = 40;
 
-/** The quote's neighbourhood in a file, so the judge reads the passage and a cited revision changes nothing it sees. */
 function around(text: string, quote: string): string {
   const lines = text.replace(/\n$/, '').split('\n');
+  if (lines.length <= WHOLE_FILE_LINES) return lines.join('\n');
   const first = quote.split('\n').map((line) => line.trim()).find(Boolean) ?? '';
-  const at = lines.findIndex((line) => line.includes(first));
-  if (at < 0) return lines.slice(0, 2 * EXCERPT_LINES + 1).join('\n');
+  const at = Math.max(0, lines.findIndex((line) => line.includes(first)));
   const span = quote.split('\n').length;
   return lines.slice(Math.max(0, at - EXCERPT_LINES), at + span + EXCERPT_LINES).join('\n');
+}
+
+/** Names the change behind each revision a proof cites, as the page does, so "PR #22" in a sentence can be checked. */
+function proofHeader(proof: Proof, header: string, facts: RepoFacts): string {
+  const revs = proof.verb === 'grep' ? [proof.rev] : proof.verb === 'files' ? [proof.from, proof.to] : proof.verb === 'diff' || proof.verb === 'lockfile' || proof.verb === 'restyle' ? [proof.from, proof.to] : [];
+  const named = revs.flatMap((rev) => {
+    if (!rev) return [];
+    const short = rev.toLowerCase();
+    const parts = [
+      ...(facts.head.toLowerCase().startsWith(short) ? ['at the newest commit'] : []),
+      ...facts.changes.filter((change) => change.after.toLowerCase().startsWith(short) && /^pr#/.test(change.id)).map((change) => `right after ${labelChange(change.id)}`),
+      ...facts.changes.filter((change) => change.before.toLowerCase().startsWith(short)).map((change) => `right before ${labelChange(change.id)}`),
+    ];
+    return parts.length > 0 ? [`${rev} is the code ${parts.join(' and ')}`] : [];
+  });
+  return `${TRUST_WORDS[proof.verb].eng}: ${header}${named.length > 0 ? ` (${named.join('; ')})` : ''}`;
 }
 
 export async function resolveSources(record: RepoRecord, fields: readonly { readonly field: string; readonly said: Said }[], runs: readonly Run[] = []): Promise<SourceCheck[]> {
@@ -989,7 +1005,7 @@ export async function resolveSources(record: RepoRecord, fields: readonly { read
       const result = await resolveProof(proof, record.workspace, runs);
       if ('failed' in result) {
         checks.push({ field: field.field, said: field.said, status: result.failed === 'run-flaky' ? 'run-flaky' : 'proof-failed', excerpt: null });
-      } else checks.push({ field: field.field, said: field.said, status: 'resolves', excerpt: { header: `${TRUST_WORDS[proof.verb].eng}: ${result.header}`, text: result.text } });
+      } else checks.push({ field: field.field, said: field.said, status: 'resolves', excerpt: { header: proofHeader(proof, result.header, factsOf(record)), text: result.text } });
       continue;
     }
     const parsed = parseRef(field.said.source.ref, record.workspace.identity);

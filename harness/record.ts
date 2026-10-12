@@ -217,40 +217,42 @@ function revisionsOf(comment: GithubComment): readonly [string, ...string[]] {
   return [comment.body];
 }
 
+/** A comment means little without its thread, so its header names the pull request, issue, or discussion it is on. */
 function indexComments(github: Github, base: string): ReadonlyMap<number, CommentHit> {
   const comments = new Map<number, CommentHit>();
-  const add = (comment: GithubComment, url: string, label: string): void => {
+  const add = (comment: GithubComment, url: string, label: string, thread: string): void => {
     const day = dayOf(comment.updatedAt ?? comment.createdAt ?? comment.at);
     comments.set(comment.id, {
       author: comment.author,
       day,
       revisions: revisionsOf(comment),
       url,
-      header: `${label} by ${comment.author}, ${day}: ${comment.body.split('\n')[0] ?? ''}`,
+      header: `${label} on ${thread} by ${comment.author}, ${day}: ${comment.body.split('\n')[0] ?? ''}`,
     });
-    for (const reply of comment.replies ?? []) add(reply, url.replace(/#.*$/, '') + `#discussioncomment-${reply.id}`, `comment ${reply.id}`);
+    for (const reply of comment.replies ?? []) add(reply, url.replace(/#.*$/, '') + `#discussioncomment-${reply.id}`, `comment ${reply.id}`, thread);
   };
   for (const pull of github.pulls) {
     const pullUrl = `${base}/pull/${pull.number}`;
-    for (const comment of pull.comments) add(comment, `${pullUrl}#issuecomment-${comment.id}`, `comment ${comment.id}`);
+    const thread = `PR #${pull.number} "${oneLine(pull.title)}"`;
+    for (const comment of pull.comments) add(comment, `${pullUrl}#issuecomment-${comment.id}`, `comment ${comment.id}`, thread);
     for (const review of pull.reviews) {
       comments.set(review.id, {
         author: review.author,
         day: dayOf(review.at),
         revisions: [review.body],
         url: `${pullUrl}#pullrequestreview-${review.id}`,
-        header: `review ${review.id} by ${review.author}, ${dayOf(review.at)}: ${review.body.split('\n')[0] ?? ''}`,
+        header: `review ${review.id} on ${thread} by ${review.author}, ${dayOf(review.at)}: ${review.body.split('\n')[0] ?? ''}`,
       });
-      for (const thread of review.threads) {
-        for (const comment of thread.comments) add(comment, `${pullUrl}#discussion_r${comment.id}`, `comment ${comment.id}`);
+      for (const reviewThread of review.threads) {
+        for (const comment of reviewThread.comments) add(comment, `${pullUrl}#discussion_r${comment.id}`, `comment ${comment.id}`, thread);
       }
     }
   }
   for (const issue of github.issues) {
-    for (const comment of issue.comments) add(comment, `${base}/issues/${issue.number}#issuecomment-${comment.id}`, `comment ${comment.id}`);
+    for (const comment of issue.comments) add(comment, `${base}/issues/${issue.number}#issuecomment-${comment.id}`, `comment ${comment.id}`, `issue #${issue.number} "${oneLine(issue.title)}"`);
   }
   for (const discussion of github.discussions) {
-    for (const comment of discussion.comments) add(comment, `${base}/discussions/${discussion.number}#discussioncomment-${comment.id}`, `comment ${comment.id}`);
+    for (const comment of discussion.comments) add(comment, `${base}/discussions/${discussion.number}#discussioncomment-${comment.id}`, `comment ${comment.id}`, `discussion #${discussion.number} "${oneLine(discussion.title)}"`);
   }
   return comments;
 }

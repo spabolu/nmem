@@ -312,7 +312,8 @@ export async function run(config: RunConfig, resume: RunId | null, judge: Judge 
     config.log?.(`judge ${judge.model}: ${plan.units} units, ${plan.cached} cached, ${plan.calls} live calls needed`);
     const limit = config.maxCalls ?? MAX_LIVE_CALLS;
     if (plan.calls > limit) throw new Error(`this run needs ${plan.calls} live judge calls; the limit is ${limit}. Pass --max-calls to raise it.`);
-    await judge.prefetch(requests);
+    const spent = await judge.prefetch(requests);
+    if (spent.failed > 0) config.log?.(`judge: ${spent.failed} units got no verdict and score as skipped (${spent.reasons.join('; ')})`);
   }
   for (const cell of pending) await scoreCell(cell, loadGold(config.outDir, cell.slug), config, id, judge);
   return id;

@@ -442,7 +442,8 @@ export async function calibrate(golds: readonly Gold[], options: CalibrateOption
   for (const [task, row] of Object.entries(plan.byTask)) options.log(`  ${task}: ${row.units} units, ${row.cached} cached, ${row.calls} calls`);
   if (options.planOnly) return { plan, estimate: incomplete > 0, result: null, stamp: null };
   if (plan.calls > options.maxCalls) throw new Error(`calibration needs ${plan.calls} live calls; the limit is ${options.maxCalls}. Pass --max-calls to raise it.`);
-  await options.judge.prefetch(all);
+  const spent = await options.judge.prefetch(all);
+  if (spent.failed > 0) throw new Error(`${spent.failed} judge units could not be answered (${spent.reasons.join('; ')}); their replies are in ${path.join(options.cacheDir, 'judge', 'bad')}. Nothing is scored until every unit has a verdict.`);
 
   const runId = await run({
     outDir: options.outDir,

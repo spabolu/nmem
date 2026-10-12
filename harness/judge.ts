@@ -393,17 +393,18 @@ export const TASKS = {
       '- absent: the text does not state it.',
       'Judge meaning only. Ignore length, style, and extra details the text adds, unless they contradict a fact.',
     ].join('\n'),
-    render: (input) => `Field: ${input.field}\nFacts:\n${input.facts.map((fact) => `- [${fact.id}] ${fact.text}`).join('\n')}\nText:\n${input.text}`,
+    render: (input) => `Field: ${input.field}\nFacts:\n${input.facts.map((fact) => `- ${fact.id}: ${fact.text}`).join('\n')}\nText:\n${input.text}`,
     answer: {
-      properties: { verdicts: { type: 'array', items: { type: 'object', properties: { fact: { type: 'string' }, verdict: { type: 'string', enum: ['supported', 'contradicted', 'absent'] } }, required: ['fact', 'verdict'], additionalProperties: false } } },
+      properties: { verdicts: { type: 'array', items: { type: 'object', properties: { fact: { type: 'string', description: 'the fact id, such as f1' }, verdict: { type: 'string', enum: ['supported', 'contradicted', 'absent'] } }, required: ['fact', 'verdict'], additionalProperties: false } } },
       required: ['verdicts'],
     },
     parse: (answer, input) => {
       if (!Array.isArray(answer.verdicts)) throw new BadAnswer('verdicts: expected a list');
       const out: Record<string, FactVerdict> = {};
       for (const row of answer.verdicts as readonly { fact?: unknown; verdict?: unknown }[]) {
-        const id = String(row?.fact ?? '').replace(/^\[|\]$/g, '');
-        if (!input.facts.some((fact) => fact.id === id) || id in out) throw new BadAnswer(`verdicts: unexpected or repeated fact ${JSON.stringify(row?.fact)}`);
+        const named = String(row?.fact ?? '').trim();
+        const id = input.facts.find((fact) => fact.id === named || fact.text === named)?.id;
+        if (id === undefined || id in out) throw new BadAnswer(`verdicts: unexpected or repeated fact ${JSON.stringify(row?.fact)}`);
         out[id] = oneOf(row.verdict, ['supported', 'contradicted', 'absent'] as const, `verdicts.${id}`);
       }
       const lost = input.facts.filter((fact) => !(fact.id in out));
@@ -414,12 +415,13 @@ export const TASKS = {
   }),
   /** One sentence against its one excerpt: a record quote in context, or the output of a proof the harness ran. */
   'check-support': task<CheckSupportInput, SupportVerdict>({
-    version: 1,
+    version: 2,
     perCall: 12,
     maxOutputTokens: 16_000,
     rules: [
-      'You check whether one excerpt from a project\'s record supports one sentence. The excerpt is from a file, a commit message, a pull request, a comment, or the output of a check that was run. Its header says which. Use only the excerpt and its header.',
-      '- yes: everything the sentence states is in the excerpt or follows directly from it.',
+      'You check whether one excerpt from a project\'s record supports one sentence written about the project for a reader. The excerpt is a file, a commit message, a pull request, an issue, a comment and the thread it is on, or the output of a check that was run on the code. Its header says which, who wrote it, and when. Use only the excerpt and its header.',
+      'Judge what a reader who opens this source would find. Rewording, plainer words for a reader who does not code, and facts the header gives (who, when, which pull request, issue, or change) count as stated.',
+      '- yes: everything the sentence states is in the excerpt or its header, or follows directly from them.',
       '- partly: the main point is supported, and a detail is not.',
       '- no: the main point is not supported, the excerpt contradicts it, or the sentence gives a reason or motive the excerpt does not state.',
       'In note, say in a few words what is not supported, or "all supported".',
@@ -489,6 +491,8 @@ export function recordingAsk(into: Request[]): Ask {
 
 export type PlanCount = { readonly units: number; readonly cached: number; readonly calls: number };
 export type Plan = PlanCount & { readonly byTask: Readonly<Partial<Record<TaskKind, PlanCount>>> };
+/** What prefetch spent against its plan: units it could not get answered stay uncached and are listed by reason. */
+export type Spent = Plan & { readonly failed: number; readonly reasons: readonly string[] };
 export type JudgeStats = { readonly calls: number; readonly asked: number; readonly hits: number; readonly failed: number; readonly inputTokens: number; readonly outputTokens: number };
 
 export type Judge = {
@@ -497,8 +501,8 @@ export type Judge = {
   readonly version: string | null;
   /** Dedupes units, checks the cache, and packs the misses exactly as prefetch would. Sends nothing. */
   readonly plan: (requests: readonly Request[]) => Plan;
-  /** Asks every uncached unit, a batch per call, and returns the plan it followed. */
-  readonly prefetch: (requests: readonly Request[]) => Promise<Plan>;
+  /** Asks every uncached unit, a batch per call, and returns the plan it followed and what failed. */
+  readonly prefetch: (requests: readonly Request[]) => Promise<Spent>;
   readonly stats: () => JudgeStats;
 };
 
@@ -707,7 +711,12 @@ export async function openJudge(mode: JudgeMode, cacheDir: string, deps: { reado
         stats.asked += 1;
       });
       left = left.filter((_, index) => !good.has(index));
-      if (left.length > 0) lastError = new JudgeUnavailable('bad-reply', `the reply did not answer ${left.length} of its units in the expected shape`);
+      if (left.length > 0) {
+        lastError = new JudgeUnavailable('bad-reply', `the reply did not answer ${left.length} of its units in the expected shape`);
+        const bad = path.join(cacheDir, 'judge', 'bad', `${call}.json`);
+        fs.mkdirSync(path.dirname(bad), { recursive: true });
+        fs.writeFileSync(bad, `${JSON.stringify({ kind: batch[0]?.kind, units: left.map((unit) => unit.key), args: reply.args }, null, 2)}\n`);
+      }
     }
     for (const unit of left) {
       failures.set(unit.key, lastError);
@@ -765,16 +774,20 @@ export async function openJudge(mode: JudgeMode, cacheDir: string, deps: { reado
     plan,
     async prefetch(requests) {
       const before = plan(requests);
-      if (before.calls === 0) return before;
+      if (before.calls === 0) return { ...before, failed: 0, reasons: [] };
       if (mode.kind === 'offline') throw new Error(`offline judge: ${before.units - before.cached} units are not cached`);
       const batches = packBatches(unique(requests).filter((unit) => !fs.existsSync(unit.file)));
       let done = 0;
       await Promise.all(batches.map(async (batch) => {
         await askBatch(batch);
         done += 1;
-        deps.log?.(`judge: ${done} of ${batches.length} calls answered`);
+        deps.log?.(`judge: ${done} of ${batches.length} batches done`);
       }));
-      return before;
+      const lost = unique(requests).flatMap((unit) => {
+        const failed = failures.get(unit.key);
+        return failed ? [`${unit.kind}: ${failed.message}`] : [];
+      });
+      return { ...before, failed: lost.length, reasons: [...new Set(lost)] };
     },
     stats: () => ({ calls: transport?.posts() ?? 0, ...stats }),
   };

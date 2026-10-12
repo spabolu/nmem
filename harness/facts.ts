@@ -76,7 +76,8 @@ async function spend(judge: Judge, step: string, requests: readonly Request[], o
   if (options.planOnly) return false;
   if (spent.calls + plan.calls > options.maxCalls) throw new Error(`${step} needs ${plan.calls} live calls and ${spent.calls} are spent; the limit is ${options.maxCalls}. Pass --max-calls to raise it.`);
   spent.calls += plan.calls;
-  await judge.prefetch(requests);
+  const done = await judge.prefetch(requests);
+  if (done.failed > 0) throw new Error(`${step}: ${done.failed} units got no answer (${done.reasons.join('; ')})`);
   return true;
 }
 

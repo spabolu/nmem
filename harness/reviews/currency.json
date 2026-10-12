@@ -1,0 +1,29 @@
+{
+  "reviewer": "",
+  "at": "",
+  "claims": {
+    "tally/claim-cents": {
+      "verdict": "still-true",
+      "change": null
+    },
+    "tally/claim-negative": {
+      "verdict": "true-since",
+      "change": "e7e5ff3"
+    },
+    "tally/claim-ties": {
+      "verdict": "still-true",
+      "change": null
+    },
+    "tally/claim-payback": {
+      "verdict": "still-true",
+      "change": null
+    },
+    "tally/claim-json-readme": {
+      "verdict": "still-true",
+      "change": null
+    }
+  },
+  "coveredElsewhere": {
+    "tally/currency-sqlite-stale": "d-sqlite"
+  }
+}
