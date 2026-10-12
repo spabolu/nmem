@@ -1,5 +1,5 @@
 import { parseProof, parseRef } from '../harness/contract.ts';
-import type { ChangeId, Decision, LocalId, Login, Said, Source, Topic, Why } from '../harness/contract.ts';
+import type { ChangeId, Decision, LocalId, Login, RecordRef, Said, Source, Topic, Why } from '../harness/contract.ts';
 import { resolveProof } from '../harness/record.ts';
 import {
   PRIORITY,
@@ -101,10 +101,18 @@ function chip(site: Site, source: Source, audience: Audience): string {
     const label = parsed ? TRUST_WORDS[parsed.verb][audience] : 'the check';
     return `<a class="chip receipt" href="${esc(receiptHref(site, audience, { proof: source.proof }))}">${esc(label)}</a>`;
   }
-  return `<a class="chip receipt" href="${esc(receiptHref(site, audience, { ref: source.ref, quote: source.quote }))}">${esc(sourceLabel(site, source.ref, audience))}</a>`;
+  return `<a class="chip receipt" href="${esc(receiptHref(site, audience, { ref: source.ref, quote: source.quote }))}">${esc(sourceLabel(site, source.ref, audience, source.quote))}</a>`;
 }
 
-function sourceLabel(site: Site, ref: string, audience: Audience): string {
+function quotedLine(site: Site, ref: RecordRef & { kind: 'file' }, quote: string | undefined): string {
+  if (ref.lines) return ref.lines.count === 1 ? `line ${ref.lines.start}` : `lines ${ref.lines.start}-${ref.lines.start + ref.lines.count - 1}`;
+  const text = site.record.resolve(ref)?.revisions.at(-1) ?? '';
+  const first = (quote ?? '').split('\n')[0] ?? '';
+  const index = first ? text.split('\n').findIndex((line) => line.includes(first)) : -1;
+  return index >= 0 ? `line ${index + 1}` : '';
+}
+
+function sourceLabel(site: Site, ref: string, audience: Audience, quote?: string): string {
   const parsed = parseRef(ref, site.identity);
   const facts = site.record.sourceFacts({ kind: 'record', ref, quote: 'x' });
   const name = facts?.author ? person(site, facts.author) : null;
@@ -121,7 +129,7 @@ function sourceLabel(site: Site, ref: string, audience: Audience): string {
     if (audience === 'plain') return name ? `${name}'s message` : 'a message';
     return name ? `${name}'s message, ${day}` : 'a comment';
   }
-  if (parsed.kind === 'file') return audience === 'plain' ? 'the file' : parsed.path;
+  if (parsed.kind === 'file') return audience === 'plain' ? 'the file' : `${parsed.path} ${quotedLine(site, parsed, quote)}`.trim();
   if (parsed.kind === 'tag') return audience === 'plain' ? 'a release note' : `tag ${parsed.name}`;
   return audience === 'plain' ? 'the source' : ref;
 }
