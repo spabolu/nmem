@@ -253,3 +253,32 @@ test('judge.json is parsed strictly', () => {
   assert.throws(() => parseJudgeConfig(write({ ...config(), provider: { kind: 'command', tokenEnv: 'T' } })), /command was deleted/);
   assert.throws(() => parseJudgeConfig(write({ ...config(), model: 'kimi-2' })), /unknown model id/);
 });
+
+test('a reply that never finishes is retried three times, then is a provider error', async () => {
+  const sockets = new Set<import('node:net').Socket>();
+  let posts = 0;
+  let base = '';
+  const server = http.createServer((req, res) => {
+    req.resume();
+    req.on('end', () => {
+      res.writeHead(200, { 'content-type': 'application/json' });
+      if (req.url === '/copilot_internal/v2/token') res.end(JSON.stringify({ token: 'cop-1', expires_at: Math.floor(Date.now() / 1000) + 3600, endpoints: { api: base } }));
+      else if (req.url === '/models') res.end(JSON.stringify({ data: MODELS }));
+      else {
+        posts += 1;
+        res.write('{"output":');
+      }
+    });
+  });
+  server.on('connection', (socket) => sockets.add(socket));
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  try {
+    const judge = await openJudge({ kind: 'live', config: config() }, scratch(), { env, home: scratch(), hosts: { github: base }, sleep: () => Promise.resolve(), requestMs: 100 });
+    await assert.rejects(judge.ask('check-support', support('One.')), (error) => error instanceof JudgeUnavailable && error.reason === 'provider-error');
+    assert.equal(posts, 3);
+  } finally {
+    for (const socket of sockets) socket.destroy();
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  }
+});

@@ -149,6 +149,8 @@ export const GITHUB: Hosts = { github: 'https://api.github.com' };
 
 const EDITOR = { 'Editor-Version': 'vscode/1.99.0', 'Editor-Plugin-Version': 'copilot-chat/0.26.0', 'Copilot-Integration-Id': 'vscode-chat', 'User-Agent': 'nmem-harness' } as const;
 const ATTEMPTS = 3;
+/** A reply that has not finished by then is retried, so a stalled connection cannot hold a run forever. */
+const REQUEST_MS = 180_000;
 /** gpt-5.5 on /responses answers 400 "temperature is not supported" (measured 2026-10-12); grok-4.7 accepts 0. */
 const NO_TEMPERATURE: readonly ModelFamily[] = ['openai'];
 
@@ -162,13 +164,14 @@ export type Transport = {
   readonly posts: () => number;
 };
 
-/** 429, 5xx, and network errors back off and retry, honoring retry-after. 401 and 403 stop at once. */
-async function send(url: string, init: RequestInit, sleep: Sleep, onAttempt: () => void): Promise<Response> {
+/** 429, 5xx, network errors, and timeouts back off and retry, honoring retry-after. 401 and 403 stop at once. */
+async function send(url: string, init: RequestInit, sleep: Sleep, onAttempt: () => void, requestMs: number): Promise<unknown> {
   for (let attempt = 1; ; attempt += 1) {
     let response: Response;
     onAttempt();
+    const signal = AbortSignal.timeout(requestMs);
     try {
-      response = await fetch(url, init);
+      response = await fetch(url, { ...init, signal });
     } catch (error) {
       if (attempt >= ATTEMPTS) throw new JudgeUnavailable('provider-error', `${url}: ${(error as Error).message}`);
       await sleep(attempt * 1000);
@@ -186,7 +189,13 @@ async function send(url: string, init: RequestInit, sleep: Sleep, onAttempt: () 
       continue;
     }
     if (!response.ok) throw new JudgeUnavailable('provider-error', `${url} answered ${response.status}: ${(await response.text()).slice(0, 300)}`);
-    return response;
+    try {
+      return await response.json();
+    } catch (error) {
+      if (!signal.aborted) throw new JudgeUnavailable('provider-error', `${url} answered with a body that is not JSON`);
+      if (attempt >= ATTEMPTS) throw new JudgeUnavailable('provider-error', `${url}: ${(error as Error).message}`);
+      await sleep(attempt * 1000);
+    }
   }
 }
 
@@ -197,16 +206,16 @@ type Session = { readonly token: string; readonly expiresAt: number; readonly ap
  * (api.enterprise.githubcopilot.com for the owner, measured) with the short-lived Copilot token, refreshed 60 s before
  * it expires. The GitHub token never reaches the API host, and no pre-exchanged token is accepted.
  */
-export function copilotTransport(options: { readonly credential: Credential; readonly hosts?: Hosts; readonly sleep?: Sleep }): Transport {
+export function copilotTransport(options: { readonly credential: Credential; readonly hosts?: Hosts; readonly sleep?: Sleep; readonly requestMs?: number }): Transport {
   const hosts = options.hosts ?? GITHUB;
   const sleep = options.sleep ?? wait;
   const quiet = (): void => undefined;
+  const requestMs = options.requestMs ?? REQUEST_MS;
   let posts = 0;
   let session: Session | null = null;
   let pending: Promise<Session> | null = null;
   const exchange = async (): Promise<Session> => {
-    const response = await send(`${hosts.github}/copilot_internal/v2/token`, { headers: { Authorization: `token ${options.credential.token}`, Accept: 'application/json', ...EDITOR } }, sleep, quiet);
-    const body = (await response.json()) as { token?: unknown; expires_at?: unknown; endpoints?: { api?: unknown } };
+    const body = (await send(`${hosts.github}/copilot_internal/v2/token`, { headers: { Authorization: `token ${options.credential.token}`, Accept: 'application/json', ...EDITOR } }, sleep, quiet, requestMs)) as { token?: unknown; expires_at?: unknown; endpoints?: { api?: unknown } };
     if (typeof body.token !== 'string' || typeof body.expires_at !== 'number' || typeof body.endpoints?.api !== 'string') {
       throw new JudgeUnavailable('provider-error', 'the Copilot token exchange answered without a token, an expiry, and an API host');
     }
@@ -223,8 +232,7 @@ export function copilotTransport(options: { readonly credential: Credential; rea
   const versions = new Map<string, Promise<string>>();
   const listedVersion = async (model: string): Promise<string> => {
     const { token, api } = await current();
-    const response = await send(`${api}/models`, { headers: { Authorization: `Bearer ${token}`, Accept: 'application/json', ...EDITOR } }, sleep, quiet);
-    const body = (await response.json()) as { data?: readonly { id?: unknown; version?: unknown; supported_endpoints?: unknown }[] };
+    const body = (await send(`${api}/models`, { headers: { Authorization: `Bearer ${token}`, Accept: 'application/json', ...EDITOR } }, sleep, quiet, requestMs)) as { data?: readonly { id?: unknown; version?: unknown; supported_endpoints?: unknown }[] };
     const listed = body.data?.find((entry) => entry.id === model);
     if (!listed) throw new JudgeUnavailable('provider-error', `${model} is not listed by ${api}/models`);
     if (Array.isArray(listed.supported_endpoints) && !listed.supported_endpoints.includes('/responses')) {
@@ -252,14 +260,13 @@ export function copilotTransport(options: { readonly credential: Credential; rea
         tool_choice: 'required',
       };
       if (!NO_TEMPERATURE.includes(familyOf(request.model))) body.temperature = 0;
-      const response = await send(`${api}/responses`, {
+      const reply = (await send(`${api}/responses`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', Accept: 'application/json', ...EDITOR },
         body: JSON.stringify(body),
       }, sleep, () => {
         posts += 1;
-      });
-      const reply = (await response.json()) as { status?: unknown; output?: readonly { type?: unknown; name?: unknown; arguments?: unknown }[]; usage?: { input_tokens?: unknown; output_tokens?: unknown } };
+      }, requestMs)) as { status?: unknown; output?: readonly { type?: unknown; name?: unknown; arguments?: unknown }[]; usage?: { input_tokens?: unknown; output_tokens?: unknown } };
       const called = reply.output?.find((item) => item.type === 'function_call' && item.name === request.tool.name);
       if (typeof called?.arguments !== 'string') throw new JudgeUnavailable('bad-reply', `the reply has no ${request.tool.name} call (status ${String(reply.status)})`);
       let args: unknown;
@@ -635,14 +642,14 @@ function splitReply(spec: AnyTask, units: readonly Unit[], args: unknown): Map<n
   return good;
 }
 
-export async function openJudge(mode: JudgeMode, cacheDir: string, deps: { readonly env?: Env; readonly home?: string; readonly hosts?: Hosts; readonly sleep?: Sleep; readonly log?: (line: string) => void } = {}): Promise<Judge> {
+export async function openJudge(mode: JudgeMode, cacheDir: string, deps: { readonly env?: Env; readonly home?: string; readonly hosts?: Hosts; readonly sleep?: Sleep; readonly requestMs?: number; readonly log?: (line: string) => void } = {}): Promise<Judge> {
   const model = mode.kind === 'live' ? mode.config.model : mode.model;
   let transport: Transport | null = null;
   let version: string | null;
   if (mode.kind === 'live') {
     const credential = loadCredential(mode.config.provider.tokenEnv, deps.env ?? process.env, deps.home ?? os.homedir());
     if (!credential) throw new JudgeAuthError(`no Copilot token. ${SIGN_IN}`);
-    transport = copilotTransport({ credential, ...(deps.hosts ? { hosts: deps.hosts } : {}), ...(deps.sleep ? { sleep: deps.sleep } : {}) });
+    transport = copilotTransport({ credential, ...(deps.hosts ? { hosts: deps.hosts } : {}), ...(deps.sleep ? { sleep: deps.sleep } : {}), ...(deps.requestMs ? { requestMs: deps.requestMs } : {}) });
     version = await transport.pin(mode.config.model);
     writePin(cacheDir, mode.config.model, version);
   } else {
