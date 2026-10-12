@@ -2,10 +2,12 @@
  * node harness/cli.ts <command>. A thin shell: parse argv, call one module function per step, print, set the exit code.
  *
  *   check-system <system.json>                    build on out/_example, parse, resolve, print every page; no gold, no judge
- *   facts [--check] [--cross-check <judge.json>]   freeze prose facts and paraphrases from gold, list sets for owner review
- *   calibrate [--judge <judge.json> | --offline] [--repeats 1]
- *   run --system <system.json>... [--trials 3] [--repo <slug>]... [--judge <judge.json> | --offline]
- *       [--resume <runId>] [--rescore] [--uncalibrated] [--unblinded] [--allow-shared-judge-family]
+ *   facts [--repo <slug>]... [--judge <judge.json>] [--cross-check <judge.json>] [--plan] [--max-calls 400]
+ *                                                 freeze prose facts and paraphrases from gold, then write the review sheets
+ *   reviews [--repo <slug>]...                    write the currency and fact review sheets for the owner
+ *   calibrate [--repo <slug>]... [--judge <judge.json> | --offline] [--plan] [--max-calls 400]
+ *   run --system <system.json>... [--trials 1] [--repo <slug>]... [--judge <judge.json> | --offline | --no-judge]
+ *       [--max-calls 400] [--resume <runId>] [--rescore] [--allow-shared-judge-family]
  *   report <runId>                                re-render report.json and report.md
  *   render --run <runId> --system <name> --repo <slug> [--topic <id>] [--from <day> --to <day>]
  *   compare <runId> <runId>                       items whose usable verdict flipped, by gold id
@@ -17,21 +19,27 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { calibrate, findStamp, renderCalibration, stampInputs } from './calibrate.ts';
+import { freezeFacts } from './facts.ts';
 import { discoverRepos, loadGold } from './gold.ts';
-import type { Slug } from './gold.ts';
+import type { Gold, Slug } from './gold.ts';
+import { assertFamilySeparation, familyOf, openJudge, parseJudgeConfig } from './judge.ts';
+import type { Judge, JudgeConfig } from './judge.ts';
+import { writeCurrencySheet, writeFactsSheet } from './reviews.ts';
 import { buildReport, renderMarkdown } from './report.ts';
-import { checkSystem, detectSandbox, loadRun, parseManifest, run } from './run.ts';
+import { checkSystem, detectSandbox, loadRun, MAX_LIVE_CALLS, parseManifest, run } from './run.ts';
 import type { RunId } from './run.ts';
 import { changeIds, factsOf, openFixture } from './record.ts';
 import { parseSnapshot } from './contract.ts';
 import { renderPage, renderTimeline } from './view.ts';
 
-type JudgeChoice = { readonly kind: 'file'; readonly path: string } | { readonly kind: 'offline' };
+type JudgeChoice = { readonly kind: 'file'; readonly path: string } | { readonly kind: 'offline' } | { readonly kind: 'none' };
 
 export type Command =
   | { readonly kind: 'check-system'; readonly manifest: string; readonly repo: string | null }
-  | { readonly kind: 'facts'; readonly check: boolean; readonly crossCheck: string | null }
-  | { readonly kind: 'calibrate'; readonly judge: JudgeChoice; readonly repeats: number }
+  | { readonly kind: 'facts'; readonly repos: readonly string[]; readonly judge: string; readonly crossCheck: string; readonly plan: boolean; readonly maxCalls: number }
+  | { readonly kind: 'reviews'; readonly repos: readonly string[] }
+  | { readonly kind: 'calibrate'; readonly repos: readonly string[]; readonly judge: JudgeChoice; readonly plan: boolean; readonly maxCalls: number }
   | {
       readonly kind: 'run';
       readonly manifests: readonly [string, ...string[]];
@@ -43,7 +51,7 @@ export type Command =
       readonly uncalibrated: boolean;
       readonly unblinded: boolean;
       readonly allowSharedJudgeFamily: boolean;
-      readonly noJudge: boolean;
+      readonly maxCalls: number;
     }
   | { readonly kind: 'report'; readonly runId: string }
   | { readonly kind: 'render'; readonly runId: string; readonly system: string; readonly repo: string; readonly topic: string | null; readonly range: { readonly from: string; readonly to: string } | null }
@@ -71,8 +79,34 @@ function flags(argv: readonly string[], name: string): string[] {
   return out;
 }
 
+const DEFAULT_JUDGE = 'harness/judge.json';
+
+function judgeChoice(rest: readonly string[]): JudgeChoice {
+  const given = [rest.includes('--offline'), rest.includes('--no-judge'), rest.includes('--judge')].filter(Boolean).length;
+  if (given > 1) throw new Error('pick one of --judge <judge.json>, --offline, and --no-judge');
+  if (rest.includes('--offline')) return { kind: 'offline' };
+  if (rest.includes('--no-judge')) return { kind: 'none' };
+  return { kind: 'file', path: flag(rest, '--judge') ?? DEFAULT_JUDGE };
+}
+
+function maxCalls(rest: readonly string[]): number {
+  const raw = flag(rest, '--max-calls');
+  const value = raw === null ? MAX_LIVE_CALLS : Number(raw);
+  if (!Number.isInteger(value) || value < 0) throw new Error('--max-calls needs a whole number');
+  return value;
+}
+
 export function parseArgs(argv: readonly string[]): Command {
   const [command, ...rest] = argv;
+  if (command === 'facts') {
+    return { kind: 'facts', repos: flags(rest, '--repo'), judge: flag(rest, '--judge') ?? DEFAULT_JUDGE, crossCheck: flag(rest, '--cross-check') ?? 'harness/cross-check.json', plan: rest.includes('--plan'), maxCalls: maxCalls(rest) };
+  }
+  if (command === 'reviews') return { kind: 'reviews', repos: flags(rest, '--repo') };
+  if (command === 'calibrate') {
+    const judge = judgeChoice(rest);
+    if (judge.kind === 'none') throw new Error('calibrate needs a judge; use --judge <judge.json> or --offline');
+    return { kind: 'calibrate', repos: flags(rest, '--repo'), judge, plan: rest.includes('--plan'), maxCalls: maxCalls(rest) };
+  }
   if (command === 'check-system') {
     const manifest = rest.find((arg) => !arg.startsWith('--'));
     if (!manifest) throw new Error('usage: check-system <system.json> [--repo <slug>]');
@@ -80,7 +114,7 @@ export function parseArgs(argv: readonly string[]): Command {
   }
   if (command === 'run') {
     const manifests = flags(rest, '--system');
-    if (manifests.length === 0) throw new Error('usage: run --system <system.json> [--repo <slug>] [--trials 1] --no-judge [--unblinded]');
+    if (manifests.length === 0) throw new Error('usage: run --system <system.json> [--repo <slug>] [--trials 1] [--judge <judge.json> | --offline | --no-judge]');
     const from = flag(rest, '--from');
     const to = flag(rest, '--to');
     if ((from === null) !== (to === null)) throw new Error('--from and --to come together');
@@ -89,13 +123,13 @@ export function parseArgs(argv: readonly string[]): Command {
       manifests: manifests as [string, ...string[]],
       trials: Number(flag(rest, '--trials') ?? 1),
       repos: flags(rest, '--repo'),
-      judge: { kind: 'offline' },
+      judge: judgeChoice(rest),
       resume: flag(rest, '--resume'),
       rescore: rest.includes('--rescore'),
       uncalibrated: true,
       unblinded: true,
       allowSharedJudgeFamily: rest.includes('--allow-shared-judge-family'),
-      noJudge: rest.includes('--no-judge') || !rest.includes('--judge'),
+      maxCalls: maxCalls(rest),
     };
   }
   if (command === 'report') {
@@ -113,11 +147,36 @@ export function parseArgs(argv: readonly string[]): Command {
     if ((from === null) !== (to === null)) throw new Error('--from and --to come together');
     return { kind: 'render', runId, system, repo, topic: flag(rest, '--topic'), range: from && to ? { from, to } : null };
   }
-  throw new Error('usage: check-system | run | report | render');
+  throw new Error('usage: check-system | facts | reviews | calibrate | run | report | render');
 }
 
 const HARNESS_DIR = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HARNESS_DIR, '..');
+const CACHE_DIR = path.join(HARNESS_DIR, '.cache');
+const FACTS_DIR = path.join(HARNESS_DIR, 'facts');
+const REVIEWS_DIR = path.join(HARNESS_DIR, 'reviews');
+
+const say = (line: string): void => console.log(line);
+const progress = (line: string): void => console.error(line);
+
+async function judgeFor(choice: JudgeChoice): Promise<Judge | null> {
+  if (choice.kind === 'none') return null;
+  if (choice.kind === 'offline') {
+    const config = parseJudgeConfig(path.resolve(ROOT, DEFAULT_JUDGE));
+    return openJudge({ kind: 'offline', model: config.model }, CACHE_DIR);
+  }
+  return openJudge({ kind: 'live', config: parseJudgeConfig(path.resolve(ROOT, choice.path)) }, CACHE_DIR, { log: progress });
+}
+
+function goldsOf(outDir: string, repos: readonly string[]): Gold[] {
+  const slugs = (repos.length > 0 ? repos : discoverRepos(outDir)) as Slug[];
+  return slugs.map((slug) => loadGold(outDir, slug));
+}
+
+function judgeLine(judge: Judge): string {
+  const stats = judge.stats();
+  return `judge ${judge.model}@${judge.version}: ${stats.calls} live calls, ${stats.asked} units asked, ${stats.hits} cache hits, ${stats.failed} failed, ${stats.inputTokens} input and ${stats.outputTokens} output tokens`;
+}
 
 export async function main(argv: readonly string[]): Promise<number> {
   const command = parseArgs(argv);
@@ -128,28 +187,69 @@ export async function main(argv: readonly string[]): Promise<number> {
     for (const line of result.lines) console.log(line);
     return result.ok ? 0 : 1;
   }
-  if (command.kind === 'run') {
-    if (!command.noJudge) {
-      console.error('this slice has no judge; pass --no-judge');
-      return 2;
+  if (command.kind === 'facts') {
+    const golds = goldsOf(outDir, command.repos);
+    const extractorConfig = parseJudgeConfig(path.resolve(ROOT, command.judge));
+    const checkerConfig = parseJudgeConfig(path.resolve(ROOT, command.crossCheck));
+    if (familyOf(extractorConfig.model) === familyOf(checkerConfig.model)) throw new Error(`the cross-check must use another family than ${extractorConfig.model}`);
+    const open = (config: JudgeConfig): Promise<Judge> => (command.plan ? openJudge({ kind: 'offline', model: config.model }, CACHE_DIR) : openJudge({ kind: 'live', config }, CACHE_DIR, { log: progress }));
+    const extractor = await open(extractorConfig);
+    const checker = await open(checkerConfig);
+    for (const gold of golds) {
+      const report = await freezeFacts(gold, { factsDir: FACTS_DIR, extractor, checker, maxCalls: command.maxCalls, planOnly: command.plan, log: say });
+      say(`${gold.slug}: ${report.kept} fact sets kept, ${report.frozen} frozen, ${report.flagged.length} flagged for the owner`);
     }
+    if (!command.plan) {
+      say(judgeLine(extractor));
+      say(judgeLine(checker));
+      say(`wrote ${path.relative(ROOT, writeFactsSheet(golds, FACTS_DIR, REVIEWS_DIR))} and ${path.relative(ROOT, writeCurrencySheet(golds, outDir, REVIEWS_DIR))}`);
+    }
+    return 0;
+  }
+  if (command.kind === 'reviews') {
+    const golds = goldsOf(outDir, command.repos);
+    say(`wrote ${path.relative(ROOT, writeFactsSheet(golds, FACTS_DIR, REVIEWS_DIR))} and ${path.relative(ROOT, writeCurrencySheet(golds, outDir, REVIEWS_DIR))}`);
+    return 0;
+  }
+  if (command.kind === 'calibrate') {
+    const golds = goldsOf(outDir, command.repos);
+    const judge = command.plan && command.judge.kind === 'file'
+      ? await openJudge({ kind: 'offline', model: parseJudgeConfig(path.resolve(ROOT, command.judge.path)).model }, CACHE_DIR)
+      : await judgeFor(command.judge);
+    if (!judge) return 2;
+    say(`calibrating on ${golds.map((gold) => gold.slug).join(', ')}`);
+    const calibration = await calibrate(golds, { outDir, runsDir, factsDir: FACTS_DIR, reviewsDir: REVIEWS_DIR, cacheDir: CACHE_DIR, judge, planOnly: command.plan, maxCalls: command.maxCalls, log: say });
+    for (const line of renderCalibration(calibration)) say(line);
+    if (!command.plan) say(judgeLine(judge));
+    return command.plan || calibration.stamp ? 0 : 1;
+  }
+  if (command.kind === 'run') {
     const slugs = (command.repos.length > 0 ? command.repos : discoverRepos(outDir)) as Slug[];
+    const systems = command.manifests.map((file) => parseManifest(path.resolve(file))) as [ReturnType<typeof parseManifest>, ...ReturnType<typeof parseManifest>[]];
+    const judge = await judgeFor(command.judge);
+    if (judge?.model && command.judge.kind === 'file') assertFamilySeparation(parseJudgeConfig(path.resolve(ROOT, command.judge.path)), systems, command.allowSharedJudgeFamily);
+    const golds = slugs.map((slug) => loadGold(outDir, slug));
+    const stamp = judge ? findStamp(CACHE_DIR, stampInputs(golds, judge, { factsDir: FACTS_DIR, reviewsDir: REVIEWS_DIR })) : null;
     const runId = await run({
       outDir,
       runsDir,
-      factsDir: path.join(HARNESS_DIR, 'facts'),
-      reviewedDir: path.join(HARNESS_DIR, 'reviewed'),
-      cacheDir: path.join(HARNESS_DIR, '.cache'),
-      systems: command.manifests.map((file) => parseManifest(path.resolve(file))) as [ReturnType<typeof parseManifest>, ...ReturnType<typeof parseManifest>[]],
+      factsDir: FACTS_DIR,
+      reviewedDir: REVIEWS_DIR,
+      cacheDir: CACHE_DIR,
+      systems,
       trials: command.trials,
       slugs,
-      judge: { kind: 'offline', model: null },
+      judge: judge?.model ? { kind: 'offline', model: judge.model } : { kind: 'offline', model: null },
       sandbox: detectSandbox(command.unblinded),
-      calibration: 'uncalibrated',
+      calibration: stamp ? stamp.key : 'uncalibrated',
       allowSharedJudgeFamily: command.allowSharedJudgeFamily,
-    }, command.resume as RunId | null);
+      maxCalls: command.maxCalls,
+      rescore: command.rescore,
+      log: say,
+    }, command.resume as RunId | null, judge);
+    if (judge) say(judgeLine(judge));
     const loaded = loadRun(runsDir, runId);
-    const report = buildReport(loaded, slugs.map((slug) => loadGold(outDir, slug)), { kind: 'uncalibrated' });
+    const report = buildReport(loaded, golds, stamp ? { kind: 'stamp', key: stamp.key, result: stamp } : { kind: 'uncalibrated' });
     const dir = path.join(runsDir, runId);
     fs.writeFileSync(path.join(dir, 'report.json'), `${JSON.stringify(report, null, 2)}\n`);
     fs.writeFileSync(path.join(dir, 'report.md'), renderMarkdown(report));

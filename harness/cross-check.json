@@ -1,0 +1,5 @@
+{
+  "model": "gpt-5.5",
+  "provider": { "kind": "github-copilot", "tokenEnv": "GITHUB_COPILOT_TOKEN" },
+  "concurrency": 8
+}
