@@ -7,9 +7,15 @@
  * `views` key (fixtures/views.schema.mjs). The calibration oracle is the gold, corruptions are transforms of it, and
  * every metric reads gold and system through the same types. What gold knows beyond a snapshot sits in GoldExtras.
  */
+import fs from 'node:fs';
+import path from 'node:path';
+import { parseSnapshot } from './contract.ts';
 import type { ChangeId, Claim, LocalId, RecordSource, Snapshot, Verdict } from './contract.ts';
+import { hashOf } from './hash.ts';
 import type { Hash } from './hash.ts';
+import { kindOf, screensOf } from './view.ts';
 import type { Audience, RepoFacts } from './view.ts';
+import { factsOf as gitFacts } from '../fixtures/lib/facts.mjs';
 import { MIN_CURRENCY_CLAIMS, MIN_GAP_OBJECTS } from '../fixtures/views.schema.mjs';
 
 export type Slug = string & { readonly __brand: 'Slug' };
@@ -19,7 +25,10 @@ export type EntryId = string & { readonly __brand: 'EntryId' };
 
 /** Repos are discovered, never listed. A repo is every out/<slug>/gold.json whose slug does not start with "_". */
 export function discoverRepos(outDir: string): readonly Slug[] {
-  throw new Error('not implemented');
+  if (!fs.existsSync(outDir)) return [];
+  return fs.readdirSync(outDir)
+    .filter((name) => !name.startsWith('_') && fs.existsSync(path.join(outDir, name, 'gold.json')))
+    .sort() as Slug[];
 }
 
 export type GoldExtras = {
@@ -45,14 +54,64 @@ export type Gold = {
   readonly hash: Hash;
 };
 
+function asMap<K extends string, V>(raw: Record<string, V> | undefined): ReadonlyMap<K, V> {
+  return new Map(Object.entries(raw ?? {})) as unknown as ReadonlyMap<K, V>;
+}
+
+function dropDecoy(snapshot: Snapshot): Snapshot {
+  return { ...snapshot, decisions: snapshot.decisions.filter((decision) => !decision.id.startsWith(DECOY.idPrefix)) };
+}
+
 /** Reads out/<slug>/gold.json. A defect in gold is a generator bug, so parseSnapshot failing here throws. */
 export function loadGold(outDir: string, slug: Slug): Gold {
-  throw new Error('not implemented');
+  const goldFile = path.join(outDir, slug, 'gold.json');
+  const canaryFile = path.join(outDir, slug, 'canaries.json');
+  const raw = JSON.parse(fs.readFileSync(goldFile, 'utf8')) as {
+    oracle: unknown;
+    extras: {
+      core: Record<string, readonly string[]>;
+      anchors: Record<string, readonly [RecordSource, ...RecordSource[]]>;
+      findings: Record<string, readonly string[]>;
+      claims: readonly string[];
+      undone: readonly string[];
+      covers: Record<string, readonly string[]>;
+    };
+  };
+  const github = JSON.parse(fs.readFileSync(path.join(outDir, slug, 'github.json'), 'utf8')) as { repo: { owner: string; name: string } };
+  const facts = gitFacts(path.join(outDir, slug, 'repo'), github) as { head: string; changes: readonly { id: string }[] };
+  const parsed = parseSnapshot(JSON.stringify(raw.oracle), {
+    repo: { owner: github.repo.owner, name: github.repo.name },
+    head: facts.head,
+    changes: new Set(facts.changes.map((change) => change.id as ChangeId)),
+  });
+  if (!parsed.ok) {
+    throw new Error(`gold ${slug} failed parse: ${parsed.errors.map((error) => `${error.path}: ${error.what}`).join('; ')}`);
+  }
+  return {
+    slug,
+    oracle: dropDecoy(parsed.snapshot),
+    extras: {
+      core: asMap(raw.extras.core),
+      anchors: asMap(raw.extras.anchors),
+      findings: asMap<ChangeId, readonly GoldId[]>(raw.extras.findings as Record<string, readonly GoldId[]>),
+      claims: raw.extras.claims as readonly GoldId[],
+      undone: raw.extras.undone as readonly GoldId[],
+      covers: asMap<EntryId, readonly (GoldId | ChangeId)[]>(raw.extras.covers as Record<string, readonly (GoldId | ChangeId)[]>),
+    },
+    hash: hashOf(fs.readFileSync(goldFile).toString('base64'), fs.readFileSync(canaryFile).toString('base64')),
+  };
 }
 
 /** A gap object is a decision or finding whose why is not-recorded. A currency claim is any claim, any verdict. */
 export function countCoverage(golds: readonly Gold[]): { readonly gaps: number; readonly claims: number } {
-  throw new Error('not implemented');
+  let gaps = 0;
+  let claims = 0;
+  for (const gold of golds) {
+    claims += gold.oracle.claims.length;
+    gaps += gold.oracle.decisions.filter((decision) => decision.why.kind === 'not-recorded').length;
+    gaps += gold.oracle.changes.reduce((n, change) => n + change.findings.filter((finding) => finding.why.kind === 'not-recorded').length, 0);
+  }
+  return { gaps, claims };
 }
 
 /** The owner's floors, imported from fixtures/views.schema.mjs, the one copy the generator also reads. */
@@ -90,7 +149,32 @@ export const SLICES = {
 
 /** One item per gold topic, claim, decision, finding, change, undone group, and screen in view.ts screensOf(oracle). */
 export function itemsOf(gold: Gold, facts: RepoFacts): readonly GoldItem[] {
-  throw new Error('not implemented');
+  const items: GoldItem[] = [];
+  for (const topic of gold.oracle.topics) items.push({ kind: 'topic', expect: 'page', id: topic.id as GoldId });
+  gold.oracle.claims.forEach((claim, index) => {
+    items.push({ kind: 'claim', expect: claim.verdict === 'still-true' ? 'holds' : 'changed', id: (gold.extras.claims[index] ?? `claim-${index}`) as GoldId });
+  });
+  for (const decision of gold.oracle.decisions) {
+    items.push({ kind: 'decision', expect: decision.why.kind === 'not-recorded' ? 'gap' : 'reason', id: decision.id as GoldId });
+  }
+  for (const change of gold.oracle.changes) {
+    const ids = gold.extras.findings.get(change.id) ?? [];
+    change.findings.forEach((finding, index) => {
+      const id = ids[index];
+      if (!id) return;
+      items.push({ kind: 'finding', expect: finding.why.kind === 'not-recorded' ? 'gap' : 'reason', id: id as GoldId, change: change.id });
+    });
+    items.push({ kind: 'change', expect: kindOf(change.id, gold.oracle, facts) === 'routine' ? 'routine' : 'notable', id: change.id });
+  }
+  gold.oracle.undone.forEach((group, index) => {
+    items.push({ kind: 'undone', expect: 'net', id: (gold.extras.undone[index] ?? `undone:${group.changes[0]}`) as GoldId });
+  });
+  for (const screen of screensOf(gold.oracle, facts)) {
+    items.push(screen.kind === 'page'
+      ? { kind: 'screen', expect: 'page', id: `page:${screen.topic}` }
+      : { kind: 'screen', expect: 'timeline', id: `${screen.preset}:${screen.range.topic}` });
+  }
+  return items;
 }
 
 // Alignment: how objects a system named differently meet gold. Deterministic, no judge.
@@ -131,8 +215,138 @@ export type Alignment = {
 /** Supplied by record.ts: the canonical object and character span of a record source, or null when it does not resolve. */
 export type AnchorResolver = (source: RecordSource) => { readonly object: string; readonly revision: number; readonly span: readonly [number, number] } | null;
 
+type Span = { readonly object: string; readonly revision: number; readonly span: readonly [number, number] };
+
+function overlapLength(left: Span | null, right: Span | null): number {
+  if (!left || !right || left.object !== right.object || left.revision !== right.revision) return 0;
+  return Math.max(0, Math.min(left.span[1], right.span[1]) - Math.max(left.span[0], right.span[0]));
+}
+
+function topicScore(core: readonly string[], files: readonly string[], allCores: ReadonlySet<string>): number {
+  const coreSet = new Set(core);
+  const relevant = files.filter((file) => allCores.has(file));
+  const inter = relevant.filter((file) => coreSet.has(file)).length;
+  const union = new Set([...coreSet, ...relevant]).size;
+  return union === 0 ? 1 : inter / union;
+}
+
+function uniqueMax<T extends { readonly id: string; readonly overlap: number }>(rows: readonly T[]): T | null {
+  const positive = rows.filter((row) => row.overlap > 0);
+  if (positive.length === 0) return null;
+  const max = Math.max(...positive.map((row) => row.overlap));
+  const tops = positive.filter((row) => row.overlap === max);
+  return tops.length === 1 ? tops[0] ?? null : null;
+}
+
 export function align(gold: Gold, system: Snapshot, resolve: AnchorResolver): Alignment {
-  throw new Error('not implemented');
+  const topics = new Map<GoldId, LocalId>();
+  const goldRoot = gold.oracle.topics.find((topic) => topic.parent === null);
+  const systemRoot = system.topics.find((topic) => topic.parent === null);
+  if (goldRoot && systemRoot) topics.set(goldRoot.id as GoldId, systemRoot.id);
+  const allCores = new Set<string>();
+  for (const files of gold.extras.core.values()) for (const file of files) allCores.add(file);
+  const topicPairs: { readonly gold: string; readonly system: string; readonly score: number; readonly order: number }[] = [];
+  gold.oracle.topics.filter((topic) => topic.parent !== null).forEach((topic, order) => {
+    const core = gold.extras.core.get(topic.id as GoldId) ?? [];
+    for (const candidate of system.topics) {
+      if (candidate.parent === null) continue;
+      const score = topicScore(core, candidate.files, allCores);
+      if (score >= 0.5) topicPairs.push({ gold: topic.id, system: candidate.id, score, order });
+    }
+  });
+  topicPairs.sort((a, b) => b.score - a.score || a.order - b.order || (a.gold < b.gold ? -1 : 1));
+  const usedTopics = new Set<string>(systemRoot ? [systemRoot.id] : []);
+  for (const pair of topicPairs) {
+    if (topics.has(pair.gold as GoldId) || usedTopics.has(pair.system)) continue;
+    topics.set(pair.gold as GoldId, pair.system);
+    usedTopics.add(pair.system);
+  }
+
+  const findingPairs: { readonly gold: string; readonly change: ChangeId; readonly index: number; readonly overlap: number; readonly quote: string }[] = [];
+  for (const change of system.changes) {
+    const ids = gold.extras.findings.get(change.id) ?? [];
+    change.findings.forEach((finding, index) => {
+      const best = uniqueMax(ids.map((id) => ({
+        id,
+        overlap: Math.max(0, ...(gold.extras.anchors.get(id as GoldId) ?? []).map((anchor) => overlapLength(resolve(finding.anchor), resolve(anchor)))),
+      })));
+      if (best) findingPairs.push({ gold: best.id, change: change.id, index, overlap: best.overlap, quote: finding.anchor.quote });
+    });
+  }
+  findingPairs.sort((a, b) => b.overlap - a.overlap || (a.gold < b.gold ? -1 : a.gold > b.gold ? 1 : a.quote < b.quote ? -1 : 1));
+  const findings = new Map<GoldId, { readonly change: ChangeId; readonly index: number }>();
+  const usedFindings = new Set<string>();
+  for (const pair of findingPairs) {
+    const key = `${pair.change}/${pair.index}`;
+    if (findings.has(pair.gold as GoldId) || usedFindings.has(key)) continue;
+    findings.set(pair.gold as GoldId, { change: pair.change, index: pair.index });
+    usedFindings.add(key);
+  }
+
+  const decisionPairs: { readonly gold: string; readonly index: number; readonly overlap: number; readonly quote: string }[] = [];
+  system.decisions.forEach((decision, index) => {
+    const rows = gold.oracle.decisions.map((item) => ({
+      id: item.id,
+      overlap: Math.max(0, ...(gold.extras.anchors.get(item.id as GoldId) ?? []).map((anchor) => overlapLength(resolve(decision.what.source), resolve(anchor)))),
+    }));
+    const best = uniqueMax(rows);
+    if (best) decisionPairs.push({ gold: best.id, index, overlap: best.overlap, quote: decision.what.source.quote });
+  });
+  decisionPairs.sort((a, b) => b.overlap - a.overlap || (a.gold < b.gold ? -1 : a.gold > b.gold ? 1 : a.quote < b.quote ? -1 : 1));
+  const decisions = new Map<GoldId, number>();
+  const usedDecisions = new Set<number>();
+  for (const pair of decisionPairs) {
+    if (decisions.has(pair.gold as GoldId) || usedDecisions.has(pair.index)) continue;
+    decisions.set(pair.gold as GoldId, pair.index);
+    usedDecisions.add(pair.index);
+  }
+
+  const head7 = gold.oracle.head.slice(0, 7);
+  const claimSpan = (pathName: string, quote: string): Span | null => resolve({ kind: 'record', ref: `${head7}:${pathName}`, quote });
+  const claimPairs: { readonly gold: string; readonly index: number; readonly overlap: number; readonly quote: string }[] = [];
+  system.claims.forEach((claim, index) => {
+    const span = claimSpan(claim.sentence.path, claim.sentence.quote);
+    const rows = gold.oracle.claims.map((item, goldIndex) => ({
+      id: gold.extras.claims[goldIndex] ?? '',
+      overlap: item.sentence.path === claim.sentence.path ? overlapLength(span, claimSpan(item.sentence.path, item.sentence.quote)) : 0,
+    }));
+    const best = uniqueMax(rows);
+    if (best) claimPairs.push({ gold: best.id, index, overlap: best.overlap, quote: claim.sentence.quote });
+  });
+  claimPairs.sort((a, b) => b.overlap - a.overlap || (a.gold < b.gold ? -1 : a.gold > b.gold ? 1 : a.quote < b.quote ? -1 : 1));
+  const claims = new Map<GoldId, number>();
+  const usedClaims = new Set<number>();
+  for (const pair of claimPairs) {
+    if (!pair.gold || claims.has(pair.gold as GoldId) || usedClaims.has(pair.index)) continue;
+    claims.set(pair.gold as GoldId, pair.index);
+    usedClaims.add(pair.index);
+  }
+
+  const undone = new Map<GoldId, number>();
+  const memberKey = (ids: readonly string[]): string => [...ids].sort().join('\n');
+  const goldUndone = new Map(gold.oracle.undone.map((group, index) => [memberKey(group.changes), gold.extras.undone[index] ?? '']));
+  const usedUndone = new Set<string>();
+  system.undone.forEach((group, index) => {
+    const id = goldUndone.get(memberKey(group.changes));
+    if (!id || usedUndone.has(id)) return;
+    usedUndone.add(id);
+    undone.set(id as GoldId, index);
+  });
+
+  return {
+    topics,
+    decisions,
+    findings,
+    claims,
+    undone,
+    extras: {
+      topics: system.topics.filter((topic) => ![...topics.values()].includes(topic.id)).map((topic) => topic.id),
+      decisions: system.decisions.filter((_, index) => !usedDecisions.has(index)).map((decision) => decision.id),
+      findings: system.changes.flatMap((change) => change.findings.flatMap((_, index) => (usedFindings.has(`${change.id}/${index}`) ? [] : [{ change: change.id, index }]))),
+      claims: system.claims.filter((claim, index) => claim.verdict !== 'still-true' && !usedClaims.has(index)),
+      undone: system.undone.flatMap((_, index) => ([...undone.values()].includes(index) ? [] : [index])),
+    },
+  };
 }
 
 // Frozen prose facts: the yardstick for every judged field.
@@ -164,7 +378,10 @@ export type FactsStatus =
 
 /** Reads harness/facts/<slug>.json. */
 export function loadFacts(factsDir: string, gold: Gold): { readonly facts: ReadonlyMap<FactKey, FactSet>; readonly status: FactsStatus } {
-  throw new Error('not implemented');
+  const file = path.join(factsDir, `${gold.slug}.json`);
+  if (!fs.existsSync(file)) return { facts: new Map(), status: { kind: 'missing', keys: [`${gold.slug}/missing/headline/eng` as FactKey] } };
+  const raw = JSON.parse(fs.readFileSync(file, 'utf8')) as Record<string, FactSet>;
+  return { facts: new Map(Object.entries(raw)) as ReadonlyMap<FactKey, FactSet>, status: { kind: 'current' } };
 }
 
 // The owner's currency review.
@@ -187,7 +404,11 @@ export type ReviewGap =
   | { readonly kind: 'disagrees'; readonly claims: readonly string[] };
 
 export function checkCurrencyReview(file: string, golds: readonly Gold[]): readonly ReviewGap[] {
-  throw new Error('not implemented');
+  if (!fs.existsSync(file)) {
+    const claims = golds.flatMap((gold) => gold.extras.claims.map((id) => `${gold.slug}/${id}`));
+    return claims.length === 0 ? [] : [{ kind: 'unreviewed', claims }];
+  }
+  return [];
 }
 
 // Leak control.
@@ -202,7 +423,9 @@ export type Canary = {
  * "f-double"). Bare topic ids ("counting") are ordinary words and are excluded, as "head" is from spec keys.
  */
 export function loadCanaries(outDir: string, slug: Slug): readonly Canary[] {
-  throw new Error('not implemented');
+  const file = path.join(outDir, slug, 'canaries.json');
+  if (!fs.existsSync(file)) return [];
+  return JSON.parse(fs.readFileSync(file, 'utf8')) as Canary[];
 }
 
 /**
@@ -220,6 +443,36 @@ export type LeakFinding =
 /** Share of an object's gold-only 6-grams (gold prose minus the record) that marks a copied object. */
 export const LEAK_GRAM_SHARE = 0.25;
 
+function proseOf(value: unknown, out: string[]): void {
+  if (Array.isArray(value)) {
+    for (const item of value) proseOf(item, out);
+    return;
+  }
+  if (!value || typeof value !== 'object') return;
+  const record = value as Record<string, unknown>;
+  if (typeof record.eng === 'string') out.push(record.eng);
+  if (typeof record.plain === 'string') out.push(record.plain);
+  if (typeof record.quote === 'string') out.push(record.quote);
+  for (const [key, child] of Object.entries(record)) {
+    if (key === 'id' || key === 'ref') continue;
+    proseOf(child, out);
+  }
+}
+
 export function findLeaks(system: Snapshot, canaries: readonly Canary[], goldOnlyGrams: ReadonlyMap<GoldId, ReadonlySet<string>>, alignment: Alignment): readonly LeakFinding[] {
-  throw new Error('not implemented');
+  const prose: string[] = [];
+  proseOf(system, prose);
+  const text = prose.join('\n');
+  const findings: LeakFinding[] = [];
+  for (const canary of canaries) {
+    if (text.includes(canary.text)) findings.push({ kind: 'canary', canary, where: 'snapshot' });
+  }
+  for (const [id, grams] of goldOnlyGrams) {
+    if (grams.size === 0) continue;
+    let matched = 0;
+    for (const gram of grams) if (text.includes(gram)) matched += 1;
+    if (matched / grams.size >= LEAK_GRAM_SHARE) findings.push({ kind: 'gold-phrasing', matched, of: grams.size, object: id });
+  }
+  void alignment;
+  return findings;
 }

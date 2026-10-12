@@ -85,7 +85,29 @@ export const INVARIANTS = [
 export type InvariantId = (typeof INVARIANTS)[number]['id'];
 
 export function nullSnapshot(facts: RepoFacts): Snapshot {
-  throw new Error('not implemented');
+  const head7 = facts.head.slice(0, 7);
+  const root = 'root';
+  return {
+    version: 1,
+    head: facts.head,
+    topics: [{
+      id: root,
+      parent: null,
+      name: { eng: 'Repository', plain: 'The project' },
+      files: [],
+      words: [],
+      start: { kind: 'record', ref: `${head7}:README.md#L1`, quote: 'Repository' },
+      docs: [],
+      headline: [{ eng: 'A repository.', plain: 'A project.', source: { kind: 'record', ref: head7, quote: 'Repository' } }],
+      example: null,
+    }],
+    changes: facts.changes.map((change) => ({ id: change.id, topics: [root], findings: [], routine: [] })),
+    decisions: [],
+    claims: [],
+    undone: [],
+    runs: [],
+    usage: null,
+  };
 }
 
 export function paraphraseSnapshot(gold: Gold, prose: ReadonlyMap<FactKey, FactSet>): Snapshot {

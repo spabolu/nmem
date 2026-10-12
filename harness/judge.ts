@@ -27,8 +27,15 @@ export const FAMILY_BY_PREFIX = [
 ] as const satisfies readonly (readonly [string, ModelFamily])[];
 
 export function familyOf(model: string): ModelFamily {
-  // TODO: strip a provider prefix ("github-copilot/", "xai/") and a "#variant" suffix, then the first matching prefix.
-  throw new Error('not implemented');
+  const bare = model.replace(/^[^/]+\//, '').replace(/#.*$/, '');
+  const hit = FAMILY_BY_PREFIX.find(([prefix]) => bare.startsWith(prefix));
+  if (!hit) throw new Error(`unknown model id ${JSON.stringify(model)}`);
+  return hit[1];
+}
+
+/** Deterministic scoring calls this. Judged metrics become skipped, never zero. */
+export function noJudgeAsk(): Ask {
+  return () => Promise.reject(new JudgeUnavailable('no-judge', 'no judge in this slice'));
 }
 
 /**
@@ -148,7 +155,7 @@ export type TaskOutput<K extends TaskKind> = ReturnType<(typeof TASKS)[K]['parse
 /** sample > 0 draws an independent verdict (a separate cache slot), used for test-retest. */
 export type Ask = <K extends TaskKind>(kind: K, input: TaskInput<K>, options?: { readonly sample?: number }) => Promise<TaskOutput<K>>;
 
-export type UnavailableReason = 'offline-miss' | 'bad-reply' | 'provider-error';
+export type UnavailableReason = 'offline-miss' | 'bad-reply' | 'provider-error' | 'no-judge';
 
 export class JudgeUnavailable extends Error {
   readonly reason: UnavailableReason;

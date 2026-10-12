@@ -1,0 +1,7 @@
+{
+  "name": "oracle",
+  "build": ["node", "system.ts", "oracle", "../../out"],
+  "models": [],
+  "passEnv": [],
+  "buildSec": 180
+}

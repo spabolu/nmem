@@ -1,0 +1,7 @@
+{
+  "name": "null",
+  "build": ["node", "system.ts", "null", "../../out"],
+  "models": [],
+  "passEnv": [],
+  "buildSec": 180
+}

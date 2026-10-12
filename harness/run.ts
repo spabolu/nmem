@@ -9,12 +9,24 @@
  *   <system>/<trial>/<slug>/scores.json       per item and audience, replaced by --rescore
  *   report.json, report.md
  */
-import type { Seconds, SystemManifest, SystemName, Usage } from './contract.ts';
-import type { Gold, Slug } from './gold.ts';
+import { spawn, spawnSync } from 'node:child_process';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { parseSnapshot, seconds } from './contract.ts';
+import type { Said, Seconds, Snapshot, SystemManifest, SystemName, Usage } from './contract.ts';
+import { align, findLeaks, itemsOf, loadCanaries, loadGold } from './gold.ts';
+import type { Alignment, Gold, LeakFinding, Slug } from './gold.ts';
+import { hashFiles, hashOf } from './hash.ts';
 import type { Hash } from './hash.ts';
+import { familyOf, noJudgeAsk } from './judge.ts';
 import type { JudgeMode } from './judge.ts';
+import { resolveSources, scoreItem } from './metrics.ts';
 import type { ItemScore, SystemFailure } from './metrics.ts';
+import { auditWorkspace, buildWorkspace, changeIds, factsOf, openFixture, spanOf } from './record.ts';
 import type { Sha, Workspace } from './record.ts';
+import { presets, renderPage, renderTimeline } from './view.ts';
 
 export type RunId = string & { readonly __brand: 'RunId' };
 /** "t1".."tN". */
@@ -25,8 +37,37 @@ export type TrialId = string & { readonly __brand: 'TrialId' };
  * judge.ts familyOf (an unknown id throws, naming it); passEnv entries are set now, so a missing token fails before any
  * work; buildSec goes through seconds(); the directory is outside the nmem checkout.
  */
+const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+
 export function parseManifest(file: string): SystemManifest {
-  throw new Error('not implemented');
+  const raw = JSON.parse(fs.readFileSync(file, 'utf8')) as Record<string, unknown>;
+  const allowed = ['name', 'build', 'models', 'passEnv', 'buildSec'];
+  for (const key of Object.keys(raw)) {
+    if (!allowed.includes(key)) throw new Error(`${key}: unknown key`);
+  }
+  for (const key of allowed) if (!Object.hasOwn(raw, key)) throw new Error(`${key}: missing`);
+  if (typeof raw.name !== 'string' || !/^[a-z][a-z0-9-]{0,31}$/.test(raw.name)) throw new Error(`name must match /^[a-z][a-z0-9-]{0,31}$/`);
+  if (!Array.isArray(raw.build) || raw.build.length === 0 || raw.build.some((arg) => typeof arg !== 'string')) throw new Error('build must be a non-empty argv');
+  if (!Array.isArray(raw.models) || raw.models.some((model) => typeof model !== 'string')) throw new Error('models must be model ids');
+  for (const model of raw.models) familyOf(model);
+  if (!Array.isArray(raw.passEnv) || raw.passEnv.some((key) => typeof key !== 'string')) throw new Error('passEnv must be env names');
+  for (const key of raw.passEnv) {
+    if (!process.env[key]) throw new Error(`passEnv ${key} is not set`);
+  }
+  if (typeof raw.buildSec !== 'number') throw new Error('buildSec must be a number of seconds');
+  const dir = path.dirname(path.resolve(file));
+  const rel = path.relative(REPO_ROOT, dir);
+  const inside = rel === '' || (!rel.startsWith('..') && !path.isAbsolute(rel));
+  const reference = rel === path.join('harness', 'reference') || rel.startsWith(`${path.join('harness', 'reference')}${path.sep}`);
+  if (inside && !reference) throw new Error(`manifest directory is inside the nmem checkout: ${dir}`);
+  return {
+    name: raw.name as SystemName,
+    dir,
+    build: raw.build as [string, ...string[]],
+    models: raw.models,
+    passEnv: raw.passEnv,
+    buildSec: seconds(raw.buildSec),
+  };
 }
 
 /**
@@ -40,7 +81,9 @@ export function parseManifest(file: string): SystemManifest {
 export type Sandbox = { readonly kind: 'sandbox-exec' | 'bwrap' } | { readonly kind: 'none-unblinded' };
 
 export function detectSandbox(unblinded: boolean): Sandbox {
-  throw new Error('not implemented');
+  // Slice 2 adds sandbox-exec. Until then every build is labelled unblinded.
+  void unblinded;
+  return { kind: 'none-unblinded' };
 }
 
 export type BuildRecord = {
@@ -57,7 +100,60 @@ export type BuildRecord = {
  * HARNESS_* or NMEM_*. Kills the process group after buildSec * 1000 ms, the one place seconds become milliseconds.
  */
 export function spawnBuild(manifest: SystemManifest, ws: Workspace, outFile: string, sandbox: Sandbox, timeout: Seconds): Promise<BuildRecord> {
-  throw new Error('not implemented');
+  void sandbox;
+  const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'nmem-build-'));
+  const env: Record<string, string> = {
+    PATH: process.env.PATH ?? '',
+    HOME: scratch,
+    LANG: 'C',
+    TMPDIR: scratch,
+  };
+  for (const key of manifest.passEnv) {
+    const value = process.env[key];
+    if (value) env[key] = value;
+  }
+  const started = Date.now();
+  return new Promise((resolve) => {
+    const child = spawn(manifest.build[0], [...manifest.build.slice(1), ws.dir, outFile], {
+      cwd: manifest.dir,
+      env,
+      detached: true,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    let stderr = '';
+    let maxRss: number | null = null;
+    const sample = setInterval(() => {
+      if (!child.pid) return;
+      const ps = spawnSyncRss(child.pid);
+      if (ps !== null) maxRss = Math.max(maxRss ?? 0, ps);
+    }, 200);
+    const timer = setTimeout(() => {
+      if (child.pid) try { process.kill(-child.pid, 'SIGKILL'); } catch { /* already gone */ }
+    }, timeout * 1000);
+    child.stderr?.on('data', (chunk: Buffer) => {
+      stderr = (stderr + chunk.toString('utf8')).slice(-4000);
+    });
+    child.on('close', (code, signal) => {
+      clearInterval(sample);
+      clearTimeout(timer);
+      const snapshotBytes = fs.existsSync(outFile) ? fs.statSync(outFile).size : 0;
+      const timedOut = signal === 'SIGKILL' && Date.now() - started >= timeout * 1000 - 50;
+      resolve({
+        exit: timedOut ? 'timeout' : code === 0 && snapshotBytes > 0 ? 'ok' : 'crash',
+        wallMs: Date.now() - started,
+        maxRssBytes: maxRss,
+        snapshotBytes,
+        usage: null,
+        stderrTail: stderr,
+      });
+    });
+  });
+}
+
+function spawnSyncRss(pid: number): number | null {
+  const result = spawnSync('ps', ['-o', 'rss=', '-p', String(pid)], { encoding: 'utf8' });
+  const rss = Number((result.stdout ?? '').trim());
+  return Number.isFinite(rss) && rss > 0 ? rss * 1024 : null;
 }
 
 export type RunConfig = {
@@ -96,8 +192,119 @@ export type RunManifest = {
  *    path, auditWorkspace with gold's canaries (a finding aborts the run), spawnBuild, keep snapshot.json verbatim.
  * 3. scoreCell every cell without scores for the current harness hash.
  */
+function cellDir(config: Pick<RunConfig, 'runsDir'>, runId: RunId, system: SystemName, trial: TrialId, slug: Slug): string {
+  return path.join(config.runsDir, runId, system, trial, slug);
+}
+
+function harnessHash(): Hash {
+  const dir = path.dirname(fileURLToPath(import.meta.url));
+  const files = fs.readdirSync(dir).filter((name) => name.endsWith('.ts')).map((name) => path.join(dir, name));
+  return hashFiles(files);
+}
+
 export async function run(config: RunConfig, resume: RunId | null): Promise<RunId> {
-  throw new Error('not implemented');
+  const id = (resume ?? (`r${hashOf(Date.now(), Math.random()).slice(0, 12)}`)) as RunId;
+  const dir = path.join(config.runsDir, id);
+  fs.mkdirSync(dir, { recursive: true });
+  const manifestPath = path.join(dir, 'run.json');
+  if (!resume || !fs.existsSync(manifestPath)) {
+    const manifest: RunManifest = {
+      id,
+      startedAt: new Date().toISOString(),
+      secret: hashOf(Math.random()),
+      harness: harnessHash(),
+      judge: 'offline',
+      calibration: config.calibration,
+      sandbox: config.sandbox.kind,
+      trials: config.trials,
+      systems: config.systems.map((system) => ({ name: system.name, manifest: hashOf(system), models: system.models })),
+      repos: config.slugs.map((slug) => {
+        const record = openFixture(path.join(config.outDir, slug));
+        const gold = loadGold(config.outDir, slug);
+        return { slug, fixture: record.workspace.fixtureHash, gold: gold.hash, facts: hashOf('no-judge'), main: record.workspace.mainSha };
+      }),
+    };
+    fs.writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+  }
+  for (const system of config.systems) {
+    for (let trial = 1; trial <= config.trials; trial += 1) {
+      const trialId = `t${trial}` as TrialId;
+      for (const slug of config.slugs) {
+        const cell = cellDir(config, id, system.name, trialId, slug);
+        fs.mkdirSync(cell, { recursive: true });
+        const snapshotFile = path.join(cell, 'snapshot.json');
+        if (!fs.existsSync(snapshotFile)) {
+          const workspace = await buildWorkspace(path.join(config.outDir, slug), os.tmpdir());
+          const gold = loadGold(config.outDir, slug);
+          const canaries = loadCanaries(config.outDir, slug).map((canary) => canary.text);
+          const audit = auditWorkspace(workspace, canaries);
+          if (audit.length > 0) throw new Error(`workspace audit failed: ${audit.map((finding) => `${finding.text} in ${finding.where}`).join('; ')}`);
+          const build = await spawnBuild(system, workspace, snapshotFile, config.sandbox, system.buildSec);
+          fs.writeFileSync(path.join(cell, 'build.json'), `${JSON.stringify({ ...build, workspace: workspace.dir }, null, 2)}\n`);
+          if (build.exit !== 'ok') {
+            await writeScores(cell, gold, null, { kind: 'crash', detail: build.stderrTail || build.exit }, harnessHash());
+            continue;
+          }
+        }
+        if (!fs.existsSync(path.join(cell, 'scores.json'))) await scoreCell({ system: system.name, trial: trialId, slug }, loadGold(config.outDir, slug), config, id);
+      }
+    }
+  }
+  return id;
+}
+
+function saidsOf(snapshot: Snapshot, item: ItemScore['item'], alignment: Alignment): { readonly field: string; readonly said: Said }[] {
+  const out: { field: string; said: Said }[] = [];
+  const add = (field: string, said: Said | null): void => {
+    if (said) out.push({ field, said });
+  };
+  if (item.kind === 'topic') {
+    const topic = snapshot.topics.find((row) => row.id === alignment.topics.get(item.id));
+    if (!topic) return out;
+    topic.headline.forEach((said, index) => add(`headline ${index + 1}`, said));
+    add('example', topic.example);
+    add('start', { eng: topic.start.quote, plain: topic.start.quote, source: topic.start });
+    return out;
+  }
+  if (item.kind === 'decision') {
+    const index = alignment.decisions.get(item.id);
+    const decision = index === undefined ? undefined : snapshot.decisions[index];
+    if (!decision) return out;
+    add('what', decision.what);
+    if (decision.why.kind === 'recorded') add('reason', decision.why.reason);
+    return out;
+  }
+  if (item.kind === 'finding') {
+    const hit = alignment.findings.get(item.id);
+    const finding = hit ? snapshot.changes.find((change) => change.id === hit.change)?.findings[hit.index] : undefined;
+    if (!finding) return out;
+    add('anchor', { eng: finding.anchor.quote, plain: finding.anchor.quote, source: finding.anchor });
+    finding.says.forEach((said, index) => add(`card ${index + 1}`, said));
+    if (finding.why.kind === 'recorded') add('reason', finding.why.reason);
+    return out;
+  }
+  if (item.kind === 'claim' && item.expect === 'changed') {
+    const index = alignment.claims.get(item.id);
+    const claim = index === undefined ? undefined : snapshot.claims[index];
+    if (claim && 'why' in claim) add('why', claim.why);
+    return out;
+  }
+  if (item.kind === 'change') {
+    const change = snapshot.changes.find((row) => row.id === item.id);
+    change?.routine.forEach((part, index) => add(`routine ${index + 1}`, part.reason));
+    return out;
+  }
+  if (item.kind === 'undone') {
+    const index = alignment.undone.get(item.id);
+    const group = index === undefined ? undefined : snapshot.undone[index];
+    group?.says.forEach((said, index) => add(`says ${index + 1}`, said));
+  }
+  return out;
+}
+
+async function writeScores(cell: string, gold: Gold, scores: readonly ItemScore[] | null, failure: SystemFailure | null, harness: Hash, extras?: Alignment['extras'], leaks?: readonly unknown[]): Promise<void> {
+  const items = scores ?? [];
+  fs.writeFileSync(path.join(cell, 'scores.json'), `${JSON.stringify({ harness, failure, scores: items, extras: extras ?? null, leaks: leaks ?? [] }, null, 2)}\n`);
 }
 
 /**
@@ -105,12 +312,64 @@ export async function run(config: RunConfig, resume: RunId | null): Promise<RunI
  * cause listing its defect paths. Otherwise resolve every source (record.ts), align, findLeaks, and scoreItem per gold
  * item and audience. Everything after parse is the same code for systems and references.
  */
-export async function scoreCell(cell: { readonly system: SystemName; readonly trial: TrialId; readonly slug: Slug }, gold: Gold, config: RunConfig): Promise<readonly ItemScore[]> {
-  throw new Error('not implemented');
+export async function scoreSnapshot(gold: Gold, system: Snapshot, slug: Slug, outDir: string): Promise<readonly ItemScore[]> {
+  const record = openFixture(path.join(outDir, slug));
+  const facts = factsOf(record);
+  const alignment = align(gold, system, (source) => spanOf(record, source));
+  const items = itemsOf(gold, facts);
+  const scores: ItemScore[] = [];
+  for (const item of items) {
+    for (const audience of ['eng', 'plain'] as const) {
+      const sources = await resolveSources(record, saidsOf(system, item, alignment), system.runs);
+      scores.push(await scoreItem({
+        kind: 'scored',
+        ctx: { item, audience, gold, system, alignment, facts, sources, prose: new Map(), redact: [], resolve: (source) => spanOf(record, source) },
+      }, noJudgeAsk()));
+    }
+  }
+  return scores;
+}
+
+export async function scoreCell(cell: { readonly system: SystemName; readonly trial: TrialId; readonly slug: Slug }, gold: Gold, config: RunConfig, runId?: RunId): Promise<readonly ItemScore[]> {
+  const id = runId ?? (`r${hashOf(cell).slice(0, 12)}` as RunId);
+  const dir = cellDir(config, id, cell.system, cell.trial, cell.slug);
+  const record = openFixture(path.join(config.outDir, cell.slug));
+  const facts = factsOf(record);
+  const bytes = fs.readFileSync(path.join(dir, 'snapshot.json'), 'utf8');
+  const parsed = parseSnapshot(bytes, { repo: record.workspace.identity, head: facts.head, changes: changeIds(facts) });
+  const items = itemsOf(gold, facts);
+  if (!parsed.ok) {
+    const failure: SystemFailure = { kind: 'rejected', detail: parsed.errors.map((error) => `${error.path}: ${error.what}`).join('; ') };
+    const scores = await Promise.all(items.flatMap((item) => (['eng', 'plain'] as const).map((audience) => scoreItem({ kind: 'failed', item, audience, failure }, noJudgeAsk()))));
+    await writeScores(dir, gold, scores, failure, harnessHash());
+    return scores;
+  }
+  const alignment = align(gold, parsed.snapshot, (source) => spanOf(record, source));
+  const leaks = findLeaks(parsed.snapshot, loadCanaries(config.outDir, cell.slug), new Map(), alignment);
+  const scores = await scoreSnapshot(gold, parsed.snapshot, cell.slug, config.outDir);
+  await writeScores(dir, gold, scores, null, harnessHash(), alignment.extras, leaks);
+  return scores;
 }
 
 export async function rescore(runId: RunId, config: Pick<RunConfig, 'runsDir' | 'outDir' | 'factsDir' | 'cacheDir' | 'judge'>): Promise<void> {
-  throw new Error('not implemented');
+  const loaded = loadRun(config.runsDir, runId);
+  for (const cell of loaded.cells) {
+    fs.rmSync(path.join(config.runsDir, runId, cell.system, cell.trial, cell.slug, 'scores.json'), { force: true });
+    await scoreCell(cell, loadGold(config.outDir, cell.slug), {
+      outDir: config.outDir,
+      runsDir: config.runsDir,
+      factsDir: config.factsDir,
+      reviewedDir: '',
+      cacheDir: config.cacheDir,
+      systems: [{ name: cell.system, dir: '', build: ['true'], models: [], passEnv: [], buildSec: seconds(1) }],
+      trials: 1,
+      slugs: [cell.slug],
+      judge: config.judge,
+      sandbox: { kind: 'none-unblinded' },
+      calibration: 'uncalibrated',
+      allowSharedJudgeFamily: true,
+    }, runId);
+  }
 }
 
 /**
@@ -118,8 +377,24 @@ export async function rescore(runId: RunId, config: Pick<RunConfig, 'runsDir' | 
  * page and the whole-life timeline in both audiences through view.ts. No gold, no judge. A rejected snapshot prints
  * every defect by path, the same errors a scored run records.
  */
-export async function checkSystem(manifest: SystemManifest, outDir: string): Promise<{ readonly ok: boolean; readonly lines: readonly string[] }> {
-  throw new Error('not implemented');
+export async function checkSystem(manifest: SystemManifest, outDir: string, slug = '_example'): Promise<{ readonly ok: boolean; readonly lines: readonly string[] }> {
+  const fixture = path.join(outDir, slug);
+  const workspace = await buildWorkspace(fixture, os.tmpdir());
+  const outFile = path.join(os.tmpdir(), `nmem-check-${manifest.name}-${slug}.json`);
+  const build = await spawnBuild(manifest, workspace, outFile, { kind: 'none-unblinded' }, manifest.buildSec);
+  if (build.exit !== 'ok') return { ok: false, lines: [`build ${build.exit}`, build.stderrTail] };
+  const record = openFixture(fixture);
+  const facts = factsOf(record);
+  const parsed = parseSnapshot(fs.readFileSync(outFile, 'utf8'), { repo: record.workspace.identity, head: facts.head, changes: changeIds(facts) });
+  if (!parsed.ok) return { ok: false, lines: parsed.errors.map((error) => `${error.path}: ${error.what}`) };
+  const lines = parsed.snapshot.topics.flatMap((topic) => [renderPage(parsed.snapshot, facts, topic.id, 'eng'), renderPage(parsed.snapshot, facts, topic.id, 'plain'), '']);
+  const life = presets(facts).find((preset) => preset.id === 'life');
+  const root = parsed.snapshot.topics.find((topic) => topic.parent === null);
+  if (life && root) {
+    lines.push(renderTimeline(parsed.snapshot, facts, { topic: root.id, ...life.range }, 'eng'));
+    lines.push(renderTimeline(parsed.snapshot, facts, { topic: root.id, ...life.range }, 'plain'));
+  }
+  return { ok: true, lines };
 }
 
 export type LoadedRun = {
@@ -131,10 +406,26 @@ export type LoadedRun = {
     readonly build: BuildRecord;
     readonly failure: SystemFailure | null;
     readonly scores: readonly ItemScore[];
+    readonly extras: Alignment['extras'] | null;
+    readonly leaks: readonly LeakFinding[];
   }[];
 };
 
 /** Refuses when score files disagree on harness hash or judge version. A report never mixes scorers. */
 export function loadRun(runsDir: string, runId: RunId): LoadedRun {
-  throw new Error('not implemented');
+  const manifest = JSON.parse(fs.readFileSync(path.join(runsDir, runId, 'run.json'), 'utf8')) as RunManifest;
+  const cells: LoadedRun['cells'][number][] = [];
+  for (const system of manifest.systems) {
+    for (let trial = 1; trial <= manifest.trials; trial += 1) {
+      const trialId = `t${trial}` as TrialId;
+      for (const repo of manifest.repos) {
+        const dir = path.join(runsDir, runId, system.name, trialId, repo.slug);
+        const build = JSON.parse(fs.readFileSync(path.join(dir, 'build.json'), 'utf8')) as BuildRecord;
+        const scoresFile = JSON.parse(fs.readFileSync(path.join(dir, 'scores.json'), 'utf8')) as { harness: Hash; failure: SystemFailure | null; scores: ItemScore[]; extras: Alignment['extras'] | null; leaks: LeakFinding[] };
+        if (scoresFile.harness !== manifest.harness) throw new Error('score file harness hash does not match run.json');
+        cells.push({ system: system.name, trial: trialId, slug: repo.slug, build, failure: scoresFile.failure, scores: scoresFile.scores, extras: scoresFile.extras, leaks: scoresFile.leaks ?? [] });
+      }
+    }
+  }
+  return { manifest, cells };
 }

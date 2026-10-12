@@ -9,6 +9,7 @@
  * Replaces protocol.ts. Request, Response, Statement, and per-question processes are gone. The record locator grammar
  * (RecordRef, parseRef) moves here unchanged. Proofs are a second grammar, for requests the harness runs itself.
  */
+import { MAX_RUN_SOURCE_BYTES, formatProof as formatProofJs, parseProof as parseProofJs } from '../fixtures/lib/checks.mjs';
 
 export type Seconds = number & { readonly __brand: 'Seconds' };
 
@@ -59,23 +60,108 @@ export type RepoIdentity = { readonly owner: string; readonly name: string };
  * One grammar for gold locators, system sources, and links a person pastes. Returns null for anything it cannot read;
  * parseSnapshot turns that null into a defect that rejects the snapshot.
  */
+function lineRange(startRaw: string, endRaw: string | undefined): LineRange | null {
+  const start = Number(startRaw);
+  const end = endRaw === undefined ? start : Number(endRaw);
+  if (!Number.isInteger(start) || !Number.isInteger(end) || start < 1 || end < start) return null;
+  return { start, count: end - start + 1 };
+}
+
+function asRev(value: string): Rev {
+  return value as Rev;
+}
+
+function parseGithubUrl(raw: string, repo: RepoIdentity): RecordRef | null {
+  let url: URL;
+  try {
+    url = new URL(raw);
+  } catch {
+    return null;
+  }
+  if (url.hostname.toLowerCase() !== 'github.com') return null;
+  const parts = url.pathname.split('/').filter(Boolean).map((part) => decodeURIComponent(part));
+  if (parts.length < 3) return null;
+  if (parts[0]?.toLowerCase() !== repo.owner.toLowerCase() || parts[1]?.toLowerCase() !== repo.name.toLowerCase()) return null;
+  const rest = parts.slice(2);
+  const hash = url.hash;
+  if (rest[0] === 'commit' && rest.length === 2 && /^[0-9a-f]{7,40}$/.test(rest[1] ?? '')) return { kind: 'commit', rev: asRev(rest[1] ?? '') };
+  if (rest[0] === 'pull' && rest[2] === 'commits' && rest.length === 4 && /^[0-9a-f]{7,40}$/.test(rest[3] ?? '')) {
+    return { kind: 'commit', rev: asRev(rest[3] ?? '') };
+  }
+  if (rest[0] === 'blob' && rest.length >= 3) {
+    const lines = hash === '' ? null : lineRangeFromHash(hash);
+    if (hash !== '' && !lines) return null;
+    return { kind: 'file', rev: asRev(rest[1] ?? ''), path: rest.slice(2).join('/'), lines };
+  }
+  if (rest[0] === 'pull' && rest.length === 2 && /^\d+$/.test(rest[1] ?? '')) {
+    const comment = hashComment(hash);
+    return comment === null ? { kind: 'pr', number: Number(rest[1]) } : { kind: 'comment', id: comment };
+  }
+  if (rest[0] === 'issues' && rest.length === 2 && /^\d+$/.test(rest[1] ?? '')) {
+    const comment = /^#issuecomment-(\d+)$/.exec(hash);
+    return comment ? { kind: 'comment', id: Number(comment[1]) } : { kind: 'issue', number: Number(rest[1]) };
+  }
+  if (rest[0] === 'discussions' && rest.length === 2 && /^\d+$/.test(rest[1] ?? '')) {
+    const comment = /^#discussioncomment-(\d+)$/.exec(hash);
+    return comment ? { kind: 'comment', id: Number(comment[1]) } : { kind: 'discussion', number: Number(rest[1]) };
+  }
+  if ((rest[0] === 'releases' && rest[1] === 'tag' && rest.length >= 3) || (rest[0] === 'tree' && rest.length >= 2)) {
+    const name = rest[0] === 'tree' ? rest.slice(1).join('/') : rest.slice(2).join('/');
+    if (name === '') return null;
+    return /^[0-9a-f]{7,40}$/.test(name) ? { kind: 'commit', rev: asRev(name) } : { kind: 'tag', name };
+  }
+  return null;
+}
+
+function lineRangeFromHash(hash: string): LineRange | null {
+  const match = /^#L(\d+)(-L(\d+))?$/.exec(hash);
+  return match ? lineRange(match[1] ?? '', match[3]) : null;
+}
+
+function hashComment(hash: string): number | null {
+  const match = /^#(issuecomment|discussion_r|pullrequestreview)-(\d+)$/.exec(hash);
+  return match ? Number(match[2]) : null;
+}
+
 export function parseRef(raw: string, repo: RepoIdentity): RecordRef | null {
-  // TODO, in order, first match wins (prefixed forms before the bare rev:path form, so "tag:v1" is not a file):
-  //   /^(comment|review):(\d+)( on (pr|issue|discussion)#\d+)?$/ -> comment (reviews share the id space)
-  //   /^tag:(.+)$/
-  //   /^(pr|issue|discussion)#(\d+)$/
-  //   https://github.com/<owner>/<name>/... where owner/name equal repo (case-insensitive), else null:
-  //     commit/<sha> | pull/<n>/commits/<sha> -> commit; blob/<rev>/<path>#L<a>-L<b> -> file;
-  //     pull/<n>#issuecomment-<id> | #discussion_r<id> | #pullrequestreview-<id> -> comment, else pr;
-  //     issues/<n>#issuecomment-<id> -> comment, else issue; discussions/<n>#discussioncomment-<id> -> comment, else discussion;
-  //     releases/tag/<name> | tree/<tag> -> tag only if <name> is not hex
-  //   /^[0-9a-f]{7,40}$/ -> commit
-  //   /^([0-9a-f]{7,40}|[\w./-]+):(.+?)(#L(\d+)(-L(\d+))?)?$/ -> file
-  throw new Error('not implemented');
+  if (typeof raw !== 'string' || raw.length === 0) return null;
+  const comment = /^(comment|review):(\d+)( on (pr|issue|discussion)#\d+)?$/.exec(raw);
+  if (comment) return { kind: 'comment', id: Number(comment[2]) };
+  const tag = /^tag:(.+)$/.exec(raw);
+  if (tag) return tag[1] ? { kind: 'tag', name: tag[1] } : null;
+  const numbered = /^(pr|issue|discussion)#(\d+)$/.exec(raw);
+  if (numbered?.[1] && numbered[2]) return { kind: numbered[1] as 'pr' | 'issue' | 'discussion', number: Number(numbered[2]) };
+  if (/^https?:\/\/github\.com\//i.test(raw)) return parseGithubUrl(raw, repo);
+  if (/^[0-9a-f]{7,40}$/.test(raw)) return { kind: 'commit', rev: asRev(raw) };
+  const file = /^([0-9a-f]{7,40}|[\w./-]+):(.+?)(#L(\d+)(-L(\d+))?)?$/.exec(raw);
+  if (!file?.[1] || !file[2]) return null;
+  if (file[3] && !file[4]) return null;
+  const lines = file[4] ? lineRange(file[4], file[6]) : null;
+  if (file[3] && !lines) return null;
+  return { kind: 'file', rev: asRev(file[1]), path: file[2], lines };
 }
 
 export function formatRef(ref: RecordRef): string {
-  throw new Error('not implemented');
+  switch (ref.kind) {
+    case 'commit':
+      return ref.rev;
+    case 'file': {
+      const lines = ref.lines === null ? '' : ref.lines.count === 1 ? `#L${ref.lines.start}` : `#L${ref.lines.start}-L${ref.lines.start + ref.lines.count - 1}`;
+      return `${ref.rev}:${ref.path}${lines}`;
+    }
+    case 'pr':
+    case 'issue':
+    case 'discussion':
+      return `${ref.kind}#${ref.number}`;
+    case 'comment':
+      return `comment:${ref.id}`;
+    case 'tag':
+      return `tag:${ref.name}`;
+    default: {
+      const never: never = ref;
+      return never;
+    }
+  }
 }
 
 // Proofs are rerunnable checks. A system names one, and the harness runs it and shows its output.
@@ -111,11 +197,12 @@ export type Proof =
 export type ProofVerb = Proof['verb'];
 
 export function parseProof(raw: string): Proof | null {
-  throw new Error('not implemented');
+  const parsed = parseProofJs(raw) as Proof | null;
+  return parsed ?? null;
 }
 
 export function formatProof(proof: Proof): string {
-  throw new Error('not implemented');
+  return formatProofJs(proof) as string;
 }
 
 // The snapshot is what a system writes. Its wire shape is these types as plain JSON.
@@ -298,10 +385,547 @@ export type Expected = { readonly repo: RepoIdentity; readonly head: string; rea
  * Resolution (the object exists, the quote is in it, the proof runs) is not parsed. It is scored (metrics.ts
  * cites-resolve), so a dead source costs that item and is never confused with a malformed file.
  */
+const FORBIDDEN: Readonly<Record<string, string>> = {
+  who: 'unknown key; the decider is derived from the intent\'s author',
+  kind: 'unknown key; kind is derived by the kernel',
+  date: 'unknown key; the day is derived from git',
+  status: 'unknown key; status is derived from claims',
+  output: 'unknown key; the harness computes proof output',
+};
+
+const LOGIN_RE = /^[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\[bot\])?$/;
+
+function isVerdict(value: unknown): value is Verdict {
+  return typeof value === 'string' && (VERDICTS as readonly string[]).includes(value);
+}
+
+type Bag = Defect[];
+
+function defect(path: string, what: string): Defect {
+  return { path: path as DefectPath, what };
+}
+
+function isPlain(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function at(base: string, key: string): string {
+  return base ? `${base}.${key}` : key;
+}
+
+function push(bag: Bag, path: string, what: string): void {
+  bag.push(defect(path, what));
+}
+
+function rejectUnknown(obj: Record<string, unknown>, path: string, allowed: readonly string[], bag: Bag): void {
+  for (const key of Object.keys(obj)) {
+    if (!allowed.includes(key)) push(bag, at(path, key), FORBIDDEN[key] ?? 'unknown key');
+  }
+}
+
+function readString(value: unknown, path: string, bag: Bag): string | null {
+  if (typeof value !== 'string') {
+    push(bag, path, 'expected a string');
+    return null;
+  }
+  if (value.length === 0) {
+    push(bag, path, 'empty');
+    return null;
+  }
+  return value;
+}
+
+function readStringArray(value: unknown, path: string, bag: Bag): string[] | null {
+  if (!Array.isArray(value)) {
+    push(bag, path, 'expected an array');
+    return null;
+  }
+  const out: string[] = [];
+  let ok = true;
+  value.forEach((item, i) => {
+    const text = readString(item, `${path}[${i}]`, bag);
+    if (text === null) ok = false;
+    else out.push(text);
+  });
+  return ok ? out : null;
+}
+
+function readNamed(value: unknown, path: string, bag: Bag): Named | null {
+  if (!isPlain(value)) {
+    push(bag, path, 'expected an object');
+    return null;
+  }
+  rejectUnknown(value, path, ['eng', 'plain'], bag);
+  const eng = Object.hasOwn(value, 'eng') ? readString(value.eng, at(path, 'eng'), bag) : (push(bag, at(path, 'eng'), 'missing'), null);
+  const plain = Object.hasOwn(value, 'plain') ? readString(value.plain, at(path, 'plain'), bag) : (push(bag, at(path, 'plain'), 'missing'), null);
+  return eng && plain ? { eng, plain } : null;
+}
+
+function readLogins(value: unknown, path: string, bag: Bag): [Login, ...Login[]] | null {
+  if (!Array.isArray(value) || value.length === 0) {
+    push(bag, path, 'expected a non-empty array of logins');
+    return null;
+  }
+  const out: Login[] = [];
+  let ok = true;
+  value.forEach((item, i) => {
+    if (typeof item !== 'string' || !LOGIN_RE.test(item)) {
+      push(bag, `${path}[${i}]`, 'not a GitHub login');
+      ok = false;
+    } else out.push(item as Login);
+  });
+  return ok ? (out as [Login, ...Login[]]) : null;
+}
+
+type RunRef = { readonly path: string; readonly id: string };
+
+function readSource(value: unknown, path: string, bag: Bag, repo: RepoIdentity, expect: 'any' | 'record' | 'proof', runs: RunRef[]): Source | null {
+  if (!isPlain(value)) {
+    push(bag, path, 'expected an object');
+    return null;
+  }
+  const kind = value.kind;
+  if (kind !== 'record' && kind !== 'proof') {
+    push(bag, at(path, 'kind'), 'expected "record" or "proof"');
+    return null;
+  }
+  if (expect !== 'any' && kind !== expect) {
+    push(bag, at(path, 'kind'), `expected a ${expect} source`);
+  }
+  const allowed = kind === 'record' ? ['kind', 'ref', 'quote'] : ['kind', 'proof'];
+  rejectUnknown(value, path, allowed, bag);
+  if (kind === 'record') {
+    const ref = Object.hasOwn(value, 'ref') ? readString(value.ref, at(path, 'ref'), bag) : (push(bag, at(path, 'ref'), 'missing'), null);
+    const quote = Object.hasOwn(value, 'quote') ? readString(value.quote, at(path, 'quote'), bag) : (push(bag, at(path, 'quote'), 'missing'), null);
+    if (ref && parseRef(ref, repo) === null) push(bag, at(path, 'ref'), 'unreadable ref');
+    return ref && quote ? { kind: 'record', ref, quote } : null;
+  }
+  const proof = Object.hasOwn(value, 'proof') ? readString(value.proof, at(path, 'proof'), bag) : (push(bag, at(path, 'proof'), 'missing'), null);
+  if (!proof) return null;
+  const parsed = parseProof(proof);
+  if (!parsed) push(bag, at(path, 'proof'), 'unreadable proof');
+  else if (parsed.verb === 'run') runs.push({ path: at(path, 'proof'), id: parsed.id });
+  return { kind: 'proof', proof };
+}
+
+function readSaid<S extends Source>(value: unknown, path: string, bag: Bag, repo: RepoIdentity, expect: 'any' | 'record' | 'proof', runs: RunRef[]): Said<S> | null {
+  if (!isPlain(value)) {
+    push(bag, path, 'expected an object');
+    return null;
+  }
+  rejectUnknown(value, path, ['eng', 'plain', 'source'], bag);
+  const eng = Object.hasOwn(value, 'eng') ? readString(value.eng, at(path, 'eng'), bag) : (push(bag, at(path, 'eng'), 'missing'), null);
+  const plain = Object.hasOwn(value, 'plain') ? readString(value.plain, at(path, 'plain'), bag) : (push(bag, at(path, 'plain'), 'missing'), null);
+  const source = Object.hasOwn(value, 'source') ? readSource(value.source, at(path, 'source'), bag, repo, expect, runs) : (push(bag, at(path, 'source'), 'missing'), null);
+  return eng && plain && source ? ({ eng, plain, source } as Said<S>) : null;
+}
+
+function readWhy(value: unknown, path: string, bag: Bag, repo: RepoIdentity, runs: RunRef[]): Why | null {
+  if (!isPlain(value)) {
+    push(bag, path, 'expected an object');
+    return null;
+  }
+  if (value.kind === 'recorded') {
+    rejectUnknown(value, path, ['kind', 'reason'], bag);
+    const reason = Object.hasOwn(value, 'reason') ? readSaid<RecordSource>(value.reason, at(path, 'reason'), bag, repo, 'record', runs) : (push(bag, at(path, 'reason'), 'missing'), null);
+    return reason?.source.kind === 'record' ? { kind: 'recorded', reason } : null;
+  }
+  if (value.kind === 'not-recorded') {
+    rejectUnknown(value, path, ['kind', 'ask', 'guess'], bag);
+    const ask = Object.hasOwn(value, 'ask') ? readLogins(value.ask, at(path, 'ask'), bag) : (push(bag, at(path, 'ask'), 'missing'), null);
+    if (!Object.hasOwn(value, 'guess')) push(bag, at(path, 'guess'), 'missing');
+    const guess = !Object.hasOwn(value, 'guess') || value.guess === null ? null : readNamed(value.guess, at(path, 'guess'), bag);
+    if (Object.hasOwn(value, 'guess') && value.guess !== null && !guess) return ask ? null : null;
+    return ask ? { kind: 'not-recorded', ask, guess } : null;
+  }
+  push(bag, at(path, 'kind'), 'expected "recorded" or "not-recorded"');
+  return null;
+}
+
+function readChangeId(value: unknown, path: string, bag: Bag, expected: Expected): ChangeId | null {
+  const id = readString(value, path, bag);
+  if (id === null) return null;
+  if (!expected.changes.has(id as ChangeId)) {
+    push(bag, path, 'not a change the harness enumerated');
+    return null;
+  }
+  return id as ChangeId;
+}
+
+function checkStart(source: RecordSource, path: string, bag: Bag, expected: Expected): void {
+  const ref = parseRef(source.ref, expected.repo);
+  if (!ref || ref.kind !== 'file') {
+    push(bag, at(path, 'ref'), 'Start here must be a file ref');
+    return;
+  }
+  if (!ref.lines) push(bag, at(path, 'ref'), 'Start here needs a #L range');
+  const rev = ref.rev.toLowerCase();
+  if (!/^[0-9a-f]{7,40}$/.test(rev) || !expected.head.toLowerCase().startsWith(rev)) {
+    push(bag, at(path, 'ref'), 'Start here must be at HEAD');
+  }
+}
+
+function readTopic(value: unknown, path: string, bag: Bag, expected: Expected, runs: RunRef[]): Topic | null {
+  if (!isPlain(value)) {
+    push(bag, path, 'expected an object');
+    return null;
+  }
+  rejectUnknown(value, path, ['id', 'parent', 'name', 'files', 'words', 'start', 'docs', 'headline', 'example'], bag);
+  const id = Object.hasOwn(value, 'id') ? readString(value.id, at(path, 'id'), bag) : (push(bag, at(path, 'id'), 'missing'), null);
+  let parent: string | null = null;
+  if (!Object.hasOwn(value, 'parent')) push(bag, at(path, 'parent'), 'missing');
+  else if (value.parent !== null) parent = readString(value.parent, at(path, 'parent'), bag);
+  const name = Object.hasOwn(value, 'name') ? readNamed(value.name, at(path, 'name'), bag) : (push(bag, at(path, 'name'), 'missing'), null);
+  const files = Object.hasOwn(value, 'files') ? readStringArray(value.files, at(path, 'files'), bag) : (push(bag, at(path, 'files'), 'missing'), null);
+  const words = Object.hasOwn(value, 'words') ? readStringArray(value.words, at(path, 'words'), bag) : (push(bag, at(path, 'words'), 'missing'), null);
+  const start = Object.hasOwn(value, 'start') ? readSource(value.start, at(path, 'start'), bag, expected.repo, 'record', runs) : (push(bag, at(path, 'start'), 'missing'), null);
+  const docs = Object.hasOwn(value, 'docs') ? readStringArray(value.docs, at(path, 'docs'), bag) : (push(bag, at(path, 'docs'), 'missing'), null);
+  const headline = readSaidList(value.headline, at(path, 'headline'), bag, expected.repo, 'any', runs, true);
+  let example: Said | null = null;
+  if (!Object.hasOwn(value, 'example')) push(bag, at(path, 'example'), 'missing');
+  else if (value.example !== null) example = readSaid(value.example, at(path, 'example'), bag, expected.repo, 'any', runs);
+  if (start?.kind === 'record') checkStart(start, at(path, 'start'), bag, expected);
+  if (!id || !name || !files || !words || !start || start.kind !== 'record' || !docs || !headline) return null;
+  if (!Object.hasOwn(value, 'parent') || (value.parent !== null && !parent)) return null;
+  return { id, parent: value.parent === null ? null : parent, name, files, words, start, docs, headline: headline as [Said, ...Said[]], example };
+}
+
+function readSaidList(value: unknown, path: string, bag: Bag, repo: RepoIdentity, expect: 'any' | 'record' | 'proof', runs: RunRef[], required: boolean): [Said, ...Said[]] | readonly Said[] | null {
+  if (value === undefined) {
+    push(bag, path, 'missing');
+    return null;
+  }
+  if (!Array.isArray(value)) {
+    push(bag, path, 'expected an array');
+    return null;
+  }
+  if (required && value.length === 0) {
+    push(bag, path, 'expected at least one sentence');
+    return null;
+  }
+  const out: Said[] = [];
+  let ok = true;
+  value.forEach((item, i) => {
+    const said = readSaid(item, `${path}[${i}]`, bag, repo, expect, runs);
+    if (!said) ok = false;
+    else out.push(said);
+  });
+  return ok ? (out as [Said, ...Said[]]) : null;
+}
+
+function readFinding(value: unknown, path: string, bag: Bag, expected: Expected, runs: RunRef[]): Finding | null {
+  if (!isPlain(value)) {
+    push(bag, path, 'expected an object');
+    return null;
+  }
+  rejectUnknown(value, path, ['severity', 'topics', 'anchor', 'name', 'says', 'why'], bag);
+  const severity = value.severity === 'behavior' || value.severity === 'check' ? value.severity : null;
+  if (!Object.hasOwn(value, 'severity')) push(bag, at(path, 'severity'), 'missing');
+  else if (!severity) push(bag, at(path, 'severity'), 'expected "behavior" or "check"');
+  const topics = Object.hasOwn(value, 'topics') ? readStringArray(value.topics, at(path, 'topics'), bag) : (push(bag, at(path, 'topics'), 'missing'), null);
+  const anchor = Object.hasOwn(value, 'anchor') ? readSource(value.anchor, at(path, 'anchor'), bag, expected.repo, 'record', runs) : (push(bag, at(path, 'anchor'), 'missing'), null);
+  const name = Object.hasOwn(value, 'name') ? readNamed(value.name, at(path, 'name'), bag) : (push(bag, at(path, 'name'), 'missing'), null);
+  const says = readSaidList(value.says, at(path, 'says'), bag, expected.repo, 'any', runs, true);
+  const why = Object.hasOwn(value, 'why') ? readWhy(value.why, at(path, 'why'), bag, expected.repo, runs) : (push(bag, at(path, 'why'), 'missing'), null);
+  if (!severity || !topics || !anchor || anchor.kind !== 'record' || !name || !says || says.length === 0 || !why) return null;
+  return { severity, topics, anchor, name, says: says as [Said, ...Said[]], why };
+}
+
+function readRoutine(value: unknown, path: string, bag: Bag, expected: Expected, runs: RunRef[]): RoutinePart | null {
+  if (!isPlain(value)) {
+    push(bag, path, 'expected an object');
+    return null;
+  }
+  rejectUnknown(value, path, ['files', 'name', 'reason'], bag);
+  const files = Object.hasOwn(value, 'files') ? readStringArray(value.files, at(path, 'files'), bag) : (push(bag, at(path, 'files'), 'missing'), null);
+  if (files && files.length === 0) push(bag, at(path, 'files'), 'expected at least one file');
+  const name = Object.hasOwn(value, 'name') ? readNamed(value.name, at(path, 'name'), bag) : (push(bag, at(path, 'name'), 'missing'), null);
+  const reason = Object.hasOwn(value, 'reason') ? readSaid<ProofSource>(value.reason, at(path, 'reason'), bag, expected.repo, 'proof', runs) : (push(bag, at(path, 'reason'), 'missing'), null);
+  if (!files || files.length === 0 || !name || !reason || reason.source.kind !== 'proof') return null;
+  return { files: files as [string, ...string[]], name, reason };
+}
+
+function readChange(value: unknown, path: string, bag: Bag, expected: Expected, runs: RunRef[]): Change | null {
+  if (!isPlain(value)) {
+    push(bag, path, 'expected an object');
+    return null;
+  }
+  rejectUnknown(value, path, ['id', 'topics', 'findings', 'routine'], bag);
+  const id = Object.hasOwn(value, 'id') ? readChangeId(value.id, at(path, 'id'), bag, expected) : (push(bag, at(path, 'id'), 'missing'), null);
+  const topics = Object.hasOwn(value, 'topics') ? readStringArray(value.topics, at(path, 'topics'), bag) : (push(bag, at(path, 'topics'), 'missing'), null);
+  const findings = readObjectList(value.findings, at(path, 'findings'), bag, (item, itemPath) => readFinding(item, itemPath, bag, expected, runs));
+  const routine = readObjectList(value.routine, at(path, 'routine'), bag, (item, itemPath) => readRoutine(item, itemPath, bag, expected, runs));
+  if (!id || !topics || !findings || !routine) return null;
+  return { id, topics, findings, routine };
+}
+
+function readObjectList<T>(value: unknown, path: string, bag: Bag, read: (item: unknown, path: string) => T | null): readonly T[] | null {
+  if (value === undefined) {
+    push(bag, path, 'missing');
+    return null;
+  }
+  if (!Array.isArray(value)) {
+    push(bag, path, 'expected an array');
+    return null;
+  }
+  const out: T[] = [];
+  let ok = true;
+  value.forEach((item, i) => {
+    const parsed = read(item, `${path}[${i}]`);
+    if (!parsed) ok = false;
+    else out.push(parsed);
+  });
+  return ok ? out : null;
+}
+
+function readDecision(value: unknown, path: string, bag: Bag, expected: Expected, runs: RunRef[]): Decision | null {
+  if (!isPlain(value)) {
+    push(bag, path, 'expected an object');
+    return null;
+  }
+  rejectUnknown(value, path, ['id', 'what', 'topics', 'carriedBy', 'replacedBy', 'why'], bag);
+  const id = Object.hasOwn(value, 'id') ? readString(value.id, at(path, 'id'), bag) : (push(bag, at(path, 'id'), 'missing'), null);
+  const what = Object.hasOwn(value, 'what') ? readSaid<RecordSource>(value.what, at(path, 'what'), bag, expected.repo, 'record', runs) : (push(bag, at(path, 'what'), 'missing'), null);
+  const topics = Object.hasOwn(value, 'topics') ? readStringArray(value.topics, at(path, 'topics'), bag) : (push(bag, at(path, 'topics'), 'missing'), null);
+  if (topics && topics.length === 0) push(bag, at(path, 'topics'), 'expected at least one topic');
+  let carriedBy: ChangeId | null = null;
+  if (!Object.hasOwn(value, 'carriedBy')) push(bag, at(path, 'carriedBy'), 'missing');
+  else if (value.carriedBy !== null) carriedBy = readChangeId(value.carriedBy, at(path, 'carriedBy'), bag, expected);
+  let replacedBy: string | null = null;
+  if (!Object.hasOwn(value, 'replacedBy')) push(bag, at(path, 'replacedBy'), 'missing');
+  else if (value.replacedBy !== null) replacedBy = readString(value.replacedBy, at(path, 'replacedBy'), bag);
+  const why = Object.hasOwn(value, 'why') ? readWhy(value.why, at(path, 'why'), bag, expected.repo, runs) : (push(bag, at(path, 'why'), 'missing'), null);
+  if (!id || !what || what.source.kind !== 'record' || !topics || topics.length === 0 || !why) return null;
+  if (!Object.hasOwn(value, 'carriedBy') || (value.carriedBy !== null && !carriedBy)) return null;
+  if (!Object.hasOwn(value, 'replacedBy') || (value.replacedBy !== null && !replacedBy)) return null;
+  return { id, what, topics: topics as [string, ...string[]], carriedBy: value.carriedBy === null ? null : carriedBy, replacedBy: value.replacedBy === null ? null : replacedBy, why };
+}
+
+function readSentence(value: unknown, path: string, bag: Bag): DocSentence | null {
+  if (!isPlain(value)) {
+    push(bag, path, 'expected an object');
+    return null;
+  }
+  rejectUnknown(value, path, ['path', 'quote'], bag);
+  const file = Object.hasOwn(value, 'path') ? readString(value.path, at(path, 'path'), bag) : (push(bag, at(path, 'path'), 'missing'), null);
+  const quote = Object.hasOwn(value, 'quote') ? readString(value.quote, at(path, 'quote'), bag) : (push(bag, at(path, 'quote'), 'missing'), null);
+  return file && quote ? { path: file, quote } : null;
+}
+
+function readClaim(value: unknown, path: string, bag: Bag, expected: Expected, runs: RunRef[]): Claim | null {
+  if (!isPlain(value)) {
+    push(bag, path, 'expected an object');
+    return null;
+  }
+  if (!isVerdict(value.verdict)) {
+    if (!Object.hasOwn(value, 'verdict')) push(bag, at(path, 'verdict'), 'missing');
+    else push(bag, at(path, 'verdict'), 'expected still-true, no-longer-true, true-since, or depends');
+    return null;
+  }
+  const verdict = value.verdict;
+  const allowed = verdict === 'still-true'
+    ? ['sentence', 'topic', 'verdict']
+    : verdict === 'true-since'
+      ? ['sentence', 'topic', 'verdict', 'since', 'why']
+      : ['sentence', 'topic', 'verdict', 'brokenBy', 'why'];
+  rejectUnknown(value, path, allowed, bag);
+  const sentence = Object.hasOwn(value, 'sentence') ? readSentence(value.sentence, at(path, 'sentence'), bag) : (push(bag, at(path, 'sentence'), 'missing'), null);
+  const topic = Object.hasOwn(value, 'topic') ? readString(value.topic, at(path, 'topic'), bag) : (push(bag, at(path, 'topic'), 'missing'), null);
+  if (!sentence || !topic) return null;
+  if (verdict === 'still-true') return { sentence, topic, verdict };
+  const why = Object.hasOwn(value, 'why') ? readSaid(value.why, at(path, 'why'), bag, expected.repo, 'any', runs) : (push(bag, at(path, 'why'), 'missing'), null);
+  if (!why) return null;
+  if (verdict === 'true-since') {
+    const since = Object.hasOwn(value, 'since') ? readChangeId(value.since, at(path, 'since'), bag, expected) : (push(bag, at(path, 'since'), 'missing'), null);
+    return since ? { sentence, topic, verdict, since, why } : null;
+  }
+  const brokenBy = Object.hasOwn(value, 'brokenBy') ? readChangeId(value.brokenBy, at(path, 'brokenBy'), bag, expected) : (push(bag, at(path, 'brokenBy'), 'missing'), null);
+  return brokenBy ? { sentence, topic, verdict, brokenBy, why } : null;
+}
+
+function readUndone(value: unknown, path: string, bag: Bag, expected: Expected, runs: RunRef[]): Undone | null {
+  if (!isPlain(value)) {
+    push(bag, path, 'expected an object');
+    return null;
+  }
+  rejectUnknown(value, path, ['changes', 'name', 'says'], bag);
+  if (!Array.isArray(value.changes)) {
+    push(bag, at(path, 'changes'), Object.hasOwn(value, 'changes') ? 'expected an array' : 'missing');
+    return null;
+  }
+  if (value.changes.length < 2) push(bag, at(path, 'changes'), 'expected at least two changes');
+  const changes: ChangeId[] = [];
+  let ok = value.changes.length >= 2;
+  value.changes.forEach((item, i) => {
+    const id = readChangeId(item, `${path}.changes[${i}]`, bag, expected);
+    if (!id) ok = false;
+    else changes.push(id);
+  });
+  const name = Object.hasOwn(value, 'name') ? readNamed(value.name, at(path, 'name'), bag) : (push(bag, at(path, 'name'), 'missing'), null);
+  const says = readSaidList(value.says, at(path, 'says'), bag, expected.repo, 'any', runs, false);
+  if (!ok || !name || !says) return null;
+  return { changes: changes as [ChangeId, ChangeId, ...ChangeId[]], name, says };
+}
+
+function readRun(value: unknown, path: string, bag: Bag): Run | null {
+  if (!isPlain(value)) {
+    push(bag, path, 'expected an object');
+    return null;
+  }
+  rejectUnknown(value, path, ['id', 'rev', 'lang', 'source'], bag);
+  const id = Object.hasOwn(value, 'id') ? readString(value.id, at(path, 'id'), bag) : (push(bag, at(path, 'id'), 'missing'), null);
+  const rev = Object.hasOwn(value, 'rev') ? readString(value.rev, at(path, 'rev'), bag) : (push(bag, at(path, 'rev'), 'missing'), null);
+  const lang = value.lang === 'node' || value.lang === 'python' || value.lang === 'go' || value.lang === 'sh' ? value.lang : null;
+  if (!Object.hasOwn(value, 'lang')) push(bag, at(path, 'lang'), 'missing');
+  else if (!lang) push(bag, at(path, 'lang'), 'expected node, python, go, or sh');
+  const source = Object.hasOwn(value, 'source') ? readString(value.source, at(path, 'source'), bag) : (push(bag, at(path, 'source'), 'missing'), null);
+  if (source && Buffer.byteLength(source) > MAX_RUN_SOURCE_BYTES) push(bag, at(path, 'source'), 'run source is over 64 KB');
+  if (!id || !rev || !lang || !source || Buffer.byteLength(source) > MAX_RUN_SOURCE_BYTES) return null;
+  return { id, rev: asRev(rev), lang, source };
+}
+
+function readUsage(value: unknown, path: string, bag: Bag): Usage | null {
+  if (value === null) return null;
+  if (!isPlain(value)) {
+    push(bag, path, 'expected an object or null');
+    return null;
+  }
+  rejectUnknown(value, path, ['inputTokens', 'outputTokens', 'costUsd'], bag);
+  const num = (key: keyof Usage): number | null => {
+    if (!Object.hasOwn(value, key)) {
+      push(bag, at(path, key), 'missing');
+      return null;
+    }
+    const item = value[key];
+    if (item === null) return null;
+    if (typeof item !== 'number' || !Number.isFinite(item)) {
+      push(bag, at(path, key), 'expected a number or null');
+      return null;
+    }
+    return item;
+  };
+  const inputTokens = num('inputTokens');
+  const outputTokens = num('outputTokens');
+  const costUsd = num('costUsd');
+  if (!Object.hasOwn(value, 'inputTokens') || !Object.hasOwn(value, 'outputTokens') || !Object.hasOwn(value, 'costUsd')) return null;
+  return { inputTokens, outputTokens, costUsd };
+}
+
+function duplicates(ids: readonly string[], path: string, bag: Bag): void {
+  const seen = new Set<string>();
+  for (const id of ids) {
+    if (seen.has(id)) push(bag, path, `duplicate id ${JSON.stringify(id)}`);
+    seen.add(id);
+  }
+}
+
+function linkChecks(snapshot: Snapshot, bag: Bag): void {
+  const topics = new Map(snapshot.topics.map((topic) => [topic.id, topic]));
+  duplicates(snapshot.topics.map((topic) => topic.id), 'topics', bag);
+  duplicates(snapshot.changes.map((change) => change.id), 'changes', bag);
+  duplicates(snapshot.decisions.map((decision) => decision.id), 'decisions', bag);
+  duplicates(snapshot.runs.map((run) => run.id), 'runs', bag);
+  const roots = snapshot.topics.filter((topic) => topic.parent === null);
+  if (roots.length !== 1) push(bag, 'topics', `expected exactly one root topic, found ${roots.length}`);
+  for (const [i, topic] of snapshot.topics.entries()) {
+    if (topic.parent !== null && !topics.has(topic.parent)) push(bag, `topics[${i}].parent`, 'missing parent');
+  }
+  const parentOf = new Map(snapshot.topics.map((topic) => [topic.id, topic.parent]));
+  for (const topic of snapshot.topics) {
+    const seen = new Set<string>();
+    let cur: string | null = topic.id;
+    let cycle = false;
+    while (cur !== null) {
+      if (seen.has(cur)) {
+        cycle = true;
+        break;
+      }
+      seen.add(cur);
+      const next = parentOf.get(cur);
+      if (next === undefined) break;
+      cur = next;
+    }
+    if (cycle) {
+      push(bag, 'topics', 'parent cycle');
+      break;
+    }
+  }
+  const changeIds = new Set(snapshot.changes.map((change) => change.id));
+  const decisionIds = new Set(snapshot.decisions.map((decision) => decision.id));
+  const named = (id: string, path: string): void => {
+    if (!topics.has(id)) push(bag, path, 'missing topic');
+  };
+  snapshot.changes.forEach((change, i) => {
+    change.topics.forEach((id, j) => named(id, `changes[${i}].topics[${j}]`));
+    change.findings.forEach((finding, j) => finding.topics.forEach((id, k) => named(id, `changes[${i}].findings[${j}].topics[${k}]`)));
+  });
+  snapshot.decisions.forEach((decision, i) => {
+    decision.topics.forEach((id, j) => named(id, `decisions[${i}].topics[${j}]`));
+    if (decision.replacedBy !== null && !decisionIds.has(decision.replacedBy)) push(bag, `decisions[${i}].replacedBy`, 'missing decision');
+  });
+  snapshot.claims.forEach((claim, i) => {
+    const topic = topics.get(claim.topic);
+    if (!topic) push(bag, `claims[${i}].topic`, 'missing topic');
+    else if (!topic.docs.includes(claim.sentence.path)) push(bag, `claims[${i}].sentence.path`, 'not in the topic\'s docs');
+  });
+  snapshot.undone.forEach((group, i) => {
+    const seen = new Set<string>();
+    group.changes.forEach((id, j) => {
+      if (seen.has(id)) push(bag, `undone[${i}].changes[${j}]`, 'names a change twice');
+      seen.add(id);
+      if (!changeIds.has(id)) push(bag, `undone[${i}].changes[${j}]`, 'absent from changes');
+    });
+  });
+}
+
 export function parseSnapshot(bytes: string, expected: Expected): ParsedSnapshot {
-  throw new Error('not implemented');
+  if (Buffer.byteLength(bytes) > MAX_SNAPSHOT_BYTES) {
+    return { ok: false, errors: [defect('$', `snapshot is over ${MAX_SNAPSHOT_BYTES} bytes`)] };
+  }
+  let raw: unknown;
+  try {
+    raw = JSON.parse(bytes);
+  } catch {
+    return { ok: false, errors: [defect('$', 'not JSON')] };
+  }
+  const bag: Bag = [];
+  if (!isPlain(raw)) return { ok: false, errors: [defect('$', 'expected an object')] };
+  rejectUnknown(raw, '', ['version', 'head', 'topics', 'changes', 'decisions', 'claims', 'undone', 'runs', 'usage'], bag);
+  if (!Object.hasOwn(raw, 'version')) push(bag, 'version', 'missing');
+  else if (raw.version !== 1) push(bag, 'version', 'expected 1');
+  if (!Object.hasOwn(raw, 'head')) push(bag, 'head', 'missing');
+  else if (raw.head !== expected.head) push(bag, 'head', 'must equal the workspace main SHA');
+  const runs: RunRef[] = [];
+  const topics = readObjectList(raw.topics, 'topics', bag, (item, path) => readTopic(item, path, bag, expected, runs));
+  const changes = readObjectList(raw.changes, 'changes', bag, (item, path) => readChange(item, path, bag, expected, runs));
+  const decisions = readObjectList(raw.decisions, 'decisions', bag, (item, path) => readDecision(item, path, bag, expected, runs));
+  const claims = readObjectList(raw.claims, 'claims', bag, (item, path) => readClaim(item, path, bag, expected, runs));
+  const undone = readObjectList(raw.undone, 'undone', bag, (item, path) => readUndone(item, path, bag, expected, runs));
+  const runList = readObjectList(raw.runs, 'runs', bag, (item, path) => readRun(item, path, bag));
+  const usage = Object.hasOwn(raw, 'usage') ? readUsage(raw.usage, 'usage', bag) : (push(bag, 'usage', 'missing'), null);
+  if (!topics || !changes || !decisions || !claims || !undone || !runList || !Object.hasOwn(raw, 'usage')) {
+    return { ok: false, errors: bag.length > 0 ? (bag as [Defect, ...Defect[]]) : [defect('$', 'malformed snapshot')] };
+  }
+  const runIds = new Set(runList.map((run) => run.id));
+  for (const ref of runs) {
+    if (!runIds.has(ref.id)) push(bag, ref.path, `no run has id ${ref.id}`);
+  }
+  const snapshot: Snapshot = {
+    version: 1,
+    head: expected.head,
+    topics,
+    changes,
+    decisions,
+    claims,
+    undone,
+    runs: runList,
+    usage,
+  };
+  linkChecks(snapshot, bag);
+  if (bag.length > 0) return { ok: false, errors: bag as [Defect, ...Defect[]] };
+  return { ok: true, snapshot };
 }
 
 export function encodeSnapshot(snapshot: Snapshot): string {
-  throw new Error('not implemented');
+  return `${JSON.stringify(snapshot, null, 2)}\n`;
 }

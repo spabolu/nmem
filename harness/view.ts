@@ -162,15 +162,59 @@ export type TopicPage = {
 };
 
 export function pageOf(snapshot: Snapshot, facts: RepoFacts, topic: LocalId): TopicPage {
-  throw new Error('not implemented');
+  const page = snapshot.topics.find((t) => t.id === topic);
+  if (!page) throw new Error(`no topic ${topic}`);
+  const status = statusOf(topic, snapshot, facts);
+  const decisions = decisionsFor(topic, snapshot, facts);
+  const shown = decisions.slice(0, 3).map((decision) => rowOf(decision, facts));
+  const lines = /#L(\d+)(-L(\d+))?$/.exec(page.start.ref);
+  const fragment = lines ? `#L${lines[1]}${lines[3] ? `-L${lines[3]}` : ''}` : '';
+  const source = facts.sourceOf(page.start);
+  return {
+    topic,
+    status,
+    statusLine: TEMPLATES.status(status),
+    headline: page.headline,
+    decisions: { shown, more: Math.max(0, decisions.length - shown.length) },
+    example: page.example,
+    startUrl: source ? `${source.url}${fragment}` : page.start.ref,
+    historyLink: { topic, from: facts.born, to: facts.end },
+  };
 }
 
 export type Range = { readonly topic: LocalId; readonly from: IsoDay; readonly to: IsoDay };
 export type Preset = { readonly id: 'life' | '3m' | '2w'; readonly range: Omit<Range, 'topic'> };
 
+function dayNumber(iso: string): number {
+  return Date.UTC(Number(iso.slice(0, 4)), Number(iso.slice(5, 7)) - 1, Number(iso.slice(8, 10))) / 86_400_000;
+}
+
+function fromDayNumber(n: number): IsoDay {
+  return new Date(Math.round(n) * 86_400_000).toISOString().slice(0, 10) as IsoDay;
+}
+
+function addDays(iso: IsoDay, n: number): IsoDay {
+  return fromDayNumber(dayNumber(iso) + n);
+}
+
+function addMonths(iso: IsoDay, n: number): IsoDay {
+  const shifted = new Date(Date.UTC(Number(iso.slice(0, 4)), Number(iso.slice(5, 7)) - 1 + n, Number(iso.slice(8, 10))));
+  return shifted.toISOString().slice(0, 10) as IsoDay;
+}
+
+function clampDay(iso: IsoDay, facts: RepoFacts): IsoDay {
+  if (iso < facts.born) return facts.born;
+  if (iso > facts.end) return facts.end;
+  return iso;
+}
+
 /** Every preset ends at facts.end. 'life' starts at facts.born. */
 export function presets(facts: RepoFacts): readonly Preset[] {
-  throw new Error('not implemented');
+  return [
+    { id: 'life', range: { from: facts.born, to: facts.end } },
+    { id: '3m', range: { from: clampDay(addDays(addMonths(facts.end, -3), 1), facts), to: facts.end } },
+    { id: '2w', range: { from: clampDay(addDays(facts.end, -13), facts), to: facts.end } },
+  ];
 }
 
 /**
@@ -310,9 +354,21 @@ export function rangeOf(snapshot: Snapshot, facts: RepoFacts, range: Range): Ran
   };
 }
 
-/** rangeOf plus the summary sentence and each row's fold into "+N more". Not implemented: the fold rule is not decided. */
+/**
+ * rangeOf plus the summary sentence and each row. more is 0: a pixel pack needs a board width, and no width is
+ * decided, so the kernel shows every card and the website may pack them. Scores use counts, not the pack.
+ */
 export function timelineOf(snapshot: Snapshot, facts: RepoFacts, range: Range): Timeline {
-  throw new Error('not implemented');
+  const view = rangeOf(snapshot, facts, range);
+  return {
+    range: view.range,
+    summary: TEMPLATES.summary(view.range, view.counts),
+    counts: view.counts,
+    named: view.named,
+    up: { cards: view.cards.filter((card) => card.kind === 'decision'), more: 0 },
+    down: { cards: view.cards.filter((card) => card.kind !== 'decision'), more: 0 },
+    routine: view.routine,
+  };
 }
 
 /** Trust in words, fixed per proof verb (v1: "Trust is said in words"). No system writes these. */
@@ -343,6 +399,21 @@ function joinOr(names: readonly string[]): string {
   return names.length < 2 ? names.join('') : `${names.slice(0, -1).join(', ')} or ${names.at(-1)}`;
 }
 
+function joinAnd(names: readonly string[]): string {
+  return names.length < 2 ? names.join('') : `${names.slice(0, -1).join(', ')} and ${names.at(-1)}`;
+}
+
+function shortDay(day: IsoDay): string {
+  return `${MONTHS[Number(day.slice(5, 7)) - 1] ?? '?'} ${Number(day.slice(8, 10))}`;
+}
+
+function countPhrase(kind: ItemKind, n: number): string {
+  if (kind === 'behavior') return `${n} behavior change${n === 1 ? '' : 's'}`;
+  if (kind === 'check') return `${n} thing${n === 1 ? '' : 's'} to check`;
+  if (kind === 'decision') return `${n} decision${n === 1 ? '' : 's'}`;
+  return n === 1 ? '1 that came and went with no net change' : `${n} that came and went with no net change`;
+}
+
 /** Template sentences. The only place these words live. Gold never stores them and systems never write them. */
 export const TEMPLATES = {
   /** "Nobody wrote down why. Ask Jon Okonkwo." */
@@ -371,16 +442,55 @@ export const TEMPLATES = {
         return { eng: `Out of date since ${changeLabel(status.since)}, ${dayLabel(status.day)}`, plain: `Out of date since ${dayLabel(status.day)}` };
     }
   },
+  /** "Since Nov 18: 2 behavior changes and 2 things to check." */
+  summary: (range: Range, counts: Readonly<Partial<Record<ItemKind, number>>>): Named => {
+    const parts = PRIORITY.filter((kind) => (counts[kind] ?? 0) > 0).map((kind) => countPhrase(kind, counts[kind] ?? 0));
+    const line = `Since ${shortDay(range.from)}: ${parts.length === 0 ? 'nothing that matters' : joinAnd(parts)}.`;
+    return { eng: line, plain: line };
+  },
 } as const;
 
 /** Case-insensitive token match over topic names (both audiences), headline text, and words. Scored only in the user test. */
 export function search(snapshot: Snapshot, query: string): readonly LocalId[] {
-  throw new Error('not implemented');
+  const tokens = query.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+  if (tokens.length === 0) return [];
+  return snapshot.topics.filter((topic) => {
+    const hay = [topic.name.eng, topic.name.plain, ...topic.headline.flatMap((line) => [line.eng, line.plain]), ...topic.words].join(' ').toLowerCase();
+    return tokens.every((token) => hay.includes(token));
+  }).map((topic) => topic.id);
 }
 
 /** The fixed screen set the harness compares: every topic page, and every topic under every preset. */
 export type Screen = { readonly kind: 'page'; readonly topic: LocalId } | { readonly kind: 'timeline'; readonly range: Range; readonly preset: Preset['id'] };
 
 export function screensOf(snapshot: Snapshot, facts: RepoFacts): readonly Screen[] {
-  throw new Error('not implemented');
+  const ranges = presets(facts);
+  return [
+    ...snapshot.topics.map((topic): Screen => ({ kind: 'page', topic: topic.id })),
+    ...snapshot.topics.flatMap((topic) => ranges.map((preset): Screen => ({ kind: 'timeline', range: { topic: topic.id, ...preset.range }, preset: preset.id }))),
+  ];
+}
+
+export function renderPage(snapshot: Snapshot, facts: RepoFacts, topic: LocalId, audience: Audience = 'eng'): string {
+  const page = pageOf(snapshot, facts, topic);
+  const lines = [`Topic ${topic}`, page.statusLine[audience], ...page.headline.map((line) => line[audience])];
+  lines.push(page.example ? `Example: ${page.example[audience]}` : 'Example: none');
+  lines.push(`Decisions shown: ${page.decisions.shown.map((row) => row.decision.id).join(', ') || 'none'}`);
+  lines.push(`Show all: ${page.decisions.more}`);
+  lines.push(`Start here: ${page.startUrl}`);
+  return lines.join('\n');
+}
+
+export function renderTimeline(snapshot: Snapshot, facts: RepoFacts, range: Range, audience: Audience = 'eng', nameOf: (ref: string) => string = (ref) => ref): string {
+  const view = timelineOf(snapshot, facts, range);
+  const counts = PRIORITY.filter((kind) => view.counts[kind]).map((kind) => `${kind} ${view.counts[kind]}`).join(', ');
+  return [
+    `Timeline ${range.topic} ${range.from}..${range.to}`,
+    view.summary[audience],
+    `counts: ${counts || 'none'}`,
+    `named: ${view.named.map((item) => nameOf(item.ref)).join(', ') || 'none'}`,
+    `routine: ${view.routine.count} changes, ${view.routine.lines} lines`,
+    `up: ${view.up.cards.length} cards, +${view.up.more} more`,
+    `down: ${view.down.cards.length} cards, +${view.down.more} more`,
+  ].join('\n');
 }
