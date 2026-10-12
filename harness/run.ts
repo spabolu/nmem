@@ -58,8 +58,10 @@ export function parseManifest(file: string): SystemManifest {
   const dir = path.dirname(path.resolve(file));
   const rel = path.relative(REPO_ROOT, dir);
   const inside = rel === '' || (!rel.startsWith('..') && !path.isAbsolute(rel));
-  const reference = rel === path.join('harness', 'reference') || rel.startsWith(`${path.join('harness', 'reference')}${path.sep}`);
-  if (inside && !reference) throw new Error(`manifest directory is inside the nmem checkout: ${dir}`);
+  // The engine is nmem's own system and imports contract.ts, facts.mjs, and checks.mjs from this checkout. It is
+  // allowed here only while every build runs unblinded. The sandbox slice must stage it outside before it denies reads.
+  const exempt = [path.join('harness', 'reference'), 'engine'].some((home) => rel === home || rel.startsWith(`${home}${path.sep}`));
+  if (inside && !exempt) throw new Error(`manifest directory is inside the nmem checkout: ${dir}`);
   return {
     name: raw.name as SystemName,
     dir,

@@ -1,0 +1,7 @@
+{
+  "name": "nmem",
+  "build": ["node", "cli.ts", "build", "--no-model"],
+  "models": [],
+  "passEnv": [],
+  "buildSec": 600
+}
