@@ -284,6 +284,8 @@ export type RepoRecord = {
   refNames(): ReadonlySet<string>;
   /** Day, author, and URL of a resolvable record object. Null when the object does not exist. */
   sourceFacts(source: RecordSource): SourceFacts | null;
+  /** The full SHA a rev names, or null. The repo never changes under a record, so answers are kept. */
+  revision(rev: string): string | null;
   readonly repoDir: string;
   readonly github: Github;
 };
@@ -311,20 +313,31 @@ export function openRecord(ws: Workspace): RepoRecord {
     fileCache.set(key, body);
     return body;
   };
+  const shas = new Map<string, string | null>();
+  const revision = (rev: string): string | null => {
+    if (!shas.has(rev)) shas.set(rev, fullSha(repoDir, rev));
+    return shas.get(rev) ?? null;
+  };
   const loginFor = (sha: string, name: string): Login | null => {
     if (index.shaLogin.has(sha)) return (index.shaLogin.get(sha) ?? null) as Login | null;
     return (index.loginByName.get(name) ?? null) as Login | null;
   };
+  const objects = new Map<string, RecordObject | null>();
   const resolve = (ref: RecordRef): RecordObject | null => {
+    const key = JSON.stringify(ref);
+    if (!objects.has(key)) objects.set(key, resolveOnce(ref));
+    return objects.get(key) ?? null;
+  };
+  const resolveOnce = (ref: RecordRef): RecordObject | null => {
     if (ref.kind === 'commit') {
-      const sha = fullSha(repoDir, ref.rev);
+      const sha = revision(ref.rev);
       if (!sha) return null;
       const message = commitMessage(repoDir, sha) as string;
       const meta = git(repoDir, ['show', '-s', '--format=%cs%x09%an', sha]).stdout.trim().split('\t');
       return { ref, header: `commit ${sha.slice(0, 7)} by ${meta[1] ?? 'unknown'}, ${meta[0] ?? ''}: ${oneLine(message)}`, revisions: [message] };
     }
     if (ref.kind === 'file') {
-      const sha = fullSha(repoDir, ref.rev);
+      const sha = revision(ref.rev);
       if (!sha) return null;
       const body = show(sha, ref.path);
       if (body === null) return null;
@@ -360,11 +373,16 @@ export function openRecord(ws: Workspace): RepoRecord {
     if (release) parts.push(release.title, release.body);
     return { ref, header: `tag ${tag.name} by ${tag.by}, ${dayOf(tag.at)}: ${oneLine(message)}`, revisions: [parts.join('\n')] };
   };
+  const sources = new Map<string, SourceFacts | null>();
   const sourceFacts = (source: RecordSource): SourceFacts | null => {
+    if (!sources.has(source.ref)) sources.set(source.ref, sourceFactsOnce(source));
+    return sources.get(source.ref) ?? null;
+  };
+  const sourceFactsOnce = (source: RecordSource): SourceFacts | null => {
     const ref = parseRef(source.ref, ws.identity);
     if (!ref || !resolve(ref)) return null;
     if (ref.kind === 'commit') {
-      const sha = fullSha(repoDir, ref.rev);
+      const sha = revision(ref.rev);
       if (!sha) return null;
       const [day, name] = git(repoDir, ['show', '-s', '--format=%cs%x09%an', sha]).stdout.trim().split('\t');
       return { day: (day ?? '') as IsoDay, author: loginFor(sha, name ?? ''), url: `${base}/commit/${sha}` };
@@ -373,7 +391,7 @@ export function openRecord(ws: Workspace): RepoRecord {
       const added = git(repoDir, ['log', '--reverse', '--diff-filter=A', '--format=%H%x09%an%x09%cs', 'main', '--', ref.path]).stdout.split('\n').find(Boolean);
       if (!added) return null;
       const [sha, name, day] = added.split('\t');
-      const cited = fullSha(repoDir, ref.rev);
+      const cited = revision(ref.rev);
       return { day: (day ?? '') as IsoDay, author: loginFor(sha ?? '', name ?? ''), url: `${base}/blob/${cited ?? sha}/${ref.path}` };
     }
     if (ref.kind === 'pr') {
@@ -408,6 +426,7 @@ export function openRecord(ws: Workspace): RepoRecord {
     github,
     resolve,
     sourceFacts,
+    revision,
     corpusGrams() {
       if (gramsCache) return gramsCache;
       const texts: string[] = [];
@@ -429,7 +448,12 @@ export function openRecord(ws: Workspace): RepoRecord {
   };
 }
 
-/** A fixture checkout, not a scrubbed handoff. Scoring and render use this. The build path uses buildWorkspace. */
+const fixtures = new Map<string, RepoRecord>();
+
+/**
+ * A fixture checkout, not a scrubbed handoff. Scoring and render use this. The build path uses buildWorkspace. One
+ * record per fixture and process, keyed by the fixture hash, so its kept git answers are reused across snapshots.
+ */
 export function openFixture(fixtureDir: string): RepoRecord {
   const githubFile = path.join(fixtureDir, 'github.json');
   const githubBytes = fs.readFileSync(githubFile);
@@ -441,7 +465,12 @@ export function openFixture(fixtureDir: string): RepoRecord {
     mainSha: git(repoDir, ['rev-parse', 'main']).stdout.trim() as Sha,
     fixtureHash: fixtureHashOf(fixtureDir, githubBytes),
   };
-  return openRecord(ws);
+  const key = `${path.resolve(fixtureDir)}:${ws.fixtureHash}`;
+  const known = fixtures.get(key);
+  if (known) return known;
+  const record = openRecord(ws);
+  fixtures.set(key, record);
+  return record;
 }
 
 function collapse(text: string): string {
@@ -496,14 +525,14 @@ export function spanOf(record: RepoRecord, source: RecordSource): { readonly obj
   const quote = findQuote(object, source.quote);
   if (!quote.found) return null;
   if (ref.kind === 'file') {
-    const headSha = fullSha(record.repoDir, record.workspace.mainSha);
+    const headSha = record.revision(record.workspace.mainSha);
     const headObject = headSha ? record.resolve({ kind: 'file', rev: headSha as Rev, path: ref.path, lines: null }) : null;
     const headQuote = headObject ? findQuote(headObject, source.quote) : { found: false as const };
     if (headQuote.found) return { object: objectKey(ref, headSha), revision: 0, span: headQuote.span };
-    const sha = fullSha(record.repoDir, ref.rev);
+    const sha = record.revision(ref.rev);
     return { object: objectKey(ref, sha), revision: revNumber(sha ?? ref.rev), span: quote.span };
   }
-  const sha = ref.kind === 'commit' ? fullSha(record.repoDir, ref.rev) : null;
+  const sha = ref.kind === 'commit' ? record.revision(ref.rev) : null;
   return { object: objectKey(ref, sha), revision: quote.revision, span: quote.span };
 }
 
@@ -521,7 +550,11 @@ type GitChange = {
  * and people are fixtures/lib/facts.mjs factsOf(repoDir, github), the same code the generator runs on gold, so a gold
  * change id and a harness change id cannot drift apart. This adds sourceOf over the record.
  */
+const factsByRecord = new WeakMap<RepoRecord, RepoFacts>();
+
 export function factsOf(record: RepoRecord): RepoFacts {
+  const known = factsByRecord.get(record);
+  if (known) return known;
   const raw = gitFacts(record.repoDir, record.github) as {
     head: string;
     born: string;
@@ -529,7 +562,7 @@ export function factsOf(record: RepoRecord): RepoFacts {
     changes: GitChange[];
     people: Map<string, string>;
   };
-  return {
+  const facts: RepoFacts = {
     head: raw.head,
     born: raw.born as IsoDay,
     end: raw.end as IsoDay,
@@ -544,6 +577,8 @@ export function factsOf(record: RepoRecord): RepoFacts {
     people: raw.people as unknown as ReadonlyMap<Login, string>,
     sourceOf: (source) => record.sourceFacts(source),
   };
+  factsByRecord.set(record, facts);
+  return facts;
 }
 
 export function changeIds(facts: RepoFacts): ReadonlySet<ChangeId> {
