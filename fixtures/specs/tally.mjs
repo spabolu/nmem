@@ -1407,7 +1407,7 @@ const views = {
       id: 'd-flag',
       what: {
         eng: 'The file option is now called --ledger.',
-        plain: 'The setting that names the bill file got a new name.',
+        plain: 'The setting that names the file got a new name.',
         ev: commit('c-ledger-flag', 'cli: call the file flag --ledger'),
       },
       topics: ['storage', 'adding'],
@@ -1435,7 +1435,7 @@ const views = {
     {
       id: 'd-json',
       what: {
-        eng: 'The ledger moved from SQLite to ledger.json, a JSON file (ADR-0004).',
+        eng: 'tally/store.py now writes the ledger to ledger.json (ADR-0004).',
         plain: 'The list of bills moved out of the database and into one file.',
         ev: headFile(adr.json, 'tally/store.py writes ledger.json, a list of entries in the same shape'),
       },
@@ -1504,8 +1504,8 @@ const views = {
     {
       id: 'd-ties',
       what: {
-        eng: '`tally settle` prints the fewest payments, largest debt against largest credit, with ties broken by name.',
-        plain: 'Settling up uses the fewest payments, and ties go by name.',
+        eng: '`tally settle` should print the fewest payments, and the same ones every time for the same file.',
+        plain: 'Settling up should use the fewest payments, and the same bills should always give the same payments.',
         ev: pr(12, 'Largest debt against largest credit, ties broken by name'),
       },
       alsoIntent: [comment('iss10-lena', 'Fewest payments, same file always prints the same lines.')],
@@ -1561,8 +1561,8 @@ const views = {
     {
       id: 'd-currency',
       what: {
-        eng: 'One currency, and no rate table.',
-        plain: 'One kind of money, with no exchange rates.',
+        eng: 'tally will not handle a second currency.',
+        plain: 'The app will not handle a second kind of money.',
         ev: comment('disc5-lena', 'Not building a rate table.'),
       },
       alsoIntent: [comment('disc5-lena-2', 'Settled then. One currency.')],

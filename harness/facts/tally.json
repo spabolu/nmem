@@ -238,41 +238,31 @@
     ]
   },
   "tally/d-currency/what/eng": {
-    "source": "4c92490c14549877ba672c87c0fc1231",
+    "source": "9dd15bdf201f9650d2f5c6d384ae2873",
     "headline": [
       {
         "id": "f1",
-        "text": "One currency."
-      },
-      {
-        "id": "f2",
-        "text": "No rate table."
+        "text": "tally will not handle a second currency."
       }
     ],
     "supporting": [],
     "paraphrase": [
-      "Use one currency without a rate table."
+      "A second currency will not be handled by tally."
     ],
-    "review": "flagged",
-    "flags": [
-      "the cross-check says the paraphrase changes the meaning"
-    ]
+    "review": "auto",
+    "flags": []
   },
   "tally/d-currency/what/plain": {
-    "source": "6ef5e95072037d422d65258991928f4f",
+    "source": "3920a9772183174db6575ed573193e32",
     "headline": [
       {
         "id": "f1",
-        "text": "There is one kind of money."
-      },
-      {
-        "id": "f2",
-        "text": "There are no exchange rates."
+        "text": "The app will not handle a second kind of money."
       }
     ],
     "supporting": [],
     "paraphrase": [
-      "Only one form of money, and no rates for swapping it."
+      "The application will not deal with a second form of money."
     ],
     "review": "auto",
     "flags": []
@@ -293,16 +283,16 @@
     "flags": []
   },
   "tally/d-flag/what/plain": {
-    "source": "04d8e54ebd5c47e098bc50a9031f1204",
+    "source": "1bd84e00e36b5144af58f36953d33084",
     "headline": [
       {
         "id": "f1",
-        "text": "The setting that names the bill file got a new name."
+        "text": "The setting that names the file got a new name."
       }
     ],
     "supporting": [],
     "paraphrase": [
-      "The option that identifies the bill list was given a different name."
+      "The option that identifies the file received a different name."
     ],
     "review": "auto",
     "flags": []
@@ -414,25 +404,16 @@
     "flags": []
   },
   "tally/d-json/what/eng": {
-    "source": "e2eb6edd64f8f2d7e99bb4b6ae24d2ad",
+    "source": "12173c4da22ae32d368a399c1fd67d60",
     "headline": [
       {
         "id": "f1",
-        "text": "The ledger moved from SQLite to ledger.json."
-      },
-      {
-        "id": "f2",
-        "text": "That decision is ADR-0004."
+        "text": "tally/store.py now writes the ledger to ledger.json (ADR-0004)."
       }
     ],
-    "supporting": [
-      {
-        "id": "f3",
-        "text": "ledger.json is a JSON file."
-      }
-    ],
+    "supporting": [],
     "paraphrase": [
-      "ADR-0004 switched the ledger from SQLite over to ledger.json, stored as JSON."
+      "tally/store.py currently saves the ledger into ledger.json (ADR-0004)."
     ],
     "review": "auto",
     "flags": []
@@ -960,44 +941,39 @@
     "flags": []
   },
   "tally/d-ties/what/eng": {
-    "source": "2808482379487bb42093dcd9cee3dfdf",
+    "source": "e5d45dd75f0f9e5533fe2dc484c6ddd9",
     "headline": [
       {
         "id": "f1",
-        "text": "`tally settle` prints the fewest payments"
+        "text": "`tally settle` should print the fewest payments."
       },
       {
         "id": "f2",
-        "text": "Largest debt is set against largest credit"
+        "text": "For the same file, `tally settle` should print the same payments every time."
       }
     ],
-    "supporting": [
-      {
-        "id": "f3",
-        "text": "Ties are broken by name"
-      }
-    ],
+    "supporting": [],
     "paraphrase": [
-      "`tally settle` outputs the smallest payment count, pairing biggest debt with biggest credit, and breaks ties using name."
+      "`tally settle` must output the minimum count of payments, and those payments must stay identical on every run of one file."
     ],
     "review": "auto",
     "flags": []
   },
   "tally/d-ties/what/plain": {
-    "source": "8e103d28445828006fbd797fba9690d6",
+    "source": "0b2948fa77a804db09fb51318ddfaf5c",
     "headline": [
       {
         "id": "f1",
-        "text": "Settling up uses the fewest payments."
+        "text": "Settling up should use the fewest payments."
       },
       {
         "id": "f2",
-        "text": "Ties go by name."
+        "text": "The same bills should always give the same payments."
       }
     ],
     "supporting": [],
     "paraphrase": [
-      "Squaring accounts uses the smallest number of payments, and name order breaks ties."
+      "People settling up ought to make as few payments as possible, and equal bills must always create equal payments."
     ],
     "review": "auto",
     "flags": []
