@@ -15,7 +15,7 @@ How `nmem build <workspace> <out.json>` turns a repo and its GitHub record into 
 | --- | --- | --- |
 | ingest | no | Enumerate changes with `fixtures/lib/facts.mjs`. Cut records into sentences and lines with handles. Flag denial sentences (the generator's `/no behaviou?r change/i`), `Reverts #N` lines, bots, and superseded ADRs. |
 | prove | no | Prove routine files and add-then-undo groups with `fixtures/lib/checks.mjs`. Proven files reach the model as settled facts, never as diffs. |
-| classify | yes | Per change, list each sentence that could read as a choice with a stance (`chose`, `describes`, `denies`), plus behavior findings. A description of new behavior never suppresses its finding. |
+| classify | yes | Per change, list each sentence that could read as a choice with a stance (`chose`, `describes`, `denies`), plus behavior findings. A description of new behavior never suppresses its finding. A change whose every file is proven routine is not sent. |
 | link | yes | Join thread agreements to the change that carried them. Retrieve HEAD ADR paragraphs as context. Supersession from ADR status lines first. |
 | why | yes | A recorded reason needs a verified quote and a second call that agrees it states why. Otherwise not recorded, with `ask` derived from the record. |
 | claims | yes | Read docs at HEAD. A sentence is skipped only when every path it names is unchanged since the sentence was written. Probes over git date `brokenBy` and true-since. Omit when unsure. |

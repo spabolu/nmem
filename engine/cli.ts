@@ -10,7 +10,9 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { build } from './build.ts';
-import { deviceLogin } from './copilot.ts';
+import { deviceLogin, loadCredential, ModelUnavailable, openClient } from './copilot.ts';
+import type { ModelClient, Totals } from './copilot.ts';
+import { limited, MODELS } from './model.ts';
 
 export type Command =
   | { readonly kind: 'build'; readonly workspace: string; readonly out: string; readonly store: string | null; readonly model: boolean }
@@ -57,16 +59,32 @@ export async function main(argv: readonly string[]): Promise<number> {
       return 1;
     }
   }
+  let client: ModelClient | null = null;
   if (command.model) {
-    console.error('the model steps are not built yet; pass --no-model');
-    return 2;
+    try {
+      client = limited(openClient({ store: command.store ?? path.join(os.homedir(), '.cache', 'nmem'), mode: 'live', credential: loadCredential(process.env, os.homedir()) }), 4);
+    } catch (error) {
+      console.error((error as Error).message);
+      return 1;
+    }
   }
-  const built = await build(command.workspace);
+  let built: Awaited<ReturnType<typeof build>>;
+  try {
+    built = await build(command.workspace, client);
+  } catch (error) {
+    console.error(error instanceof ModelUnavailable ? `${error.label}: ${error.message}` : (error as Error).stack ?? String(error));
+    return 1;
+  }
   const temp = `${command.out}.${process.pid}.tmp`;
   fs.writeFileSync(temp, built.bytes);
   fs.renameSync(temp, command.out);
-  console.error(`${built.summary}; no model`);
+  for (const note of built.notes) console.error(`note: ${note}`);
+  console.error(`${built.summary}; ${client === null ? 'no model' : callsLine(client.totals())}`);
   return 0;
+}
+
+function callsLine(totals: Totals): string {
+  return `${MODELS.join(', ')}: ${totals.live + totals.cached} calls, ${totals.live} live, ${totals.cached} cached, ${totals.usage.inputTokens} tokens in, ${totals.usage.outputTokens} out`;
 }
 
 if (import.meta.main) process.exitCode = await main(process.argv.slice(2));

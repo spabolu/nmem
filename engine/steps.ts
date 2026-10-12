@@ -9,15 +9,22 @@ import type { Change, RepoRecord, Sentence } from './record.ts';
 /** How a sentence reads: someone chose this, it describes what the change does, or it denies changing behavior. */
 export type Stance = 'chose' | 'describes' | 'denies';
 
-/** A sentence that could read as a choice, with what was chosen in both audiences and the change carrying it. */
+/**
+ * A sentence that could read as a choice, with what was chosen in both audiences, the change carrying it, and the
+ * touched paths it is about, which place it on topics.
+ */
 export type Choice = {
   readonly sentence: Sentence;
   readonly stance: Stance;
   readonly what: Named;
   readonly carriedBy: ChangeId | null;
+  readonly files: readonly string[];
 };
 
-export type Classification = { readonly choices: readonly Choice[]; readonly findings: readonly Finding[] };
+/** A finding with the touched paths it is about. */
+export type Found = { readonly finding: Finding; readonly files: readonly string[] };
+
+export type Classification = { readonly choices: readonly Choice[]; readonly findings: readonly Found[] };
 
 export type Steps = {
   /** Per change: every sentence that could read as a choice, with its stance, plus behavior findings. */

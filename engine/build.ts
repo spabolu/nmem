@@ -3,8 +3,11 @@
  * contract's parser and checks every quote against the ingested record before anything is written.
  */
 import { encodeSnapshot, parseSnapshot } from '../harness/contract.ts';
-import type { Change as Entry, ChangeId, RecordSource, Snapshot, Undone } from '../harness/contract.ts';
-import { decide } from './choices.ts';
+import type { Change as Entry, ChangeId, RecordSource, Snapshot, Undone, Usage } from '../harness/contract.ts';
+import { decide, settledChoices } from './choices.ts';
+import { classifyChange } from './classify.ts';
+import { ModelUnavailable } from './copilot.ts';
+import type { ModelClient } from './copilot.ts';
 import { describeRoutine, proveRoutine, proveUndone } from './proofs.ts';
 import type { UndoneProof } from './proofs.ts';
 import { ingest } from './record.ts';
@@ -47,7 +50,7 @@ function checkQuotes(snapshot: Snapshot, record: RepoRecord): void {
 
 export type Built = { readonly bytes: string; readonly summary: string };
 
-export async function assemble(record: RepoRecord, steps: Steps): Promise<Built> {
+export async function assemble(record: RepoRecord, steps: Steps, usage: () => Usage | null = () => null): Promise<Built> {
   const classified = await Promise.all(record.changes.map((change) => steps.classify(change)));
   const changes: Entry[] = record.changes.map((change, i) => {
     const proof = proveRoutine(record.repoDir, change);
@@ -55,7 +58,7 @@ export async function assemble(record: RepoRecord, steps: Steps): Promise<Built>
     return {
       id: change.id,
       topics: [],
-      findings: classified[i]?.findings ?? [],
+      findings: classified[i]?.findings.map((found) => found.finding) ?? [],
       routine: proof && words ? [{ files: proof.files, name: words.name, reason: { ...words.reason, source: { kind: 'proof', proof: proof.proof } } }] : [],
     };
   });
@@ -70,7 +73,7 @@ export async function assemble(record: RepoRecord, steps: Steps): Promise<Built>
     claims: await steps.claims(),
     undone,
     runs: [],
-    usage: null,
+    usage: usage(),
   };
   const bytes = encodeSnapshot(snapshot);
   const parsed = parseSnapshot(bytes, { repo: record.identity, head: record.head, changes: new Set(record.changes.map((change) => change.id)) });
@@ -81,8 +84,46 @@ export async function assemble(record: RepoRecord, steps: Steps): Promise<Built>
   return { bytes, summary };
 }
 
-/** The no-model build: every model step takes its fallback. */
-export async function build(workspace: string): Promise<Built> {
+/** What a model build tells its operator: refusals the gates made, and steps that fell back. */
+export type Notes = string[];
+
+function fallback(notes: Notes, label: string, error: unknown): void {
+  if (error instanceof ModelUnavailable && error.reason === 'bad-reply') notes.push(`${label} fell back: ${error.message}`);
+  else throw error;
+}
+
+/**
+ * The model steps that are on, over the no-model floor. A bad reply after the re-ask takes the step's fallback and is
+ * noted. Auth and provider failures throw, so a scored run fails rather than writing a partial snapshot.
+ */
+export function modelSteps(record: RepoRecord, client: ModelClient, notes: Notes): Steps {
+  const floor = noModel(record);
+  const settled = settledChoices(record);
+  return {
+    ...floor,
+    classify: async (change) => {
+      if (proveRoutine(record.repoDir, change)) return floor.classify(change);
+      try {
+        const classified = await classifyChange(record, client, change, settled);
+        notes.push(...classified.problems);
+        return { choices: classified.choices, findings: classified.findings };
+      } catch (error) {
+        fallback(notes, `classify ${change.id}`, error);
+        return floor.classify(change);
+      }
+    },
+  };
+}
+
+/** With no client every model step takes its fallback, which is the S1c snapshot byte for byte. */
+export async function build(workspace: string, client: ModelClient | null = null): Promise<Built & { readonly notes: Notes }> {
   const record = ingest(workspace);
-  return assemble(record, noModel(record));
+  const notes: Notes = [];
+  const usage = (): Usage | null => {
+    if (client === null) return null;
+    const totals = client.totals().usage;
+    return { inputTokens: totals.inputTokens, outputTokens: totals.outputTokens, costUsd: null };
+  };
+  const built = await assemble(record, client === null ? noModel(record) : modelSteps(record, client, notes), usage);
+  return { ...built, notes };
 }

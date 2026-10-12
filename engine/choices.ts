@@ -35,7 +35,7 @@ export function revertChoices(record: RepoRecord): Choice[] {
     const targets = sentence ? revertTargets(sentence.text) ?? [] : [];
     if (!sentence || targets.length === 0) return [];
     const plain = targets.length === 1 ? 'Undid an earlier change.' : `Undid ${targets.length} earlier changes.`;
-    return [{ sentence, stance: 'chose', what: { eng: `Reverted ${joinAnd(targets.map((n) => `PR #${n}`))}.`, plain }, carriedBy: change.id }];
+    return [{ sentence, stance: 'chose', what: { eng: `Reverted ${joinAnd(targets.map((n) => `PR #${n}`))}.`, plain }, carriedBy: change.id, files: [...change.touched.keys()] }];
   });
 }
 
@@ -60,7 +60,20 @@ function adrChoice(record: RepoRecord, adr: Adr): Choice | null {
       plain: firstPlain([collapse(sentence.text), title === '' ? '' : `${title}.`].filter(Boolean), 'A choice the team wrote down.'),
     },
     carriedBy: carrier?.id ?? null,
+    files: [adr.file.path],
   };
+}
+
+function adrChoices(record: RepoRecord): { readonly adr: Adr; readonly choice: Choice }[] {
+  return record.adrs.flatMap((adr) => {
+    const choice = adrChoice(record, adr);
+    return choice ? [{ adr, choice }] : [];
+  });
+}
+
+/** The choices that need no model: each change's first "Reverts #N" line and each decided ADR. */
+export function settledChoices(record: RepoRecord): readonly Choice[] {
+  return [...revertChoices(record), ...adrChoices(record).map((item) => item.choice)];
 }
 
 function idOf(intent: Intent): LocalId {
@@ -73,10 +86,7 @@ function idOf(intent: Intent): LocalId {
  * the same list.
  */
 export async function decide(record: RepoRecord, steps: Steps, classified: readonly Choice[]): Promise<Decision[]> {
-  const adrs = record.adrs.flatMap((adr) => {
-    const choice = adrChoice(record, adr);
-    return choice ? [{ adr, choice }] : [];
-  });
+  const adrs = adrChoices(record);
   const linked = await steps.link([...revertChoices(record), ...adrs.map((item) => item.choice), ...classified]);
   const position = new Map<ChangeId | null, number>(record.changes.map((change, i) => [change.id, i]));
   const rank = (carriedBy: ChangeId | null): number => position.get(carriedBy) ?? record.changes.length;

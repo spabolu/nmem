@@ -68,6 +68,17 @@ function short(sha: string): string {
   return sha.slice(0, 7);
 }
 
+/** Each touched file the change's `files` proof shows is routine on its own, with what it is. They reach a model as settled facts, never as diffs. */
+export function settledFiles(repoDir: string, change: Change): ReadonlyMap<string, Named> {
+  const output = run(repoDir, `files ${short(change.after)}`);
+  const settled = new Map<string, Named>();
+  for (const entry of output === null ? [] : entries(output)) {
+    const rule = ROUTINE.find((item) => item.test(entry));
+    if (rule && change.touched.has(entry.path)) settled.set(entry.path, rule.name);
+  }
+  return settled;
+}
+
 /** Every touched file proven routine by one `files` proof, or null. A change with any unproven file is not routine. */
 export function proveRoutine(repoDir: string, change: Change): RoutineProof | null {
   const proof = `files ${short(change.after)}`;

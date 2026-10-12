@@ -57,6 +57,14 @@ export type Adr = {
   readonly decision: Sentence | null;
 };
 
+/** One row of a unified diff. An added row names the line it added in the file at the patch's commit. */
+export type DiffRow =
+  | { readonly kind: 'hunk' | 'context' | 'removed'; readonly text: string }
+  | { readonly kind: 'added'; readonly text: string; readonly line: Line };
+
+/** What one non-merge commit did to one file. file is that path at the commit, null when the commit deleted it. */
+export type Patch = { readonly commit: string; readonly path: string; readonly file: FileObject | null; readonly rows: readonly DiffRow[] };
+
 export type Change = {
   readonly id: ChangeId;
   readonly before: string;
@@ -65,6 +73,8 @@ export type Change = {
   readonly touched: ReadonlyMap<string, number>;
   /** The pull request and its threads, then every commit message, in record order. */
   readonly objects: readonly RecordObject[];
+  /** Every non-merge commit's diff, in commit order. */
+  readonly patches: readonly Patch[];
 };
 
 export type RepoRecord = {
@@ -308,6 +318,65 @@ function decisionOf(file: FileObject): Sentence | null {
   return file.sentences.find((sentence) => sentence.unit !== 'heading' && sentence.start >= from && sentence.start < to) ?? null;
 }
 
+function fileObject(ref: string, path: string, author: Login | null, body: string): FileObject {
+  return {
+    ref,
+    author,
+    text: body,
+    sentences: [],
+    path,
+    lines: body.replace(/\n$/, '').split('\n').map((line, i) => ({ handle: `${ref}#L${i + 1}` as Handle, number: i + 1, text: line })),
+  };
+}
+
+/**
+ * The commit's diff against its first parent, file by file, with every added row tied to its line in the file at the
+ * commit. Renames read as a delete and an add, and binary files show no rows.
+ */
+function patchesOf(repoDir: string, sha: string, author: Login | null, add: (object: FileObject) => FileObject): Patch[] {
+  const sha7 = sha.slice(0, 7);
+  const patches: Patch[] = [];
+  let header: { from: string | null; to: string | null } | null = null;
+  let current: { path: string; file: FileObject | null; rows: DiffRow[] } | null = null;
+  let next = 0;
+  const flush = (): void => {
+    if (current) patches.push({ commit: sha7, ...current });
+    current = null;
+  };
+  for (const row of git(repoDir, ['show', '--format=', '--no-color', '--no-renames', '--unified=3', sha]).stdout.split('\n')) {
+    if (row.startsWith('diff --git ')) {
+      flush();
+      header = { from: null, to: null };
+      continue;
+    }
+    if (header !== null) {
+      if (row.startsWith('--- ')) header.from = row.slice(4) === '/dev/null' ? null : row.slice(4).replace(/^a\//, '');
+      else if (row.startsWith('+++ ')) header.to = row.slice(4) === '/dev/null' ? null : row.slice(4).replace(/^b\//, '');
+      if (!row.startsWith('@@')) continue;
+      const to = header.to;
+      const path = to ?? header.from ?? '';
+      current = { path, file: to === null ? null : add(fileObject(`${sha7}:${to}`, to, author, (showFile(repoDir, sha, to) as string | null) ?? '')), rows: [] };
+      header = null;
+    }
+    if (current === null) continue;
+    const hunk = /^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@/.exec(row);
+    if (hunk) {
+      next = Number(hunk[1]);
+      current.rows.push({ kind: 'hunk', text: row });
+    } else if (row.startsWith('+')) {
+      const line = current.file?.lines[next - 1];
+      if (line) current.rows.push({ kind: 'added', text: row.slice(1), line });
+      next += 1;
+    } else if (row.startsWith('-')) current.rows.push({ kind: 'removed', text: row.slice(1) });
+    else if (row.startsWith(' ')) {
+      current.rows.push({ kind: 'context', text: row.slice(1) });
+      next += 1;
+    }
+  }
+  flush();
+  return patches;
+}
+
 export function ingest(workspace: string): RepoRecord {
   const repoDir = path.join(workspace, 'repo');
   const raw: unknown = JSON.parse(fs.readFileSync(path.join(workspace, 'github.json'), 'utf8'));
@@ -352,10 +421,12 @@ export function ingest(workspace: string): RepoRecord {
   };
   const changes: Change[] = facts.changes.map((change) => {
     const range = change.before === EMPTY_TREE ? [change.after] : [change.after, `^${change.before}`];
-    const commits = lines(git(repoDir, ['log', '--reverse', '--format=%H%x09%an', ...range]).stdout).map((row) => {
-      const [sha = '', name = ''] = row.split('\t');
-      return add(objectOf(sha.slice(0, 7), commitAuthor(sha, name), commitMessage(repoDir, sha) as string, bots));
+    const log = lines(git(repoDir, ['log', '--reverse', '--format=%H%x09%an%x09%P', ...range]).stdout).map((row) => {
+      const [sha = '', name = '', parents = ''] = row.split('\t');
+      return { sha, author: commitAuthor(sha, name), merge: parents.split(' ').length > 1 };
     });
+    const commits = log.map((commit) => add(objectOf(commit.sha.slice(0, 7), commit.author, commitMessage(repoDir, commit.sha) as string, bots)));
+    const patches = log.filter((commit) => !commit.merge).flatMap((commit) => patchesOf(repoDir, commit.sha, commit.author, add));
     const pull = /^pr#(\d+)$/.exec(change.id);
     return {
       id: change.id as ChangeId,
@@ -364,6 +435,7 @@ export function ingest(workspace: string): RepoRecord {
       author: change.author === null ? null : login(change.author),
       touched: change.touched,
       objects: [...(pull ? pullObjects.get(Number(pull[1])) ?? [] : []), ...commits],
+      patches,
     };
   });
 

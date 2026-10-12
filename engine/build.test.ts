@@ -10,7 +10,10 @@ import type { Snapshot } from '../harness/contract.ts';
 import { changeIds, factsOf, openFixture } from '../harness/record.ts';
 import { kindOf } from '../harness/view.ts';
 import { checkoutNewBranch, commitAll, git, initRepo, mergeNoFf, writeChanges } from '../fixtures/lib/git.mjs';
-import { assemble } from './build.ts';
+import { assemble, modelSteps } from './build.ts';
+import { dossierOf } from './classify.ts';
+import { callKey, ModelUnavailable } from './copilot.ts';
+import type { ChatRequest, ModelClient } from './copilot.ts';
 import { ingest, segment } from './record.ts';
 import { noModel } from './steps.ts';
 
@@ -134,7 +137,7 @@ test('a denial sentence never becomes an intent, from a revert line or from clas
       choices: change.objects
         .filter((object) => object.ref.startsWith('pr#'))
         .flatMap((object) => object.sentences.filter((sentence) => sentence.unit === 'prose'))
-        .map((sentence) => ({ sentence, stance: 'chose' as const, what: { eng: sentence.text, plain: sentence.text }, carriedBy: change.id })),
+        .map((sentence) => ({ sentence, stance: 'chose' as const, what: { eng: sentence.text, plain: sentence.text }, carriedBy: change.id, files: [] })),
       findings: [],
     }),
   });
@@ -143,4 +146,103 @@ test('a denial sentence never becomes an intent, from a revert line or from clas
     ['pr#1', 'Adds a farewell line.'],
     ['pr#3', 'Moves the greeting to stdout.'],
   ]);
+});
+
+type Canned = Readonly<Record<string, readonly unknown[]>>;
+
+/** A model client that answers each request by its label and sample from a fixed table, and records what it was asked. */
+function fakeClient(answers: Canned): ModelClient & { readonly seen: ChatRequest[] } {
+  const seen: ChatRequest[] = [];
+  return {
+    seen,
+    async call(request) {
+      seen.push(request);
+      const value = answers[request.label]?.[request.sample];
+      if (value === undefined) throw new ModelUnavailable('bad-reply', request.label, `no canned answer for ${request.label} sample ${request.sample}`);
+      return { key: callKey(request), value, usage: { inputTokens: 100, outputTokens: 10 }, cached: false };
+    },
+    totals: () => ({ live: seen.length, cached: 0, usage: { inputTokens: 100 * seen.length, outputTokens: 10 * seen.length } }),
+  };
+}
+
+const FAREWELL = [
+  { title: 'Add a farewell', body: 'Use one farewell line. No behavior change intended.', files: { 'farewell.txt': 'bye\n' } },
+  { title: 'Tidy the greeting', body: 'Moves the greeting to stdout.', files: { 'greet.txt': 'hello\nworld\n' } },
+];
+
+test('the classify dossier numbers sentences, marks denials, and gives handles only to added lines', () => {
+  const record = ingest(toyWorkspace(FAREWELL));
+  const change = record.changes.find((item) => item.id === 'pr#1');
+  assert.ok(change);
+  assert.equal(dossierOf(record, change, []).text.replace(/[0-9a-f]{7}/g, 'SHA'), [
+    'Change pr#1 by ana.',
+    'Touched files: farewell.txt.',
+    '',
+    'Record:',
+    'pull request #1, title then body, by ana:',
+    '[S1] Add a farewell',
+    '[S2] Use one farewell line.',
+    '[S3] (denial) No behavior change intended.',
+    'commit message SHA by ana:',
+    '[S4] Add a farewell',
+    'commit message SHA by ana:',
+    '[S5] Merge pull request #1',
+    '',
+    'Code, one diff per commit and file. Only added lines have handles:',
+    'commit SHA, farewell.txt',
+    '@@ -0,0 +1 @@',
+    '[L1] +bye',
+  ].join('\n'));
+});
+
+test('classify copies record text for handles, refuses a denial as intent or anchor, and re-asks once', async () => {
+  const record = ingest(toyWorkspace(FAREWELL));
+  const answers: Canned = {
+    'classify pr#1': [
+      {
+        choices: [
+          { sentence: 'S2', stance: 'chose', carried: 'this', restates: null, what: { eng: 'One farewell line.', plain: 'The app says goodbye once.' }, files: ['farewell.txt'] },
+          { sentence: 'S3', stance: 'chose', carried: 'this', restates: null, what: { eng: 'Nothing changes.', plain: 'Nothing changes.' }, files: [] },
+        ],
+        findings: [{ severity: 'behavior', anchor: 'S3', files: [], name: { eng: 'Says bye', plain: 'Says bye' }, says: [{ eng: 'It says bye.', plain: 'It says bye.', source: 'L1' }] }],
+      },
+      {
+        choices: [{ sentence: 'S2', stance: 'chose', carried: 'this', restates: null, what: { eng: 'One farewell line.', plain: 'The app says goodbye once.' }, files: ['farewell.txt'] }],
+        findings: [{ severity: 'check', anchor: 'L1', files: [], name: { eng: 'farewell.txt says bye', plain: 'The goodbye is short' }, says: [{ eng: 'The PR says nothing changes.', plain: 'The team said nothing changes.', source: 'S3' }] }],
+      },
+    ],
+    'classify pr#2': [{ choices: [{ sentence: 'S2', stance: 'describes', carried: 'this', restates: null, what: null, files: [] }], findings: [] }],
+  };
+  const client = fakeClient(answers);
+  const notes: string[] = [];
+  const snapshot = JSON.parse((await assemble(record, modelSteps(record, client, notes))).bytes) as Snapshot;
+  assert.deepEqual(client.seen.map((request) => [request.label, request.sample, request.system.split('\n')[0]]), [
+    ['classify pr#1', 0, 'nmem classify v3'],
+    ['classify pr#2', 0, 'nmem classify v3'],
+    ['classify pr#1', 1, 'nmem classify v3'],
+  ]);
+  assert.match(client.seen[2]?.user ?? '', /- choices\[1\]: S3 is marked \(denial\) or \(bot\), so it is never chose\n- findings\[0\]\.anchor: S3 is a denial sentence, which can never be an anchor$/);
+  assert.deepEqual(notes, []);
+  assert.deepEqual(snapshot.decisions.map((decision) => [decision.carriedBy, decision.what]), [
+    ['pr#1', { eng: 'One farewell line.', plain: 'The app says goodbye once.', source: { kind: 'record', ref: 'pr#1', quote: 'Use one farewell line.' } }],
+  ]);
+  const commit = record.changes.find((change) => change.id === 'pr#1')?.patches[0]?.commit;
+  assert.deepEqual(snapshot.changes.flatMap((change) => change.findings.map((finding) => [change.id, finding])), [
+    ['pr#1', {
+      severity: 'check',
+      topics: [],
+      anchor: { kind: 'record', ref: `${commit}:farewell.txt`, quote: 'bye' },
+      name: { eng: 'farewell.txt says bye', plain: 'The goodbye is short' },
+      says: [{ eng: 'The PR says nothing changes.', plain: 'The team said nothing changes.', source: { kind: 'record', ref: 'pr#1', quote: 'No behavior change intended.' } }],
+      why: { kind: 'not-recorded', ask: ['ana'], guess: null },
+    }],
+  ]);
+});
+
+test('a bad reply after the re-ask leaves the change unclassified and says so', async () => {
+  const record = ingest(toyWorkspace(FAREWELL));
+  const notes: string[] = [];
+  const snapshot = JSON.parse((await assemble(record, modelSteps(record, fakeClient({}), notes))).bytes) as Snapshot;
+  assert.deepEqual(snapshot.changes.filter((change) => change.id.startsWith('pr#')).map((change) => [change.id, change.findings.length]), [['pr#1', 0], ['pr#2', 0]]);
+  assert.deepEqual(notes, ['classify pr#1 fell back: no canned answer for classify pr#1 sample 1', 'classify pr#2 fell back: no canned answer for classify pr#2 sample 1']);
 });
