@@ -17,7 +17,7 @@ const PLAIN_RULE = `plain is for someone who does not read code. It names no fil
 const MAX_SHOWN = 1500;
 const MAX_START = 40;
 
-export function isTest(path: string): boolean {
+function isTest(path: string): boolean {
   return /(?:^|\/)(?:test|tests)\//.test(path);
 }
 
@@ -34,7 +34,7 @@ function indent(text: string): number {
  * Start here from its first line: through the indented block under it, a closing line of brackets included, at most
  * 40 lines, trailing blank lines left out.
  */
-export function startRange(file: FileObject, first: number): { readonly from: number; readonly to: number } {
+function startRange(file: FileObject, first: number): { readonly from: number; readonly to: number } {
   const lines = file.lines;
   const base = indent(lines[first - 1]?.text ?? '');
   let to = first;
@@ -76,7 +76,7 @@ function showSentences(file: FileObject, handles: Handles, out: string[]): void 
 
 type FormInput = { readonly text: string; readonly handles: Handles; readonly paths: ReadonlySet<string>; readonly docs: ReadonlySet<string> };
 
-export function formInputOf(record: RepoRecord, signals: TreeSignals): FormInput {
+function formInputOf(record: RepoRecord, signals: TreeSignals): FormInput {
   const handles = emptyHandles();
   const out = ['Files at HEAD. Only lines with a handle can be Start here.'];
   let shown = 0;
@@ -106,7 +106,7 @@ const FORM_ANSWER = obj({
 });
 type FormAnswer = ReturnType<typeof FORM_ANSWER.parse>;
 
-export const FORM: Task<FormInput, FormAnswer> = {
+const FORM: Task<FormInput, FormAnswer> = {
   id: 'form-topics',
   version: 2,
   model: OPUS,
@@ -131,9 +131,9 @@ eng may name code. ${PLAIN_RULE}`,
 };
 
 /** A topic before its page: everything but headline and example. */
-export type Skeleton = Omit<Topic, 'headline' | 'example'>;
+type Skeleton = Omit<Topic, 'headline' | 'example'>;
 
-export function gateForm(record: RepoRecord, input: FormInput, answer: FormAnswer): Gated<readonly Skeleton[]> {
+function gateForm(record: RepoRecord, input: FormInput, answer: FormAnswer): Gated<readonly Skeleton[]> {
   const problems: string[] = [];
   const head7 = record.head.slice(0, 7);
   const roots = answer.topics.filter((topic) => topic.parent === null);
@@ -188,7 +188,7 @@ export function gateForm(record: RepoRecord, input: FormInput, answer: FormAnswe
 
 type PageInput = { readonly text: string; readonly handles: Handles };
 
-export function pageInputOf(record: RepoRecord, tree: readonly Skeleton[], topic: Skeleton): PageInput {
+function pageInputOf(record: RepoRecord, tree: readonly Skeleton[], topic: Skeleton): PageInput {
   const handles = emptyHandles();
   const parent = tree.find((other) => other.id === topic.parent);
   const out = [`Topic: ${topic.name.eng}${parent ? `, part of ${parent.name.eng}` : ', the whole repository'}.`];
@@ -218,7 +218,7 @@ const PAGE_ANSWER = obj({
 });
 type PageAnswer = ReturnType<typeof PAGE_ANSWER.parse>;
 
-export const PAGE: Task<PageInput, PageAnswer> = {
+const PAGE: Task<PageInput, PageAnswer> = {
   id: 'write-page',
   version: 1,
   model: OPUS,
@@ -245,7 +245,7 @@ function sourceOf(record: RepoRecord, handles: Handles, handle: string): { reado
   return sentence ? { source: { kind: 'record', ref: sentence.ref, quote: sentence.text }, path: sentence.ref.replace(/^[^:]+:/, '') } : null;
 }
 
-export function gatePage(record: RepoRecord, input: PageInput, answer: PageAnswer): Gated<Page | null> {
+function gatePage(record: RepoRecord, input: PageInput, answer: PageAnswer): Gated<Page | null> {
   const problems: string[] = [];
   const headline: Said[] = [];
   answer.headline.forEach((raw, i) => {
@@ -318,7 +318,7 @@ export function overlapping(tree: readonly Topic[], files: readonly string[]): r
 const PLACE_ANSWER = obj({ picks: arr(obj({ key: str, topics: arr(str) })) });
 type PlaceInput = { readonly tree: readonly Topic[]; readonly items: readonly Placeable[] };
 
-export const PLACE: Task<PlaceInput, ReturnType<typeof PLACE_ANSWER.parse>> = {
+const PLACE: Task<PlaceInput, ReturnType<typeof PLACE_ANSWER.parse>> = {
   id: 'place',
   version: 1,
   model: OPUS,

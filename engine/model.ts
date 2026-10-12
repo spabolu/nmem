@@ -15,9 +15,9 @@ import { modelId, ModelUnavailable } from './copilot.ts';
 export const OPUS = modelId('claude-opus-5.5');
 export const MODELS: readonly ModelId[] = [OPUS];
 
-export class ShapeError extends Error {}
+class ShapeError extends Error {}
 
-export type Shape<T> = { readonly json: JsonSchema; readonly parse: (value: unknown, path: string) => T };
+type Shape<T> = { readonly json: JsonSchema; readonly parse: (value: unknown, path: string) => T };
 
 export const str: Shape<string> = {
   json: { type: 'string' },

@@ -15,7 +15,7 @@ import type { RecordObject, RepoRecord, Sentence } from './record.ts';
 import type { Subject } from './steps.ts';
 
 /** The objects a reason for this subject may be quoted from, in a fixed order, each once. */
-export function contextOf(record: RepoRecord, subject: Subject): readonly RecordObject[] {
+function contextOf(record: RepoRecord, subject: Subject): readonly RecordObject[] {
   const ref = subject.quote.ref.replace(/#L\d+(-L\d+)?$/, '');
   const own = record.objects.get(ref);
   const root = record.rootOf.get(ref);
@@ -39,7 +39,7 @@ function label(object: RecordObject): string {
   return `commit message ${object.ref} by ${by}`;
 }
 
-export function whyDossierOf(record: RepoRecord, subject: Subject): WhyDossier {
+function whyDossierOf(record: RepoRecord, subject: Subject): WhyDossier {
   const sentences = new Map<string, Sentence>();
   const out = [`Subject, a ${subject.kind}: ${subject.what.eng}`, `It rests on: "${subject.quote.quote.replace(/\s+/g, ' ')}"`, '', 'Record:'];
   let n = 0;
@@ -61,7 +61,7 @@ const PLAIN_RULE = `plain is for someone who does not read code. It names no fil
 const PROPOSE_ANSWER = obj({ reason: nullable(str), said: nullable(named) });
 type ProposeAnswer = ReturnType<typeof PROPOSE_ANSWER.parse>;
 
-export const PROPOSE: Task<WhyDossier, ProposeAnswer> = {
+const PROPOSE: Task<WhyDossier, ProposeAnswer> = {
   id: 'why',
   version: 1,
   model: OPUS,
@@ -81,7 +81,7 @@ eng is for engineers and may name code. ${PLAIN_RULE}`,
 type ConfirmInput = { readonly subject: Named; readonly quote: string; readonly around: string };
 const CONFIRM_ANSWER = obj({ verdict: lit('states-why', 'does-not') });
 
-export const CONFIRM: Task<ConfirmInput, ReturnType<typeof CONFIRM_ANSWER.parse>> = {
+const CONFIRM: Task<ConfirmInput, ReturnType<typeof CONFIRM_ANSWER.parse>> = {
   id: 'confirm-why',
   version: 3,
   model: OPUS,
@@ -96,7 +96,7 @@ You check one proposed reason before a history page shows it as the recorded rea
 type ScanInput = { readonly subject: string; readonly sentences: readonly string[] };
 const SCAN_ANSWER = obj({ stated: arr(str) });
 
-export const SCAN: Task<ScanInput, ReturnType<typeof SCAN_ANSWER.parse>> = {
+const SCAN: Task<ScanInput, ReturnType<typeof SCAN_ANSWER.parse>> = {
   id: 'scan-reasons',
   version: 3,
   model: OPUS,

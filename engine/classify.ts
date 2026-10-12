@@ -21,7 +21,7 @@ type Target =
   | { readonly kind: 'choice'; readonly choice: Choice };
 
 /** The rendered change and what each of its handles names. */
-export type Dossier = { readonly text: string; readonly targets: ReadonlyMap<string, Target>; readonly touched: ReadonlySet<string> };
+type Dossier = { readonly text: string; readonly targets: ReadonlyMap<string, Target>; readonly touched: ReadonlySet<string> };
 
 const MAX_ROWS = 400;
 
@@ -109,7 +109,7 @@ const ANSWER = obj({
 
 type Answer = ReturnType<typeof ANSWER.parse>;
 
-export const CLASSIFY: Task<Dossier, Answer> = {
+const CLASSIFY: Task<Dossier, Answer> = {
   id: 'classify',
   version: 3,
   model: OPUS,
@@ -160,13 +160,13 @@ function sourceOf(target: Target): RecordSource | null {
 }
 
 /** The change's author when a person, else the first person who wrote in its record. null when only bots did. */
-export function askForChange(record: RepoRecord, change: Change): readonly [Login, ...Login[]] | null {
+function askForChange(record: RepoRecord, change: Change): readonly [Login, ...Login[]] | null {
   const person = [change.author, ...change.objects.map((object) => object.author)].find((who): who is Login => who !== null && !record.bots.has(who));
   return person === undefined ? null : [person];
 }
 
 /** Handles to record text, with every refusal listed. Items with a problem are dropped, never repaired by code. */
-export function gateClassify(record: RepoRecord, change: Change, dossier: Dossier, answer: Answer): Gated<Classification> {
+function gateClassify(record: RepoRecord, change: Change, dossier: Dossier, answer: Answer): Gated<Classification> {
   const problems: string[] = [];
   const files = (where: string, list: readonly string[]): string[] => {
     const unknown = list.filter((file) => !dossier.touched.has(file));
@@ -221,7 +221,7 @@ export function gateClassify(record: RepoRecord, change: Change, dossier: Dossie
   return { value: { choices, findings }, problems };
 }
 
-export type Classified = Classification & { readonly problems: readonly string[] };
+type Classified = Classification & { readonly problems: readonly string[] };
 
 /** One call per change, with the one re-ask. Choices that need no model are shown, so the model does not repeat them. */
 export async function classifyChange(record: RepoRecord, client: ModelClient, change: Change, settled: readonly Choice[]): Promise<Classified> {
