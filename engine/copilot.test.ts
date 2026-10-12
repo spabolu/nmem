@@ -153,7 +153,7 @@ test('a live miss calls Copilot once, and the same request is then served from t
     temperature: 0,
     max_tokens: 512,
     tools: [{ type: 'function', function: REQUEST.tool }],
-    tool_choice: { type: 'function', function: { name: 'answer' } },
+    tool_choice: 'auto',
   });
   const offline = openClient({ store, mode: 'offline', credential: null });
   assert.deepEqual((await offline.call(REQUEST)).value, { stance: 'chose' });

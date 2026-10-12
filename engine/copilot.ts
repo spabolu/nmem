@@ -274,7 +274,8 @@ export function openClient(options: { readonly store: string; readonly mode: Cli
           temperature: 0,
           max_tokens: request.maxOutputTokens,
           tools: [{ type: 'function', function: request.tool }],
-          tool_choice: { type: 'function', function: { name: request.tool.name } },
+          // Copilot refuses a forced tool choice for claude-opus-5.5 (400, measured), so a reply without the call is a bad reply.
+          tool_choice: 'auto',
         }),
       }, request.label, sleep);
       const answer = answerOf(await response.json(), request.label);

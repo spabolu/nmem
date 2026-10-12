@@ -66,7 +66,7 @@ export type JudgeMode = { readonly kind: 'live'; readonly config: JudgeConfig } 
  *  2. Pin: GET https://api.githubcopilot.com/models once per process. The configured model must be listed and enabled
  *     for chat. Its listed version goes into run.json, every cache key, and the stamp, so a silent model update under
  *     the same alias invalidates the cache instead of mixing verdicts.
- *  3. Call: POST https://api.githubcopilot.com/chat/completions with the Copilot token only. The GitHub token is never
+ *  3. Call: POST <api from the exchange>/responses (grok-4.7 is listed on /responses only, measured 2026-10-12). The GitHub token is never
  *     sent to the completions host. Editor-Version and Copilot-Integration-Id are constants here, not config.
  *     Temperature 0. 429 and 5xx back off honoring retry-after, three tries, then JudgeUnavailable('provider-error').
  */
