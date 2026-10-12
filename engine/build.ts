@@ -3,9 +3,10 @@
  * contract's parser and checks every quote against the ingested record before anything is written.
  */
 import { encodeSnapshot, parseSnapshot } from '../harness/contract.ts';
-import type { Change as Entry, ChangeId, RecordSource, Snapshot, Undone, Usage } from '../harness/contract.ts';
+import type { Change as Entry, ChangeId, Finding, RecordSource, Snapshot, Undone, Usage } from '../harness/contract.ts';
 import { decide, settledChoices } from './choices.ts';
 import { classifyChange } from './classify.ts';
+import { scanReasons, whyOf } from './why.ts';
 import { ModelUnavailable } from './copilot.ts';
 import type { ModelClient } from './copilot.ts';
 import { describeRoutine, proveRoutine, proveUndone } from './proofs.ts';
@@ -50,15 +51,32 @@ function checkQuotes(snapshot: Snapshot, record: RepoRecord): void {
 
 export type Built = { readonly bytes: string; readonly summary: string };
 
+/**
+ * A finding's reason through the why step. A gap's name and card points go through the scan: a flagged name drops the
+ * finding, a flagged point drops the point, and a finding with no point left is dropped.
+ */
+async function settleFinding(steps: Steps, finding: Finding, carriedBy: ChangeId): Promise<Finding | null> {
+  if (finding.why.kind !== 'not-recorded') return finding;
+  const why = await steps.why({ kind: 'finding', what: finding.name, quote: finding.anchor, carriedBy, ask: finding.why.ask });
+  if (why.kind === 'recorded') return { ...finding, why };
+  const [named, ...points] = await steps.scan(finding.name, [finding.name, ...finding.says]);
+  const [first, ...rest] = finding.says.filter((_, i) => !points[i]);
+  return named || first === undefined ? null : { ...finding, says: [first, ...rest], why };
+}
+
 export async function assemble(record: RepoRecord, steps: Steps, usage: () => Usage | null = () => null): Promise<Built> {
   const classified = await Promise.all(record.changes.map((change) => steps.classify(change)));
+  const settled = await Promise.all(record.changes.map(async (change, i) => {
+    const found = await Promise.all((classified[i]?.findings ?? []).map((item) => settleFinding(steps, item.finding, change.id)));
+    return found.filter((finding): finding is Finding => finding !== null);
+  }));
   const changes: Entry[] = record.changes.map((change, i) => {
     const proof = proveRoutine(record.repoDir, change);
     const words = proof ? describeRoutine(proof) : null;
     return {
       id: change.id,
       topics: [],
-      findings: classified[i]?.findings.map((found) => found.finding) ?? [],
+      findings: settled[i] ?? [],
       routine: proof && words ? [{ files: proof.files, name: words.name, reason: { ...words.reason, source: { kind: 'proof', proof: proof.proof } } }] : [],
     };
   });
@@ -94,7 +112,9 @@ function fallback(notes: Notes, label: string, error: unknown): void {
 
 /**
  * The model steps that are on, over the no-model floor. A bad reply after the re-ask takes the step's fallback and is
- * noted. Auth and provider failures throw, so a scored run fails rather than writing a partial snapshot.
+ * noted: classify leaves the change unclassified, why leaves the reason not recorded, and scan treats every sentence as
+ * stating a reason, so an unscanned gap object is never written. Auth and provider failures throw, so a scored run
+ * fails rather than writing a partial snapshot.
  */
 export function modelSteps(record: RepoRecord, client: ModelClient, notes: Notes): Steps {
   const floor = noModel(record);
@@ -110,6 +130,28 @@ export function modelSteps(record: RepoRecord, client: ModelClient, notes: Notes
       } catch (error) {
         fallback(notes, `classify ${change.id}`, error);
         return floor.classify(change);
+      }
+    },
+    why: async (subject) => {
+      const label = `${subject.kind} ${subject.carriedBy ?? subject.quote.ref}: ${subject.what.eng}`;
+      try {
+        return await whyOf(record, client, subject, label);
+      } catch (error) {
+        fallback(notes, `why ${label}`, error);
+        return floor.why(subject);
+      }
+    },
+    scan: async (subject, shown) => {
+      const label = subject.eng;
+      try {
+        const flags = await scanReasons(client, subject, shown, label);
+        shown.forEach((item, i) => {
+          if (flags[i]) notes.push(`scan dropped a sentence that states a reason: ${item.eng}`);
+        });
+        return flags;
+      } catch (error) {
+        fallback(notes, `scan ${label}`, error);
+        return shown.map(() => true);
       }
     },
   };

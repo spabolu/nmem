@@ -2,7 +2,7 @@
  * The model steps of engine.md's pipeline, as typed functions. This slice ships each step's one honest fallback, the
  * output a build writes when no model answers. A model-backed step replaces one entry of Steps and keeps its type.
  */
-import type { ChangeId, Claim, Finding, Login, Named, Said, Topic, Why } from '../harness/contract.ts';
+import type { ChangeId, Claim, Finding, Login, Named, RecordSource, Said, Topic, Why } from '../harness/contract.ts';
 import { plainHits } from '../fixtures/lib/plain.mjs';
 import type { Change, RepoRecord, Sentence } from './record.ts';
 
@@ -26,13 +26,27 @@ export type Found = { readonly finding: Finding; readonly files: readonly string
 
 export type Classification = { readonly choices: readonly Choice[]; readonly findings: readonly Found[] };
 
+/**
+ * What a reason is sought for: a decision's intent or a finding's anchor, what it says, the change carrying it, and
+ * who to ask when nobody wrote the reason down.
+ */
+export type Subject = {
+  readonly kind: 'decision' | 'finding';
+  readonly what: Named;
+  readonly quote: RecordSource;
+  readonly carriedBy: ChangeId | null;
+  readonly ask: readonly [Login, ...Login[]];
+};
+
 export type Steps = {
   /** Per change: every sentence that could read as a choice, with its stance, plus behavior findings. */
   readonly classify: (change: Change) => Promise<Classification>;
   /** Joins thread agreements to the change that carried them. */
   readonly link: (choices: readonly Choice[]) => Promise<readonly Choice[]>;
-  /** A recorded reason that a second call agrees states why, else not recorded. null when nobody can be named to ask. */
-  readonly why: (intent: Sentence, carriedBy: ChangeId | null) => Promise<Why | null>;
+  /** A recorded reason that a second call agrees states why, else not recorded with the subject's ask. */
+  readonly why: (subject: Subject) => Promise<Why>;
+  /** For a gap object: which of the sentences it shows state a reason as fact. Those never reach the snapshot. */
+  readonly scan: (subject: Named, shown: readonly Named[]) => Promise<readonly boolean[]>;
   /** Doc sentences judged not plainly true. */
   readonly claims: () => Promise<readonly Claim[]>;
   /** The tree, formed after classification. */
@@ -89,17 +103,15 @@ export function rootTopic(record: RepoRecord): Topic {
 }
 
 /**
- * No model: nothing is classified or linked, every reason is not recorded with the intent's author to ask, no doc
- * sentence is judged, and the tree is the root alone.
+ * No model: nothing is classified or linked, every reason is not recorded with the subject's ask, nothing is scanned
+ * because no model wrote any prose, no doc sentence is judged, and the tree is the root alone.
  */
 export function noModel(record: RepoRecord): Steps {
   return {
     classify: async () => ({ choices: [], findings: [] }),
     link: async (choices) => choices,
-    why: async (intent, carriedBy) => {
-      const ask = askFor(record, intent, carriedBy);
-      return ask === null ? null : { kind: 'not-recorded', ask, guess: null };
-    },
+    why: async (subject) => ({ kind: 'not-recorded', ask: subject.ask, guess: null }),
+    scan: async (_subject, shown) => shown.map(() => false),
     claims: async () => [],
     topics: async () => [rootTopic(record)],
   };

@@ -3,10 +3,10 @@
  * Every choice, from code or from a model, passes one intent gate and becomes one entry of the snapshot's decision list.
  */
 import { createHash } from 'node:crypto';
-import type { ChangeId, Decision, LocalId, Why } from '../harness/contract.ts';
+import type { ChangeId, Decision, LocalId, RecordSource, Why } from '../harness/contract.ts';
 import type { Adr, RepoRecord, Sentence } from './record.ts';
 import { revertTargets } from './record.ts';
-import { collapse, firstPlain, ROOT } from './steps.ts';
+import { askFor, collapse, firstPlain, ROOT } from './steps.ts';
 import type { Choice, Steps } from './steps.ts';
 
 /** A sentence the gate accepted. Only acceptIntent makes one. */
@@ -97,11 +97,15 @@ export async function decide(record: RepoRecord, steps: Steps, classified: reado
     })
     .filter((item, i, all) => all.findIndex((other) => other.id === item.id) === i)
     .sort((a, b) => rank(a.choice.carriedBy) - rank(b.choice.carriedBy) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
-  const kept: { readonly choice: Choice; readonly intent: Intent; readonly id: LocalId; readonly why: Why; readonly adr: Adr | undefined }[] = [];
-  for (const item of accepted) {
-    const why = await steps.why(item.intent, item.choice.carriedBy);
-    if (why !== null) kept.push({ ...item, why, adr: adrs.find((entry) => entry.choice.sentence.handle === item.intent.handle)?.adr });
-  }
+  const settled = await Promise.all(accepted.map(async (item) => {
+    const ask = askFor(record, item.intent, item.choice.carriedBy);
+    if (ask === null) return [];
+    const quote: RecordSource = { kind: 'record', ref: item.intent.ref, quote: item.intent.text };
+    const why = await steps.why({ kind: 'decision', what: item.choice.what, quote, carriedBy: item.choice.carriedBy, ask });
+    if (why.kind === 'not-recorded' && (await steps.scan(item.choice.what, [item.choice.what])).some(Boolean)) return [];
+    return [{ ...item, why, adr: adrs.find((entry) => entry.choice.sentence.handle === item.intent.handle)?.adr }];
+  }));
+  const kept: readonly { readonly choice: Choice; readonly intent: Intent; readonly id: LocalId; readonly why: Why; readonly adr: Adr | undefined }[] = settled.flat();
   const byAdr = new Map(kept.flatMap(({ id, adr }) => (adr ? [[adr.number, id] as const] : [])));
   return kept.map(({ choice, intent, id, why, adr }) => ({
     id,

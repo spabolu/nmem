@@ -84,6 +84,10 @@ export type RepoRecord = {
   readonly changes: readonly Change[];
   /** Every object a quote may cite, by ref. */
   readonly objects: ReadonlyMap<string, RecordObject>;
+  /** Each pull request, issue, and discussion with its comments and reviews, by root ref such as pr#12 or issue#10. */
+  readonly threads: ReadonlyMap<string, readonly RecordObject[]>;
+  /** The root ref of the thread each object belongs to. Commit messages and files belong to none. */
+  readonly rootOf: ReadonlyMap<string, string>;
   /** Markdown at HEAD. */
   readonly docs: readonly FileObject[];
   readonly adrs: readonly Adr[];
@@ -408,12 +412,14 @@ export function ingest(workspace: string): RepoRecord {
       ]),
     ]);
   }
+  const threads = new Map<string, readonly RecordObject[]>([...pullObjects].map(([number, items]) => [`pr#${number}`, items]));
   for (const [kind, items] of [['issue', github.issues], ['discussion', github.discussions]] as const) {
     for (const item of items) {
-      add(objectOf(`${kind}#${item.number}`, login(item.author), `${item.title}\n${item.body}`, bots, titled(`${item.title}\n${item.body}`)));
-      threadObjects(item.comments, 'comment');
+      const root = add(objectOf(`${kind}#${item.number}`, login(item.author), `${item.title}\n${item.body}`, bots, titled(`${item.title}\n${item.body}`)));
+      threads.set(root.ref, [root, ...threadObjects(item.comments, 'comment')]);
     }
   }
+  const rootOf = new Map([...threads].flatMap(([root, items]) => items.map((item) => [item.ref, root] as const)));
 
   const facts = factsOf(repoDir, github.raw) as {
     head: string;
@@ -455,5 +461,5 @@ export function ingest(workspace: string): RepoRecord {
     if (status && number !== undefined && /^#{1,6}\s+Decision\s*$/im.test(body)) adrs.push({ file: doc, number: Number(number), status, decision: decisionOf(doc) });
   }
 
-  return { repoDir, identity: github.repo, head: facts.head, changes, objects, docs, adrs, bots };
+  return { repoDir, identity: github.repo, head: facts.head, changes, objects, threads, rootOf, docs, adrs, bots };
 }

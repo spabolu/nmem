@@ -17,7 +17,7 @@ How `nmem build <workspace> <out.json>` turns a repo and its GitHub record into 
 | prove | no | Prove routine files and add-then-undo groups with `fixtures/lib/checks.mjs`. Proven files reach the model as settled facts, never as diffs. |
 | classify | yes | Per change, list each sentence that could read as a choice with a stance (`chose`, `describes`, `denies`), plus behavior findings. A description of new behavior never suppresses its finding. A change whose every file is proven routine is not sent. |
 | link | yes | Join thread agreements to the change that carried them. Retrieve HEAD ADR paragraphs as context. Supersession from ADR status lines first. |
-| why | yes | A recorded reason needs a verified quote and a second call that agrees it states why. Otherwise not recorded, with `ask` derived from the record. |
+| why | yes | A recorded reason needs a verified quote and a second call that agrees it states why. Otherwise not recorded, with `ask` derived from the record. The quote may come from the subject's own object, its thread, the carrying change, and the threads those name by number. |
 | claims | yes | Read docs at HEAD. A sentence is skipped only when every path it names is unchanged since the sentence was written. Probes over git date `brokenBy` and true-since. Omit when unsure. |
 | topics | yes | Form the tree after classification. File overlap seeds membership, and a file, test, or ADR may sit on more than one topic. Start here and examples are verified at HEAD. |
 | assemble | no | Copy verified quotes and proof requests into the snapshot, run `parseSnapshot`, write. |
@@ -28,7 +28,7 @@ How `nmem build <workspace> <out.json>` turns a repo and its GitHub record into 
 - A denial sentence cannot be an intent, a reason, or an anchor. It may still back a card point.
 - `Reverts #N` and ADR decision sections are choices without an intent call.
 - Every proof goes through `checks.mjs`. No proof output is on the wire.
-- Every gap object is scanned for a stated reason before it is written.
+- Every gap object is scanned for a stated reason before it is written. A flagged card point is dropped, a flagged name or decision drops the object, and a scan that cannot answer counts as flagged.
 - Each model step has one honest fallback. A scored run fails rather than writing a partial snapshot after an auth or provider failure.
 - Engine ids carry no hyphen, because hyphenated gold ids are leak canaries.
 

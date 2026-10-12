@@ -212,11 +212,15 @@ test('classify copies record text for handles, refuses a denial as intent or anc
       },
     ],
     'classify pr#2': [{ choices: [{ sentence: 'S2', stance: 'describes', carried: 'this', restates: null, what: null, files: [] }], findings: [] }],
+    'why finding pr#1: farewell.txt says bye': [{ reason: null, said: null }],
+    'scan farewell.txt says bye': [{ stated: [] }],
+    'why decision pr#1: One farewell line.': [{ reason: null, said: null }],
+    'scan One farewell line.': [{ stated: [] }],
   };
   const client = fakeClient(answers);
   const notes: string[] = [];
   const snapshot = JSON.parse((await assemble(record, modelSteps(record, client, notes))).bytes) as Snapshot;
-  assert.deepEqual(client.seen.map((request) => [request.label, request.sample, request.system.split('\n')[0]]), [
+  assert.deepEqual(client.seen.filter((request) => request.label.startsWith('classify')).map((request) => [request.label, request.sample, request.system.split('\n')[0]]), [
     ['classify pr#1', 0, 'nmem classify v3'],
     ['classify pr#2', 0, 'nmem classify v3'],
     ['classify pr#1', 1, 'nmem classify v3'],
@@ -245,4 +249,37 @@ test('a bad reply after the re-ask leaves the change unclassified and says so', 
   const snapshot = JSON.parse((await assemble(record, modelSteps(record, fakeClient({}), notes))).bytes) as Snapshot;
   assert.deepEqual(snapshot.changes.filter((change) => change.id.startsWith('pr#')).map((change) => [change.id, change.findings.length]), [['pr#1', 0], ['pr#2', 0]]);
   assert.deepEqual(notes, ['classify pr#1 fell back: no canned answer for classify pr#1 sample 1', 'classify pr#2 fell back: no canned answer for classify pr#2 sample 1']);
+});
+
+test('a reason is recorded only when a second call agrees, and the scan drops a card point that states one', async () => {
+  const record = ingest(toyWorkspace([
+    { title: 'Add a farewell', body: 'Use one farewell line. People asked for a goodbye. No behavior change intended.', files: { 'farewell.txt': 'bye\n' } },
+    { title: 'Tidy the greeting', body: 'Moves the greeting to stdout.', files: { 'greet.txt': 'hello\n' } },
+  ]));
+  const chose = (sentence: string, eng: string) => ({ sentence, stance: 'chose', carried: 'this', restates: null, what: { eng, plain: eng }, files: [] });
+  const client = fakeClient({
+    'classify pr#1': [{
+      choices: [chose('S2', 'One farewell line.')],
+      findings: [{ severity: 'behavior', anchor: 'L1', files: [], name: { eng: 'Says bye', plain: 'Says bye' }, says: [{ eng: 'It prints bye.', plain: 'It says bye.', source: 'L1' }, { eng: 'Users wanted it.', plain: 'People wanted it.', source: 'S3' }] }],
+    }],
+    'classify pr#2': [{ choices: [chose('S2', 'Greeting goes to stdout.')], findings: [] }],
+    'why decision pr#1: One farewell line.': [{ reason: 'S3', said: { eng: 'People asked for a goodbye.', plain: 'People asked for a goodbye.' } }],
+    'confirm decision pr#1: One farewell line.': [{ verdict: 'states-why' }],
+    'why finding pr#1: Says bye': [{ reason: 'S4', said: { eng: 'Nothing changes.', plain: 'Nothing changes.' } }, { reason: null, said: null }],
+    'scan Says bye': [{ stated: ['5'] }],
+    'why decision pr#2: Greeting goes to stdout.': [{ reason: 'S2', said: { eng: 'It moves the greeting.', plain: 'It moves the greeting.' } }],
+    'confirm decision pr#2: Greeting goes to stdout.': [{ verdict: 'does-not' }],
+    'scan Greeting goes to stdout.': [{ stated: [] }],
+  });
+  const notes: string[] = [];
+  const snapshot = JSON.parse((await assemble(record, modelSteps(record, client, notes))).bytes) as Snapshot;
+  assert.deepEqual(snapshot.decisions.map((decision) => [decision.carriedBy, decision.why]), [
+    ['pr#1', { kind: 'recorded', reason: { eng: 'People asked for a goodbye.', plain: 'People asked for a goodbye.', source: { kind: 'record', ref: 'pr#1', quote: 'People asked for a goodbye.' } } }],
+    ['pr#2', { kind: 'not-recorded', ask: ['ana'], guess: null }],
+  ]);
+  const finding = snapshot.changes.find((change) => change.id === 'pr#1')?.findings[0];
+  assert.deepEqual([finding?.says.map((said) => said.eng), finding?.why], [['It prints bye.'], { kind: 'not-recorded', ask: ['ana'], guess: null }]);
+  assert.deepEqual(notes, ['scan dropped a sentence that states a reason: Users wanted it.']);
+  const why = client.seen.find((request) => request.label === 'why finding pr#1: Says bye' && request.sample === 1);
+  assert.match(why?.user ?? '', /- reason: S4 is marked \(denial\) or \(bot\), so it can never be a reason$/);
 });
