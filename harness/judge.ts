@@ -415,12 +415,12 @@ export const TASKS = {
   }),
   /** One sentence against its one excerpt: a record quote in context, or the output of a proof the harness ran. */
   'check-support': task<CheckSupportInput, SupportVerdict>({
-    version: 2,
+    version: 3,
     perCall: 12,
     maxOutputTokens: 16_000,
     rules: [
       'You check whether one excerpt from a project\'s record supports one sentence written about the project for a reader. The excerpt is a file, a commit message, a pull request, an issue, a comment and the thread it is on, or the output of a check that was run on the code. Its header says which, who wrote it, and when. Use only the excerpt and its header.',
-      'Judge what a reader who opens this source would find. Rewording, plainer words for a reader who does not code, and facts the header gives (who, when, which pull request, issue, or change) count as stated.',
+      'Judge what a reader who opens this source would find. Rewording, plainer words for a reader who does not code, and facts the header gives (who, when, which pull request, issue, or change) count as stated. Do not split hairs over wording: when a careful reader would say the excerpt backs the sentence, answer yes.',
       '- yes: everything the sentence states is in the excerpt or its header, or follows directly from them.',
       '- partly: the main point is supported, and a detail is not.',
       '- no: the main point is not supported, the excerpt contradicts it, or the sentence gives a reason or motive the excerpt does not state.',

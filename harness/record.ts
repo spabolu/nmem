@@ -218,6 +218,12 @@ function revisionsOf(comment: GithubComment): readonly [string, ...string[]] {
 }
 
 /** A comment means little without its thread, so its header names the pull request, issue, or discussion it is on. */
+/** "Lena Voss (lenavoss)": a page shows people by name, so the judge reads the name beside the login. */
+function personOf(github: Github, login: string): string {
+  const name = github.users.find((user) => user.login === login)?.name;
+  return name && name !== login ? `${name} (${login})` : login;
+}
+
 function indexComments(github: Github, base: string): ReadonlyMap<number, CommentHit> {
   const comments = new Map<number, CommentHit>();
   const add = (comment: GithubComment, url: string, label: string, thread: string): void => {
@@ -227,7 +233,7 @@ function indexComments(github: Github, base: string): ReadonlyMap<number, Commen
       day,
       revisions: revisionsOf(comment),
       url,
-      header: `${label} on ${thread} by ${comment.author}, ${day}: ${comment.body.split('\n')[0] ?? ''}`,
+      header: `${label} on ${thread} by ${personOf(github, comment.author)}, ${day}: ${comment.body.split('\n')[0] ?? ''}`,
     });
     for (const reply of comment.replies ?? []) add(reply, url.replace(/#.*$/, '') + `#discussioncomment-${reply.id}`, `comment ${reply.id}`, thread);
   };
@@ -241,7 +247,7 @@ function indexComments(github: Github, base: string): ReadonlyMap<number, Commen
         day: dayOf(review.at),
         revisions: [review.body],
         url: `${pullUrl}#pullrequestreview-${review.id}`,
-        header: `review ${review.id} on ${thread} by ${review.author}, ${dayOf(review.at)}: ${review.body.split('\n')[0] ?? ''}`,
+        header: `review ${review.id} on ${thread} by ${personOf(github, review.author)}, ${dayOf(review.at)}: ${review.body.split('\n')[0] ?? ''}`,
       });
       for (const reviewThread of review.threads) {
         for (const comment of reviewThread.comments) add(comment, `${pullUrl}#discussion_r${comment.id}`, `comment ${comment.id}`, thread);
@@ -349,17 +355,17 @@ export function openRecord(ws: Workspace): RepoRecord {
       const pull = index.pulls.get(ref.number);
       if (!pull) return null;
       const day = dayOf(pull.mergedAt ?? pull.openedAt);
-      return { ref, header: `PR #${pull.number} by ${pull.author}, ${pull.mergedAt ? 'merged' : 'opened'} ${day}: ${oneLine(pull.title)}`, revisions: [`${pull.title}\n${pull.body}`] };
+      return { ref, header: `PR #${pull.number} by ${personOf(github, pull.author)}, ${pull.mergedAt ? 'merged' : 'opened'} ${day}: ${oneLine(pull.title)}`, revisions: [`${pull.title}\n${pull.body}`] };
     }
     if (ref.kind === 'issue') {
       const issue = index.issues.get(ref.number);
       if (!issue) return null;
-      return { ref, header: `issue #${issue.number} by ${issue.author}, ${dayOf(issue.openedAt)}: ${oneLine(issue.title)}`, revisions: [`${issue.title}\n${issue.body}`] };
+      return { ref, header: `issue #${issue.number} by ${personOf(github, issue.author)}, ${dayOf(issue.openedAt)}: ${oneLine(issue.title)}`, revisions: [`${issue.title}\n${issue.body}`] };
     }
     if (ref.kind === 'discussion') {
       const discussion = index.discussions.get(ref.number);
       if (!discussion) return null;
-      return { ref, header: `discussion #${discussion.number} by ${discussion.author}, ${dayOf(discussion.at)}: ${oneLine(discussion.title)}`, revisions: [`${discussion.title}\n${discussion.body}`] };
+      return { ref, header: `discussion #${discussion.number} by ${personOf(github, discussion.author)}, ${dayOf(discussion.at)}: ${oneLine(discussion.title)}`, revisions: [`${discussion.title}\n${discussion.body}`] };
     }
     if (ref.kind === 'comment') {
       const comment = index.comments.get(ref.id);
@@ -373,7 +379,7 @@ export function openRecord(ws: Workspace): RepoRecord {
     const message = (tagMessage(repoDir, ref.name) as string) || tag.message;
     const parts = [message];
     if (release) parts.push(release.title, release.body);
-    return { ref, header: `tag ${tag.name} by ${tag.by}, ${dayOf(tag.at)}: ${oneLine(message)}`, revisions: [parts.join('\n')] };
+    return { ref, header: `tag ${tag.name} by ${personOf(github, tag.by)}, ${dayOf(tag.at)}: ${oneLine(message)}`, revisions: [parts.join('\n')] };
   };
   const sources = new Map<string, SourceFacts | null>();
   const sourceFacts = (source: RecordSource): SourceFacts | null => {

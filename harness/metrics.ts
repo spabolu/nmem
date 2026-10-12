@@ -8,7 +8,7 @@
  * is structural, with one key-blind judge call when a guess is present.
  */
 import { parseProof, parseRef } from './contract.ts';
-import type { Change, ChangeId, Claim, Decision, Finding, Proof, Run, Said, Snapshot, Topic, Undone } from './contract.ts';
+import type { Change, ChangeId, Claim, Decision, Finding, Proof, Rev, Run, Said, Snapshot, Topic, Undone } from './contract.ts';
 import type { CorruptionId } from './corruptions.ts';
 import { factKey, PROSE_FIELD_LABEL, proseFields } from './gold.ts';
 import type { Alignment, AnchorResolver, FactKey, FactSet, Gold, GoldId, GoldItem, LeakFinding, ProseField, ProseObject } from './gold.ts';
@@ -978,7 +978,9 @@ function around(text: string, quote: string): string {
 }
 
 /** Names the change behind each revision a proof cites, as the page does, so "PR #22" in a sentence can be checked. */
-function proofHeader(proof: Proof, header: string, facts: RepoFacts): string {
+function proofHeader(proof: Proof, result: { readonly header: string; readonly text: string }, record: RepoRecord): string {
+  const facts = factsOf(record);
+  const header = result.header;
   const revs = proof.verb === 'grep' ? [proof.rev] : proof.verb === 'files' ? [proof.from, proof.to] : proof.verb === 'diff' || proof.verb === 'lockfile' || proof.verb === 'restyle' ? [proof.from, proof.to] : [];
   const named = revs.flatMap((rev) => {
     if (!rev) return [];
@@ -990,6 +992,11 @@ function proofHeader(proof: Proof, header: string, facts: RepoFacts): string {
     ];
     return parts.length > 0 ? [`${rev} is the code ${parts.join(' and ')}`] : [];
   });
+  if (proof.verb === 'introduced') {
+    const sha = /\b[0-9a-f]{7,40}\b/.exec(result.text)?.[0];
+    const commit = sha ? record.resolve({ kind: 'commit', rev: sha as Rev }) : null;
+    if (sha && commit) named.push(`${sha} is ${commit.header.replace(/^commit \S+ /, 'a commit ')}`);
+  }
   return `${TRUST_WORDS[proof.verb].eng}: ${header}${named.length > 0 ? ` (${named.join('; ')})` : ''}`;
 }
 
@@ -1005,7 +1012,7 @@ export async function resolveSources(record: RepoRecord, fields: readonly { read
       const result = await resolveProof(proof, record.workspace, runs);
       if ('failed' in result) {
         checks.push({ field: field.field, said: field.said, status: result.failed === 'run-flaky' ? 'run-flaky' : 'proof-failed', excerpt: null });
-      } else checks.push({ field: field.field, said: field.said, status: 'resolves', excerpt: { header: proofHeader(proof, result.header, factsOf(record)), text: result.text } });
+      } else checks.push({ field: field.field, said: field.said, status: 'resolves', excerpt: { header: proofHeader(proof, result, record), text: result.text } });
       continue;
     }
     const parsed = parseRef(field.said.source.ref, record.workspace.identity);

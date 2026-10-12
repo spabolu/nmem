@@ -984,11 +984,11 @@ const views = {
         {
           eng: 'tally splits shared household bills between roommates and prints the fewest payments that settle everyone up.',
           plain: 'tally splits shared household bills between roommates and says who should pay whom.',
-          ev: headFile('tally/cli.py', 'transfers = minimal_transfers(balances)'),
+          ev: headFile('README.md', 'tally splits shared household expenses between roommates and prints the\nsmallest set of payments that settles everyone up.'),
         },
         {
-          eng: '`tally add` saves a bill, `balances_for()` splits every saved bill again, and `minimal_transfers()` turns the balances into payments.',
-          plain: 'Each bill is saved, every saved bill is split again each time, and the shares become the fewest payments.',
+          eng: '`tally add` saves a bill, `balances_for()` works out the balances from the saved bills, and `minimal_transfers()` turns the balances into payments.',
+          plain: 'Each bill is saved, the balances are worked out from all saved bills, and the balances become the fewest payments.',
           ev: headFile('tally/cli.py', 'balances = balances_for(rows)'),
         },
       ],
@@ -1016,9 +1016,9 @@ const views = {
           ev: headFile('tally/cli.py', 'print("cents must be zero or more", file=sys.stderr)'),
         },
         {
-          eng: 'The check arrived in a commit titled only "fix tests".',
-          plain: 'The check arrived in a change labeled only as a test fix.',
-          ev: commit('c-fix-tests', 'fix tests'),
+          eng: 'The check was first added in a commit whose title only mentions fixing tests.',
+          plain: 'The check was first added in a change labeled only as a test fix.',
+          ev: { verb: 'introduced', path: 'tally/cli.py', needle: 'if args.cents < 0:', shows: 'by Owen Briggs' },
         },
       ],
       example: {
@@ -1085,9 +1085,9 @@ const views = {
       docs: [guide],
       headline: [
         {
-          eng: '`tally pay` records money one roommate paid another without deleting the bill, so the history stays and the balance clears.',
-          plain: 'A payback records money one roommate paid another without deleting the bill, so the history stays and the balance clears.',
-          ev: headFile('tests/test_pay.py', '{"kind": "payment", "src": "maya", "dst": "lena", "cents": 300},'),
+          eng: '`tally pay` records money one roommate paid back to another, and the original bill is not deleted.',
+          plain: 'A payback records money one roommate paid back to another, and the original bill stays.',
+          ev: headFile(guide, 'If you already paid someone back, record that too. Do not delete the\noriginal bill.'),
         },
       ],
       example: {
@@ -1107,9 +1107,9 @@ const views = {
       docs: ['README.md', guide, adr.json],
       headline: [
         {
-          eng: 'Bills live in ledger.json, a plain JSON file.',
-          plain: 'Bills live in one plain file.',
-          ev: headFile('tally/store.py', 'json.dump({"entries": rows}, fh, indent=2)'),
+          eng: 'Bills and paybacks live in ledger.json, a plain text file next to the app.',
+          plain: 'Bills and paybacks live in one plain file next to the app.',
+          ev: headFile(guide, 'Bills and paybacks live in ledger.json, next to the app. It is a plain\ntext file.'),
         },
         {
           eng: 'The --ledger option picks which file to use.',
@@ -1140,8 +1140,8 @@ const views = {
           ev: headFile('tally/cli.py', 'add.add_argument("--cents", type=int, required=True)'),
         },
         {
-          eng: 'Nothing in the code names a currency.',
-          plain: 'Nothing in the app names a kind of money.',
+          eng: 'The word currency appears nowhere in the code.',
+          plain: 'The word currency appears nowhere in the app.',
           ev: { verb: 'grep', at: 'head', pattern: 'currenc', flags: ['i'], shows: '(no matches)' },
         },
       ],
@@ -1243,15 +1243,15 @@ const views = {
               ev: headFile('tally/cli.py', 'return "%s$%d.%02d" % (sign, cents // 100, cents % 100)'),
             },
             {
-              eng: 'git shows the author as Lena P, and Lena Voss said on PR #3 that the name is her laptop.',
-              plain: "It was made from Lena Voss's laptop, which shows a different name.",
+              eng: 'git shows the author as Lena P, and Lena Voss said on PR #3 that this is still her, pushing from her laptop.',
+              plain: "It was pushed from Lena Voss's laptop, which shows a different name.",
               ev: comment('pr3-lena', 'git will say Lena P and lena@laptop.local. That is still me.'),
             },
           ],
           why: {
             reason: {
               eng: 'ADR-0003 already said dollars are printed only when a person is reading the output.',
-              plain: 'An earlier written decision said amounts are shown in dollars only when a person reads them.',
+              plain: 'A written decision says amounts are shown in dollars only when a person reads them.',
               ev: headFile(adr.cents, 'Dollars are printed only when a person is reading the output.'),
             },
           },
@@ -1374,7 +1374,7 @@ const views = {
           name: { eng: 'The old file option --data now fails', plain: 'The old name for the bill file setting now fails' },
           says: [
             {
-              eng: 'With --data, add exits 2 and writes no file.',
+              eng: 'With the old name --data, the command exits 2 and writes no file.',
               plain: 'Using the old setting name fails and saves nothing.',
               ev: { verb: 'run', id: 'old-file-flag', shows: 'old name --data: exit 2, file written: no' },
             },
@@ -1394,8 +1394,8 @@ const views = {
     {
       id: 'd-note',
       what: {
-        eng: 'The default note changed from misc to unmarked.',
-        plain: 'A bill with no note is now marked unmarked instead of misc.',
+        eng: 'The default note is now unmarked.',
+        plain: 'A bill with no note is now marked unmarked.',
         ev: commit('c-note-default', 'cli: default note is unmarked'),
       },
       topics: ['adding'],
@@ -1406,7 +1406,7 @@ const views = {
     {
       id: 'd-flag',
       what: {
-        eng: 'The file option --data was renamed --ledger.',
+        eng: 'The file option is now called --ledger.',
         plain: 'The setting that names the bill file got a new name.',
         ev: commit('c-ledger-flag', 'cli: call the file flag --ledger'),
       },
@@ -1418,8 +1418,8 @@ const views = {
     {
       id: 'd-round-revert',
       what: {
-        eng: 'Reverted --round and its default, back to the floor split.',
-        plain: 'Went back to the old way of splitting leftover cents.',
+        eng: 'Reverted PRs #20 and #21, so the floor split is back.',
+        plain: 'Undid the two earlier changes, so bills split the old way again.',
         ev: pr(22, 'Reverts #20 and #21.'),
       },
       topics: ['leftover'],
@@ -1427,7 +1427,7 @@ const views = {
       why: {
         reason: {
           eng: 'The flag was not stored per bill, so the new default changed older bills.',
-          plain: 'The new setting quietly changed totals on bills already entered.',
+          plain: 'The setting was not saved with each bill, so the new default changed older bills too.',
           ev: pr(22, 'The flag is not stored on the row, so the new default changed older bills too.'),
         },
       },
@@ -1435,8 +1435,8 @@ const views = {
     {
       id: 'd-json',
       what: {
-        eng: 'The ledger moved back to a plain JSON file, ledger.json (ADR-0004).',
-        plain: 'The list of bills went back to one plain file.',
+        eng: 'The ledger moved from SQLite to ledger.json, a JSON file (ADR-0004).',
+        plain: 'The list of bills moved out of the database and into one file.',
         ev: headFile(adr.json, 'tally/store.py writes ledger.json, a list of entries in the same shape'),
       },
       alsoIntent: [pr(18, 'tally/store.py now writes ledger.json.')],
@@ -1454,16 +1454,16 @@ const views = {
     {
       id: 'd-web',
       what: {
-        eng: 'No local web page for balances. Kit Alvarez closed PR #14.',
-        plain: 'No web page for the app.',
+        eng: 'Kit Alvarez closed PR #14, the local web page for balances.',
+        plain: 'Kit Alvarez dropped the idea of a local web page for balances.',
         ev: comment('pr8-kit', 'Closing this.'),
       },
       topics: ['root'],
       carriedBy: null,
       why: {
         reason: {
-          eng: 'Maya does not want a page, and Kit could not win Lena over on a server in the apartment.',
-          plain: 'Maya did not want a page, and Kit could not win Lena over on a program running in the apartment.',
+          eng: 'Maya does not want a page, and Kit is not going to win Lena over on a server in the apartment.',
+          plain: 'Maya did not want a page, and Kit was not going to win Lena over on running a server in the apartment.',
           ev: comment('pr8-kit', 'Maya does not want a page, and I am not going to win Lena over on a server in the apartment.'),
         },
       },
@@ -1477,7 +1477,7 @@ const views = {
       why: {
         reason: {
           eng: 'The living room laptop is not a pager, and Lena will not babysit a notification setup.',
-          plain: 'The shared laptop is not a pager, and Lena will not look after a reminder setup.',
+          plain: 'The living room laptop is not a pager, and Lena will not look after a notification setup.',
           ev: comment('iss13-lena', 'The living room laptop is not a pager, and I will not babysit a notification setup.'),
         },
       },
@@ -1486,7 +1486,7 @@ const views = {
     {
       id: 'd-floor',
       what: {
-        eng: 'Shares round down, and the payer covers the leftover cent.',
+        eng: 'The payer covers the leftover cent.',
         plain: 'The person who paid covers any leftover cent.',
         ev: comment('pr7-thread-lena', 'So the remainder rides with the payer.'),
       },
@@ -1542,7 +1542,7 @@ const views = {
       id: 'd-sqlite',
       what: {
         eng: 'The ledger moved into a SQLite file, ledger.db (ADR-0002).',
-        plain: 'The list of bills moved into a small database file.',
+        plain: 'The list of bills moved into a database file.',
         ev: pr(9, 'This replaces tally/store.py with sqlite3 and ledger.db.'),
       },
       alsoIntent: [headFile(adr.sqlite, 'tally/store.py keeps the ledger in a SQLite database file named')],
@@ -1570,8 +1570,8 @@ const views = {
       carriedBy: null,
       why: {
         reason: {
-          eng: 'The roommates still did not agree on the exchange rate, and Maya asked that the app not pick one for them.',
-          plain: 'The roommates still did not agree on an exchange rate, and Maya asked the app not to pick one for them.',
+          eng: 'Maya said they still did not agree on the exchange rate, and asked that the app not pick one for them.',
+          plain: 'Maya said they still did not agree on an exchange rate, and asked the app not to pick one for them.',
           ev: comment('disc5-maya', "Please do not pick one for us. we still don't agree on the kiosk rate."),
         },
       },
@@ -1650,8 +1650,8 @@ const views = {
       verdict: 'true-since',
       since: 'c-fix-tests',
       why: {
-        eng: 'The check that refuses a negative amount first appeared in tally/cli.py in a later commit by Owen Briggs.',
-        plain: 'The app only started refusing a negative amount in a later change by Owen Briggs.',
+        eng: 'The check `if args.cents < 0:` was first added to tally/cli.py on 2023-11-12, in a commit by Owen Briggs.',
+        plain: 'The app started checking for a negative amount on Nov 12, 2023, in a change by Owen Briggs.',
         ev: { verb: 'introduced', path: 'tally/cli.py', needle: 'if args.cents < 0:', shows: 'by Owen Briggs' },
       },
       covers: ['currency-negative-later'],

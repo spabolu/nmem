@@ -10,18 +10,17 @@ For each set, answer three questions.
 
 When every set is right, put your name in `reviewer` and today's date in `at` in `harness/reviews/facts.json`, and save. When a set is wrong, write what is wrong under it in this file and leave the file unsigned, so the set gets fixed and frozen again.
 
-## tally: 29 sets, 9 flagged and 20 drawn at random
+## tally: 31 sets, 11 flagged and 20 drawn at random
 
-### 1. adding, headline, Non-engineer (flagged)
+### 1. d-currency, reason, Non-engineer (flagged)
 
-Original: You type who paid, the amount in cents, a short note, and who shares the bill. A negative amount is refused. The check arrived in a change labeled only as a test fix.
+Original: Maya said they still did not agree on an exchange rate, and asked the app not to pick one for them.
 
 Facts:
-- **headline** You type who paid, the amount in cents, a short note, and who shares the bill.
-- **headline** A negative amount is refused.
-- The check arrived in a change labeled only as a test fix.
+- **headline** Maya said they still did not agree on an exchange rate.
+- **headline** Maya asked the app not to pick an exchange rate for them.
 
-Paraphrase: You enter the payer, the sum in cents, a brief note, and the people splitting the cost. Amounts less than zero are turned down. The review came through an update described only as fixing tests.
+Paraphrase: Maya said they still had no shared rate for swapping money, and asked that the app leave the choice to them.
 
 Why it is flagged:
 - the cross-check says the paraphrase changes the meaning
@@ -52,7 +51,19 @@ Paraphrase: A repayment is entered separately, and the bill is left unchanged.
 Why it is flagged:
 - the cross-check says the paraphrase changes the meaning
 
-### 4. d-textfile, what, Non-engineer (flagged)
+### 4. d-sqlite, what, Non-engineer (flagged)
+
+Original: The list of bills moved into a database file.
+
+Facts:
+- **headline** The list of bills moved into a database file.
+
+Paraphrase: The bills were relocated from a list into a stored records file.
+
+Why it is flagged:
+- the cross-check says the paraphrase changes the meaning
+
+### 5. d-textfile, what, Non-engineer (flagged)
 
 Original: The app started keeping every bill in a text file.
 
@@ -64,7 +75,7 @@ Paraphrase: The app began saving every bill inside a plain document.
 Why it is flagged:
 - the cross-check says the paraphrase changes the meaning
 
-### 5. d-ties, reason, Engineer (flagged)
+### 6. d-ties, reason, Engineer (flagged)
 
 Original: So the same file always prints the same lines.
 
@@ -76,27 +87,14 @@ Paraphrase: The aim is that one file emits identical lines every time.
 Why it is flagged:
 - the cross-check says the paraphrase changes the meaning
 
-### 6. d-web, reason, Non-engineer (flagged)
-
-Original: Maya did not want a page, and Kit could not win Lena over on a program running in the apartment.
-
-Facts:
-- **headline** Maya did not want a page.
-- **headline** Kit could not win Lena over on a program running in the apartment.
-
-Paraphrase: Maya had no wish for a page, and Kit failed to persuade Lena about something running in the apartment.
-
-Why it is flagged:
-- the cross-check says the paraphrase changes the meaning
-
 ### 7. d-web, what, Non-engineer (flagged)
 
-Original: No web page for the app.
+Original: Kit Alvarez dropped the idea of a local web page for balances.
 
 Facts:
-- **headline** No web page for the app.
+- **headline** Kit Alvarez dropped the idea of a local web page for balances.
 
-Paraphrase: The app will have no site.
+Paraphrase: Kit Alvarez abandoned plans for a home-computer page that shows balances.
 
 Why it is flagged:
 - the cross-check says the paraphrase changes the meaning
@@ -115,7 +113,35 @@ Paraphrase: Maya Ruiz entered 10.50, received a lengthy red warning, and wanted 
 Why it is flagged:
 - the cross-check says the paraphrase changes the meaning
 
-### 9. storage, example, Engineer (flagged)
+### 9. f-dollars, card, Engineer (flagged)
+
+Original: show() formats every printed amount as dollars and cents. git shows the author as Lena P, and Lena Voss said on PR #3 that this is still her, pushing from her laptop.
+
+Facts:
+- **headline** show() formats every printed amount as dollars and cents.
+- **headline** git shows the author as Lena P.
+- Lena Voss said on PR #3 that Lena P is still her.
+- Lena Voss is pushing from her laptop.
+
+Paraphrase: show() writes each amount it prints using dollars and cents. git records the author name as Lena P; Lena Voss wrote in PR #3 that she is still that person, and she pushes from her laptop.
+
+Why it is flagged:
+- the cross-check says fact 4 ("Lena Voss is pushing from her laptop.") is not what the sentence says
+- the cross-check says the sentence also states: Lena Voss said on PR #3 that this is still her, pushing from her laptop.
+
+### 10. f-dollars, reason, Non-engineer (flagged)
+
+Original: A written decision says amounts are shown in dollars only when a person reads them.
+
+Facts:
+- **headline** A written decision says amounts are shown in dollars only when a person reads them.
+
+Paraphrase: A written decision states that dollar amounts appear solely while a person is reading them.
+
+Why it is flagged:
+- the cross-check says the paraphrase changes the meaning
+
+### 11. storage, example, Engineer (flagged)
 
 Original: --ledger picks the file, while the old name --data exits 2 and writes nothing.
 
@@ -129,27 +155,27 @@ Paraphrase: --ledger selects the file, whereas --data, the former name, exits 2 
 Why it is flagged:
 - the cross-check says the paraphrase changes the meaning
 
-### 10. claim-negative, claim-why, Engineer
+### 12. claim-negative, claim-why, Engineer
 
-Original: The check that refuses a negative amount first appeared in tally/cli.py in a later commit by Owen Briggs.
-
-Facts:
-- **headline** The check that refuses a negative amount first appeared in a later commit by Owen Briggs.
-- The check first appeared in tally/cli.py.
-
-Paraphrase: Inside tally/cli.py, the refusal of a negative amount first showed up in a subsequent commit authored by Owen Briggs.
-
-### 11. d-currency, reason, Engineer
-
-Original: The roommates still did not agree on the exchange rate, and Maya asked that the app not pick one for them.
+Original: The check `if args.cents < 0:` was first added to tally/cli.py on 2023-11-12, in a commit by Owen Briggs.
 
 Facts:
-- **headline** The roommates still did not agree on the exchange rate.
-- **headline** Maya asked that the app not pick one for them.
+- **headline** `if args.cents < 0:` was first added to tally/cli.py on 2023-11-12.
+- Owen Briggs authored the commit that first added `if args.cents < 0:`.
 
-Paraphrase: The roommates still lacked consensus about the exchange rate, and Maya wanted the app to avoid choosing one for them.
+Paraphrase: Back on 2023-11-12, Owen Briggs's commit was the first to place `if args.cents < 0:` inside tally/cli.py.
 
-### 12. d-currency, what, Non-engineer
+### 13. d-currency, reason, Engineer
+
+Original: Maya said they still did not agree on the exchange rate, and asked that the app not pick one for them.
+
+Facts:
+- **headline** Maya said they still did not agree on the exchange rate.
+- **headline** Maya asked that the app not pick the exchange rate for them.
+
+Paraphrase: Maya reported they still lacked agreement about the exchange rate, and requested the app not choose one in their place.
+
+### 14. d-currency, what, Non-engineer
 
 Original: One kind of money, with no exchange rates.
 
@@ -159,7 +185,7 @@ Facts:
 
 Paraphrase: Only one form of money, and no rates for swapping it.
 
-### 13. d-floor, what, Non-engineer
+### 15. d-floor, what, Non-engineer
 
 Original: The person who paid covers any leftover cent.
 
@@ -168,7 +194,7 @@ Facts:
 
 Paraphrase: Whoever paid is responsible for any cent left over.
 
-### 14. d-paybacks, reason, Engineer
+### 16. d-paybacks, reason, Engineer
 
 Original: Maya did not want to erase the lamp, or they would forget who bought it.
 
@@ -178,25 +204,27 @@ Facts:
 
 Paraphrase: Maya refused to delete the lamp, since they would otherwise lose track of who purchased it.
 
-### 15. d-round-revert, reason, Non-engineer
+### 17. d-round-revert, reason, Non-engineer
 
-Original: The new setting quietly changed totals on bills already entered.
-
-Facts:
-- **headline** The new setting quietly changed totals on bills already entered.
-
-Paraphrase: Bill totals already entered were quietly changed by the new setting.
-
-### 16. d-round-revert, what, Non-engineer
-
-Original: Went back to the old way of splitting leftover cents.
+Original: The setting was not saved with each bill, so the new default changed older bills too.
 
 Facts:
-- **headline** They went back to the old way of splitting leftover cents.
+- **headline** The setting was not saved with each bill.
+- The new default changed older bills too.
 
-Paraphrase: Returned to the prior method of dividing leftover cents.
+Paraphrase: The option was not stored on every bill, so changing the usual choice also altered earlier ones.
 
-### 17. d-textfile, reason, Engineer
+### 18. d-round-revert, what, Non-engineer
+
+Original: Undid the two earlier changes, so bills split the old way again.
+
+Facts:
+- **headline** The two earlier changes were undone.
+- Bills split the old way again.
+
+Paraphrase: Those two prior adjustments were reversed, so bills divide the former way again.
+
+### 19. d-textfile, reason, Engineer
 
 Original: The one-shot script was fine for a single detergent bottle and useless for a month of groceries.
 
@@ -206,17 +234,17 @@ Facts:
 
 Paraphrase: The one-shot script handled a single detergent bottle well and could not cope with a month of groceries.
 
-### 18. d-texts, reason, Non-engineer
+### 20. d-texts, reason, Non-engineer
 
-Original: The shared laptop is not a pager, and Lena will not look after a reminder setup.
+Original: The living room laptop is not a pager, and Lena will not look after a notification setup.
 
 Facts:
-- **headline** The shared laptop is not a pager.
-- **headline** Lena will not look after a reminder setup.
+- **headline** The living room laptop is not a pager.
+- **headline** Lena will not look after a notification setup.
 
-Paraphrase: The laptop people share is no pager, and Lena declines to tend any reminder arrangement.
+Paraphrase: The laptop in the living room does not act as a pager, and Lena refuses to mind any alert arrangement.
 
-### 19. d-ties, what, Non-engineer
+### 21. d-ties, what, Non-engineer
 
 Original: Settling up uses the fewest payments, and ties go by name.
 
@@ -226,17 +254,17 @@ Facts:
 
 Paraphrase: Squaring accounts uses the smallest number of payments, and name order breaks ties.
 
-### 20. d-web, what, Engineer
+### 22. d-web, what, Engineer
 
-Original: No local web page for balances. Kit Alvarez closed PR #14.
+Original: Kit Alvarez closed PR #14, the local web page for balances.
 
 Facts:
-- **headline** No local web page for balances.
-- Kit Alvarez closed PR #14.
+- **headline** Kit Alvarez closed PR #14.
+- PR #14 is the local web page for balances.
 
-Paraphrase: Balances will not receive a local web page. Kit Alvarez shut PR #14.
+Paraphrase: Kit Alvarez closed PR #14, a web page hosted locally for balances.
 
-### 21. f-decimal-sentence, card, Engineer
+### 23. f-decimal-sentence, card, Engineer
 
 Original: tally.py catches the ValueError from int() and prints that cents must be a whole number.
 
@@ -246,7 +274,7 @@ Facts:
 
 Paraphrase: tally.py traps the ValueError raised by int() and writes that cents has to be a whole number.
 
-### 22. f-decimal-sentence, reason, Engineer
+### 24. f-decimal-sentence, reason, Engineer
 
 Original: Maya Ruiz typed 10.50, got a long red error, and asked for it to say what she did wrong.
 
@@ -257,7 +285,7 @@ Facts:
 
 Paraphrase: Maya Ruiz entered 10.50, then saw a lengthy red error, and requested that it explain what she had done wrong.
 
-### 23. f-negative, card, Non-engineer
+### 25. f-negative, card, Non-engineer
 
 Original: The note on the change says only that it fixes tests. The app's own check adds a bill of minus 5 cents and expects it to be refused.
 
@@ -268,7 +296,7 @@ Facts:
 
 Paraphrase: The remark about this update mentions only a repair of the trial runs. The program's built-in review adds a charge of minus 5 cents and wants it refused.
 
-### 24. f-round-unstored, card, Engineer
+### 26. f-round-unstored, card, Engineer
 
 Original: balances and settle read --round at run time, so a later default changes old bills.
 
@@ -278,7 +306,7 @@ Facts:
 
 Paraphrase: balances and settle consult --round when they run, which means a changed default later alters old bills.
 
-### 25. leftover, headline, Engineer
+### 27. leftover, headline, Engineer
 
 Original: From the code: each share is rounded down to whole cents, so the payer covers the leftover cent.
 
@@ -289,7 +317,7 @@ Facts:
 
 Paraphrase: Looking at the code, every share is floored to whole cents, and the payer covers the cent that is left.
 
-### 26. leftover, headline, Non-engineer
+### 28. leftover, headline, Non-engineer
 
 Original: From the code: each share is rounded down to whole cents, so the person who paid covers any leftover cent.
 
@@ -300,38 +328,37 @@ Facts:
 
 Paraphrase: Looking at how it is built, every portion gets trimmed to full cents, and whoever paid absorbs any spare cent.
 
-### 27. paybacks, headline, Engineer
+### 29. paybacks, headline, Engineer
 
-Original: `tally pay` records money one roommate paid another without deleting the bill, so the history stays and the balance clears.
+Original: `tally pay` records money one roommate paid back to another, and the original bill is not deleted.
 
 Facts:
-- **headline** `tally pay` records money one roommate paid another without deleting the bill.
-- The history stays.
-- The balance clears.
+- **headline** `tally pay` records money one roommate paid back to another.
+- The original bill is not deleted.
 
-Paraphrase: `tally pay` logs cash one roommate gave another without removing the bill, so the record stays and the amount owed clears.
+Paraphrase: `tally pay` logs the money that one roommate returned to another, and it does not delete the original bill.
 
-### 28. root, headline, Non-engineer
+### 30. root, headline, Non-engineer
 
-Original: tally splits shared household bills between roommates and says who should pay whom. Each bill is saved, every saved bill is split again each time, and the shares become the fewest payments.
+Original: tally splits shared household bills between roommates and says who should pay whom. Each bill is saved, the balances are worked out from all saved bills, and the balances become the fewest payments.
 
 Facts:
 - **headline** tally splits shared household bills between roommates.
 - **headline** tally says who should pay whom.
 - Each bill is saved.
-- Every saved bill is split again each time.
-- The shares become the fewest payments.
+- The balances are worked out from all saved bills.
+- The balances become the fewest payments.
 
-Paraphrase: This helper divides shared household bills among roommates and reports who needs to pay whom. Every bill gets stored, each stored bill is divided again each time, and those portions settle into the fewest payments.
+Paraphrase: tally divides shared home bills among roommates and states who ought to pay whom. Every bill gets stored, what people owe is figured from all stored bills, and those results become the smallest number of payments.
 
-### 29. storage, headline, Engineer
+### 31. storage, headline, Engineer
 
-Original: Bills live in ledger.json, a plain JSON file. The --ledger option picks which file to use.
+Original: Bills and paybacks live in ledger.json, a plain text file next to the app. The --ledger option picks which file to use.
 
 Facts:
-- **headline** Bills live in ledger.json
-- **headline** ledger.json is a plain JSON file
-- The --ledger option picks which file to use
+- **headline** Bills and paybacks live in ledger.json.
+- **headline** The --ledger option picks which file to use.
+- ledger.json is a plain text file next to the app.
 
-Paraphrase: Bills are kept in ledger.json, an ordinary JSON file. The --ledger option chooses the file that will be used.
+Paraphrase: Bills and paybacks are stored in ledger.json, an ordinary text file that sits beside the app. The --ledger option selects which file gets used.
 

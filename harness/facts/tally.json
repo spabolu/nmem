@@ -38,7 +38,7 @@
     "flags": []
   },
   "tally/adding/headline/eng": {
-    "source": "69e618c6fb734fd1e4a1c370b80b6bb9",
+    "source": "040eb6f4ee19ba216d340ad32a3f0eda",
     "headline": [
       {
         "id": "f1",
@@ -52,19 +52,19 @@
     "supporting": [
       {
         "id": "f3",
-        "text": "The check arrived in a commit titled only \"fix tests\"."
+        "text": "The check was first added in a commit whose title only mentions fixing tests."
       }
     ],
     "paraphrase": [
-      "`tally add` accepts the payer, an amount counted in whole cents, a note, plus everyone sharing the bill.",
-      "Amounts less than zero get rejected.",
-      "That check showed up inside a commit named solely \"fix tests\"."
+      "`tally add` accepts who paid plus a whole-cents amount, a note, and the people who share that bill.",
+      "A negative amount gets rejected.",
+      "The check first appeared inside a commit whose title mentions nothing but fixing tests."
     ],
     "review": "auto",
     "flags": []
   },
   "tally/adding/headline/plain": {
-    "source": "e92050ffcd82980dca97e34f51d1f18e",
+    "source": "62515491fef29e9bf7543a2704aeedcd",
     "headline": [
       {
         "id": "f1",
@@ -78,50 +78,48 @@
     "supporting": [
       {
         "id": "f3",
-        "text": "The check arrived in a change labeled only as a test fix."
+        "text": "The check was first added in a change labeled only as a test fix."
       }
     ],
     "paraphrase": [
-      "You enter the payer, the sum in cents, a brief note, and the people splitting the cost.",
-      "Amounts less than zero are turned down.",
-      "The review came through an update described only as fixing tests."
+      "You enter who paid, the sum in cents, a brief remark, and who splits the cost.",
+      "An amount below zero is rejected.",
+      "That refusal first showed up in an update marked solely as a test fix."
     ],
-    "review": "flagged",
-    "flags": [
-      "the cross-check says the paraphrase changes the meaning"
-    ]
+    "review": "auto",
+    "flags": []
   },
   "tally/claim-negative/claim-why/eng": {
-    "source": "f2a5a5321afde6681fdf4d67d21a178d",
+    "source": "53b03ddbb311eb7c9100ed1fd99283ae",
     "headline": [
       {
         "id": "f1",
-        "text": "The check that refuses a negative amount first appeared in a later commit by Owen Briggs."
+        "text": "`if args.cents < 0:` was first added to tally/cli.py on 2023-11-12."
       }
     ],
     "supporting": [
       {
         "id": "f2",
-        "text": "The check first appeared in tally/cli.py."
+        "text": "Owen Briggs authored the commit that first added `if args.cents < 0:`."
       }
     ],
     "paraphrase": [
-      "Inside tally/cli.py, the refusal of a negative amount first showed up in a subsequent commit authored by Owen Briggs."
+      "Back on 2023-11-12, Owen Briggs's commit was the first to place `if args.cents < 0:` inside tally/cli.py."
     ],
     "review": "auto",
     "flags": []
   },
   "tally/claim-negative/claim-why/plain": {
-    "source": "be9c560401a290abde47edf71938baa2",
+    "source": "843247ac153a83ae1b8536f47c28d765",
     "headline": [
       {
         "id": "f1",
-        "text": "The app only started refusing a negative amount in a later change by Owen Briggs."
+        "text": "The app started checking for a negative amount on Nov 12, 2023, in a change by Owen Briggs."
       }
     ],
     "supporting": [],
     "paraphrase": [
-      "Only a later update by Owen Briggs made the app start turning down a negative amount."
+      "On Nov 12, 2023, Owen Briggs changed the app so that it began to check for a negative amount."
     ],
     "review": "auto",
     "flags": []
@@ -200,42 +198,44 @@
     "flags": []
   },
   "tally/d-currency/reason/eng": {
-    "source": "b67a9f1b7fc408a442f3cda52dadbb72",
+    "source": "7ff275e198f9e4ed767e751ebd5c6043",
     "headline": [
       {
         "id": "f1",
-        "text": "The roommates still did not agree on the exchange rate."
+        "text": "Maya said they still did not agree on the exchange rate."
       },
       {
         "id": "f2",
-        "text": "Maya asked that the app not pick one for them."
+        "text": "Maya asked that the app not pick the exchange rate for them."
       }
     ],
     "supporting": [],
     "paraphrase": [
-      "The roommates still lacked consensus about the exchange rate, and Maya wanted the app to avoid choosing one for them."
+      "Maya reported they still lacked agreement about the exchange rate, and requested the app not choose one in their place."
     ],
     "review": "auto",
     "flags": []
   },
   "tally/d-currency/reason/plain": {
-    "source": "a20fc967833a57935072a1f95d24c576",
+    "source": "348940e0df03b5eedcd068b90385d096",
     "headline": [
       {
         "id": "f1",
-        "text": "The roommates still did not agree on an exchange rate."
+        "text": "Maya said they still did not agree on an exchange rate."
       },
       {
         "id": "f2",
-        "text": "Maya asked the app not to pick one for them."
+        "text": "Maya asked the app not to pick an exchange rate for them."
       }
     ],
     "supporting": [],
     "paraphrase": [
-      "The roommates had still not settled on a rate for converting money, and Maya told the app not to choose one for them."
+      "Maya said they still had no shared rate for swapping money, and asked that the app leave the choice to them."
     ],
-    "review": "auto",
-    "flags": []
+    "review": "flagged",
+    "flags": [
+      "the cross-check says the paraphrase changes the meaning"
+    ]
   },
   "tally/d-currency/what/eng": {
     "source": "4c92490c14549877ba672c87c0fc1231",
@@ -278,16 +278,16 @@
     "flags": []
   },
   "tally/d-flag/what/eng": {
-    "source": "8d4d935ab7654b6744bbf67c7ec3e33b",
+    "source": "807d59bbf6210ecf25d1a4123143c2df",
     "headline": [
       {
         "id": "f1",
-        "text": "The file option --data was renamed --ledger"
+        "text": "The file option is now called --ledger."
       }
     ],
     "supporting": [],
     "paraphrase": [
-      "The option for a file, --data, was renamed to --ledger."
+      "The option for the file is currently named --ledger."
     ],
     "review": "auto",
     "flags": []
@@ -346,20 +346,16 @@
     "flags": []
   },
   "tally/d-floor/what/eng": {
-    "source": "0b9649e2331df610ff3f0a78b47e17ed",
+    "source": "ba522e1b6d1035da2c7c12087def6cbc",
     "headline": [
       {
         "id": "f1",
-        "text": "Shares round down."
-      },
-      {
-        "id": "f2",
         "text": "The payer covers the leftover cent."
       }
     ],
     "supporting": [],
     "paraphrase": [
-      "Shares are rounded down, and the payer absorbs the leftover cent."
+      "The payer absorbs the remaining cent."
     ],
     "review": "auto",
     "flags": []
@@ -418,70 +414,70 @@
     "flags": []
   },
   "tally/d-json/what/eng": {
-    "source": "042be0e53f932b5cc338032b45a03157",
+    "source": "e2eb6edd64f8f2d7e99bb4b6ae24d2ad",
     "headline": [
       {
         "id": "f1",
-        "text": "The ledger moved back to a plain JSON file named ledger.json"
+        "text": "The ledger moved from SQLite to ledger.json."
       },
       {
         "id": "f2",
-        "text": "The decision is ADR-0004"
+        "text": "That decision is ADR-0004."
       }
     ],
-    "supporting": [],
+    "supporting": [
+      {
+        "id": "f3",
+        "text": "ledger.json is a JSON file."
+      }
+    ],
     "paraphrase": [
-      "The ledger returned to ledger.json, an ordinary JSON file (ADR-0004)."
+      "ADR-0004 switched the ledger from SQLite over to ledger.json, stored as JSON."
     ],
     "review": "auto",
     "flags": []
   },
   "tally/d-json/what/plain": {
-    "source": "a86daa835d16d14cc8ce003db96cc59a",
+    "source": "5ee362d8433c79f008316877da537caa",
     "headline": [
       {
         "id": "f1",
-        "text": "The list of bills went back to one plain file."
+        "text": "The list of bills moved out of the database and into one file."
       }
     ],
     "supporting": [],
     "paraphrase": [
-      "The bill list returned to a single simple document."
+      "The list of bills was moved from the stored records into a single document."
     ],
     "review": "auto",
     "flags": []
   },
   "tally/d-note/what/eng": {
-    "source": "391803d79e91985bb7e1375faf5e46c4",
+    "source": "86a3e877368f52cf671d0833d896ea9e",
     "headline": [
       {
         "id": "f1",
-        "text": "The default note changed from misc to unmarked"
+        "text": "The default note is now unmarked."
       }
     ],
     "supporting": [],
     "paraphrase": [
-      "unmarked took the place of misc as the default note."
+      "The default note is unmarked now."
     ],
     "review": "auto",
     "flags": []
   },
   "tally/d-note/what/plain": {
-    "source": "cd2926706be7c3444e6e1080b0997df0",
+    "source": "689ac42b599b32012d8eccb649f5b27a",
     "headline": [
       {
         "id": "f1",
         "text": "A bill with no note is now marked unmarked."
       }
     ],
-    "supporting": [
-      {
-        "id": "f2",
-        "text": "It was marked misc before."
-      }
-    ],
+    "supporting": [],
     "paraphrase": [
-      "A bill that lacks a note now gets the mark unmarked rather than misc."
+      "A bill that has no note is currently marked unmarked."
     ],
     "review": "auto",
     "flags": []
@@ -663,50 +659,60 @@
     "flags": []
   },
   "tally/d-round-revert/reason/plain": {
-    "source": "3652fb9ecdba626628f82b2c8653effb",
+    "source": "89b3996d924b0cd8e1816baf2b4f3760",
     "headline": [
       {
         "id": "f1",
-        "text": "The new setting quietly changed totals on bills already entered."
+        "text": "The setting was not saved with each bill."
       }
     ],
-    "supporting": [],
+    "supporting": [
+      {
+        "id": "f2",
+        "text": "The new default changed older bills too."
+      }
+    ],
     "paraphrase": [
-      "Bill totals already entered were quietly changed by the new setting."
+      "The option was not stored on every bill, so changing the usual choice also altered earlier ones."
     ],
     "review": "auto",
     "flags": []
   },
   "tally/d-round-revert/what/eng": {
-    "source": "dc38c755a1862380c6ef0804651c8a66",
+    "source": "affb81924e647076b239fa4f41ec2e5b",
     "headline": [
       {
         "id": "f1",
-        "text": "Reverted --round and its default."
+        "text": "PRs #20 and #21 were reverted."
       },
       {
         "id": "f2",
-        "text": "Back to the floor split."
+        "text": "The floor split is back."
       }
     ],
     "supporting": [],
     "paraphrase": [
-      "Undid --round plus its default, restoring the floor split."
+      "PRs #20 and #21 were rolled back, restoring the floor split."
     ],
     "review": "auto",
     "flags": []
   },
   "tally/d-round-revert/what/plain": {
-    "source": "6440afaed37cab3d08c799352f41bcc3",
+    "source": "951645e86a07dff9a28660bc755b3bd0",
     "headline": [
       {
         "id": "f1",
-        "text": "They went back to the old way of splitting leftover cents."
+        "text": "The two earlier changes were undone."
       }
     ],
-    "supporting": [],
+    "supporting": [
+      {
+        "id": "f2",
+        "text": "Bills split the old way again."
+      }
+    ],
     "paraphrase": [
-      "Returned to the prior method of dividing leftover cents."
+      "Those two prior adjustments were reversed, so bills divide the former way again."
     ],
     "review": "auto",
     "flags": []
@@ -767,19 +773,21 @@
     "flags": []
   },
   "tally/d-sqlite/what/plain": {
-    "source": "43dd0c25fac3181bd4ee803d260b1a81",
+    "source": "c0ddad0a3397c98e5653fbd338095906",
     "headline": [
       {
         "id": "f1",
-        "text": "The list of bills moved into a small database file."
+        "text": "The list of bills moved into a database file."
       }
     ],
     "supporting": [],
     "paraphrase": [
-      "The bill list shifted into a small file that stores records."
+      "The bills were relocated from a list into a stored records file."
     ],
-    "review": "auto",
-    "flags": []
+    "review": "flagged",
+    "flags": [
+      "the cross-check says the paraphrase changes the meaning"
+    ]
   },
   "tally/d-textfile/reason/eng": {
     "source": "ceeb05fe46a758edf1a894bee5980951",
@@ -871,20 +879,20 @@
     "flags": []
   },
   "tally/d-texts/reason/plain": {
-    "source": "8fda71a0836727286a8feb2aff3052f5",
+    "source": "9c5c3d7d4b981bb3e9c095ed924a1f6c",
     "headline": [
       {
         "id": "f1",
-        "text": "The shared laptop is not a pager."
+        "text": "The living room laptop is not a pager."
       },
       {
         "id": "f2",
-        "text": "Lena will not look after a reminder setup."
+        "text": "Lena will not look after a notification setup."
       }
     ],
     "supporting": [],
     "paraphrase": [
-      "The laptop people share is no pager, and Lena declines to tend any reminder arrangement."
+      "The laptop in the living room does not act as a pager, and Lena refuses to mind any alert arrangement."
     ],
     "review": "auto",
     "flags": []
@@ -995,7 +1003,7 @@
     "flags": []
   },
   "tally/d-web/reason/eng": {
-    "source": "8e10400d66693060e498395dfe815220",
+    "source": "cf91262449a43800d4066b8c3c6a2ced",
     "headline": [
       {
         "id": "f1",
@@ -1003,18 +1011,18 @@
       },
       {
         "id": "f2",
-        "text": "Kit could not win Lena over on a server in the apartment."
+        "text": "Kit is not going to win Lena over on a server in the apartment."
       }
     ],
     "supporting": [],
     "paraphrase": [
-      "Maya has no interest in a page, and Kit failed to persuade Lena about a server inside the apartment."
+      "A page is not something Maya wants, and Kit will not persuade Lena via a server kept in the apartment."
     ],
     "review": "auto",
     "flags": []
   },
   "tally/d-web/reason/plain": {
-    "source": "ecc52973064cad30a0874082636b1703",
+    "source": "948eb2356d0308e8c62aeaf99442d349",
     "headline": [
       {
         "id": "f1",
@@ -1022,49 +1030,47 @@
       },
       {
         "id": "f2",
-        "text": "Kit could not win Lena over on a program running in the apartment."
+        "text": "Kit was not going to win Lena over on running a server in the apartment."
       }
     ],
     "supporting": [],
     "paraphrase": [
-      "Maya had no wish for a page, and Kit failed to persuade Lena about something running in the apartment."
+      "Maya wanted no page, and Kit could not get Lena to agree to keep a machine going in the apartment."
     ],
-    "review": "flagged",
-    "flags": [
-      "the cross-check says the paraphrase changes the meaning"
-    ]
+    "review": "auto",
+    "flags": []
   },
   "tally/d-web/what/eng": {
-    "source": "adb9c0614adf6f694b3333b847a1a6d4",
+    "source": "060166bdabea872cc17fa203e64ff364",
     "headline": [
       {
         "id": "f1",
-        "text": "No local web page for balances."
+        "text": "Kit Alvarez closed PR #14."
       }
     ],
     "supporting": [
       {
         "id": "f2",
-        "text": "Kit Alvarez closed PR #14."
+        "text": "PR #14 is the local web page for balances."
       }
     ],
     "paraphrase": [
-      "Balances will not receive a local web page. Kit Alvarez shut PR #14."
+      "Kit Alvarez closed PR #14, a web page hosted locally for balances."
     ],
     "review": "auto",
     "flags": []
   },
   "tally/d-web/what/plain": {
-    "source": "a34bac53c743dde2bd2299cbcd133344",
+    "source": "3b4772f6e7bda5630f11e195cc46a974",
     "headline": [
       {
         "id": "f1",
-        "text": "No web page for the app."
+        "text": "Kit Alvarez dropped the idea of a local web page for balances."
       }
     ],
     "supporting": [],
     "paraphrase": [
-      "The app will have no site."
+      "Kit Alvarez abandoned plans for a home-computer page that shows balances."
     ],
     "review": "flagged",
     "flags": [
@@ -1156,32 +1162,39 @@
     ]
   },
   "tally/f-dollars/card/eng": {
-    "source": "ca4fd3016a927fc639a2bf9f7b7431dc",
+    "source": "f62dca9d5e8a88853915ee6d2f854c53",
     "headline": [
       {
         "id": "f1",
-        "text": "show() formats every printed amount as dollars and cents"
+        "text": "show() formats every printed amount as dollars and cents."
       },
       {
         "id": "f2",
-        "text": "git shows the author as Lena P"
+        "text": "git shows the author as Lena P."
       }
     ],
     "supporting": [
       {
         "id": "f3",
-        "text": "Lena Voss said on PR #3 that the name is her laptop"
+        "text": "Lena Voss said on PR #3 that Lena P is still her."
+      },
+      {
+        "id": "f4",
+        "text": "Lena Voss is pushing from her laptop."
       }
     ],
     "paraphrase": [
-      "show() writes each displayed sum using dollars and cents.",
-      "git lists Lena P as the author, and Lena Voss stated on PR #3 that this label is her laptop."
+      "show() writes each amount it prints using dollars and cents.",
+      "git records the author name as Lena P; Lena Voss wrote in PR #3 that she is still that person, and she pushes from her laptop."
     ],
-    "review": "auto",
-    "flags": []
+    "review": "flagged",
+    "flags": [
+      "the cross-check says fact 4 (\"Lena Voss is pushing from her laptop.\") is not what the sentence says",
+      "the cross-check says the sentence also states: Lena Voss said on PR #3 that this is still her, pushing from her laptop."
+    ]
   },
   "tally/f-dollars/card/plain": {
-    "source": "2787c92ffa34d9e9bfb75fba99a3ca9b",
+    "source": "cf95c168f496fb1588f0ae614a6a0f1d",
     "headline": [
       {
         "id": "f1",
@@ -1191,7 +1204,7 @@
     "supporting": [
       {
         "id": "f2",
-        "text": "The change was made from Lena Voss's laptop."
+        "text": "The update was pushed from Lena Voss's laptop."
       },
       {
         "id": "f3",
@@ -1199,8 +1212,8 @@
       }
     ],
     "paraphrase": [
-      "All sums that appear are now shown using dollars and cents.",
-      "This came from Lena Voss's laptop, and the machine displays another name."
+      "All sums the program displays are now shown in dollars and cents.",
+      "This update came from Lena Voss's laptop, and that computer lists a different name."
     ],
     "review": "auto",
     "flags": []
@@ -1221,19 +1234,21 @@
     "flags": []
   },
   "tally/f-dollars/reason/plain": {
-    "source": "f13ddcfc29911b641ee9531878e296ee",
+    "source": "e47a6692b39f5e317254abb46821ea65",
     "headline": [
       {
         "id": "f1",
-        "text": "An earlier written decision said amounts are shown in dollars only when a person reads them."
+        "text": "A written decision says amounts are shown in dollars only when a person reads them."
       }
     ],
     "supporting": [],
     "paraphrase": [
-      "A prior written ruling stated that sums appear as dollars solely while a person is reading them."
+      "A written decision states that dollar amounts appear solely while a person is reading them."
     ],
-    "review": "auto",
-    "flags": []
+    "review": "flagged",
+    "flags": [
+      "the cross-check says the paraphrase changes the meaning"
+    ]
   },
   "tally/f-first-names/card/eng": {
     "source": "3867f3d1de637b4ec9e837e19a5c6398",
@@ -1326,15 +1341,15 @@
     "flags": []
   },
   "tally/f-old-flag/card/eng": {
-    "source": "df100f50e81792d7c3e8134dd3252b89",
+    "source": "d822e4140f23aeb233689b54f7ab0ec2",
     "headline": [
       {
         "id": "f1",
-        "text": "With --data, add exits 2."
+        "text": "With the old name --data, the command exits 2."
       },
       {
         "id": "f2",
-        "text": "With --data, add writes no file."
+        "text": "With the old name --data, the command writes no file."
       }
     ],
     "supporting": [
@@ -1344,8 +1359,8 @@
       }
     ],
     "paraphrase": [
-      "Given --data, add finishes with code 2 and produces no file.",
-      "The commit message mentions solely the rename."
+      "With the old name --data, that command exits 2 and creates no file.",
+      "The commit message mentions the rename and nothing else."
     ],
     "review": "auto",
     "flags": []
@@ -1535,41 +1550,43 @@
     "flags": []
   },
   "tally/money/headline/eng": {
-    "source": "5c00ca8f6c13070465a353a29621bddb",
+    "source": "099480e12eeaa407a41283651233a1de",
     "headline": [
       {
         "id": "f1",
         "text": "Every amount is a whole number of cents."
-      },
-      {
-        "id": "f2",
-        "text": "Nothing in the code names a currency."
       }
     ],
-    "supporting": [],
+    "supporting": [
+      {
+        "id": "f2",
+        "text": "The word currency appears nowhere in the code."
+      }
+    ],
     "paraphrase": [
-      "Each amount must be an integer number of cents.",
-      "The code never designates a currency by name."
+      "Each amount is an integer number of cents.",
+      "The word currency is missing from the code entirely."
     ],
     "review": "auto",
     "flags": []
   },
   "tally/money/headline/plain": {
-    "source": "65b3f24f3eb30fb2d85d5b1811038f2a",
+    "source": "920328d8b7c745087772b9f6ddc0466c",
     "headline": [
       {
         "id": "f1",
         "text": "Every amount is a whole number of cents."
-      },
-      {
-        "id": "f2",
-        "text": "Nothing in the app names a kind of money."
       }
     ],
-    "supporting": [],
+    "supporting": [
+      {
+        "id": "f2",
+        "text": "The word currency appears nowhere in the app."
+      }
+    ],
     "paraphrase": [
-      "Each amount stands as full cents alone.",
-      "The app gives no name to any sort of money."
+      "Each amount is made of whole cents only.",
+      "Nowhere inside the app does the word currency appear."
     ],
     "review": "auto",
     "flags": []
@@ -1618,49 +1635,41 @@
     "flags": []
   },
   "tally/paybacks/headline/eng": {
-    "source": "ef244abbaa827a6af984ef6554518838",
+    "source": "a30d25bc68ef3d1b3c099620ece73ebb",
     "headline": [
       {
         "id": "f1",
-        "text": "`tally pay` records money one roommate paid another without deleting the bill."
+        "text": "`tally pay` records money one roommate paid back to another."
       }
     ],
     "supporting": [
       {
         "id": "f2",
-        "text": "The history stays."
-      },
-      {
-        "id": "f3",
-        "text": "The balance clears."
+        "text": "The original bill is not deleted."
       }
     ],
     "paraphrase": [
-      "`tally pay` logs cash one roommate gave another without removing the bill, so the record stays and the amount owed clears."
+      "`tally pay` logs the money that one roommate returned to another, and it does not delete the original bill."
     ],
     "review": "auto",
     "flags": []
   },
   "tally/paybacks/headline/plain": {
-    "source": "f7ced297d9a5bcce4f7e2259ddc1c0ab",
+    "source": "5bb812f71b16c1de52fda1e4609e7da3",
     "headline": [
       {
         "id": "f1",
-        "text": "A payback records money one roommate paid another without deleting the bill."
+        "text": "A payback records money one roommate paid back to another."
       }
     ],
     "supporting": [
       {
         "id": "f2",
-        "text": "The history stays."
-      },
-      {
-        "id": "f3",
-        "text": "The balance clears."
+        "text": "The original bill stays."
       }
     ],
     "paraphrase": [
-      "A payback notes cash one roommate gave another without removing the bill, so the record remains and what is owed clears."
+      "A payback logs the sum one housemate returned to another, and the initial bill remains."
     ],
     "review": "auto",
     "flags": []
@@ -1713,7 +1722,7 @@
     "flags": []
   },
   "tally/root/headline/eng": {
-    "source": "4283287d4e72fa163c75ed8468578ce5",
+    "source": "f7bc452f37755478c648fe5999b1f73d",
     "headline": [
       {
         "id": "f1",
@@ -1731,7 +1740,7 @@
       },
       {
         "id": "f4",
-        "text": "`balances_for()` splits every saved bill again."
+        "text": "`balances_for()` works out the balances from the saved bills."
       },
       {
         "id": "f5",
@@ -1739,14 +1748,14 @@
       }
     ],
     "paraphrase": [
-      "tally divides joint household bills among roommates and outputs the smallest number of payments that square everyone.",
-      "`tally add` records a bill, `balances_for()` divides each saved bill a second time, and `minimal_transfers()` makes payments from the balances."
+      "tally divides joint home costs among housemates and outputs the smallest set of transfers that clear every balance.",
+      "`tally add` records a bill, `balances_for()` derives the balances from the stored bills, and `minimal_transfers()` converts those balances into owed payments."
     ],
     "review": "auto",
     "flags": []
   },
   "tally/root/headline/plain": {
-    "source": "1b6624e311545a18b882a26efc822cde",
+    "source": "af9276fa6f2b4000b243e139f3384e7c",
     "headline": [
       {
         "id": "f1",
@@ -1764,16 +1773,16 @@
       },
       {
         "id": "f4",
-        "text": "Every saved bill is split again each time."
+        "text": "The balances are worked out from all saved bills."
       },
       {
         "id": "f5",
-        "text": "The shares become the fewest payments."
+        "text": "The balances become the fewest payments."
       }
     ],
     "paraphrase": [
-      "This helper divides shared household bills among roommates and reports who needs to pay whom.",
-      "Every bill gets stored, each stored bill is divided again each time, and those portions settle into the fewest payments."
+      "tally divides shared home bills among roommates and states who ought to pay whom.",
+      "Every bill gets stored, what people owe is figured from all stored bills, and those results become the smallest number of payments."
     ],
     "review": "auto",
     "flags": []
@@ -1927,46 +1936,47 @@
     "flags": []
   },
   "tally/storage/headline/eng": {
-    "source": "6a964e309969c245e2add0414359cda5",
+    "source": "14b7a747e1b93df40e24414a609363db",
     "headline": [
       {
         "id": "f1",
-        "text": "Bills live in ledger.json"
+        "text": "Bills and paybacks live in ledger.json."
       },
       {
         "id": "f2",
-        "text": "ledger.json is a plain JSON file"
+        "text": "The --ledger option picks which file to use."
       }
     ],
     "supporting": [
       {
         "id": "f3",
-        "text": "The --ledger option picks which file to use"
+        "text": "ledger.json is a plain text file next to the app."
       }
     ],
     "paraphrase": [
-      "Bills are kept in ledger.json, an ordinary JSON file.",
-      "The --ledger option chooses the file that will be used."
+      "Bills and paybacks are stored in ledger.json, an ordinary text file that sits beside the app.",
+      "The --ledger option selects which file gets used."
     ],
     "review": "auto",
     "flags": []
   },
   "tally/storage/headline/plain": {
-    "source": "0ffec2b88d7a632533d2d31fb09d4f50",
+    "source": "cba00feb9cfbe5b4e366501aae4f004d",
     "headline": [
       {
         "id": "f1",
-        "text": "Bills live in one plain file."
-      },
+        "text": "Bills and paybacks live in one plain file next to the app."
+      }
+    ],
+    "supporting": [
       {
         "id": "f2",
         "text": "A setting picks which file to use."
       }
     ],
-    "supporting": [],
     "paraphrase": [
-      "All bills sit together in a single simple document.",
-      "An option decides which document is used."
+      "Bills and paybacks are stored in a single ordinary file beside the app.",
+      "A setting chooses the file that gets used."
     ],
     "review": "auto",
     "flags": []
