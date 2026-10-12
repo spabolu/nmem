@@ -134,6 +134,31 @@ export function statusOf(topic: LocalId, snapshot: Snapshot, facts: RepoFacts): 
   return { kind: 'up-to-date' };
 }
 
+/**
+ * Counts for the tree tally. The root is the page, not one of the topics the tally counts, so only children are included.
+ * up-to-date-since counts as up to date. The website prints these numbers and TEMPLATES.census, and does not recount.
+ */
+export type TopicCensus = {
+  readonly topics: number;
+  readonly neverWritten: number;
+  readonly outOfDate: number;
+  readonly upToDate: number;
+};
+
+export function censusOf(snapshot: Snapshot, facts: RepoFacts): TopicCensus {
+  let neverWritten = 0;
+  let outOfDate = 0;
+  let upToDate = 0;
+  for (const topic of snapshot.topics) {
+    if (topic.parent === null) continue;
+    const status = statusOf(topic.id, snapshot, facts);
+    if (status.kind === 'never-written') neverWritten += 1;
+    else if (status.kind === 'out-of-date-since') outOfDate += 1;
+    else upToDate += 1;
+  }
+  return { topics: neverWritten + outOfDate + upToDate, neverWritten, outOfDate, upToDate };
+}
+
 /** Newest first by decisionDay, ties by list order. Root gets every decision. A child gets decisions that name it.
  *  A decision tagged with the root id alone is repo-wide and appears on the root only. */
 export function decisionsFor(topic: LocalId, snapshot: Snapshot, facts: RepoFacts): readonly Decision[] {
@@ -385,14 +410,18 @@ export const TRUST_WORDS = {
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'] as const;
 
 /** "Nov 19, 2024" */
-function dayLabel(day: IsoDay): string {
+export function formatDay(day: IsoDay): string {
   return `${MONTHS[Number(day.slice(5, 7)) - 1] ?? '?'} ${Number(day.slice(8, 10))}, ${day.slice(0, 4)}`;
 }
 
-/** "PR #16" for a pull request, "commit af5ef6a" for a direct commit. */
-function changeLabel(change: ChangeId): string {
+/** "PR #16" for a pull request, "commit af5ef6a" for a direct commit. Engineer text only. Plain status lines omit it. */
+export function labelChange(change: ChangeId): string {
   const pull = /^pr#(\d+)$/.exec(change);
   return pull ? `PR #${pull[1]}` : `commit ${change}`;
+}
+
+function grouped(n: number): string {
+  return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 }
 
 function joinOr(names: readonly string[]): string {
@@ -437,9 +466,9 @@ export const TEMPLATES = {
       case 'up-to-date':
         return { eng: 'Up to date', plain: 'Up to date' };
       case 'up-to-date-since':
-        return { eng: `Up to date since ${changeLabel(status.since)}, ${dayLabel(status.day)}`, plain: `Up to date since ${dayLabel(status.day)}` };
+        return { eng: `Up to date since ${labelChange(status.since)}, ${formatDay(status.day)}`, plain: `Up to date since ${formatDay(status.day)}` };
       case 'out-of-date-since':
-        return { eng: `Out of date since ${changeLabel(status.since)}, ${dayLabel(status.day)}`, plain: `Out of date since ${dayLabel(status.day)}` };
+        return { eng: `Out of date since ${labelChange(status.since)}, ${formatDay(status.day)}`, plain: `Out of date since ${formatDay(status.day)}` };
     }
   },
   /** "Since Nov 18: 2 behavior changes and 2 things to check." */
@@ -448,6 +477,40 @@ export const TEMPLATES = {
     const line = `Since ${shortDay(range.from)}: ${parts.length === 0 ? 'nothing that matters' : joinAnd(parts)}.`;
     return { eng: line, plain: line };
   },
+  /**
+   * "5 routine changes, 91 lines in the whole repo." Plain says "project", not "repo".
+   * A zero count still names the scope, so a line count is never a bare number.
+   */
+  routine: (count: number, lines: number, whole: boolean): Named => {
+    const cover = {
+      eng: whole ? 'in the whole repo' : "in this topic's files",
+      plain: whole ? 'in the whole project' : "in this topic's files",
+    };
+    const line = (scope: string): string => {
+      if (count === 0) return `No routine changes ${scope}.`;
+      const changes = count === 1 ? '1 routine change' : `${count} routine changes`;
+      const counted = lines === 1 ? '1 line' : `${grouped(lines)} lines`;
+      return `${changes}, ${counted} ${scope}.`;
+    };
+    return { eng: line(cover.eng), plain: line(cover.plain) };
+  },
+  /** "2 of 6 topics were never written down. No topic is out of date." */
+  census: (census: TopicCensus): Named => {
+    if (census.topics === 0) {
+      const line = 'No topics yet.';
+      return { eng: line, plain: line };
+    }
+    const never = census.neverWritten === 0
+      ? `All ${census.topics} topics were written down.`
+      : `${census.neverWritten} of ${census.topics} topics were never written down.`;
+    const stale = census.outOfDate === 0
+      ? 'No topic is out of date.'
+      : `${census.outOfDate} of ${census.topics} topics ${census.outOfDate === 1 ? 'is' : 'are'} out of date.`;
+    const line = `${never} ${stale}`;
+    return { eng: line, plain: line };
+  },
+  unclassified: { eng: 'nmem could not classify this change.', plain: 'nmem could not classify this change.' },
+  net: { eng: 'no net change', plain: 'no net change' },
 } as const;
 
 /** Case-insensitive token match over topic names (both audiences), headline text, and words. Scored only in the user test. */
