@@ -223,3 +223,32 @@ test('a reply split into a text choice and a tool-call choice is read, and a rep
   }
   assert.equal(chats, 2);
 });
+
+test('a Copilot reply that never finishes is retried and then fails instead of holding the build', async () => {
+  const sockets: Set<import('node:net').Socket> = new Set();
+  let chats = 0;
+  const server = http.createServer((req, res) => {
+    req.resume();
+    req.on('end', () => {
+      if (req.url === '/copilot_internal/v2/token') {
+        res.writeHead(200, { 'content-type': 'application/json' });
+        res.end(JSON.stringify({ token: 'cop-session', expires_at: 4_102_444_800, endpoints: { api: url } }));
+        return;
+      }
+      chats += 1;
+      res.writeHead(200, { 'content-type': 'application/json' });
+      res.write('{"choices":');
+    });
+  });
+  server.on('connection', (socket) => sockets.add(socket));
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const url = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  try {
+    const client = openClient({ store: temp(), mode: 'live', credential: CREDENTIAL, hosts: { web: url, api: url }, sleep: noWait, requestMs: 100 });
+    await assert.rejects(client.call(REQUEST), (error: unknown) => error instanceof ModelUnavailable && error.reason === 'provider-error');
+    assert.equal(chats, 3);
+  } finally {
+    for (const socket of sockets) socket.destroy();
+    await new Promise((resolve) => server.close(resolve));
+  }
+});

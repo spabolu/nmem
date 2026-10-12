@@ -29,6 +29,8 @@ const CLIENT_ID = 'Iv1.b507a08c87ecfe98';
 const DEVICE_GRANT = 'urn:ietf:params:oauth:grant-type:device_code';
 const EDITOR = { 'Editor-Version': 'vscode/1.99.0', 'Editor-Plugin-Version': 'copilot-chat/0.26.0', 'Copilot-Integration-Id': 'vscode-chat', 'User-Agent': 'nmem' };
 const ATTEMPTS = 3;
+/** A Copilot reply that has not finished by then is retried, so a stalled connection cannot hold a build forever. */
+const REQUEST_MS = 180_000;
 const SIGN_IN = 'Run `node engine/cli.ts auth copilot`, or set GITHUB_COPILOT_TOKEN to a GitHub token with Copilot access.';
 
 export type UnavailableReason = 'disabled' | 'offline-miss' | 'auth' | 'provider-error' | 'bad-reply';
@@ -75,6 +77,7 @@ async function postForm(url: string, fields: Readonly<Record<string, string>>): 
     method: 'POST',
     headers: { Accept: 'application/json', 'Content-Type': 'application/x-www-form-urlencoded', 'User-Agent': EDITOR['User-Agent'] },
     body: new URLSearchParams(fields).toString(),
+    signal: AbortSignal.timeout(REQUEST_MS),
   });
   if (!response.ok) throw new Error(`${url} answered ${response.status}`);
   const body: unknown = await response.json();
@@ -83,11 +86,12 @@ async function postForm(url: string, fields: Readonly<Record<string, string>>): 
 }
 
 /** 429, 5xx, and network errors back off and retry. 401 and 403 fail at once, because waiting will not sign anyone in. */
-async function send(url: string, init: RequestInit, label: string, sleep: Sleep): Promise<Response> {
+async function send(url: string, init: RequestInit, label: string, sleep: Sleep, requestMs: number = REQUEST_MS): Promise<unknown> {
   for (let attempt = 1; ; attempt += 1) {
     let response: Response;
+    const signal = AbortSignal.timeout(requestMs);
     try {
-      response = await fetch(url, init);
+      response = await fetch(url, { ...init, signal });
     } catch (error) {
       if (attempt >= ATTEMPTS) throw new ModelUnavailable('provider-error', label, `${url}: ${(error as Error).message}`);
       await sleep(attempt * 1000);
@@ -102,16 +106,21 @@ async function send(url: string, init: RequestInit, label: string, sleep: Sleep)
       continue;
     }
     if (!response.ok) throw new ModelUnavailable('provider-error', label, `${url} answered ${response.status}: ${(await response.text()).slice(0, 200)}`);
-    return response;
+    try {
+      return await response.json();
+    } catch (error) {
+      if (!signal.aborted) throw new ModelUnavailable('provider-error', label, `${url} answered with a body that is not JSON`);
+      if (attempt >= ATTEMPTS) throw new ModelUnavailable('provider-error', label, `${url}: ${(error as Error).message}`);
+      await sleep(attempt * 1000);
+    }
   }
 }
 
 type Session = { readonly token: string; readonly expiresAt: number; readonly api: string };
 
 /** The short-lived Copilot token and the chat host it names, which differs for some Enterprise accounts. */
-async function exchange(github: GitHubToken, hosts: Hosts, label: string, sleep: Sleep): Promise<Session> {
-  const response = await send(`${hosts.api}/copilot_internal/v2/token`, { headers: { Authorization: `token ${github}`, Accept: 'application/json', ...EDITOR } }, label, sleep);
-  const body = (await response.json()) as { token?: unknown; expires_at?: unknown; endpoints?: { api?: unknown } };
+async function exchange(github: GitHubToken, hosts: Hosts, label: string, sleep: Sleep, requestMs?: number): Promise<Session> {
+  const body = (await send(`${hosts.api}/copilot_internal/v2/token`, { headers: { Authorization: `token ${github}`, Accept: 'application/json', ...EDITOR } }, label, sleep, requestMs)) as { token?: unknown; expires_at?: unknown; endpoints?: { api?: unknown } };
   if (typeof body.token !== 'string' || typeof body.expires_at !== 'number' || typeof body.endpoints?.api !== 'string') {
     throw new ModelUnavailable('provider-error', label, 'the Copilot token exchange answered without a token, an expiry, and an API host');
   }
@@ -242,7 +251,7 @@ function answerOf(body: unknown): { readonly value: unknown; readonly bad: null 
  * live reads the cache, then calls Copilot on a miss and stores the reply. offline reads the cache only. none answers
  * nothing and touches nothing. A hit returns the stored usage, so a rerun reports what the snapshot cost to make.
  */
-export function openClient(options: { readonly store: string; readonly mode: ClientMode; readonly credential: Credential | null; readonly hosts?: Hosts; readonly sleep?: Sleep }): ModelClient {
+export function openClient(options: { readonly store: string; readonly mode: ClientMode; readonly credential: Credential | null; readonly hosts?: Hosts; readonly sleep?: Sleep; readonly requestMs?: number }): ModelClient {
   const hosts = options.hosts ?? GITHUB;
   const sleep = options.sleep ?? wait;
   let session: Session | null = null;
@@ -257,7 +266,7 @@ export function openClient(options: { readonly store: string; readonly mode: Cli
   const sessionFor = async (label: string): Promise<Session> => {
     if (options.credential === null) throw new ModelUnavailable('auth', label, `no Copilot token. ${SIGN_IN}`);
     if (session !== null && session.expiresAt - Date.now() >= 60_000) return session;
-    pending ??= exchange(options.credential.token, hosts, label, sleep).finally(() => {
+    pending ??= exchange(options.credential.token, hosts, label, sleep, options.requestMs).finally(() => {
       pending = null;
     });
     session = await pending;
@@ -276,7 +285,7 @@ export function openClient(options: { readonly store: string; readonly mode: Cli
       }
       if (options.mode === 'offline') throw new ModelUnavailable('offline-miss', request.label, `no cached reply for ${request.label} (${key})`);
       const { token, api } = await sessionFor(request.label);
-      const response = await send(`${api}/chat/completions`, {
+      const body = await send(`${api}/chat/completions`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', Accept: 'application/json', ...EDITOR },
         body: JSON.stringify({
@@ -288,8 +297,7 @@ export function openClient(options: { readonly store: string; readonly mode: Cli
           // Copilot refuses a forced tool choice for claude-opus-5.5 (400, measured), so a reply without the call is a bad reply.
           tool_choice: 'auto',
         }),
-      }, request.label, sleep);
-      const body: unknown = await response.json();
+      }, request.label, sleep, options.requestMs);
       const answer = answerOf(body);
       const stored = publish(file, { key, request: keyed(request), value: answer.value, usage: usageOf(body), bad: answer.bad });
       count(stored.usage, true);
