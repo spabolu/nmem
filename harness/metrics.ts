@@ -17,7 +17,7 @@ import { findQuote, resolveProof, spanOf } from './record.ts';
 import type { RepoRecord } from './record.ts';
 import { decisionDay, kindOf, pageOf, presets, rangeOf, statusOf } from './view.ts';
 import type { Audience, Range, RepoFacts } from './view.ts';
-import { jargonHits } from '../fixtures/lib/plain.mjs';
+import { plainHits } from '../fixtures/lib/plain.mjs';
 
 export type Outcome =
   | { readonly kind: 'scored'; readonly value: number; readonly why: string; readonly verdict?: string }
@@ -78,8 +78,6 @@ type Judged<Id extends string> = MetricBase<Id> & { readonly judged: true; reado
 export type Metric<Id extends string = string> = Deterministic<Id> | Judged<Id>;
 
 const REPO = { owner: 'local', name: 'local' };
-const CODE = [/\b[0-9a-f]{7,40}\b/i, /\b[\w.-]+(?:\/[\w.-]+)+\b/, /--[A-Za-z0-9]/, /`[^`]+`/, /#\d+/];
-
 function wordsOf(text: string): number {
   const trimmed = text.trim();
   return trimmed ? trimmed.split(/\s+/).length : 0;
@@ -490,7 +488,7 @@ function jargonCompute(ctx: ItemContext): Outcome {
     if (pair) texts.push(pair.system.name.plain, ...pair.system.headline.map((line) => line.plain));
   }
   if (texts.length === 0) return { kind: 'scored', value: 0, why: 'missed' };
-  const hits = texts.flatMap((text) => [...jargonHits(text), ...CODE.flatMap((pattern) => text.match(pattern) ?? [])]);
+  const hits = texts.flatMap((text) => plainHits(text));
   return hits.length === 0 ? { kind: 'scored', value: 1, why: 'no jargon' } : { kind: 'scored', value: 0, why: hits.slice(0, 4).join(', ') };
 }
 

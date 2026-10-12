@@ -11,6 +11,7 @@ import { kindOf, rangeOf, statusOf, TEMPLATES } from '../../harness/view.ts';
 import { MIN_CURRENCY_CLAIMS, MIN_GAP_OBJECTS } from '../views.schema.mjs';
 import { formatProof, MAX_RUN_SOURCE_BYTES, PROOF_VERBS, RUN_LANGS, runProof } from './checks.mjs';
 import { EMPTY_TREE, factsOf } from './facts.mjs';
+import { DENIAL } from './plain.mjs';
 import { array, filePath, integer, nonEmpty, object, oneOf, positive, rejectUnknown, requireFields, SpecError } from './fields.mjs';
 import { git, showFile } from './git.mjs';
 
@@ -22,7 +23,6 @@ const SCOPES = ['slice', 'full'];
 const SEVERITIES = ['behavior', 'check'];
 const COUNTED = ['decision', 'behavior', 'check', 'net'];
 const NOTES = ['part-of-later-undo', 'undoes-earlier'];
-const NO_BEHAVIOR_CHANGE = /no behaviou?r change/i;
 const TEST_PATH = /(^|\/)tests?\//;
 const MAX_HEADLINE_WORDS = 45;
 const MAX_POINTS = 3;
@@ -286,7 +286,7 @@ function parseChange(key, raw, path, ctx) {
 }
 
 function assertIntent(ref, path, ctx) {
-  if (NO_BEHAVIOR_CHANGE.test(ref.quote)) {
+  if (DENIAL.test(ref.quote)) {
     ctx.fail(`${path}.quote`, 'says "no behavior change", which shows no intent: this is a Behavior change finding with "Nobody wrote down why", not a decision');
   }
   return ref;
