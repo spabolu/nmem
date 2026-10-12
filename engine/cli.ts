@@ -2,19 +2,25 @@
  * nmem, the engine's command line. Parses argv into one command and runs it.
  *
  *   nmem build <workspace> <out.json> [--store <dir>] [--no-model]
+ *   nmem auth copilot
  *
- * Exit codes: 0 ok, 1 the build failed, 2 bad usage.
+ * Exit codes: 0 ok, 1 the command failed, 2 bad usage.
  */
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { build } from './build.ts';
+import { deviceLogin } from './copilot.ts';
 
-export type Command = { readonly kind: 'build'; readonly workspace: string; readonly out: string; readonly store: string | null; readonly model: boolean };
+export type Command =
+  | { readonly kind: 'build'; readonly workspace: string; readonly out: string; readonly store: string | null; readonly model: boolean }
+  | { readonly kind: 'auth-copilot' };
 
-const USAGE = 'usage: nmem build <workspace> <out.json> [--store <dir>] [--no-model]';
+const USAGE = 'usage: nmem build <workspace> <out.json> [--store <dir>] [--no-model]\n       nmem auth copilot';
 
 export function parseArgs(argv: readonly string[]): Command {
   const [command, ...rest] = argv;
+  if (command === 'auth' && rest.length === 1 && rest[0] === 'copilot') return { kind: 'auth-copilot' };
   if (command !== 'build') throw new Error(USAGE);
   const positional: string[] = [];
   let store: string | null = null;
@@ -41,6 +47,15 @@ export async function main(argv: readonly string[]): Promise<number> {
   } catch (error) {
     console.error((error as Error).message);
     return 2;
+  }
+  if (command.kind === 'auth-copilot') {
+    try {
+      await deviceLogin({ home: os.homedir(), say: (line) => console.log(line) });
+      return 0;
+    } catch (error) {
+      console.error((error as Error).message);
+      return 1;
+    }
   }
   if (command.model) {
     console.error('the model steps are not built yet; pass --no-model');
