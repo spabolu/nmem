@@ -7,7 +7,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { login } from '../harness/contract.ts';
 import type { ChangeId, Login, RepoIdentity } from '../harness/contract.ts';
-import { factsOf } from '../fixtures/lib/facts.mjs';
+import { EMPTY_TREE, factsOf } from '../fixtures/lib/facts.mjs';
 import { commitMessage, git, showFile } from '../fixtures/lib/git.mjs';
 import { DENIAL } from '../fixtures/lib/plain.mjs';
 
@@ -351,7 +351,7 @@ export function ingest(workspace: string): RepoRecord {
     changes: { id: string; before: string; after: string; touched: Map<string, number>; author: string | null }[];
   };
   const changes: Change[] = facts.changes.map((change) => {
-    const range = change.before === '4b825dc642cb6eb9a060e54bf8d69288fbee4904' ? [change.after] : [change.after, `^${change.before}`];
+    const range = change.before === EMPTY_TREE ? [change.after] : [change.after, `^${change.before}`];
     const commits = lines(git(repoDir, ['log', '--reverse', '--format=%H%x09%an', ...range]).stdout).map((row) => {
       const [sha = '', name = ''] = row.split('\t');
       return add(objectOf(sha.slice(0, 7), commitAuthor(sha, name), commitMessage(repoDir, sha) as string, bots));

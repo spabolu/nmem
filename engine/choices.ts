@@ -79,13 +79,14 @@ export async function decide(record: RepoRecord, steps: Steps, classified: reado
   });
   const linked = await steps.link([...revertChoices(record), ...adrs.map((item) => item.choice), ...classified]);
   const position = new Map<ChangeId | null, number>(record.changes.map((change, i) => [change.id, i]));
+  const rank = (carriedBy: ChangeId | null): number => position.get(carriedBy) ?? record.changes.length;
   const accepted = linked
     .flatMap((choice) => {
       const intent = acceptIntent(choice);
       return intent ? [{ choice, intent, id: idOf(intent) }] : [];
     })
     .filter((item, i, all) => all.findIndex((other) => other.id === item.id) === i)
-    .sort((a, b) => (position.get(a.choice.carriedBy) ?? Infinity) - (position.get(b.choice.carriedBy) ?? Infinity) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+    .sort((a, b) => rank(a.choice.carriedBy) - rank(b.choice.carriedBy) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
   const kept: { readonly choice: Choice; readonly intent: Intent; readonly id: LocalId; readonly why: Why; readonly adr: Adr | undefined }[] = [];
   for (const item of accepted) {
     const why = await steps.why(item.intent, item.choice.carriedBy);

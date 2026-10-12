@@ -24,7 +24,7 @@ export type Steps = {
   readonly classify: (change: Change) => Promise<Classification>;
   /** Joins thread agreements to the change that carried them. */
   readonly link: (choices: readonly Choice[]) => Promise<readonly Choice[]>;
-  /** A recorded reason with a verified quote that a second call agrees states why, or not recorded. */
+  /** A recorded reason that a second call agrees states why, else not recorded. null when nobody can be named to ask. */
   readonly why: (intent: Sentence, carriedBy: ChangeId | null) => Promise<Why | null>;
   /** Doc sentences judged not plainly true. */
   readonly claims: () => Promise<readonly Claim[]>;
