@@ -16,14 +16,14 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseSnapshot, seconds } from './contract.ts';
 import type { Said, Seconds, Snapshot, SystemManifest, SystemName, Usage } from './contract.ts';
-import { align, findLeaks, itemsOf, loadCanaries, loadGold } from './gold.ts';
-import type { Alignment, Gold, LeakFinding, Slug } from './gold.ts';
+import { align, findLeaks, goldOnlyGrams, itemsOf, loadCanaries, loadFacts, loadGold } from './gold.ts';
+import type { Alignment, FactKey, FactSet, Gold, LeakFinding, Slug } from './gold.ts';
 import { hashFiles, hashOf } from './hash.ts';
 import type { Hash } from './hash.ts';
-import { familyOf, noJudgeAsk } from './judge.ts';
-import type { JudgeMode } from './judge.ts';
+import { familyOf, NO_JUDGE, recordingAsk } from './judge.ts';
+import type { Ask, Judge, JudgeMode, Request } from './judge.ts';
 import { resolveSources, scoreItem } from './metrics.ts';
-import type { ItemScore, SystemFailure } from './metrics.ts';
+import type { ItemContext, ItemScore, SystemFailure } from './metrics.ts';
 import { auditWorkspace, buildWorkspace, changeIds, factsOf, openFixture, spanOf } from './record.ts';
 import type { Sha, Workspace } from './record.ts';
 import { presets, renderPage, renderTimeline } from './view.ts';
@@ -172,7 +172,15 @@ export type RunConfig = {
   /** Stamp hash, 'reference' for calibration's own runs, or 'uncalibrated' when the operator forced it. */
   readonly calibration: Hash | 'reference' | 'uncalibrated';
   readonly allowSharedJudgeFamily: boolean;
+  /** Refuses before the first judge call when the plan needs more live calls than this. */
+  readonly maxCalls?: number;
+  /** Scores every cell again from its kept snapshot, so a cache-only rescore proves what the cache holds. */
+  readonly rescore?: boolean;
+  readonly log?: (line: string) => void;
 };
+
+/** The live-call budget a run may spend unless the operator raises it. */
+export const MAX_LIVE_CALLS = 400;
 
 /** run.json. Everything a reader needs to say what a number measured. */
 export type RunManifest = {
@@ -180,7 +188,7 @@ export type RunManifest = {
   readonly startedAt: string;
   readonly secret: string;
   readonly harness: Hash;
-  readonly judge: { readonly model: string; readonly version: string; readonly family: string; readonly sharedWith: readonly string[] } | 'offline';
+  readonly judge: { readonly model: string; readonly version: string; readonly family: string; readonly sharedWith: readonly string[] } | 'none';
   readonly calibration: RunConfig['calibration'];
   readonly sandbox: Sandbox['kind'];
   readonly trials: number;
@@ -198,30 +206,38 @@ function cellDir(config: Pick<RunConfig, 'runsDir'>, runId: RunId, system: Syste
   return path.join(config.runsDir, runId, system, trial, slug);
 }
 
-function harnessHash(): Hash {
+export function harnessHash(): Hash {
   const dir = path.dirname(fileURLToPath(import.meta.url));
   const files = fs.readdirSync(dir).filter((name) => name.endsWith('.ts')).map((name) => path.join(dir, name));
   return hashFiles(files);
 }
 
-function repoPlans(config: RunConfig): RunManifest['repos'][number][] {
+function repoPlans(config: RunConfig, judge: Judge | null): RunManifest['repos'][number][] {
   return config.slugs.map((slug) => {
     const record = openFixture(path.join(config.outDir, slug));
     const gold = loadGold(config.outDir, slug);
-    return { slug, fixture: record.workspace.fixtureHash, gold: gold.hash, facts: hashOf('no-judge'), main: record.workspace.mainSha };
+    const facts = judge ? loadFacts(config.factsDir, gold).hash : hashOf('no-judge');
+    return { slug, fixture: record.workspace.fixtureHash, gold: gold.hash, facts, main: record.workspace.mainSha };
   });
 }
 
+function judgeOf(judge: Judge | null, config: RunConfig): RunManifest['judge'] {
+  if (!judge?.model || !judge.version) return 'none';
+  const family = familyOf(judge.model);
+  const sharedWith = config.systems.filter((system) => system.models.some((model) => familyOf(model) === family)).map((system) => system.name);
+  return { model: judge.model, version: judge.version, family, sharedWith };
+}
+
 /** Same inputs, same directory. A clock or a random secret would make a repeated run a different run. */
-function planId(config: RunConfig, repos: RunManifest['repos']): RunId {
+function planId(config: RunConfig, repos: RunManifest['repos'], judge: Judge | null): RunId {
   return `r${hashOf(
     harnessHash(),
     config.trials,
     config.sandbox.kind,
     config.calibration,
-    config.judge,
+    judge ? [judge.model, judge.version] : 'no-judge',
     config.systems.map((system) => [system.name, system.dir, system.build, system.models, system.passEnv, system.buildSec]),
-    repos.map((repo) => [repo.slug, repo.fixture, repo.gold, repo.main]),
+    repos.map((repo) => [repo.slug, repo.fixture, repo.gold, repo.facts, repo.main]),
   ).slice(0, 12)}` as RunId;
 }
 
@@ -239,9 +255,9 @@ function scoresReady(file: string): boolean {
   return typeof parsed === 'object' && parsed !== null && Array.isArray((parsed as { scores?: unknown }).scores);
 }
 
-export async function run(config: RunConfig, resume: RunId | null): Promise<RunId> {
-  const repos = repoPlans(config);
-  const id = resume ?? planId(config, repos);
+export async function run(config: RunConfig, resume: RunId | null, judge: Judge | null = null): Promise<RunId> {
+  const repos = repoPlans(config, judge);
+  const id = resume ?? planId(config, repos, judge);
   const dir = path.join(config.runsDir, id);
   fs.mkdirSync(dir, { recursive: true });
   const manifestPath = path.join(dir, 'run.json');
@@ -251,7 +267,7 @@ export async function run(config: RunConfig, resume: RunId | null): Promise<RunI
       startedAt: new Date().toISOString(),
       secret: hashOf(id, 'secret'),
       harness: harnessHash(),
-      judge: 'offline',
+      judge: judgeOf(judge, config),
       calibration: config.calibration,
       sandbox: config.sandbox.kind,
       trials: config.trials,
@@ -260,6 +276,7 @@ export async function run(config: RunConfig, resume: RunId | null): Promise<RunI
     };
     fs.writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
   }
+  const pending: { readonly system: SystemName; readonly trial: TrialId; readonly slug: Slug }[] = [];
   for (const system of config.systems) {
     for (let trial = 1; trial <= config.trials; trial += 1) {
       const trialId = `t${trial}` as TrialId;
@@ -274,22 +291,46 @@ export async function run(config: RunConfig, resume: RunId | null): Promise<RunI
           fs.rmSync(buildFile, { force: true });
           fs.rmSync(scoresFile, { force: true });
           const workspace = await buildWorkspace(path.join(config.outDir, slug), os.tmpdir());
-          const gold = loadGold(config.outDir, slug);
           const canaries = loadCanaries(config.outDir, slug).map((canary) => canary.text);
           const audit = auditWorkspace(workspace, canaries);
           if (audit.length > 0) throw new Error(`workspace audit failed: ${audit.map((finding) => `${finding.text} in ${finding.where}`).join('; ')}`);
           const build = await spawnBuild(system, workspace, snapshotFile, config.sandbox, system.buildSec);
           fs.writeFileSync(buildFile, `${JSON.stringify({ ...build, workspace: workspace.dir }, null, 2)}\n`);
           if (build.exit !== 'ok') {
-            await writeScores(cell, gold, null, { kind: 'crash', detail: build.stderrTail || build.exit }, harnessHash());
+            await writeScores(cell, loadGold(config.outDir, slug), null, { kind: 'crash', detail: build.stderrTail || build.exit }, harnessHash());
             continue;
           }
         }
-        if (!scoresReady(scoresFile)) await scoreCell({ system: system.name, trial: trialId, slug }, loadGold(config.outDir, slug), config, id);
+        if (config.rescore || !scoresReady(scoresFile)) pending.push({ system: system.name, trial: trialId, slug });
       }
     }
   }
+  if (judge && pending.length > 0) {
+    const requests: Request[] = [];
+    for (const cell of pending) requests.push(...(await cellRequests(cell, config, id)));
+    const plan = judge.plan(requests);
+    config.log?.(`judge ${judge.model}: ${plan.units} units, ${plan.cached} cached, ${plan.calls} live calls needed`);
+    const limit = config.maxCalls ?? MAX_LIVE_CALLS;
+    if (plan.calls > limit) throw new Error(`this run needs ${plan.calls} live judge calls; the limit is ${limit}. Pass --max-calls to raise it.`);
+    await judge.prefetch(requests);
+  }
+  for (const cell of pending) await scoreCell(cell, loadGold(config.outDir, cell.slug), config, id, judge);
   return id;
+}
+
+/** The judge units one cell's scoring would ask, found by scoring it with an Ask that records and answers placeholders. */
+async function cellRequests(cell: { readonly system: SystemName; readonly trial: TrialId; readonly slug: Slug }, config: RunConfig, runId: RunId): Promise<readonly Request[]> {
+  const parsed = parseCell(cell, config, runId);
+  if (!parsed.ok) return [];
+  const gold = loadGold(config.outDir, cell.slug);
+  return requestsFor(gold, parsed.snapshot, cell.slug, config.outDir, loadFacts(config.factsDir, gold).facts);
+}
+
+function parseCell(cell: { readonly system: SystemName; readonly trial: TrialId; readonly slug: Slug }, config: Pick<RunConfig, 'runsDir' | 'outDir'>, runId: RunId): ReturnType<typeof parseSnapshot> {
+  const record = openFixture(path.join(config.outDir, cell.slug));
+  const facts = factsOf(record);
+  const bytes = fs.readFileSync(path.join(cellDir(config, runId, cell.system, cell.trial, cell.slug), 'snapshot.json'), 'utf8');
+  return parseSnapshot(bytes, { repo: record.workspace.identity, head: facts.head, changes: changeIds(facts) });
 }
 
 function saidsOf(snapshot: Snapshot, item: ItemScore['item'], alignment: Alignment): { readonly field: string; readonly said: Said }[] {
@@ -346,51 +387,63 @@ async function writeScores(cell: string, gold: Gold, scores: readonly ItemScore[
   fs.writeFileSync(path.join(cell, 'scores.json'), `${JSON.stringify({ harness, failure, scores: items, extras: extras ?? null, leaks: leaks ?? [] }, null, 2)}\n`);
 }
 
+/** What judged metrics need beyond the snapshot: an Ask and the frozen facts. Without a judge they are skipped. */
+export type Judging = { readonly ask: Ask; readonly prose: ReadonlyMap<FactKey, FactSet> };
+export const NO_JUDGING: Judging = { ask: NO_JUDGE, prose: new Map() };
+
 /**
- * One cell: parseSnapshot against factsOf's enumeration. A rejected snapshot fails every item of the cell with one
- * cause listing its defect paths. Otherwise resolve every source (record.ts), align, findLeaks, and scoreItem per gold
- * item and audience. Everything after parse is the same code for systems and references.
+ * Everything after parse, the same for systems and references: resolve every source once per item, align, and
+ * scoreItem per gold item and audience.
  */
-export async function scoreSnapshot(gold: Gold, system: Snapshot, slug: Slug, outDir: string): Promise<readonly ItemScore[]> {
+export async function scoreSnapshot(gold: Gold, system: Snapshot, slug: Slug, outDir: string, judging: Judging = NO_JUDGING): Promise<readonly ItemScore[]> {
   const record = openFixture(path.join(outDir, slug));
   const facts = factsOf(record);
-  const alignment = align(gold, system, (source) => spanOf(record, source));
-  const items = itemsOf(gold, facts);
+  const resolve = (source: Parameters<typeof spanOf>[1]) => spanOf(record, source);
+  const alignment = align(gold, system, resolve);
   const scores: ItemScore[] = [];
-  for (const item of items) {
+  for (const item of itemsOf(gold, facts)) {
+    const sources = await resolveSources(record, saidsOf(system, item, alignment), system.runs);
     for (const audience of ['eng', 'plain'] as const) {
-      const sources = await resolveSources(record, saidsOf(system, item, alignment), system.runs);
-      scores.push(await scoreItem({
-        kind: 'scored',
-        ctx: { item, audience, gold, system, alignment, facts, sources, prose: new Map(), redact: [], resolve: (source) => spanOf(record, source) },
-      }, noJudgeAsk()));
+      const ctx: ItemContext = { item, audience, gold, system, alignment, facts, sources, prose: judging.prose, redact: [], resolve };
+      scores.push(await scoreItem({ kind: 'scored', ctx }, judging.ask));
     }
   }
   return scores;
 }
 
-export async function scoreCell(cell: { readonly system: SystemName; readonly trial: TrialId; readonly slug: Slug }, gold: Gold, config: RunConfig, runId?: RunId): Promise<readonly ItemScore[]> {
+/** Every judge unit scoring this snapshot would ask. Nothing is sent. */
+export async function requestsFor(gold: Gold, system: Snapshot, slug: Slug, outDir: string, prose: ReadonlyMap<FactKey, FactSet>): Promise<readonly Request[]> {
+  const into: Request[] = [];
+  await scoreSnapshot(gold, system, slug, outDir, { ask: recordingAsk(into), prose });
+  return into;
+}
+
+/**
+ * One cell: parseSnapshot against factsOf's enumeration. A rejected snapshot fails every item of the cell with one
+ * cause listing its defect paths. Otherwise score it and look for leaks: canaries and gold-only phrasing.
+ */
+export async function scoreCell(cell: { readonly system: SystemName; readonly trial: TrialId; readonly slug: Slug }, gold: Gold, config: RunConfig, runId?: RunId, judge: Judge | null = null): Promise<readonly ItemScore[]> {
   const id = runId ?? (`r${hashOf(cell).slice(0, 12)}` as RunId);
   const dir = cellDir(config, id, cell.system, cell.trial, cell.slug);
   const record = openFixture(path.join(config.outDir, cell.slug));
   const facts = factsOf(record);
-  const bytes = fs.readFileSync(path.join(dir, 'snapshot.json'), 'utf8');
-  const parsed = parseSnapshot(bytes, { repo: record.workspace.identity, head: facts.head, changes: changeIds(facts) });
+  const parsed = parseCell(cell, config, id);
   const items = itemsOf(gold, facts);
   if (!parsed.ok) {
     const failure: SystemFailure = { kind: 'rejected', detail: parsed.errors.map((error) => `${error.path}: ${error.what}`).join('; ') };
-    const scores = await Promise.all(items.flatMap((item) => (['eng', 'plain'] as const).map((audience) => scoreItem({ kind: 'failed', item, audience, failure }, noJudgeAsk()))));
+    const scores = await Promise.all(items.flatMap((item) => (['eng', 'plain'] as const).map((audience) => scoreItem({ kind: 'failed', item, audience, failure }, NO_JUDGE))));
     await writeScores(dir, gold, scores, failure, harnessHash());
     return scores;
   }
   const alignment = align(gold, parsed.snapshot, (source) => spanOf(record, source));
-  const leaks = findLeaks(parsed.snapshot, loadCanaries(config.outDir, cell.slug), new Map(), alignment);
-  const scores = await scoreSnapshot(gold, parsed.snapshot, cell.slug, config.outDir);
+  const leaks = findLeaks(parsed.snapshot, loadCanaries(config.outDir, cell.slug), goldOnlyGrams(gold, record), alignment);
+  const judging = judge ? { ask: judge.ask, prose: loadFacts(config.factsDir, gold).facts } : NO_JUDGING;
+  const scores = await scoreSnapshot(gold, parsed.snapshot, cell.slug, config.outDir, judging);
   await writeScores(dir, gold, scores, null, harnessHash(), alignment.extras, leaks);
   return scores;
 }
 
-export async function rescore(runId: RunId, config: Pick<RunConfig, 'runsDir' | 'outDir' | 'factsDir' | 'cacheDir' | 'judge'>): Promise<void> {
+export async function rescore(runId: RunId, config: Pick<RunConfig, 'runsDir' | 'outDir' | 'factsDir' | 'cacheDir' | 'judge'>, judge: Judge | null = null): Promise<void> {
   const loaded = loadRun(config.runsDir, runId);
   for (const cell of loaded.cells) {
     fs.rmSync(path.join(config.runsDir, runId, cell.system, cell.trial, cell.slug, 'scores.json'), { force: true });
@@ -407,7 +460,7 @@ export async function rescore(runId: RunId, config: Pick<RunConfig, 'runsDir' | 
       sandbox: { kind: 'none-unblinded' },
       calibration: 'uncalibrated',
       allowSharedJudgeFamily: true,
-    }, runId);
+    }, runId, judge);
   }
 }
 

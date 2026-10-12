@@ -10,13 +10,14 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { parseSnapshot } from './contract.ts';
-import type { ChangeId, Claim, LocalId, RecordSource, Snapshot, Verdict } from './contract.ts';
+import type { ChangeId, Claim, Decision, Finding, LocalId, RecordSource, Said, Snapshot, Topic, Undone, Verdict } from './contract.ts';
 import { hashOf } from './hash.ts';
 import type { Hash } from './hash.ts';
 import { kindOf, screensOf } from './view.ts';
 import type { Audience, RepoFacts } from './view.ts';
 import { factsOf as gitFacts } from '../fixtures/lib/facts.mjs';
-import { mentions } from './record.ts';
+import { grams, mentions } from './record.ts';
+import type { RepoRecord } from './record.ts';
 import { MIN_CURRENCY_CLAIMS, MIN_GAP_OBJECTS } from '../fixtures/views.schema.mjs';
 
 export type Slug = string & { readonly __brand: 'Slug' };
@@ -355,7 +356,102 @@ export function align(gold: Gold, system: Snapshot, resolve: AnchorResolver): Al
 /** Every prose field a judge reads. Names are not judged (fits and jargon read them). key-answer feeds the user-test cards. */
 export type ProseField = 'headline' | 'example' | 'what' | 'reason' | 'card' | 'routine' | 'claim-why' | 'undone' | 'key-answer';
 
+/** What each field is on a page, in the words the judge reads. */
+export const PROSE_FIELD_LABEL: Readonly<Record<ProseField, string>> = {
+  headline: 'the headline of a topic page',
+  example: 'the worked example on a topic page',
+  what: 'what was decided',
+  reason: 'why it was decided or changed',
+  card: 'the points on a change card',
+  routine: 'why a change is routine',
+  'claim-why': 'why a doc sentence is or is not true today',
+  undone: 'what a change that was later undone amounted to',
+  'key-answer': 'the answer to a question about the project',
+};
+
+/** One object that carries prose, from gold or from a system snapshot. */
+export type ProseObject =
+  | { readonly kind: 'topic'; readonly topic: Topic }
+  | { readonly kind: 'decision'; readonly decision: Decision }
+  | { readonly kind: 'finding'; readonly finding: Finding }
+  | { readonly kind: 'claim'; readonly claim: Claim }
+  | { readonly kind: 'undone'; readonly group: Undone };
+
+export type ProseFieldOf = { readonly field: ProseField; readonly saids: readonly [Said, ...Said[]] };
+
+/**
+ * The judged prose of one object, a field per fact set, in page order. A field holds every sentence that shares one
+ * fact set: all headline lines, all card points. Routine reasons are proof labels and are not judged.
+ */
+export function proseFields(object: ProseObject): readonly ProseFieldOf[] {
+  const out: ProseFieldOf[] = [];
+  const add = (field: ProseField, saids: readonly Said[]): void => {
+    const [first, ...rest] = saids;
+    if (first) out.push({ field, saids: [first, ...rest] });
+  };
+  if (object.kind === 'topic') {
+    add('headline', object.topic.headline);
+    add('example', object.topic.example ? [object.topic.example] : []);
+  } else if (object.kind === 'decision') {
+    add('what', [object.decision.what]);
+    add('reason', object.decision.why.kind === 'recorded' ? [object.decision.why.reason] : []);
+  } else if (object.kind === 'finding') {
+    add('card', object.finding.says);
+    add('reason', object.finding.why.kind === 'recorded' ? [object.finding.why.reason] : []);
+  } else if (object.kind === 'claim') {
+    add('claim-why', 'why' in object.claim ? [object.claim.why] : []);
+  } else {
+    add('undone', object.group.says);
+  }
+  return out;
+}
+
+/** Every gold object that carries prose, under its gold id. */
+export function goldProseObjects(gold: Gold): readonly { readonly id: GoldId; readonly object: ProseObject }[] {
+  const out: { id: GoldId; object: ProseObject }[] = [];
+  for (const topic of gold.oracle.topics) out.push({ id: topic.id as GoldId, object: { kind: 'topic', topic } });
+  for (const decision of gold.oracle.decisions) out.push({ id: decision.id as GoldId, object: { kind: 'decision', decision } });
+  for (const change of gold.oracle.changes) {
+    const ids = gold.extras.findings.get(change.id) ?? [];
+    change.findings.forEach((finding, index) => {
+      const id = ids[index];
+      if (id) out.push({ id, object: { kind: 'finding', finding } });
+    });
+  }
+  gold.oracle.claims.forEach((claim, index) => {
+    const id = gold.extras.claims[index];
+    if (id) out.push({ id, object: { kind: 'claim', claim } });
+  });
+  gold.oracle.undone.forEach((group, index) => {
+    const id = gold.extras.undone[index];
+    if (id) out.push({ id, object: { kind: 'undone', group } });
+  });
+  return out;
+}
+
 export type FactKey = `${Slug}/${string}/${ProseField}/${Audience}`;
+
+export function factKey(slug: Slug, id: string, field: ProseField, audience: Audience): FactKey {
+  return `${slug}/${id}/${field}/${audience}`;
+}
+
+/** The gold sentences behind each fact key, and the hash that makes a frozen set stale when they change. */
+export type FactSource = { readonly key: FactKey; readonly id: GoldId; readonly field: ProseField; readonly audience: Audience; readonly sentences: readonly [string, ...string[]]; readonly source: Hash };
+
+export function factSources(gold: Gold): readonly FactSource[] {
+  const out: FactSource[] = [];
+  for (const { id, object } of goldProseObjects(gold)) {
+    for (const { field, saids } of proseFields(object)) {
+      for (const audience of ['eng', 'plain'] as const) {
+        const [first, ...rest] = saids.map((said) => said[audience]);
+        if (first === undefined) continue;
+        const sentences: [string, ...string[]] = [first, ...rest];
+        out.push({ key: factKey(gold.slug, id, field, audience), id, field, audience, sentences, source: hashOf(field, audience, sentences) });
+      }
+    }
+  }
+  return out;
+}
 
 export type KeyFact = { readonly id: `f${number}`; readonly text: string };
 
@@ -371,45 +467,113 @@ export type FactSet = {
   readonly paraphrase: readonly [string, ...string[]];
   /** Owner decision 2026-10-10: an AI cross-check, then the owner checks every flagged set plus a seeded random 20. */
   readonly review: 'auto' | 'flagged' | 'owner-checked';
+  /** Why the set is flagged, in plain words, for the owner's review sheet. Empty when the cross-check passed. */
+  readonly flags: readonly string[];
 };
 
-export type FactsStatus =
-  | { readonly kind: 'current' }
-  | { readonly kind: 'stale' | 'missing' | 'unreviewed'; readonly keys: readonly [FactKey, ...FactKey[]] };
+/** Every gold key in one of four states. The stamp is final only when stale, missing, and unreviewed are all empty. */
+export type FactsStatus = {
+  readonly current: number;
+  readonly stale: readonly FactKey[];
+  readonly missing: readonly FactKey[];
+  readonly unreviewed: readonly FactKey[];
+};
 
-/** Reads harness/facts/<slug>.json. */
-export function loadFacts(factsDir: string, gold: Gold): { readonly facts: ReadonlyMap<FactKey, FactSet>; readonly status: FactsStatus } {
-  const file = path.join(factsDir, `${gold.slug}.json`);
-  if (!fs.existsSync(file)) return { facts: new Map(), status: { kind: 'missing', keys: [`${gold.slug}/missing/headline/eng` as FactKey] } };
-  const raw = JSON.parse(fs.readFileSync(file, 'utf8')) as Record<string, FactSet>;
-  return { facts: new Map(Object.entries(raw)) as ReadonlyMap<FactKey, FactSet>, status: { kind: 'current' } };
+export function factsFile(factsDir: string, slug: Slug): string {
+  return path.join(factsDir, `${slug}.json`);
+}
+
+/** The keys the owner must check: every flagged set plus a random 20 of the rest, seeded so the draw never moves. */
+export function factsSample(gold: Gold, facts: ReadonlyMap<FactKey, FactSet>): readonly FactKey[] {
+  const keys = [...facts.keys()].filter((key) => key.startsWith(`${gold.slug}/`)).sort();
+  const flagged = keys.filter((key) => facts.get(key)?.review === 'flagged');
+  const rest = keys.filter((key) => facts.get(key)?.review !== 'flagged').map((key) => ({ key, rank: hashOf('facts-sample', key) })).sort((a, b) => (a.rank < b.rank ? -1 : 1));
+  return [...flagged, ...rest.slice(0, 20).map((row) => row.key).sort()];
+}
+
+/** harness/reviews/facts.json, signed by the owner: the sampled keys with the source hash each was checked at. */
+export type FactsReview = { readonly reviewer: string; readonly at: string; readonly checked: Readonly<Record<string, Hash>> };
+
+function readFactsReview(reviewsDir: string): FactsReview | null {
+  const file = path.join(reviewsDir, 'facts.json');
+  if (!fs.existsSync(file)) return null;
+  const raw = JSON.parse(fs.readFileSync(file, 'utf8')) as Partial<FactsReview>;
+  if (typeof raw.reviewer !== 'string' || raw.reviewer.trim() === '' || typeof raw.at !== 'string' || typeof raw.checked !== 'object' || raw.checked === null) return null;
+  return raw as FactsReview;
+}
+
+/** Reads harness/facts/<slug>.json against gold, and the owner's spot-check in harness/reviews/facts.json. */
+export function loadFacts(factsDir: string, gold: Gold, reviewsDir: string | null = null): { readonly facts: ReadonlyMap<FactKey, FactSet>; readonly status: FactsStatus; readonly hash: Hash } {
+  const file = factsFile(factsDir, gold.slug);
+  const raw = fs.existsSync(file) ? (JSON.parse(fs.readFileSync(file, 'utf8')) as Record<string, FactSet>) : {};
+  const sources = factSources(gold);
+  const facts = new Map<FactKey, FactSet>();
+  const stale: FactKey[] = [];
+  const missing: FactKey[] = [];
+  for (const source of sources) {
+    const set = raw[source.key];
+    if (!set) missing.push(source.key);
+    else if (set.source !== source.source) stale.push(source.key);
+    else facts.set(source.key, set);
+  }
+  const review = reviewsDir ? readFactsReview(reviewsDir) : null;
+  const unreviewed = factsSample(gold, facts).filter((key) => review?.checked[key] !== facts.get(key)?.source);
+  return { facts, status: { current: facts.size, stale, missing, unreviewed }, hash: hashOf(fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : 'none') };
 }
 
 // The owner's currency review.
 
 /**
- * harness/reviewed/currency.json, written by the owner. Every gold claim with the verdict and change the owner
+ * harness/reviews/currency.json, written by the owner. Every gold claim with the verdict and change the owner
  * confirmed, and every currency key entry that no claim covers with the object that does (today only
- * tally/currency-sqlite-stale, covered by d-sqlite, which d-json replaced). calibrate refuses a stamp unless this file
+ * tally/currency-sqlite-stale, covered by d-sqlite, which d-json replaced). The stamp stays unreviewed unless this file
  * agrees with gold exactly, so a spec edit that changes a verdict needs the owner again.
  */
 export type CurrencyReview = {
   readonly reviewer: string;
   readonly at: string;
-  readonly claims: ReadonlyMap<`${Slug}/${GoldId}`, { readonly verdict: Verdict; readonly change: ChangeId | null }>;
-  readonly coveredElsewhere: ReadonlyMap<`${Slug}/${EntryId}`, GoldId>;
+  readonly claims: Readonly<Record<`${Slug}/${GoldId}`, { readonly verdict: Verdict; readonly change: ChangeId | null }>>;
+  readonly coveredElsewhere: Readonly<Record<`${Slug}/${EntryId}`, GoldId>>;
 };
 
 export type ReviewGap =
   | { readonly kind: 'unreviewed'; readonly claims: readonly string[] }
   | { readonly kind: 'disagrees'; readonly claims: readonly string[] };
 
-export function checkCurrencyReview(file: string, golds: readonly Gold[]): readonly ReviewGap[] {
-  if (!fs.existsSync(file)) {
-    const claims = golds.flatMap((gold) => gold.extras.claims.map((id) => `${gold.slug}/${id}`));
-    return claims.length === 0 ? [] : [{ kind: 'unreviewed', claims }];
+/** What gold says the owner must confirm: each claim's verdict and change, and each currency entry no claim covers. */
+export function currencyExpected(golds: readonly Gold[], outDir: string): Omit<CurrencyReview, 'reviewer' | 'at'> {
+  const claims: Record<string, { verdict: Verdict; change: ChangeId | null }> = {};
+  const elsewhere: Record<string, GoldId> = {};
+  for (const gold of golds) {
+    gold.oracle.claims.forEach((claim, index) => {
+      const id = gold.extras.claims[index];
+      if (!id) return;
+      const change = claim.verdict === 'still-true' ? null : claim.verdict === 'true-since' ? claim.since : claim.brokenBy;
+      claims[`${gold.slug}/${id}`] = { verdict: claim.verdict, change };
+    });
+    const keyFile = path.join(outDir, gold.slug, 'answer-key.json');
+    const entries = fs.existsSync(keyFile) ? (JSON.parse(fs.readFileSync(keyFile, 'utf8')) as { entries: readonly { id: string; job: string }[] }).entries : [];
+    const claimIds = new Set(gold.extras.claims);
+    for (const entry of entries.filter((row) => row.job === 'currency')) {
+      const covers = gold.extras.covers.get(entry.id as EntryId) ?? [];
+      const other = covers.find((id) => !claimIds.has(id as GoldId));
+      if (other && !covers.some((id) => claimIds.has(id as GoldId))) elsewhere[`${gold.slug}/${entry.id}`] = other as GoldId;
+    }
   }
-  return [];
+  return { claims, coveredElsewhere: elsewhere } as Omit<CurrencyReview, 'reviewer' | 'at'>;
+}
+
+export function checkCurrencyReview(file: string, golds: readonly Gold[], outDir: string): readonly ReviewGap[] {
+  const want = currencyExpected(golds, outDir);
+  const keys = [...Object.keys(want.claims), ...Object.keys(want.coveredElsewhere)];
+  if (!fs.existsSync(file)) return keys.length === 0 ? [] : [{ kind: 'unreviewed', claims: keys }];
+  const raw = JSON.parse(fs.readFileSync(file, 'utf8')) as Partial<CurrencyReview>;
+  if (typeof raw.reviewer !== 'string' || raw.reviewer.trim() === '' || typeof raw.at !== 'string') return [{ kind: 'unreviewed', claims: keys }];
+  const have = { ...(raw.claims ?? {}), ...(raw.coveredElsewhere ?? {}) } as Record<string, unknown>;
+  const wanted = { ...want.claims, ...want.coveredElsewhere } as Record<string, unknown>;
+  const absent = keys.filter((key) => !(key in have));
+  const differ = keys.filter((key) => key in have && JSON.stringify(have[key]) !== JSON.stringify(wanted[key]));
+  return [...(absent.length > 0 ? [{ kind: 'unreviewed' as const, claims: absent }] : []), ...(differ.length > 0 ? [{ kind: 'disagrees' as const, claims: differ }] : [])];
 }
 
 // Leak control.
@@ -460,19 +624,42 @@ function proseOf(value: unknown, out: string[]): void {
   }
 }
 
-export function findLeaks(system: Snapshot, canaries: readonly Canary[], goldOnlyGrams: ReadonlyMap<GoldId, ReadonlySet<string>>, alignment: Alignment): readonly LeakFinding[] {
+/** One token stream per string, so a gram matches on word boundaries and in any case. */
+function normalized(texts: readonly string[]): string {
+  return ` ${texts.map((text) => text.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean).join(' ')).join(' | ')} `;
+}
+
+/**
+ * Per gold object, the 6-grams of its judged sentences (both audiences) that appear nowhere a system could read. A
+ * snapshot holding a quarter of one object's set copied that object. Names are short labels a system may well share,
+ * and the paraphrase reference keeps them, so they are not counted.
+ */
+export function goldOnlyGrams(gold: Gold, record: RepoRecord): ReadonlyMap<GoldId, ReadonlySet<string>> {
+  const corpus = record.corpusGrams();
+  const out = new Map<GoldId, ReadonlySet<string>>();
+  for (const { id, object } of goldProseObjects(gold)) {
+    const texts: string[] = [];
+    for (const { saids } of proseFields(object)) for (const said of saids) texts.push(said.eng, said.plain);
+    const own = new Set<string>();
+    for (const text of texts) for (const gram of grams(text)) if (!corpus.has(gram)) own.add(gram);
+    if (own.size > 0) out.set(id, own);
+  }
+  return out;
+}
+
+export function findLeaks(system: Snapshot, canaries: readonly Canary[], goldOnly: ReadonlyMap<GoldId, ReadonlySet<string>>, alignment: Alignment): readonly LeakFinding[] {
   const prose: string[] = [];
   proseOf(system, prose);
   const text = prose.join('\n');
+  const tokens = normalized(prose);
   const findings: LeakFinding[] = [];
   for (const canary of canaries) {
     if (mentions(text, canary.text)) findings.push({ kind: 'canary', canary, where: 'snapshot' });
   }
-  for (const [id, grams] of goldOnlyGrams) {
-    if (grams.size === 0) continue;
+  for (const [id, set] of goldOnly) {
     let matched = 0;
-    for (const gram of grams) if (text.includes(gram)) matched += 1;
-    if (matched / grams.size >= LEAK_GRAM_SHARE) findings.push({ kind: 'gold-phrasing', matched, of: grams.size, object: id });
+    for (const gram of set) if (tokens.includes(` ${gram} `)) matched += 1;
+    if (matched / set.size >= LEAK_GRAM_SHARE) findings.push({ kind: 'gold-phrasing', matched, of: set.size, object: id });
   }
   void alignment;
   return findings;

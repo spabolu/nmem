@@ -8,15 +8,17 @@
  * is structural, with one key-blind judge call when a guess is present.
  */
 import { parseProof, parseRef } from './contract.ts';
-import type { Change, ChangeId, Claim, Decision, Finding, Run, Said, Snapshot, Topic } from './contract.ts';
+import type { Change, ChangeId, Claim, Decision, Finding, Run, Said, Snapshot, Topic, Undone } from './contract.ts';
 import type { CorruptionId } from './corruptions.ts';
-import type { Alignment, AnchorResolver, FactKey, FactSet, Gold, GoldId, GoldItem, LeakFinding } from './gold.ts';
-import { JudgeUnavailable } from './judge.ts';
-import type { Ask, UnavailableReason } from './judge.ts';
+import { factKey, PROSE_FIELD_LABEL, proseFields } from './gold.ts';
+import type { Alignment, AnchorResolver, FactKey, FactSet, Gold, GoldId, GoldItem, LeakFinding, ProseField, ProseObject } from './gold.ts';
+import { JudgeUnavailable, NO_JUDGE } from './judge.ts';
+import type { Ask, FactVerdict, UnavailableReason } from './judge.ts';
 import { findQuote, resolveProof, spanOf } from './record.ts';
 import type { RepoRecord } from './record.ts';
-import { decisionDay, kindOf, pageOf, presets, rangeOf, statusOf } from './view.ts';
-import type { Audience, Range, RepoFacts } from './view.ts';
+import { hashOf } from './hash.ts';
+import { decisionDay, kindOf, pageOf, presets, rangeOf, statusOf, TEMPLATES, TRUST_WORDS } from './view.ts';
+import type { Audience, RepoFacts } from './view.ts';
 import { plainHits } from '../fixtures/lib/plain.mjs';
 
 export type Outcome =
@@ -206,9 +208,10 @@ function factsCompute(ctx: ItemContext): Outcome {
     const ask = pair.gold.why.kind === 'not-recorded' && pair.system.why.kind === 'not-recorded'
       ? sameSet(pair.gold.why.ask, pair.system.why.ask)
       : true;
+    const days = (ctx.gold.extras.anchors.get(ctx.item.id) ?? [pair.gold.what.source]).map((source) => decisionDay({ ...pair.gold, what: { ...pair.gold.what, source } }, ctx.facts));
     return share([
       { ok: true, headline: true },
-      { ok: decisionDay(pair.gold, ctx.facts) === decisionDay(pair.system, ctx.facts), headline: true },
+      { ok: days.includes(decisionDay(pair.system, ctx.facts)), headline: true },
       { ok: topics, headline: true },
       { ok: pair.gold.carriedBy === pair.system.carriedBy },
       { ok: (pair.gold.replacedBy ?? null) === replacedGold(pair.system.replacedBy, ctx) },
@@ -224,7 +227,7 @@ function factsCompute(ctx: ItemContext): Outcome {
     return share([
       { ok: true, headline: true },
       { ok: pair.gold.severity === pair.system.severity, headline: true },
-      { ok: sameSet(pair.gold.topics, alignedTopics(pair.system.topics, ctx, 'system')) },
+      { ok: sameSet(pair.gold.topics, alignedTopics(pair.system.topics, ctx, 'system')), headline: true },
       { ok: ask },
     ], false);
   }
@@ -265,40 +268,90 @@ function quotesOverlap(ctx: ItemContext, pathName: string, goldQuote: string, sy
   return spanOfLength(ctx, { ref: `${ctx.facts.head.slice(0, 7)}:${pathName}`, quote: goldQuote }, { ref: `${ctx.facts.head.slice(0, 7)}:${pathName}`, quote: systemQuote });
 }
 
-function screenFacts(ctx: ItemContext): Outcome {
+/**
+ * What a screen shows that facts compares, with system ids mapped to gold ids: a page's status, shown decisions, and
+ * whether it has an example; a timeline's counts, named items, routine strip, and cards. null when the topic was missed.
+ */
+function screenView(ctx: ItemContext, side: 'gold' | 'system'): Readonly<Record<string, unknown>> | null {
   const parsed = parseScreen(ctx.item.id);
-  const goldTopic = parsed.topic;
-  const systemTopic = ctx.alignment.topics.get(goldTopic as GoldId);
-  if (!systemTopic) return share([], true);
+  const topic = side === 'gold' ? parsed.topic : ctx.alignment.topics.get(parsed.topic as GoldId);
+  if (!topic) return null;
+  const snapshot = side === 'gold' ? ctx.gold.oracle : ctx.system;
   if (parsed.kind === 'page') {
-    const gold = pageOf(ctx.gold.oracle, ctx.facts, goldTopic);
-    const system = pageOf(ctx.system, ctx.facts, systemTopic);
-    const goldShown = gold.decisions.shown.map((row) => row.decision.id).sort();
-    const systemShown = gold.decisions.shown.map(() => '').length === 0 ? [] : system.decisions.shown.map((row) => replacedGold(row.decision.id, ctx) ?? row.decision.id).sort();
-    return share([
-      { ok: gold.status.kind === system.status.kind && ('since' in gold.status ? gold.status.since : null) === ('since' in system.status ? system.status.since : null) },
-      { ok: sameSet(goldShown, systemShown) },
-      { ok: (gold.example === null) === (system.example === null) },
-    ], false);
+    const page = pageOf(snapshot, ctx.facts, topic);
+    return {
+      status: [page.status.kind, 'since' in page.status ? page.status.since : null],
+      shown: page.decisions.shown.map((row) => (side === 'gold' ? row.decision.id : (replacedGold(row.decision.id, ctx) ?? row.decision.id))).sort(),
+      example: page.example !== null,
+    };
   }
   const preset = presets(ctx.facts).find((item) => item.id === parsed.preset);
-  if (!preset) return share([], true);
-  const goldRange: Range = { topic: goldTopic, ...preset.range };
-  const systemRange: Range = { topic: systemTopic, ...preset.range };
-  const gold = rangeOf(ctx.gold.oracle, ctx.facts, goldRange);
-  const system = rangeOf(ctx.system, ctx.facts, systemRange);
-  const countsOk = (['decision', 'behavior', 'check', 'net'] as const).every((kind) => (gold.counts[kind] ?? 0) === (system.counts[kind] ?? 0));
-  const goldNamed = gold.named.map((item) => itemIdentity(item.ref, ctx, 'gold'));
-  const systemNamed = system.named.map((item) => itemIdentity(item.ref, ctx, 'system'));
-  const goldCards = (row: 'up' | 'down') => gold.cards.filter((card) => (card.kind === 'decision') === (row === 'up')).map((card) => cardIdentity(card, ctx, 'gold')).sort();
-  const systemCards = (row: 'up' | 'down') => system.cards.filter((card) => (card.kind === 'decision') === (row === 'up')).map((card) => cardIdentity(card, ctx, 'system')).sort();
-  return share([
-    { ok: countsOk },
-    { ok: goldNamed.join('\n') === systemNamed.join('\n') },
-    { ok: gold.routine.count === system.routine.count && gold.routine.lines === system.routine.lines },
-    { ok: sameSet(goldCards('up'), systemCards('up')) },
-    { ok: sameSet(goldCards('down'), systemCards('down')) },
-  ], false);
+  if (!preset) return null;
+  const view = rangeOf(snapshot, ctx.facts, { topic, ...preset.range });
+  const cards = (row: 'up' | 'down') => view.cards.filter((card) => (card.kind === 'decision') === (row === 'up')).map((card) => cardIdentity(card, ctx, side)).sort();
+  return {
+    counts: (['decision', 'behavior', 'check', 'net'] as const).map((kind) => view.counts[kind] ?? 0),
+    named: view.named.map((item) => itemIdentity(item.ref, ctx, side)),
+    routine: [view.routine.count, view.routine.lines],
+    up: cards('up'),
+    down: cards('down'),
+  };
+}
+
+/** A screen is right or wrong as a whole: every compared part is a headline fact. */
+function screenFacts(ctx: ItemContext): Outcome {
+  const gold = screenView(ctx, 'gold');
+  const system = screenView(ctx, 'system');
+  if (!gold || !system) return share([], true);
+  return share(Object.keys(gold).map((part) => ({ ok: JSON.stringify(gold[part]) === JSON.stringify(system[part]), headline: true })), false);
+}
+
+function goldTopicOf(id: string, ctx: ItemContext): string {
+  for (const [gold, local] of ctx.alignment.topics) if (local === id) return gold;
+  return `~${id}`;
+}
+
+/**
+ * What scoring reads of this item on the system side, with system ids mapped to gold ids, hashed. Calibration compares
+ * it between the oracle and a reference: an item is touched by a transform when its view changed.
+ */
+export function itemView(ctx: ItemContext): string {
+  const topics = (ids: readonly string[]): string[] => ids.map((id) => goldTopicOf(id, ctx)).sort();
+  const item = ctx.item;
+  if (item.kind === 'screen') return hashOf(screenView(ctx, 'system'));
+  if (item.kind === 'topic') {
+    const pair = topicPair(ctx);
+    if (!pair) return 'missed';
+    const status = statusOf(pair.system.id, ctx.system, ctx.facts);
+    return hashOf({ ...pair.system, id: item.id, parent: pair.system.parent === null ? null : goldTopicOf(pair.system.parent, ctx), files: [...pair.system.files].sort(), words: null }, status);
+  }
+  if (item.kind === 'claim' && item.expect === 'holds') {
+    const index = ctx.gold.extras.claims.indexOf(item.id);
+    const gold = ctx.gold.oracle.claims[index];
+    if (!gold) return 'missed';
+    const flagged = ctx.system.claims.filter((claim) => claim.verdict !== 'still-true' && claim.sentence.path === gold.sentence.path && quotesOverlap(ctx, gold.sentence.path, gold.sentence.quote, claim.sentence.quote));
+    return hashOf(flagged.map((claim) => [claim.verdict, claimChange(claim)]));
+  }
+  if (item.kind === 'claim') {
+    const pair = claimPair(ctx);
+    return pair ? hashOf({ ...pair.system, topic: goldTopicOf(pair.system.topic, ctx) }, statusOf(pair.system.topic, ctx.system, ctx.facts)) : 'missed';
+  }
+  if (item.kind === 'decision') {
+    const pair = decisionPair(ctx);
+    if (!pair) return 'missed';
+    return hashOf({ ...pair.system, id: item.id, topics: topics(pair.system.topics), replacedBy: replacedGold(pair.system.replacedBy, ctx) }, decisionDay(pair.system, ctx.facts));
+  }
+  if (item.kind === 'finding') {
+    const pair = findingPair(ctx);
+    return pair ? hashOf({ ...pair.system, topics: topics(pair.system.topics) }) : 'missed';
+  }
+  if (item.kind === 'change') {
+    const pair = changePair(ctx);
+    if (!pair) return 'missed';
+    return hashOf(kindOf(pair.system.id, ctx.system, ctx.facts), topics(pair.system.topics), pair.system.routine.map((part) => [part.files, part.reason]));
+  }
+  const pair = undonePair(ctx);
+  return pair ? hashOf({ ...pair.system, changes: [...pair.system.changes].sort() }) : 'missed';
 }
 
 function parseScreen(id: string): { readonly kind: 'page'; readonly topic: string; readonly preset?: undefined } | { readonly kind: 'timeline'; readonly topic: string; readonly preset: string } {
@@ -334,15 +387,17 @@ function systemWhy(ctx: ItemContext): Decision['why'] | Finding['why'] | null {
   return decisionPair(ctx)?.system.why ?? findingPair(ctx)?.system.why ?? null;
 }
 
+const MISSED: Outcome = { kind: 'na', why: 'missed; facts scores it' };
+
 function falseGapCompute(ctx: ItemContext): Outcome {
   const why = systemWhy(ctx);
-  if (!why) return { kind: 'scored', value: 1, why: 'missed, so it did not say the reason was unrecorded' };
+  if (!why) return MISSED;
   if (why.kind === 'not-recorded') return { kind: 'scored', value: 0, why: 'says nobody wrote down why' };
   return { kind: 'scored', value: 1, why: 'recorded' };
 }
 
 function citesCompute(ctx: ItemContext): Outcome {
-  if (ctx.sources.length === 0) return { kind: 'scored', value: 0, why: 'missed' };
+  if (ctx.sources.length === 0) return MISSED;
   const ok = ctx.sources.filter((source) => source.status === 'resolves').length;
   return { kind: 'scored', value: ok / ctx.sources.length, why: `${ok} of ${ctx.sources.length} resolve` };
 }
@@ -361,7 +416,7 @@ function revMatches(full: string, rev: string): boolean {
 function proofCompute(ctx: ItemContext): Outcome {
   if (ctx.item.kind === 'topic') {
     const pair = topicPair(ctx);
-    if (!pair) return { kind: 'scored', value: 0, why: 'missed' };
+    if (!pair) return MISSED;
     const start = parseRef(pair.system.start.ref, REPO);
     const startOk = start?.kind === 'file' && start.lines !== null && atHead(start.rev, ctx.facts.head);
     const excerpt = ctx.sources.find((source) => source.field === 'start')?.excerpt?.text.split('\n')[0];
@@ -382,7 +437,7 @@ function proofCompute(ctx: ItemContext): Outcome {
   }
   if (ctx.item.kind === 'change') {
     const pair = changePair(ctx);
-    if (!pair) return { kind: 'scored', value: 0, why: 'missed' };
+    if (!pair) return MISSED;
     const facts = ctx.facts.changes.find((change) => change.id === pair.system.id);
     if (!facts) return { kind: 'scored', value: 0, why: 'missing change facts' };
     const bad = pair.system.routine.filter((part) => {
@@ -398,7 +453,8 @@ function proofCompute(ctx: ItemContext): Outcome {
   }
   if (ctx.item.kind === 'claim' && ctx.item.expect === 'changed') {
     const pair = claimPair(ctx);
-    if (!pair || !('why' in pair.system)) return { kind: 'scored', value: 0, why: 'missed' };
+    if (!pair) return MISSED;
+    if (!('why' in pair.system)) return { kind: 'scored', value: 0, why: 'no source for the verdict' };
     const source = pair.system.why.source;
     if (source.kind === 'proof') {
       const proof = parseProof(source.proof);
@@ -411,7 +467,7 @@ function proofCompute(ctx: ItemContext): Outcome {
   }
   if (ctx.item.kind === 'screen' || (ctx.item.kind === 'claim' && ctx.item.expect === 'holds')) return { kind: 'na', why: 'does not apply' };
   const missed = ctx.item.kind === 'decision' ? !decisionPair(ctx) : ctx.item.kind === 'finding' ? !findingPair(ctx) : ctx.item.kind === 'undone' ? !ctx.alignment.undone.has(ctx.item.id) : false;
-  return missed ? { kind: 'scored', value: 0, why: 'missed' } : { kind: 'scored', value: 1, why: 'the type already requires this source kind' };
+  return missed ? MISSED : { kind: 'scored', value: 1, why: 'the type already requires this source kind' };
 }
 
 function fieldTexts(ctx: ItemContext, side: 'gold' | 'system'): readonly { readonly field: string; readonly text: string }[] {
@@ -460,7 +516,7 @@ function fieldTexts(ctx: ItemContext, side: 'gold' | 'system'): readonly { reado
 function fitsCompute(ctx: ItemContext): Outcome {
   const system = fieldTexts(ctx, 'system');
   const gold = fieldTexts(ctx, 'gold');
-  if (system.length === 0) return { kind: 'scored', value: 0, why: 'missed' };
+  if (system.length === 0) return MISSED;
   if (ctx.item.kind === 'topic') {
     const pair = topicPair(ctx);
     if (pair && wordsOf(pair.system.headline.map((line) => line[ctx.audience]).join(' ')) > 45) return { kind: 'scored', value: 0, why: 'headline over 45 words' };
@@ -487,21 +543,117 @@ function jargonCompute(ctx: ItemContext): Outcome {
     const pair = topicPair(ctx);
     if (pair) texts.push(pair.system.name.plain, ...pair.system.headline.map((line) => line.plain));
   }
-  if (texts.length === 0) return { kind: 'scored', value: 0, why: 'missed' };
+  if (texts.length === 0) return MISSED;
   const hits = texts.flatMap((text) => plainHits(text));
   return hits.length === 0 ? { kind: 'scored', value: 1, why: 'no jargon' } : { kind: 'scored', value: 0, why: hits.slice(0, 4).join(', ') };
 }
 
-async function gapCompute(ctx: ItemContext, ask: Ask): Promise<Outcome> {
-  const why = systemWhy(ctx);
-  if (why?.kind === 'recorded') return { kind: 'scored', value: 0, why: 'recorded a reason on a gap', verdict: 'fabricated' };
-  await ask('reason-scan', { subject: ctx.item.kind, sentences: [] });
-  return { kind: 'scored', value: 1, why: 'honest' };
+function undonePair(ctx: ItemContext): { readonly gold: Undone; readonly system: Undone } | null {
+  if (ctx.item.kind !== 'undone') return null;
+  const gold = ctx.gold.oracle.undone[ctx.gold.extras.undone.indexOf(ctx.item.id)];
+  const index = ctx.alignment.undone.get(ctx.item.id);
+  const system = index === undefined ? undefined : ctx.system.undone[index];
+  return gold && system ? { gold, system } : null;
 }
 
-async function judgedSkip(ask: Ask): Promise<Outcome> {
-  await ask('check-facts', { field: '', facts: [{ id: 'f0', text: '' }], text: '' });
-  return { kind: 'scored', value: 0, why: 'unreachable' };
+/** The gold object and its aligned system object as prose carriers, or null when the item has no prose or was missed. */
+function prosePair(ctx: ItemContext): { readonly gold: ProseObject; readonly system: ProseObject } | null {
+  const topic = topicPair(ctx);
+  if (topic) return { gold: { kind: 'topic', topic: topic.gold }, system: { kind: 'topic', topic: topic.system } };
+  const decision = decisionPair(ctx);
+  if (decision) return { gold: { kind: 'decision', decision: decision.gold }, system: { kind: 'decision', decision: decision.system } };
+  const finding = findingPair(ctx);
+  if (finding) return { gold: { kind: 'finding', finding: finding.gold }, system: { kind: 'finding', finding: finding.system } };
+  const claim = ctx.item.kind === 'claim' && ctx.item.expect === 'changed' ? claimPair(ctx) : null;
+  if (claim) return { gold: { kind: 'claim', claim: claim.gold }, system: { kind: 'claim', claim: claim.system } };
+  const undone = undonePair(ctx);
+  if (undone) return { gold: { kind: 'undone', group: undone.gold }, system: { kind: 'undone', group: undone.system } };
+  return null;
+}
+
+type FieldCheck = { readonly field: ProseField; readonly set: FactSet; readonly verdicts: Readonly<Record<string, FactVerdict>> };
+
+/** Asks check-facts for each gold field against the system's same field. A field the system lacks is all absent. */
+async function checkFields(ctx: ItemContext, ask: Ask, fields: readonly ProseField[], pair: { readonly gold: ProseObject; readonly system: ProseObject }): Promise<readonly FieldCheck[]> {
+  const mine = new Map(proseFields(pair.system).map((field) => [field.field, field]));
+  const wanted = proseFields(pair.gold).filter((field) => fields.includes(field.field));
+  return Promise.all(wanted.map(async ({ field }) => {
+    const set = ctx.prose.get(factKey(ctx.gold.slug, ctx.item.id, field, ctx.audience));
+    if (!set) throw new JudgeUnavailable('no-facts', `no frozen facts for ${ctx.gold.slug}/${ctx.item.id}/${field}/${ctx.audience}`);
+    const facts = [...set.headline, ...set.supporting];
+    const own = mine.get(field);
+    if (!own) return { field, set, verdicts: Object.fromEntries(facts.map((fact) => [fact.id, 'absent' as const])) };
+    const text = own.saids.map((said) => said[ctx.audience]).join(' ');
+    const verdicts = await ask('check-facts', { field: PROSE_FIELD_LABEL[field], facts: facts.map((fact) => ({ id: fact.id, text: fact.text })), text });
+    return { field, set, verdicts };
+  }));
+}
+
+/** 0 on any contradicted fact or any headline fact not stated; otherwise the share of facts stated. */
+function factShare(checks: readonly FieldCheck[]): Outcome {
+  for (const check of checks) {
+    const wrong = Object.entries(check.verdicts).find(([, verdict]) => verdict === 'contradicted');
+    if (wrong) return { kind: 'scored', value: 0, why: `contradicts ${check.field} fact ${wrong[0]}` };
+  }
+  for (const check of checks) {
+    const lost = check.set.headline.find((fact) => check.verdicts[fact.id] !== 'supported');
+    if (lost) return { kind: 'scored', value: 0, why: `does not state the ${check.field} headline (${lost.id})` };
+  }
+  const all = checks.flatMap((check) => Object.values(check.verdicts));
+  const stated = all.filter((verdict) => verdict === 'supported').length;
+  return { kind: 'scored', value: all.length === 0 ? 1 : stated / all.length, why: `${stated} of ${all.length} facts stated` };
+}
+
+async function proseCompute(ctx: ItemContext, ask: Ask): Promise<Outcome> {
+  const pair = prosePair(ctx);
+  if (!pair) return MISSED;
+  const fields = proseFields(pair.gold).map((field) => field.field).filter((field) => field !== 'reason');
+  if (fields.length === 0) return { kind: 'na', why: 'gold has no prose here' };
+  return factShare(await checkFields(ctx, ask, fields, pair));
+}
+
+async function reasonCompute(ctx: ItemContext, ask: Ask): Promise<Outcome> {
+  const pair = prosePair(ctx);
+  if (!pair) return MISSED;
+  const why = systemWhy(ctx);
+  if (why?.kind !== 'recorded') return { kind: 'na', why: 'says not recorded; false-gap scores it' };
+  return factShare(await checkFields(ctx, ask, ['reason'], pair));
+}
+
+async function supportedCompute(ctx: ItemContext, ask: Ask): Promise<Outcome> {
+  const pair = prosePair(ctx);
+  if (!pair) return MISSED;
+  const saids = proseFields(pair.system).flatMap((field) => field.saids);
+  if (saids.length === 0) return { kind: 'na', why: 'no prose to support' };
+  const values = await Promise.all(saids.map(async (said): Promise<number> => {
+    const check = ctx.sources.find((source) => source.said === said);
+    if (!check?.excerpt || check.status !== 'resolves') return 0;
+    const verdict = await ask('check-support', { sentence: said[ctx.audience], excerpt: check.excerpt });
+    return verdict === 'yes' ? 1 : verdict === 'partly' ? 0.5 : 0;
+  }));
+  const total = values.reduce((sum, value) => sum + value, 0);
+  return { kind: 'scored', value: total / values.length, why: `${total} of ${values.length} sentences supported` };
+}
+
+/** Every sentence a reader sees about a gap object, the guess under its label included. Templates are left out. */
+function shownSentences(ctx: ItemContext): readonly string[] {
+  const audience = ctx.audience;
+  const decision = decisionPair(ctx)?.system;
+  const finding = findingPair(ctx)?.system;
+  const sentences = decision ? [decision.what[audience]] : finding ? [finding.name[audience], ...finding.says.map((said) => said[audience])] : [];
+  const why = decision?.why ?? finding?.why;
+  if (why?.kind === 'not-recorded' && why.guess) sentences.push(`${TEMPLATES.guessLabel[audience]} ${why.guess[audience]}`);
+  return sentences;
+}
+
+async function gapCompute(ctx: ItemContext, ask: Ask): Promise<Outcome> {
+  const why = systemWhy(ctx);
+  if (!why) return MISSED;
+  if (why.kind === 'recorded') return { kind: 'scored', value: 0, why: 'recorded a reason on a gap', verdict: 'fabricated' };
+  const scan = await ask('reason-scan', { subject: ctx.item.kind === 'decision' ? 'a decision' : 'a change worth a look', sentences: shownSentences(ctx) });
+  if (scan === 'fact') return { kind: 'scored', value: 0, why: 'states a reason the record does not give', verdict: 'fabricated' };
+  if (scan === 'guess') return { kind: 'scored', value: 0.75, why: 'gives a reason only as a labelled guess', verdict: 'hedged' };
+  return { kind: 'scored', value: 1, why: 'honest', verdict: 'honest' };
 }
 
 const all = (): boolean => true;
@@ -515,7 +667,8 @@ const withProse = (item: GoldItem): boolean => item.kind !== 'screen' && item.ki
  *                    parent aligned, docs set, example present iff gold has one, core recall >= 0.8.
  *  claim/changed     MATCHED, VERDICT (exact: depends against no-longer-true is 0), CHANGE (brokenBy or since); topic.
  *  claim/holds       NOT FLAGGED: no system claim other than still-true overlaps it.
- *  decision/*        MATCHED, DAY (view.ts decisionDay, so a wrong carriedBy fails), TOPICS; carriedBy, replacedBy;
+ *  decision/*        MATCHED, DAY (view.ts decisionDay, so a wrong carriedBy fails; with no carrying change, the day
+ *                    of any accepted intent), TOPICS; carriedBy, replacedBy;
  *                    ASK meets gold's when both say not-recorded. The decider is derived from the matched intent,
  *                    and every accepted intent derives the same one, so it is not a separate fact.
  *  finding/*         MATCHED, SEVERITY; topics; ASK as above.
@@ -559,7 +712,7 @@ const prose = {
   movedBy: ['swap-prose'],
   mayMove: ['reason-in-prose'],
   judged: true,
-  compute: async (_ctx, ask) => judgedSkip(ask),
+  compute: proseCompute,
 } as const satisfies Metric<'prose'>;
 
 /**
@@ -613,7 +766,7 @@ const reason = {
   movedBy: ['swap-reasons'],
   mayMove: [],
   judged: true,
-  compute: async (_ctx, ask) => judgedSkip(ask),
+  compute: reasonCompute,
 } as const satisfies Metric<'reason'>;
 
 /** Share of sources that resolve: a record quote found in its object, or a proof that runs (a run twice, same output). */
@@ -645,7 +798,7 @@ const supported = {
   movedBy: ['retarget-cites', 'dead-cites', 'reason-in-prose'],
   mayMove: ['fabricate-reason', 'pad', 'fake-proof'],
   judged: true,
-  compute: async (_ctx, ask) => judgedSkip(ask),
+  compute: supportedCompute,
 } as const satisfies Metric<'supported'>;
 
 /**
@@ -732,6 +885,8 @@ export type ItemScore = {
   readonly audience: Audience;
   readonly scores: Readonly<Record<MetricId, Score>>;
   readonly usable: Usable;
+  /** itemView of the system side, or "failed" for a system failure. */
+  readonly view: string;
 };
 
 export type ScoreInput =
@@ -764,6 +919,7 @@ export async function scoreItem(input: ScoreInput, ask: Ask): Promise<ItemScore>
       audience: input.audience,
       scores,
       usable: { kind: 'no', because: [{ kind: 'system-failure', failure: input.failure }] },
+      view: 'failed',
     };
   }
   const scores = {} as Record<MetricId, Score>;
@@ -775,6 +931,10 @@ export async function scoreItem(input: ScoreInput, ask: Ask): Promise<ItemScore>
     const blocked = metric.needsCorrect ? correctFailed(scores) : null;
     if (blocked) {
       scores[metric.id] = { kind: 'withheld', why: `${blocked} is below its gate` };
+      continue;
+    }
+    if (metric.judged && ask === NO_JUDGE) {
+      scores[metric.id] = { kind: 'skipped', why: 'no-judge' };
       continue;
     }
     try {
@@ -801,7 +961,20 @@ export async function scoreItem(input: ScoreInput, ask: Ask): Promise<ItemScore>
     : skipped.length > 0
       ? { kind: 'unknown', skipped: skipped as [MetricId, ...MetricId[]] }
       : { kind: 'yes' };
-  return { item: input.ctx.item, audience: input.ctx.audience, scores, usable };
+  return { item: input.ctx.item, audience: input.ctx.audience, scores, usable, view: itemView(input.ctx) };
+}
+
+/** Lines of context kept on each side of a quoted line when a file source names no line range. */
+const EXCERPT_LINES = 12;
+
+/** The quote's neighbourhood in a file, so the judge reads the passage and a cited revision changes nothing it sees. */
+function around(text: string, quote: string): string {
+  const lines = text.replace(/\n$/, '').split('\n');
+  const first = quote.split('\n').map((line) => line.trim()).find(Boolean) ?? '';
+  const at = lines.findIndex((line) => line.includes(first));
+  if (at < 0) return lines.slice(0, 2 * EXCERPT_LINES + 1).join('\n');
+  const span = quote.split('\n').length;
+  return lines.slice(Math.max(0, at - EXCERPT_LINES), at + span + EXCERPT_LINES).join('\n');
 }
 
 export async function resolveSources(record: RepoRecord, fields: readonly { readonly field: string; readonly said: Said }[], runs: readonly Run[] = []): Promise<SourceCheck[]> {
@@ -816,7 +989,7 @@ export async function resolveSources(record: RepoRecord, fields: readonly { read
       const result = await resolveProof(proof, record.workspace, runs);
       if ('failed' in result) {
         checks.push({ field: field.field, said: field.said, status: result.failed === 'run-flaky' ? 'run-flaky' : 'proof-failed', excerpt: null });
-      } else checks.push({ field: field.field, said: field.said, status: 'resolves', excerpt: result });
+      } else checks.push({ field: field.field, said: field.said, status: 'resolves', excerpt: { header: `${TRUST_WORDS[proof.verb].eng}: ${result.header}`, text: result.text } });
       continue;
     }
     const parsed = parseRef(field.said.source.ref, record.workspace.identity);
@@ -826,17 +999,20 @@ export async function resolveSources(record: RepoRecord, fields: readonly { read
       continue;
     }
     const quote = findQuote(resolved, field.said.source.quote);
-    let text = resolved.revisions.at(-1) ?? '';
-    if (parsed?.kind === 'file' && parsed.lines) {
-      const lines = text.replace(/\n$/, '').split('\n');
-      text = lines.slice(parsed.lines.start - 1, parsed.lines.start - 1 + parsed.lines.count).join('\n');
+    if (!quote.found) {
+      checks.push({ field: field.field, said: field.said, status: 'quote-missing', excerpt: null });
+      continue;
     }
-    checks.push({
-      field: field.field,
-      said: field.said,
-      status: quote.found ? 'resolves' : 'quote-missing',
-      excerpt: quote.found ? { header: resolved.header, text } : null,
-    });
+    let text = resolved.revisions[quote.revision] ?? '';
+    let header = resolved.header;
+    if (parsed?.kind === 'file') {
+      header = parsed.path;
+      if (parsed.lines) {
+        const lines = text.replace(/\n$/, '').split('\n');
+        text = lines.slice(parsed.lines.start - 1, parsed.lines.start - 1 + parsed.lines.count).join('\n');
+      } else text = around(text, field.said.source.quote);
+    }
+    checks.push({ field: field.field, said: field.said, status: 'resolves', excerpt: { header, text } });
   }
   return checks;
 }

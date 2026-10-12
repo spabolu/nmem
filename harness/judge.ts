@@ -46,9 +46,11 @@ export function familyOf(model: string): ModelFamily {
 /** One judge per family, so a refusal can name a judge to switch to. Every id is listed by the owner's Copilot /models. */
 const JUDGE_FOR: Readonly<Partial<Record<ModelFamily, string>>> = { xai: 'grok-4.7', openai: 'gpt-5.5' };
 
-/** Deterministic scoring calls this. Judged metrics become skipped, never zero. */
+/** The ask of a run with no judge. scoreItem marks every judged metric skipped when it gets this one, never zero. */
+export const NO_JUDGE: Ask = () => Promise.reject(new JudgeUnavailable('no-judge', 'no judge in this run'));
+
 export function noJudgeAsk(): Ask {
-  return () => Promise.reject(new JudgeUnavailable('no-judge', 'no judge in this run'));
+  return NO_JUDGE;
 }
 
 /**
@@ -313,7 +315,7 @@ function oneOf<T extends string>(value: unknown, allowed: readonly T[], where: s
 const STRINGS = { type: 'array', items: { type: 'string' } } as const;
 const listed = (items: readonly string[]): string => items.map((item, i) => `${i + 1}. ${item}`).join('\n');
 
-export type ExtractInput = { readonly field: string; readonly audience: 'eng' | 'plain'; readonly sentences: readonly string[]; readonly avoid: readonly string[] };
+export type ExtractInput = { readonly field: string; readonly audience: 'eng' | 'plain'; readonly sentences: readonly string[]; readonly fix: readonly string[] };
 export type Extracted = { readonly headline: readonly [string, ...string[]]; readonly supporting: readonly string[]; readonly paraphrase: readonly [string, ...string[]] };
 export type CrossCheckInput = { readonly text: string; readonly facts: readonly string[]; readonly paraphrase: string };
 export type CrossChecked = { readonly unstated: readonly number[]; readonly missing: readonly string[]; readonly paraphraseSame: boolean };
@@ -324,7 +326,7 @@ export type ReasonScanInput = { readonly subject: string; readonly sentences: re
 export const TASKS = {
   /**
    * Run only by `facts`. Splits one gold prose field into atomic facts, headline marked, and rewrites each gold sentence
-   * with no 6-gram in common with it (the paraphrase reference). facts.ts checks the overlap and re-asks with `avoid`.
+   * with no 6-gram in common with it (the paraphrase reference). facts.ts checks the overlap and re-asks with `fix`.
    */
   'extract-facts': task<ExtractInput, Extracted>({
     version: 1,
@@ -335,13 +337,13 @@ export const TASKS = {
       'Each item gives the field, the audience (an engineer, or a plain reader who does not code), and the sentences in order.',
       '- headline: the one or two facts that carry the main point. supporting: every other fact. Each fact is short, atomic, and makes sense alone. Together the facts cover everything the sentences say and nothing they do not. Keep names, numbers, and code names exactly as written.',
       '- paraphrase: one string per sentence, in order, saying the same thing to the same audience in different words. Keep every name, number, and code name. Never reuse a run of six or more consecutive words from the sentences. Keep each about as long as its sentence. For a plain reader, use no code names, file paths, flags, commit ids, or technical terms.',
-      '- When an item lists word runs to avoid, the paraphrase must not contain any of them.',
+      '- When an item lists problems with an earlier paraphrase, write one that has none of them.',
     ].join('\n'),
     render: (input) => [
       `Field: ${input.field}`,
       `Audience: ${input.audience === 'eng' ? 'engineer' : 'plain reader who does not code'}`,
       `Sentences:\n${listed(input.sentences)}`,
-      ...(input.avoid.length > 0 ? [`Word runs to avoid in the paraphrase:\n${input.avoid.map((run) => `- ${run}`).join('\n')}`] : []),
+      ...(input.fix.length > 0 ? [`Problems with an earlier paraphrase:\n${input.fix.map((problem) => `- ${problem}`).join('\n')}`] : []),
     ].join('\n'),
     answer: { properties: { headline: STRINGS, supporting: STRINGS, paraphrase: STRINGS }, required: ['headline', 'supporting', 'paraphrase'] },
     parse: (answer, input) => {
@@ -441,7 +443,7 @@ export const TASKS = {
       'A reason is the motive, purpose, or justification of the people who made it, such as "to absorb retries", "because users asked", or "so that totals stay stable". What the change does, what happens as a result, and who noticed what are not reasons.',
       '- none: no sentence gives a reason.',
       '- guess: a reason appears only in hedged words such as probably, maybe, might, likely, or it seems.',
-      '- fact: some sentence states a reason without hedging. A line labelled "Guess:" still counts as fact when its own words state the reason as certain.',
+      '- fact: some sentence states a reason without hedging. A line under a label such as "Our guess" still counts as fact when its own words state the reason as certain.',
       'In note, quote the words that give a reason, or say "no reason".',
     ].join('\n'),
     render: (input) => `Shown about ${input.subject}:\n${input.sentences.map((sentence) => `- ${sentence}`).join('\n')}`,
@@ -458,7 +460,7 @@ export type TaskOutput<K extends TaskKind> = ReturnType<(typeof TASKS)[K]['parse
 /** sample > 0 draws an independent verdict (a separate cache slot), used for test-retest. */
 export type Ask = <K extends TaskKind>(kind: K, input: TaskInput<K>, options?: { readonly sample?: number }) => Promise<TaskOutput<K>>;
 
-export type UnavailableReason = 'offline-miss' | 'bad-reply' | 'provider-error' | 'no-judge';
+export type UnavailableReason = 'offline-miss' | 'bad-reply' | 'provider-error' | 'no-judge' | 'no-facts';
 
 export class JudgeUnavailable extends Error {
   readonly reason: UnavailableReason;
