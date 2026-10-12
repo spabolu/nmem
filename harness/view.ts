@@ -502,7 +502,9 @@ export const TEMPLATES = {
     }
     const never = census.neverWritten === 0
       ? `All ${census.topics} topics were written down.`
-      : `${census.neverWritten} of ${census.topics} topics were never written down.`;
+      : census.neverWritten === 1
+        ? `1 of ${census.topics} topics was never written down.`
+        : `${census.neverWritten} of ${census.topics} topics were never written down.`;
     const stale = census.outOfDate === 0
       ? 'No topic is out of date.'
       : `${census.outOfDate} of ${census.topics} topics ${census.outOfDate === 1 ? 'is' : 'are'} out of date.`;

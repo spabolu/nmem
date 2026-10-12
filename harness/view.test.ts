@@ -78,7 +78,7 @@ test('formatDay and labelChange are the sentences the status line already uses',
 test('census counts children only, and up-to-date-since counts as up to date', () => {
   const census = censusOf(snapshot([broken]), facts());
   assert.deepEqual(census, { topics: 3, neverWritten: 1, outOfDate: 1, upToDate: 1 });
-  assert.equal(TEMPLATES.census(census).eng, '1 of 3 topics were never written down. 1 of 3 topics is out of date.');
+  assert.equal(TEMPLATES.census(census).eng, '1 of 3 topics was never written down. 1 of 3 topics is out of date.');
   assert.equal(TEMPLATES.census(census).plain, TEMPLATES.census(census).eng);
   assert.equal(TEMPLATES.census({ topics: 0, neverWritten: 0, outOfDate: 0, upToDate: 0 }).eng, 'No topics yet.');
 });
@@ -99,5 +99,5 @@ test('tally census matches the gold tree', () => {
   const gold = loadGold(path.join(root, 'out'), 'tally' as never);
   const census = censusOf(gold.oracle, factsOf(record));
   assert.deepEqual(census, { topics: 6, neverWritten: 1, outOfDate: 0, upToDate: 5 });
-  assert.equal(TEMPLATES.census(census).eng, '1 of 6 topics were never written down. No topic is out of date.');
+  assert.equal(TEMPLATES.census(census).eng, '1 of 6 topics was never written down. No topic is out of date.');
 });
