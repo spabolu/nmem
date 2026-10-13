@@ -1039,6 +1039,16 @@ const VIEWS = [
     "/hearthware/tally/source?audience=eng&ref=discussion%237&quote=Not+building+a+rate+table.",
   ],
   ["not-found", "/hearthware/tally/topics/nope?audience=eng"],
+  [
+    "source-file",
+    "/hearthware/tally/source?audience=eng&ref=f01e078%3Atally%2Fcli.py%23L35-L77",
+  ],
+  ["source-commit", "/hearthware/tally/source?audience=eng&ref=e7e5ff3"],
+  ["source-pr", "/hearthware/tally/source?audience=eng&ref=pr%2312"],
+  [
+    "source-proof",
+    "/hearthware/tally/source?audience=eng&proof=grep+f01e078+-i+currenc",
+  ],
 ];
 
 const MODES = [
