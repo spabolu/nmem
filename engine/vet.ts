@@ -14,7 +14,7 @@ type VetInput = { readonly change: string; readonly finding: Finding };
 
 const VET: Task<VetInput, { readonly verdict: 'stands' | 'dropped' | 'handled' | 'unreachable' }> = {
   id: 'vet-finding',
-  version: 4,
+  version: 7,
   model: OPUS,
   maxOutputTokens: 600,
   rules: `Answer only by calling the answer tool, with no other text.
@@ -23,7 +23,7 @@ You check one finding about a change before a read-only history of a software pr
 
 Answer one verdict:
 - handled: the record shows someone did something about it, such as doing the work by hand ("I updated the three deploy scripts myself.") or changing their own steps to avoid it. Words alone are not handling it: noticing it, reporting it, or calling the change fine is stands.
-- unreachable: nobody using the program could ever notice it, because nothing they can do reaches that code.
+- unreachable: nobody using the program the way its record describes would ever notice it. Either nothing they can do reaches that code, or it needs one of these and nothing in the record shows anyone meeting it: a hostile caller, an error that the code it calls never raises, two calls at the same instant, a file edited by hand, or a process left running for weeks. Any option, platform, or version a user can pick is reachable.
 - dropped: the change removed a refusal the old code made, such as rejecting bad input, and the record never says so. It stays, as something to check rather than a chosen behavior.
 - stands: otherwise.`,
   render: (input) => [
