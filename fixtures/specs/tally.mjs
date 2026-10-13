@@ -1016,8 +1016,8 @@ const views = {
           ev: headFile('tally/cli.py', 'print("cents must be zero or more", file=sys.stderr)'),
         },
         {
-          eng: 'The check was first added in a commit whose title only mentions fixing tests.',
-          plain: 'The check was first added in a change labeled only as a test fix.',
+          eng: 'tally/cli.py got the check in a commit whose title only mentions fixing tests.',
+          plain: 'The current check came in with a change labeled only as a test fix.',
           ev: { verb: 'introduced', path: 'tally/cli.py', needle: 'if args.cents < 0:', shows: 'by Owen Briggs' },
         },
       ],
@@ -1209,7 +1209,31 @@ const views = {
         },
       ],
     },
-    'pr#4': { topics: ['storage'] },
+    'pr#4': {
+      topics: ['storage', 'adding'],
+      findings: [
+        {
+          id: 'f-negative-dropped',
+          severity: 'check',
+          topics: ['adding'],
+          anchors: [{ kind: 'file', path: 'tally.py', at: 'c-usage', quote: 'if cents < 0:' }, commit('c-package', 'Move the splitter into a package')],
+          name: { eng: 'Negative amounts are no longer refused', plain: 'A negative amount is no longer refused' },
+          says: [
+            {
+              eng: 'Before PR #4, tally.py refused an amount below zero with "cents must be zero or more".',
+              plain: 'Before this change, the app refused an amount below zero.',
+              ev: { kind: 'file', path: 'tally.py', at: 'c-usage', quote: 'print("cents must be zero or more", file=sys.stderr)' },
+            },
+            {
+              eng: 'At the PR #4 merge, adding a bill of -5 cents exits 0 and saves it.',
+              plain: 'After this change, a bill of minus 5 cents is accepted and saved.',
+              ev: { verb: 'run', id: 'negative-at-pr4', shows: 'add --cents -5: exit 0\nsaved: expense 2023-03-27 lena -5' },
+            },
+          ],
+          why: askOwen,
+        },
+      ],
+    },
     'c-typo': {
       topics: [],
       routine: [
@@ -1650,8 +1674,8 @@ const views = {
       verdict: 'true-since',
       since: 'c-fix-tests',
       why: {
-        eng: 'The check `if args.cents < 0:` was first added to tally/cli.py on 2023-11-12, in a commit by Owen Briggs.',
-        plain: 'The app started checking for a negative amount on Nov 12, 2023, in a change by Owen Briggs.',
+        eng: 'The check `if args.cents < 0:` went into tally/cli.py on 2023-11-12, in a commit by Owen Briggs.',
+        plain: "The app's current check for a negative amount came in on Nov 12, 2023, in a change by Owen Briggs.",
         ev: { verb: 'introduced', path: 'tally/cli.py', needle: 'if args.cents < 0:', shows: 'by Owen Briggs' },
       },
       covers: ['currency-negative-later'],
@@ -1695,6 +1719,22 @@ const views = {
     },
   ],
   runs: [
+    {
+      id: 'negative-at-pr4',
+      at: 'merge-pr-4',
+      lang: 'python',
+      source: `import os
+import subprocess
+import sys
+
+args = [sys.executable, "-m", "tally", "--data", "ledger.txt", "add", "--date", "2023-03-27",
+        "--payer", "lena", "--cents", "-5", "--split", "lena,owen"]
+code = subprocess.run(args, capture_output=True).returncode
+saved = open("ledger.txt").read().strip() if os.path.exists("ledger.txt") else "nothing"
+print("add --cents -5: exit %d" % code)
+print("saved: %s" % saved)
+`,
+    },
     {
       id: 'old-file-flag',
       at: tallyHead,
@@ -1757,8 +1797,8 @@ print("new name --ledger: exit %d, file written: %s" % attempt("--ledger", "new.
       topic: 'root',
       from: '2023-02-11',
       to: '2023-11-21',
-      counts: { decision: 14, behavior: 5, net: 1 },
-      named: ['d-note', 'f-old-flag', 'd-flag'],
+      counts: { decision: 14, behavior: 5, check: 1, net: 1 },
+      named: ['d-note', 'f-old-flag', 'f-negative-dropped'],
       routine: { count: 5, lines: 91 },
     },
     {

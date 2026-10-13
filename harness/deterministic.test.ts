@@ -88,7 +88,7 @@ test('null is usable on at most 0.05 of every row except claim/holds', async () 
     ['claim/holds', { yes: 8, n: 8 }],
     ['decision/gap', { yes: 0, n: 4 }],
     ['decision/reason', { yes: 0, n: 24 }],
-    ['finding/gap', { yes: 0, n: 10 }],
+    ['finding/gap', { yes: 0, n: 12 }],
     ['finding/reason', { yes: 0, n: 4 }],
     ['screen/page', { yes: 0, n: 14 }],
     ['screen/timeline', { yes: 0, n: 42 }],
@@ -150,12 +150,12 @@ test('render of tally root whole life matches the gold hand-computed screen', ()
   const text = renderTimeline(goldFile.oracle, facts, { topic: 'root', from: facts.born, to: facts.end }, 'eng', nameOf);
   assert.equal(text, [
     'Timeline root 2023-02-11..2023-11-21',
-    'Since Feb 11: 14 decisions, 5 behavior changes and 1 that came and went with no net change.',
-    'counts: decision 14, behavior 5, net 1',
-    'named: d-note, f-old-flag, d-flag',
+    'Since Feb 11: 14 decisions, 5 behavior changes, 1 thing to check and 1 that came and went with no net change.',
+    'counts: decision 14, behavior 5, check 1, net 1',
+    'named: d-note, f-old-flag, f-negative-dropped',
     'routine: 5 changes, 91 lines',
     'up: 14 cards, +0 more',
-    'down: 6 cards, +0 more',
+    'down: 7 cards, +0 more',
   ].join('\n'));
 });
 

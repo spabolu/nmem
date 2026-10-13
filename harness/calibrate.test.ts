@@ -66,11 +66,11 @@ test('with a judge that agrees with everything, only the checks a real judge mus
     'corruptions: swap-prose usable topic/page',
   ]);
   const passed = (what: string): string | undefined => result.checks.find((check) => check.what === what)?.value;
-  assert.equal(passed('fabricate-reason -> gap-honesty'), '1.00 to 0.00 over 14 of 14 touched (drop at least 0.4)');
-  assert.equal(passed('misroute -> facts'), '1.00 to 0.00 over 58 of 58 touched (drop at least 0.4)');
-  assert.equal(passed('jargon-plain -> jargon'), '1.00 to 0.00 over 30 of 30 touched (drop at least 0.4)');
-  assert.equal(passed('alt-anchor usable'), 'moves 0.00 over 42, 14 of them changed (at most 0.02)');
-  assert.equal(passed('oracle recall'), '30 of 30 objects (1.00, at least 0.95)');
+  assert.equal(passed('fabricate-reason -> gap-honesty'), '1.00 to 0.00 over 16 of 16 touched (drop at least 0.4)');
+  assert.equal(passed('misroute -> facts'), '1.00 to 0.00 over 62 of 62 touched (drop at least 0.4)');
+  assert.equal(passed('jargon-plain -> jargon'), '1.00 to 0.00 over 31 of 31 touched (drop at least 0.4)');
+  assert.equal(passed('alt-anchor usable'), 'moves 0.00 over 44, 16 of them changed (at most 0.02)');
+  assert.equal(passed('oracle recall'), '31 of 31 objects (1.00, at least 0.95)');
 });
 
 test('a paraphrase that repeats gold, runs long, or uses jargon gets each problem named', () => {
