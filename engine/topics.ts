@@ -1,5 +1,5 @@
 /**
- * Topics: the tree, formed after classification, and one page per topic. File overlap seeds membership, a file may sit
+ * Topics: the tree, formed from HEAD alone, and one page per topic. File overlap seeds membership, a file may sit
  * on more than one topic, and Start here, headline sources, and the example are lines or sentences at HEAD that the
  * model names by handle. Code computes every range and checks every path, so a bad pick is refused, never repaired.
  */
@@ -14,7 +14,7 @@ import type { Gated, Task } from './model.ts';
 import { isDoc, isReadme } from './record.ts';
 import type { FileObject, Line, RepoRecord, Sentence } from './record.ts';
 import { collapse, ROOT } from './steps.ts';
-import type { Placeable, TreeSignals } from './steps.ts';
+import type { Placeable } from './steps.ts';
 
 const PLAIN_RULE = `plain is for someone who does not read code. It names no file, function, option, flag, command, code, commit id, or number with a number sign, and none of these words: ${JARGON.join(', ')}.`;
 const MAX_SHOWN = 1500;
@@ -75,7 +75,7 @@ function showSentences(file: FileObject, handles: Handles, out: string[]): void 
 
 type FormInput = { readonly text: string; readonly handles: Handles; readonly paths: ReadonlySet<string>; readonly docs: ReadonlySet<string> };
 
-function formInputOf(record: RepoRecord, signals: TreeSignals): FormInput {
+function formInputOf(record: RepoRecord): FormInput {
   const handles = emptyHandles();
   const out = ['Files at HEAD. Only lines with a handle can be Start here.'];
   let shown = 0;
@@ -95,8 +95,6 @@ function formInputOf(record: RepoRecord, signals: TreeSignals): FormInput {
   for (const doc of docs) out.push(`${doc.path}: ${title(doc)}`);
   out.push('', 'Decision records at HEAD:');
   for (const adr of record.adrs) out.push(`${adr.file.path}: ${title(adr.file)}${adr.status.kind === 'superseded' ? ' (superseded, so never a doc)' : ''}`);
-  out.push('', 'Decisions and findings from the history, with the files each is about:');
-  for (const item of signals.items) out.push(`- ${item.kind}: ${item.what} (${item.files.join(', ') || 'no files'})`);
   return { text: out.join('\n'), handles, paths: new Set(record.files.map((file) => file.path)), docs: new Set(docs.map((doc) => doc.path)) };
 }
 
@@ -107,14 +105,14 @@ type FormAnswer = ReturnType<typeof FORM_ANSWER.parse>;
 
 const FORM: Task<FormInput, FormAnswer> = {
   id: 'form-topics',
-  version: 2,
+  version: 3,
   model: OPUS,
   maxOutputTokens: 4000,
   rules: `You group a software repository into topics for a read-only map of what the code does. Its readers are engineers and people who do not read code. A reader picks a topic and reads what that part does, the decisions behind it, and where to start reading.
 
 Answer with handles only: [L#] is a line at HEAD. Code copies its text, so never quote and never make up a handle.
 
-Return the root first, with slug "root", parent null, and files []. Then the topics under it, grouped by what the code does for its users, not by directory. Use 2 to 9 topics under the root, and nest a topic under another only when it is part of it. A decision or finding from the history may shape a topic, such as a choice that set how one part behaves.
+Return the root first, with slug "root", parent null, and files []. Then the topics under it, grouped by what the code does for its users, not by directory. Use 2 to 9 topics under the root, and nest a topic under another only when it is part of it.
 For each topic:
 - slug: one lowercase word, letters and digits only, unique.
 - parent: the slug of its parent, or null for the root.
@@ -335,8 +333,8 @@ function gatePage(record: RepoRecord, input: PageInput, answer: PageAnswer): Gat
  * The tree and its pages. A form that fails twice leaves the floor's root alone. A topic whose page fails twice is
  * dropped, and its children move up to its parent. The root keeps the floor's page when its own fails.
  */
-export async function formTopics(record: RepoRecord, client: ModelClient, signals: TreeSignals, floorRoot: Topic, note: (line: string) => void): Promise<readonly [Topic, ...Topic[]]> {
-  const input = formInputOf(record, signals);
+export async function formTopics(record: RepoRecord, client: ModelClient, floorRoot: Topic, note: (line: string) => void): Promise<readonly [Topic, ...Topic[]]> {
+  const input = formInputOf(record);
   const formed = await ask(client, FORM, input, 'form topics', (answer) => gateForm(record, input, answer));
   formed.problems.forEach((line) => note(`topics ${line}`));
   const skeletons = formed.value;

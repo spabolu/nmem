@@ -27,9 +27,6 @@ export type Found = { readonly finding: Finding; readonly files: readonly string
 
 export type Classification = { readonly choices: readonly Choice[]; readonly findings: readonly Found[] };
 
-/** What the tree is formed from: the decisions and findings classification produced, with the files each is about. */
-export type TreeSignals = { readonly items: readonly { readonly kind: 'decision' | 'finding'; readonly what: string; readonly files: readonly string[] }[] };
-
 /** An item to place on topics, with the topics whose files it touches. */
 export type Placeable = { readonly key: string; readonly kind: 'decision' | 'finding'; readonly what: string; readonly candidates: readonly LocalId[] };
 
@@ -56,8 +53,8 @@ export type Steps = {
   readonly scan: (subject: Named, shown: readonly Named[]) => Promise<readonly boolean[]>;
   /** Doc sentences judged not plainly true. */
   readonly claims: () => Promise<readonly Claim[]>;
-  /** The tree, formed after classification. */
-  readonly topics: (signals: TreeSignals) => Promise<readonly [Topic, ...Topic[]]>;
+  /** The tree, formed from HEAD alone, so a change to the decision list never reshuffles it. */
+  readonly topics: () => Promise<readonly [Topic, ...Topic[]]>;
   /** Each item's topics among its candidates. */
   readonly place: (tree: readonly Topic[], items: readonly Placeable[]) => Promise<ReadonlyMap<string, readonly LocalId[]>>;
 };

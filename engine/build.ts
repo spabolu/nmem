@@ -14,7 +14,7 @@ import type { UndoneProof } from './proofs.ts';
 import { ingest } from './record.ts';
 import type { RepoRecord } from './record.ts';
 import { collapse, noModel, ROOT } from './steps.ts';
-import type { Placeable, Steps, TreeSignals } from './steps.ts';
+import type { Placeable, Steps } from './steps.ts';
 import { formTopics, overlapping, placeItems } from './topics.ts';
 import { scanReasons, whyOf } from './why.ts';
 
@@ -73,13 +73,7 @@ export async function assemble(record: RepoRecord, steps: Steps, usage: () => Us
     return items.flatMap((item) => (item.finding === null ? [] : [{ finding: item.finding, files: item.files }]));
   }));
   const decided = await decide(record, steps, classified.flatMap((item) => item.choices));
-  const signals: TreeSignals = {
-    items: [
-      ...decided.map((item) => ({ kind: 'decision' as const, what: item.decision.what.eng, files: item.files })),
-      ...found.flat().map((item) => ({ kind: 'finding' as const, what: item.finding.name.eng, files: item.files })),
-    ],
-  };
-  const topics = await steps.topics(signals);
+  const topics = await steps.topics();
   const placeable: Placeable[] = [
     ...decided.map((item, i) => ({ key: `decision ${i + 1}`, kind: 'decision' as const, what: item.decision.what.eng, candidates: overlapping(topics, item.files) })),
     ...found.flatMap((items, i) => items.map((item, j) => ({ key: `finding ${i + 1}.${j + 1}`, kind: 'finding' as const, what: item.finding.name.eng, candidates: overlapping(topics, item.files) }))),
@@ -167,10 +161,10 @@ export function modelSteps(record: RepoRecord, client: ModelClient, notes: Notes
         return floor.why(subject);
       }
     },
-    topics: async (signals) => {
-      const root = (await floor.topics(signals))[0];
+    topics: async () => {
+      const root = (await floor.topics())[0];
       try {
-        return await formTopics(record, client, signals, root, (line) => notes.push(line));
+        return await formTopics(record, client, root, (line) => notes.push(line));
       } catch (error) {
         fallback(notes, 'topics', error);
         return [root];
