@@ -149,8 +149,8 @@ export const GITHUB: Hosts = { github: 'https://api.github.com' };
 
 const EDITOR = { 'Editor-Version': 'vscode/1.99.0', 'Editor-Plugin-Version': 'copilot-chat/0.26.0', 'Copilot-Integration-Id': 'vscode-chat', 'User-Agent': 'nmem-harness' } as const;
 const ATTEMPTS = 3;
-/** A reply that has not finished by then is retried, so a stalled connection cannot hold a run forever. */
-const REQUEST_MS = 180_000;
+/** A reply that has not finished by then is retried, so a stalled connection cannot hold a run forever. Fact extraction batches from grok-4.7 ran past 3 minutes (measured), so the limit is 10. */
+const REQUEST_MS = 600_000;
 /** gpt-5.5 on /responses answers 400 "temperature is not supported" (measured 2026-10-12); grok-4.7 accepts 0. */
 const NO_TEMPERATURE: readonly ModelFamily[] = ['openai'];
 
