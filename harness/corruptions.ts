@@ -477,8 +477,11 @@ export const CORRUPTIONS = [
   { id: 'misroute', imitates: 'believes "no behavior change intended" and calls real changes routine', touches: (i) => i.kind === 'change' || i.kind === 'finding' || i.kind === 'screen', audiences: both, transform: misroute },
   /** carriedBy moves to the next change, severity flips, ask names another person. */
   { id: 'shift-facts', imitates: 'right shape, wrong day, wrong severity, wrong person to ask', touches: (i) => i.kind === 'decision' || i.kind === 'finding' || i.kind === 'change' || i.kind === 'screen', audiences: both, transform: shiftFacts },
-  /** Folds every depth-2 topic into its parent, files and docs united, references rewritten. */
-  { id: 'merge-topics', imitates: 'one vague topic per area instead of what the code does', touches: (i) => i.kind !== 'change', audiences: both, transform: mergeTopics },
+  /**
+   * Folds every depth-2 topic into its parent, files and docs united, references rewritten. Claims are not declared,
+   * because a claim's topic is not a headline fact and its sentence, verdict, and change stay right.
+   */
+  { id: 'merge-topics', imitates: 'one vague topic per area instead of what the code does', touches: (i) => i.kind !== 'change' && i.kind !== 'claim', audiences: both, transform: mergeTopics },
   { id: 'unnet', imitates: 'shows an add-then-undo as separate changes', touches: (i) => i.kind === 'undone' || i.kind === 'screen', audiences: both, transform: (oracle) => ({ ...oracle, undone: [] }) },
   /** Every record source that is neither an anchor nor an intent points at another object of its kind, quoting its first line. */
   { id: 'retarget-cites', imitates: 'cites real objects with real quotes that do not back the sentence', touches: (i) => i.kind !== 'screen', audiences: both, transform: (oracle, ctx) => mapEvidence(oracle, (said) => (said.source.kind === 'record' ? withSource(said, retarget(ctx, said.source)) : said)) },
