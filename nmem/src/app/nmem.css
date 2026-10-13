@@ -1026,3 +1026,6 @@ pre.source {
     display: none;
   }
 }
+.contents {
+  display: contents;
+}
