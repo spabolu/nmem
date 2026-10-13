@@ -55,13 +55,13 @@ function checkQuotes(snapshot: Snapshot, record: RepoRecord): void {
 export type Built = { readonly bytes: string; readonly summary: string };
 
 /**
- * A finding that vet does not keep is dropped. Otherwise its reason goes through the why step, and a gap's name and
- * card points go through the scan: a flagged name drops the finding, a flagged point drops the point, and a finding with
- * no point left is dropped.
+ * A finding that vet does not keep is dropped, and one it reads as a silently dropped refusal becomes a check.
+ * Otherwise its reason goes through the why step, and a gap's name and card points go through the scan: a flagged name
+ * drops the finding, a flagged point drops the point, and a finding with no point left is dropped.
  */
-async function settleFinding(steps: Steps, finding: Finding, change: Change): Promise<Finding | null> {
-  if (!(await steps.vet(change, finding))) return null;
-  if (finding.why.kind !== 'not-recorded') return finding;
+async function settleFinding(steps: Steps, found: Finding, change: Change): Promise<Finding | null> {
+  const finding = await steps.vet(change, found);
+  if (finding === null || finding.why.kind !== 'not-recorded') return finding;
   const why = await steps.why({ kind: 'finding', what: finding.name, quote: finding.anchor, carriedBy: change.id, ask: finding.why.ask });
   if (why.kind === 'recorded') return { ...finding, why };
   const [named, ...points] = await steps.scan(finding.name, [finding.name, ...finding.says]);
@@ -160,7 +160,7 @@ export function modelSteps(record: RepoRecord, client: ModelClient, notes: Notes
         return await vetFinding(record, client, change, finding);
       } catch (error) {
         fallback(notes, `vet ${change.id}`, error);
-        return true;
+        return finding;
       }
     },
     why: async (subject) => {

@@ -12,9 +12,9 @@ import type { Change, RepoRecord } from './record.ts';
 
 type VetInput = { readonly change: string; readonly finding: Finding };
 
-const VET: Task<VetInput, { readonly verdict: 'stands' | 'handled' | 'unreachable' }> = {
+const VET: Task<VetInput, { readonly verdict: 'stands' | 'dropped' | 'handled' | 'unreachable' }> = {
   id: 'vet-finding',
-  version: 3,
+  version: 4,
   model: OPUS,
   maxOutputTokens: 600,
   rules: `Answer only by calling the answer tool, with no other text.
@@ -24,6 +24,7 @@ You check one finding about a change before a read-only history of a software pr
 Answer one verdict:
 - handled: the record shows someone did something about it, such as doing the work by hand ("I updated the three deploy scripts myself.") or changing their own steps to avoid it. Words alone are not handling it: noticing it, reporting it, or calling the change fine is stands.
 - unreachable: nobody using the program could ever notice it, because nothing they can do reaches that code.
+- dropped: the change removed a refusal the old code made, such as rejecting bad input, and the record never says so. It stays, as something to check rather than a chosen behavior.
 - stands: otherwise.`,
   render: (input) => [
     input.change,
@@ -33,12 +34,13 @@ Answer one verdict:
     ...input.finding.says.map((said) => `- ${said.eng}`),
     `Anchor: ${input.finding.anchor.kind === 'record' ? input.finding.anchor.quote.replace(/\s+/g, ' ') : ''}`,
   ].join('\n'),
-  answer: obj({ verdict: lit('stands', 'handled', 'unreachable') }),
+  answer: obj({ verdict: lit('stands', 'dropped', 'handled', 'unreachable') }),
 };
 
-/** True when the finding stands. */
-export async function vetFinding(record: RepoRecord, client: ModelClient, change: Change, finding: Finding): Promise<boolean> {
+/** The finding as it stands, a dropped refusal as a check, or null when someone handled it or nobody can reach it. */
+export async function vetFinding(record: RepoRecord, client: ModelClient, change: Change, finding: Finding): Promise<Finding | null> {
   const input: VetInput = { change: dossierOf(record, change, []).text, finding };
   const vetted = await ask(client, VET, input, `vet ${change.id}: ${finding.name.eng}`, (answer) => ({ value: answer.verdict, problems: [] }));
-  return vetted.value === 'stands';
+  if (vetted.value === 'dropped') return { ...finding, severity: 'check' };
+  return vetted.value === 'stands' ? finding : null;
 }

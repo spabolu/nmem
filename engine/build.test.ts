@@ -448,3 +448,18 @@ test('a finding its own record shows someone handled is dropped before any reaso
   assert.deepEqual(snapshot.changes.find((change) => change.id === 'pr#1')?.findings, []);
   assert.deepEqual(client.seen.filter((request) => /^(vet|why finding|scan Old)/.test(request.label)).map((request) => request.label), ['vet pr#1: Old greeting files stay']);
 });
+
+test('a finding vet reads as a dropped refusal stays, as something to check', async () => {
+  const record = ingest(toyWorkspace(FAREWELL));
+  const client = fakeClient({
+    'classify pr#1': [{
+      choices: [],
+      findings: [{ severity: 'behavior', anchor: 'L1', files: [], name: { eng: 'Empty names accepted', plain: 'Blank names go through' }, says: [{ eng: 'It prints bye.', plain: 'It says bye.', source: 'L1' }] }],
+    }],
+    'vet pr#1: Empty names accepted': [{ verdict: 'dropped' }],
+    'why finding pr#1: Empty names accepted': [{ reason: null, said: null }],
+    'scan Empty names accepted': [{ stated: [] }],
+  });
+  const snapshot = JSON.parse((await assemble(record, modelSteps(record, client, []))).bytes) as Snapshot;
+  assert.deepEqual(snapshot.changes.find((change) => change.id === 'pr#1')?.findings.map((finding) => [finding.severity, finding.name.eng]), [['check', 'Empty names accepted']]);
+});
