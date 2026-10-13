@@ -36,7 +36,17 @@ import {
   ticksOf,
 } from "@/lib/present";
 import { Chip, type Ctx, Prose, SaidText, WhyText } from "./said";
-import { CHIP, CHIP_ON } from "./styles";
+import { CHIP, CHIP_ON, HINT } from "./styles";
+
+const RANGE_LABEL =
+  "inline-flex items-center gap-2 text-[14px] text-(color:--fgColor-muted)";
+const DATE_INPUT =
+  "h-8 w-auto rounded-[6px] border border-(color:--borderColor-default) px-3 [font:inherit] max-md:flex-1";
+const PRESET_BOX = "rounded-[2em] border px-3 py-1 hover:no-underline!";
+const PRESET = `${PRESET_BOX} border-(color:--borderColor-default) bg-(--bgColor-default) text-(color:--fgColor-default)!`;
+const PRESET_ON = `${PRESET_BOX} border-(color:--bgColor-emphasis) bg-(--bgColor-emphasis) text-(color:--fgColor-onEmphasis)!`;
+const ROUTINE =
+  "mt-2 mb-0 rounded-[6px] border border-(color:--borderColor-muted) bg-[repeating-linear-gradient(135deg,var(--bgColor-muted),var(--bgColor-muted)_6px,var(--bgColor-neutral-muted)_6px,var(--bgColor-neutral-muted)_12px)] px-3 py-2";
 
 type Range = {
   readonly topic: LocalId;
@@ -118,10 +128,12 @@ export function TimelineView({
       data-notes={notes}
       data-unclassified-count={unclassified}
     >
-      <div className="tl-head">
-        <h1>Timeline</h1>
+      <div className="flex items-center gap-3">
+        <h1 className="m-0 text-[32px] font-[600] max-md:text-[20px]">
+          Timeline
+        </h1>
       </div>
-      <p className="tl-sub">
+      <p className={HINT}>
         {audience === "plain" ? (
           <>
             <span className="wide-only">
@@ -147,12 +159,16 @@ export function TimelineView({
           </>
         )}
       </p>
-      <Form className="ranges" action={`${repoPath(repo)}/timeline`}>
+      <Form
+        className="my-3 flex flex-wrap items-center gap-2"
+        action={`${repoPath(repo)}/timeline`}
+      >
         <input type="hidden" name="audience" value={audience} />
         <input type="hidden" name="topic" value={topic} />
-        <label htmlFor="range-from">
+        <label className={RANGE_LABEL} htmlFor="range-from">
           From{" "}
           <input
+            className={DATE_INPUT}
             id="range-from"
             type="date"
             name="from"
@@ -161,9 +177,10 @@ export function TimelineView({
             max={site.facts.end}
           />
         </label>
-        <label htmlFor="range-to">
+        <label className={RANGE_LABEL} htmlFor="range-to">
           to{" "}
           <input
+            className={DATE_INPUT}
             id="range-to"
             type="date"
             name="to"
@@ -180,7 +197,7 @@ export function TimelineView({
           return (
             <NextLink
               key={preset.id}
-              className={on ? "on" : ""}
+              className={on ? PRESET_ON : PRESET}
               aria-current={on ? "true" : undefined}
               href={timelineHref(
                 repo,
@@ -195,10 +212,13 @@ export function TimelineView({
           );
         })}
       </Form>
-      <p className="today-line">
+      <p className={HINT}>
         Today is {formatDay(site.facts.end)}, the latest thing nmem read.
       </p>
-      <nav className="topic-picks" aria-label="Narrow to a topic">
+      <nav
+        className="mt-0 mb-3 flex flex-wrap gap-2"
+        aria-label="Narrow to a topic"
+      >
         {site.snapshot.topics.map((row) => (
           <NextLink
             key={row.id}
@@ -210,17 +230,25 @@ export function TimelineView({
           </NextLink>
         ))}
       </nav>
-      <section className="tl-summary" aria-label="Summary">
-        <p className="lead" data-nmem>
+      <section
+        className="mt-0 mb-4 rounded-[10px] border border-(color:--borderColor-default) bg-(--bgColor-default) p-4"
+        aria-label="Summary"
+      >
+        <p className="mt-0 mb-2 text-[16px] font-[600]" data-nmem>
           {view.summary[audience]}
         </p>
         {view.named.length > 0 ? (
-          <ol className="named">
+          <ol className="m-0 list-none p-0">
             {view.named.map((item) => {
               const source = itemSource(site, item);
               const name = itemText(site, item, audience);
               return (
-                <li key={item.ref} data-ref={item.ref} data-kind={item.kind}>
+                <li
+                  className="py-1 text-[14px]"
+                  key={item.ref}
+                  data-ref={item.ref}
+                  data-kind={item.kind}
+                >
                   <span className={`k k-${item.kind}`}>
                     {ITEM_LABEL[item.kind]}
                   </span>{" "}
@@ -241,11 +269,8 @@ export function TimelineView({
         ) : null}
       </section>
       <Board ctx={ctx} range={range} query={query} view={view} link={link} />
-      <section
-        className={`routine hatch${query.routine ? " open" : ""}`}
-        aria-label="Routine changes"
-      >
-        <p data-nmem>
+      <section className={ROUTINE} aria-label="Routine changes">
+        <p className="m-0 px-4 pt-3" data-nmem>
           {
             TEMPLATES.routine(view.routine.count, view.routine.lines, whole)[
               audience
@@ -253,7 +278,7 @@ export function TimelineView({
           }
         </p>
         {view.routine.count > 0 ? (
-          <p>
+          <p className="m-0 px-4 pt-3">
             <NextLink
               href={link(query.showUp, query.showDown, !query.routine)}
               aria-expanded={query.routine}
@@ -263,7 +288,7 @@ export function TimelineView({
             </NextLink>
           </p>
         ) : null}
-        <div className="rows">
+        <div className={query.routine ? "mt-2 block" : "mt-2 hidden"}>
           {view.routine.rows.map((row) => (
             <RoutineRow
               key={row.change}
@@ -290,7 +315,7 @@ function RoutineRow({
   const { site, audience } = ctx;
   const live = site.facts.changes.find((row) => row.id === change)?.live;
   return (
-    <div className="row">
+    <div className="grid grid-cols-[140px_160px_1fr] gap-3 border-t border-(color:--borderColor-default) px-4 py-2 text-[14px] max-md:grid-cols-[minmax(0,1fr)] max-md:gap-1">
       <span className="dt">{live ? formatDay(live) : ""}</span>
       <span>
         {audience === "eng"

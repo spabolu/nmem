@@ -53,16 +53,23 @@ export function SearchView({
             {ids.length} {ids.length === 1 ? "topic" : "topics"}
           </p>
         )}
-        <ul className="results">
+        <ul className="list-none p-0">
           {ids.map((id) => {
             const topic = topicById(site, id);
             if (!topic) return null;
             return (
-              <li key={id} data-id={id}>
-                <NextLink href={topicHref(repo, id, audience)}>
+              <li
+                key={id}
+                className="border-t border-(color:--borderColor-default) py-3"
+                data-id={id}
+              >
+                <NextLink
+                  className="text-[16px] font-[600]"
+                  href={topicHref(repo, id, audience)}
+                >
                   {topic.name[audience]}
                 </NextLink>{" "}
-                <span className="st" data-nmem>
+                <span className="ml-2 text-(color:--fgColor-muted)" data-nmem>
                   {
                     TEMPLATES.status(statusOf(id, site.snapshot, site.facts))[
                       audience
