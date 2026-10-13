@@ -11,6 +11,7 @@ Priority: P1 blocks a usable v1 on real repos. P2 is visible to readers or skews
 | P1 | Engine has no link step: an agreement made in a thread and carried by a later change gets no carrier, and HEAD ADRs are not searched for reasons | S2b report | tally `ca7fe65` carries the PR #12 agreement; scored in the tally climb |
 | P1 | Engine has no doc-claims step (read-doc), so every doc reads "up to date" by silence | engine.md, S2b | claims scored on tally and wayfinder; `claim/changed` above 0 |
 | P1 | Model cost on real repos: about 2.3 calls per change on Opus. Pick Opus, Sonnet, or Haiku per step by score per cost on the fixtures | owner, G report | each step's tier recorded with fixture scores that hold |
+| P1 | Tally gold: d-round-revert `what` says "the floor split is back" and d-ties says "fewest payments", neither in its quoted source (found by the H1c census) | H1c | both `what` sentences say only what their quote says; facts refrozen; tally reviews re-signed |
 | P2 | Stance flips on near-identical sentences (pr#21 called a decision, f01e078 a finding, varying by prompt) | S2b | two classify draws agree, or the tally rows stop flipping across cold builds |
 | P2 | A recorded reason attached to the wrong finding (pr#12 fallthrough got the settle reason) and confirm-why agreed | S2b | confirm-why checks the subject; tally fabricated and wrong-subject count 0 |
 | P2 | Classify skips changes whose every file is proven routine, so a docs-only change that states a choice is missed | S2b | docs-only changes with a stated choice reach classify |
@@ -38,6 +39,7 @@ Priority: P1 blocks a usable v1 on real repos. P2 is visible to readers or skews
 
 | Item | Commit |
 | --- | --- |
+| Failure census command (`harness/cli.ts census`) | c384568 |
 | Duplicate `tally/cli.py` headline chips | 351c0e0 |
 | Subagents hung on a foreground web server | bbc65b0 |
 | Copilot calls had no time limit (engine, judge) | 3619ed6, 9001ce3 |
