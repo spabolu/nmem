@@ -9,6 +9,7 @@ import { rootId } from "@/lib/kernel/site";
 import type { Audience } from "@/lib/kernel/view";
 import type { RepoRequest } from "@/lib/request";
 import { RepoBar } from "./repo-bar";
+import { PAGE } from "./styles";
 
 type View = "topics" | "timeline" | "source" | "other";
 
@@ -51,7 +52,7 @@ export function RepoFrame({
           plain: withAudience(`${base}${path}`, search, "plain"),
         }}
       />
-      <main id="main" className={`page ${layout}`}>
+      <main id="main" className={PAGE[layout]}>
         {children}
       </main>
     </div>

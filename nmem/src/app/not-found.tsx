@@ -1,8 +1,9 @@
 import { Blank } from "@/components/blank";
+import { PAGE } from "@/components/styles";
 
 export default function NotFound() {
   return (
-    <main id="main" className="page wide" data-view="missing">
+    <main id="main" className={PAGE.wide} data-view="missing">
       <Blank
         h1
         heading="Nothing here"

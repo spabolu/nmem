@@ -1,5 +1,4 @@
 import NextLink from "next/link";
-import { CHIP } from "./chip";
 import { sourceHref, timelineHref, topicHref } from "@/lib/hrefs";
 import type { Decision, LocalId, Said, Source } from "@/lib/kernel/contract";
 import { parseProof } from "@/lib/kernel/contract";
@@ -19,6 +18,7 @@ import {
 import { ancestors, dotOf, person, topicById } from "@/lib/present";
 import { ButtonLink } from "./links";
 import { Avatar, Chip, type Ctx, Prose, SaidText } from "./said";
+import { CHIP } from "./styles";
 import { Tree } from "./tree";
 
 export async function TopicView({

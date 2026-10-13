@@ -1,4 +1,5 @@
 import { Blank } from "@/components/blank";
+import { PAGE } from "@/components/styles";
 
 /**
  * Where src/proxy.ts sends an address it refused, with the real status. Static, so nothing streams before the status
@@ -16,7 +17,7 @@ export default async function Refused({
   return (
     <main
       id="main"
-      className="page wide"
+      className={PAGE.wide}
       data-view={missing ? "missing" : "bad"}
     >
       <Blank

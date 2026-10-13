@@ -1,11 +1,11 @@
 import NextLink from "next/link";
-import { CHIP } from "./chip";
 import { type RepoRef, sourceHref } from "@/lib/hrefs";
 import type { Said, Source, Why } from "@/lib/kernel/contract";
 import type { Site } from "@/lib/kernel/site";
 import type { Audience } from "@/lib/kernel/view";
 import { TEMPLATES } from "@/lib/kernel/view";
 import { avatarOf, chipOf, person } from "@/lib/present";
+import { CHIP } from "./styles";
 
 /** Engineer text marks code with backticks. Plain text never shows code, so it prints as written. */
 export function Prose({

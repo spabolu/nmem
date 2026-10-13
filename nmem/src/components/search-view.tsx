@@ -6,6 +6,7 @@ import { search, statusOf, TEMPLATES } from "@/lib/kernel/view";
 import { topicById } from "@/lib/present";
 import { Blank } from "./blank";
 import { type Ctx, Prose } from "./said";
+import { TEXT_INPUT } from "./styles";
 import { Tree } from "./tree";
 
 export function SearchView({
@@ -23,13 +24,13 @@ export function SearchView({
       <section className="doc" data-results={ids.join(",")} data-q={q}>
         <h1>Search</h1>
         <Form
-          className="search"
+          className="mb-3 flex gap-2"
           action={`${repoPath(repo)}/search`}
           role="search"
         >
           <input type="hidden" name="audience" value={audience} />
           <input
-            className="text-input"
+            className={`${TEXT_INPUT} flex-1`}
             type="search"
             name="q"
             defaultValue={q}

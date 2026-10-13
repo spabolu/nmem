@@ -1,7 +1,6 @@
 import { Button } from "@primer/react";
 import Form from "next/form";
 import NextLink from "next/link";
-import { CHIP, CHIP_ON } from "./chip";
 import { repoPath, showParam, timelineHref, topicHref } from "@/lib/hrefs";
 import type { ChangeId, LocalId, Said } from "@/lib/kernel/contract";
 import type { RequestQuery } from "@/lib/kernel/site";
@@ -37,6 +36,7 @@ import {
   ticksOf,
 } from "@/lib/present";
 import { Chip, type Ctx, Prose, SaidText, WhyText } from "./said";
+import { CHIP, CHIP_ON } from "./styles";
 
 type Range = {
   readonly topic: LocalId;
