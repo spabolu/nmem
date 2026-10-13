@@ -199,7 +199,8 @@ function usableRate(scores: readonly ItemScore[]): number {
  * - each metric's oracle and null band, per audience where it applies;
  * - usable per group and audience: oracle >= 0.85; null <= 0.05, except absence groups where null >= 0.95;
  * - each MATRIX row on its touched items (declared kinds whose view changed): targets drop >= minDrop, exempt
- *   unjudged, others move <= maxCollateral, usable drops >= minDrop in each touched group;
+ *   unjudged, others move <= maxCollateral, usable drops >= minDrop in each touched group; a row whose corruption
+ *   rewrites no group gold has is not applicable;
  * - each invariant: every metric and usable moves <= maxInvariantMove on its declared items;
  * - paraphrase: every metric within CRITERIA.paraphrase.maxMove of the oracle, and no leak finding;
  * - leak: the oracle flagged on >= leakRecall of the objects the detector can see, the null on none;
@@ -255,6 +256,7 @@ export function judgeSeparation(evidence: Evidence): CalibrationResult {
     }
   }
 
+  const present = new Set(oracle.map((score) => groupOf(score.item)));
   for (const row of MATRIX) {
     const transform = CORRUPTIONS.find((item) => item.id === row.corruption);
     const reference = evidence.scores.get(row.corruption);
@@ -262,7 +264,9 @@ export function judgeSeparation(evidence: Evidence): CalibrationResult {
     const audiences: readonly string[] = transform.audiences;
     const touched = pairsOf(oracle, reference).filter((pair) => transform.touches(pair.oracle.item) && audiences.includes(pair.oracle.audience) && pair.oracle.view !== pair.reference.view);
     if (touched.length === 0) {
-      fail({ section: 'corruptions', what: `${row.corruption} touched`, value: '0 items', pass: false }, `${row.corruption} changed nothing calibration compares`);
+      const corrupts: readonly GroupKey[] = transform.corrupts;
+      const applicable = corrupts.some((group) => present.has(group));
+      fail({ section: 'corruptions', what: `${row.corruption} touched`, value: applicable ? '0 items' : `n/a, gold has no ${corrupts.join(' or ')} item`, pass: !applicable }, `${row.corruption} changed nothing calibration compares`);
       continue;
     }
     for (const target of row.targets) {

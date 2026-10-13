@@ -19,7 +19,7 @@
 import { formatProof, parseProof, parseRef } from './contract.ts';
 import type { ChangeId, Claim, Decision, Finding, Login, Proof, RecordSource, Said, Snapshot, Source, Topic } from './contract.ts';
 import { factKey } from './gold.ts';
-import type { FactKey, FactSet, Gold, GoldItem, ProseField } from './gold.ts';
+import type { FactKey, FactSet, Gold, GoldItem, GroupKey, ProseField } from './gold.ts';
 import type { RepoRecord } from './record.ts';
 import { deciderOf } from './view.ts';
 import type { RepoFacts } from './view.ts';
@@ -35,6 +35,18 @@ type Transform = {
   readonly audiences: readonly ['eng', 'plain'] | readonly ['plain'];
   readonly transform: (oracle: Snapshot, ctx: CorruptionContext) => Snapshot;
 };
+
+type Corruption = Transform & {
+  /**
+   * The gold rows whose objects this transform rewrites. Gold with none of them gives it nothing to corrupt, so
+   * calibration calls it not applicable there; gold with any of them must show it touching something.
+   */
+  readonly corrupts: readonly [GroupKey, ...GroupKey[]];
+};
+
+const GAPS = ['decision/gap', 'finding/gap'] as const;
+const REASONS = ['decision/reason', 'finding/reason'] as const;
+const PROSE = ['topic/page', ...REASONS, ...GAPS, 'claim/changed', 'undone/net'] as const;
 
 const both = ['eng', 'plain'] as const;
 
@@ -458,44 +470,44 @@ function jargonPlain(oracle: Snapshot, ctx: CorruptionContext): Snapshot {
 
 export const CORRUPTIONS = [
   /** Gap whys become recorded, with a fluent generic reason citing the change's PR body. */
-  { id: 'fabricate-reason', imitates: 'states a reason the record never gave', touches: (i) => i.expect === 'gap', audiences: both, transform: fabricateReason },
+  { id: 'fabricate-reason', imitates: 'states a reason the record never gave', touches: (i) => i.expect === 'gap', corrupts: GAPS, audiences: both, transform: fabricateReason },
   /** Keeps not-recorded and adds a guess written as fact, with no hedge. */
-  { id: 'confident-guess', imitates: 'labels an invented reason a guess but states it as fact', touches: (i) => i.expect === 'gap', audiences: both, transform: confidentGuess },
+  { id: 'confident-guess', imitates: 'labels an invented reason a guess but states it as fact', touches: (i) => i.expect === 'gap', corrupts: GAPS, audiences: both, transform: confidentGuess },
   /** Keeps not-recorded with no guess, and appends a motive to every card point and decision what. */
-  { id: 'reason-in-prose', imitates: 'says "nobody wrote down why", then gives a reason in the card text', touches: (i) => i.expect === 'gap', audiences: both, transform: reasonInProse },
+  { id: 'reason-in-prose', imitates: 'says "nobody wrote down why", then gives a reason in the card text', touches: (i) => i.expect === 'gap', corrupts: GAPS, audiences: both, transform: reasonInProse },
   /** Recorded whys become not-recorded, asking the decider. */
-  { id: 'false-gap', imitates: 'says nobody wrote down why when a thread or ADR says why', touches: (i) => i.expect === 'reason', audiences: both, transform: falseGap },
+  { id: 'false-gap', imitates: 'says nobody wrote down why when a thread or ADR says why', touches: (i) => i.expect === 'reason', corrupts: REASONS, audiences: both, transform: falseGap },
   /** Rotate recorded reasons (text and source together) within the repo. */
-  { id: 'swap-reasons', imitates: 'gives a real, cited reason that belongs to another decision', touches: (i) => i.expect === 'reason', audiences: both, transform: swapReasons },
+  { id: 'swap-reasons', imitates: 'gives a real, cited reason that belongs to another decision', touches: (i) => i.expect === 'reason', corrupts: REASONS, audiences: both, transform: swapReasons },
   /** Drops every claim that is not still-true. */
-  { id: 'miss-stale', imitates: 'trusts the docs', touches: (i) => (i.kind === 'claim' && i.expect === 'changed') || i.kind === 'topic' || i.kind === 'screen', audiences: both, transform: (oracle) => ({ ...oracle, claims: oracle.claims.filter((claim) => claim.verdict === 'still-true') }) },
+  { id: 'miss-stale', imitates: 'trusts the docs', touches: (i) => (i.kind === 'claim' && i.expect === 'changed') || i.kind === 'topic' || i.kind === 'screen', corrupts: ['claim/changed'], audiences: both, transform: (oracle) => ({ ...oracle, claims: oracle.claims.filter((claim) => claim.verdict === 'still-true') }) },
   /** Turns every still-true claim into no-longer-true, broken by the latest change touching its topic. */
-  { id: 'false-alarm', imitates: 'flags true doc sentences as out of date', touches: (i) => (i.kind === 'claim' && i.expect === 'holds') || i.kind === 'topic' || i.kind === 'screen', audiences: both, transform: falseAlarm },
+  { id: 'false-alarm', imitates: 'flags true doc sentences as out of date', touches: (i) => (i.kind === 'claim' && i.expect === 'holds') || i.kind === 'topic' || i.kind === 'screen', corrupts: ['claim/holds'], audiences: both, transform: falseAlarm },
   /** no-longer-true <-> depends keeps the status word, so only exact verdicts catch it. true-since -> no-longer-true keeps the cited change. */
-  { id: 'flip-verdict', imitates: 'gets the doc right in broad strokes and the verdict wrong', touches: (i) => (i.kind === 'claim' && i.expect === 'changed') || i.kind === 'topic' || i.kind === 'screen', audiences: both, transform: flipVerdict },
+  { id: 'flip-verdict', imitates: 'gets the doc right in broad strokes and the verdict wrong', touches: (i) => (i.kind === 'claim' && i.expect === 'changed') || i.kind === 'topic' || i.kind === 'screen', corrupts: ['claim/changed'], audiences: both, transform: flipVerdict },
   /** Notable changes with findings lose them and gain one routine part citing `files <after>`. Routine changes gain a check finding. */
-  { id: 'misroute', imitates: 'believes "no behavior change intended" and calls real changes routine', touches: (i) => i.kind === 'change' || i.kind === 'finding' || i.kind === 'screen', audiences: both, transform: misroute },
+  { id: 'misroute', imitates: 'believes "no behavior change intended" and calls real changes routine', touches: (i) => i.kind === 'change' || i.kind === 'finding' || i.kind === 'screen', corrupts: ['change/notable', 'change/routine'], audiences: both, transform: misroute },
   /** carriedBy moves to the next change, severity flips, ask names another person. */
-  { id: 'shift-facts', imitates: 'right shape, wrong day, wrong severity, wrong person to ask', touches: (i) => i.kind === 'decision' || i.kind === 'finding' || i.kind === 'change' || i.kind === 'screen', audiences: both, transform: shiftFacts },
+  { id: 'shift-facts', imitates: 'right shape, wrong day, wrong severity, wrong person to ask', touches: (i) => i.kind === 'decision' || i.kind === 'finding' || i.kind === 'change' || i.kind === 'screen', corrupts: [...REASONS, ...GAPS], audiences: both, transform: shiftFacts },
   /**
    * Folds every depth-2 topic into its parent, files and docs united, references rewritten. Claims are not declared,
    * because a claim's topic is not a headline fact and its sentence, verdict, and change stay right.
    */
-  { id: 'merge-topics', imitates: 'one vague topic per area instead of what the code does', touches: (i) => i.kind !== 'change' && i.kind !== 'claim', audiences: both, transform: mergeTopics },
-  { id: 'unnet', imitates: 'shows an add-then-undo as separate changes', touches: (i) => i.kind === 'undone' || i.kind === 'screen', audiences: both, transform: (oracle) => ({ ...oracle, undone: [] }) },
+  { id: 'merge-topics', imitates: 'one vague topic per area instead of what the code does', touches: (i) => i.kind !== 'change' && i.kind !== 'claim', corrupts: ['topic/page'], audiences: both, transform: mergeTopics },
+  { id: 'unnet', imitates: 'shows an add-then-undo as separate changes', touches: (i) => i.kind === 'undone' || i.kind === 'screen', corrupts: ['undone/net'], audiences: both, transform: (oracle) => ({ ...oracle, undone: [] }) },
   /** Every record source that is neither an anchor nor an intent points at another object of its kind, quoting its first line. */
-  { id: 'retarget-cites', imitates: 'cites real objects with real quotes that do not back the sentence', touches: (i) => i.kind !== 'screen', audiences: both, transform: (oracle, ctx) => mapEvidence(oracle, (said) => (said.source.kind === 'record' ? withSource(said, retarget(ctx, said.source)) : said)) },
+  { id: 'retarget-cites', imitates: 'cites real objects with real quotes that do not back the sentence', touches: (i) => i.kind !== 'screen', corrupts: PROSE, audiences: both, transform: (oracle, ctx) => mapEvidence(oracle, (said) => (said.source.kind === 'record' ? withSource(said, retarget(ctx, said.source)) : said)) },
   /** The same sentences point at pr#<max+100>, comment:1, <head>:tests/no-such-file; proofs at a missing rev or path; runs at a missing rev. */
-  { id: 'dead-cites', imitates: 'links to things that do not exist', touches: (i) => i.kind !== 'screen', audiences: both, transform: (oracle, ctx) => ({ ...mapEvidence(oracle, (said) => withSource(said, deadSource(ctx, said.source))), runs: oracle.runs.map((run) => ({ ...run, rev: MISSING_REV as never })) }) },
+  { id: 'dead-cites', imitates: 'links to things that do not exist', touches: (i) => i.kind !== 'screen', corrupts: PROSE, audiences: both, transform: (oracle, ctx) => ({ ...mapEvidence(oracle, (said) => withSource(said, deadSource(ctx, said.source))), runs: oracle.runs.map((run) => ({ ...run, rev: MISSING_REV as never })) }) },
   /** Routine proofs run against the next change's revs; examples cite the source line Start here names, not a test. */
-  { id: 'fake-proof', imitates: 'proves routine work with the wrong check; shows an example nothing tests', touches: (i) => i.kind === 'change' || i.kind === 'topic', audiences: both, transform: fakeProof },
+  { id: 'fake-proof', imitates: 'proves routine work with the wrong check; shows an example nothing tests', touches: (i) => i.kind === 'change' || i.kind === 'topic', corrupts: ['topic/page', 'change/routine'], audiences: both, transform: fakeProof },
   /** Rotate headlines, examples, finding says, claim whys, and undone says (text and source together) within kind. Never anchors. */
-  { id: 'swap-prose', imitates: 'fluent, cited text about a neighbouring part', touches: (i) => i.kind !== 'change' && i.kind !== 'screen', audiences: both, transform: swapProse },
+  { id: 'swap-prose', imitates: 'fluent, cited text about a neighbouring part', touches: (i) => i.kind !== 'change' && i.kind !== 'screen', corrupts: ['topic/page', 'finding/reason', 'finding/gap', 'claim/changed', 'undone/net'], audiences: both, transform: swapProse },
   /** Appends neutral, jargon-free filler to the first sentence of every object, past three times its words and the 45-word cap. */
-  { id: 'pad', imitates: 'buries the answer in filler', touches: (i) => i.kind !== 'change' && i.kind !== 'screen', audiences: both, transform: pad },
+  { id: 'pad', imitates: 'buries the answer in filler', touches: (i) => i.kind !== 'change' && i.kind !== 'screen', corrupts: PROSE, audiences: both, transform: pad },
   /** Appends " (<path or #n>)" from the sentence or its source to the first plain sentence of every object. */
-  { id: 'jargon-plain', imitates: 'tells a non-engineer about src/limit.ts and PR #16', touches: (i) => i.kind !== 'screen' && i.kind !== 'change', audiences: ['plain'], transform: jargonPlain },
-] as const satisfies readonly Transform[];
+  { id: 'jargon-plain', imitates: 'tells a non-engineer about src/limit.ts and PR #16', touches: (i) => i.kind !== 'screen' && i.kind !== 'change', corrupts: PROSE, audiences: ['plain'], transform: jargonPlain },
+] as const satisfies readonly Corruption[];
 
 export type CorruptionId = (typeof CORRUPTIONS)[number]['id'];
 

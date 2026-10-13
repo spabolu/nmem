@@ -5,14 +5,15 @@ import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { judgeSeparation } from './calibrate.ts';
-import type { ReferenceId } from './calibrate.ts';
+import type { Check, ReferenceId } from './calibrate.ts';
 import { encodeSnapshot, parseSnapshot } from './contract.ts';
 import type { Snapshot } from './contract.ts';
 import { paraphraseSnapshot, REFERENCES } from './corruptions.ts';
 import { paraphraseProblems } from './facts.ts';
 import { align, factSources, findLeaks, goldOnlyGrams, loadCanaries, loadGold } from './gold.ts';
-import type { FactKey, FactSet, LeakFinding, Slug } from './gold.ts';
+import type { FactKey, FactSet, GoldId, GoldItem, LeakFinding, Slug } from './gold.ts';
 import { recordingAsk } from './judge.ts';
+import { METRICS } from './metrics.ts';
 import type { ItemScore } from './metrics.ts';
 import { buildWorkspace, changeIds, factsOf, openFixture, spanOf } from './record.ts';
 import { build, referenceSnapshot } from './reference/system.ts';
@@ -78,6 +79,22 @@ test('with a judge that agrees with everything, only the checks a real judge mus
   assert.equal(passed('oracle recall'), '36 of 36 objects (1.00, at least 0.95)');
 });
 
+test('a corruption with nothing of its kind in gold is not applicable, and one with something of its kind must touch it', () => {
+  const score = (item: GoldItem): ItemScore => ({
+    item,
+    audience: 'eng',
+    scores: Object.fromEntries(METRICS.map((metric) => [metric.id, { kind: 'withheld', why: 'not scored here' }])) as ItemScore['scores'],
+    usable: { kind: 'yes' },
+    view: item.kind,
+  });
+  const unnetCheck = (oracle: readonly ItemScore[]): Check | undefined =>
+    judgeSeparation({ scores: new Map([['oracle', oracle], ['unnet', oracle]]), leaks: new Map(), leakable: 0, retest: {} }).checks.find((check) => check.what === 'unnet touched');
+  const screen = score({ kind: 'screen', expect: 'timeline', id: 'root' });
+  const undone = score({ kind: 'undone', expect: 'net', id: 'round' as GoldId });
+  assert.deepEqual(unnetCheck([screen]), { section: 'corruptions', what: 'unnet touched', value: 'n/a, gold has no undone/net item', pass: true });
+  assert.deepEqual(unnetCheck([screen, undone]), { section: 'corruptions', what: 'unnet touched', value: '0 items', pass: false });
+});
+
 test('a paraphrase that repeats gold, runs long, or uses jargon gets each problem named', () => {
   const source = { key: 'tally/settling/headline/plain' as FactKey, id: 'settling' as never, field: 'headline' as const, audience: 'plain' as const, sentences: ['Ties go by name.'] as [string], source: 'h' as never };
   assert.deepEqual(paraphraseProblems(source, ['Name order breaks ties.'], ['Ties go by name.']), []);
@@ -106,6 +123,32 @@ test('on wayfinder, with a judge that agrees with everything, only the checks a 
     'corruptions: swap-prose usable finding/gap',
     'corruptions: swap-prose usable topic/page',
   ]);
+});
+
+test('on seedling, which has no undone group, with a judge that agrees with everything, only the checks a real judge must pass fail', async () => {
+  const result = await agreeingCalibration('seedling' as Slug);
+  assert.deepEqual(result.failures.map((failure) => failure.what.replace(/ = .*$/, '')), [
+    'bands: prose null eng',
+    'bands: prose null plain',
+    'corruptions: confident-guess -> gap-honesty',
+    'corruptions: confident-guess usable decision/gap',
+    'corruptions: confident-guess usable finding/gap',
+    'corruptions: reason-in-prose -> gap-honesty',
+    'corruptions: reason-in-prose -> supported',
+    'corruptions: reason-in-prose usable finding/gap',
+    'corruptions: swap-reasons -> reason',
+    'corruptions: swap-reasons usable decision/reason',
+    'corruptions: retarget-cites -> supported',
+    'corruptions: retarget-cites usable claim/changed',
+    'corruptions: retarget-cites usable decision/reason',
+    'corruptions: retarget-cites usable finding/gap',
+    'corruptions: retarget-cites usable topic/page',
+    'corruptions: swap-prose -> prose',
+    'corruptions: swap-prose usable claim/changed',
+    'corruptions: swap-prose usable finding/gap',
+    'corruptions: swap-prose usable topic/page',
+  ]);
+  assert.equal(result.checks.find((check) => check.what === 'unnet touched')?.value, 'n/a, gold has no undone/net item');
 });
 
 test('a reference built in a scrubbed workspace asks the person who added the ADR it cites', async () => {
