@@ -1511,46 +1511,46 @@
     "flags": []
   },
   "tally/f-negative-dropped/card/eng": {
-    "source": "5b1923554a53dec7439c057c9fd80e7e",
+    "source": "b04120a1ca99a982f9da80b04872c373",
     "headline": [
       {
         "id": "f1",
-        "text": "Before PR #4, tally.py refused an amount below zero."
+        "text": "tally.py refused an amount below zero"
       },
       {
         "id": "f2",
-        "text": "At the PR #4 merge, adding a bill of -5 cents exits 0 and saves it."
+        "text": "Adding a bill of -5 cents exits 0 and saves it"
       }
     ],
     "supporting": [
       {
         "id": "f3",
-        "text": "The refusal message was \"cents must be zero or more\"."
+        "text": "The refusal message was \"cents must be zero or more\""
       }
     ],
     "paraphrase": [
-      "Prior to PR #4, tally.py blocked sums under zero and reported that cent values had to stay nonnegative.",
-      "When PR #4 merged, adding -5 cents as a bill exits 0 and keeps the record."
+      "tally.py rejected an amount under zero, citing that cents cannot be negative.",
+      "A -5 cent bill addition exits 0 and stores the bill."
     ],
     "review": "auto",
     "flags": []
   },
   "tally/f-negative-dropped/card/plain": {
-    "source": "7b14bd043437deb876137592693feccc",
+    "source": "88b3f1d83923c56e8a5ce90ee010567a",
     "headline": [
       {
         "id": "f1",
-        "text": "Before this change, the app refused an amount below zero."
+        "text": "The app refused an amount below zero."
       },
       {
         "id": "f2",
-        "text": "After this change, a bill of minus 5 cents is accepted and saved."
+        "text": "A bill of minus 5 cents is accepted and saved."
       }
     ],
     "supporting": [],
     "paraphrase": [
-      "Until this update, the application rejected any total under zero.",
-      "Following this update, a charge of minus 5 cents is taken in and stored."
+      "The application declined a figure under zero.",
+      "An invoice totaling minus 5 cents is approved and stored."
     ],
     "review": "auto",
     "flags": []

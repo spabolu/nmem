@@ -1196,13 +1196,13 @@ const views = {
           name: { eng: 'Negative amounts are no longer refused', plain: 'A negative amount is no longer refused' },
           says: [
             {
-              eng: 'Before PR #4, tally.py refused an amount below zero with "cents must be zero or more".',
-              plain: 'Before this change, the app refused an amount below zero.',
+              eng: 'tally.py refused an amount below zero with "cents must be zero or more".',
+              plain: 'The app refused an amount below zero.',
               ev: { kind: 'file', path: 'tally.py', at: 'c-usage', quote: 'print("cents must be zero or more", file=sys.stderr)' },
             },
             {
-              eng: 'At the PR #4 merge, adding a bill of -5 cents exits 0 and saves it.',
-              plain: 'After this change, a bill of minus 5 cents is accepted and saved.',
+              eng: 'Adding a bill of -5 cents exits 0 and saves it.',
+              plain: 'A bill of minus 5 cents is accepted and saved.',
               ev: { verb: 'run', id: 'negative-at-pr4', shows: 'add --cents -5: exit 0\nsaved: expense 2023-03-27 lena -5' },
             },
           ],
