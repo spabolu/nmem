@@ -1184,7 +1184,10 @@ const views = {
         },
       ],
     },
-    'pr#3': { topics: [] },
+    'pr#3': {
+      topics: ['adding'],
+      livesIn: { adding: { verb: 'grep', at: 'head', pattern: 'add.add_argument("--cents", type=int', paths: ['tally/cli.py'], shows: 'tally/cli.py' } },
+    },
     'pr#4': {
       topics: ['storage', 'adding'],
       findings: [
@@ -1655,7 +1658,7 @@ const views = {
         plain: 'An amount with a decimal point gets a short sentence instead of a long error.',
         ev: pr(3, 'A decimal used to throw a traceback. It now prints that cents must be a whole number and exits.'),
       },
-      topics: ['root'],
+      topics: ['adding'],
       carriedBy: 'pr#3',
       why: {
         reason: {
