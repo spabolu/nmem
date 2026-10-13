@@ -1118,7 +1118,7 @@ const views = {
         },
       ],
       example: {
-        eng: '--ledger picks the file, while the old name --data exits 2 and writes nothing.',
+        eng: '--ledger picks the file, while the old name --data exits 2 and writes no file.',
         plain: 'The setting that picks the file has a new name, and the old name fails and saves nothing.',
         ev: { verb: 'run', id: 'old-file-flag', shows: 'file written: no\nnew name --ledger: exit 0' },
       },
@@ -1183,32 +1183,7 @@ const views = {
         },
       ],
     },
-    'pr#3': {
-      topics: [],
-      findings: [
-        {
-          id: 'f-decimal-sentence',
-          severity: 'behavior',
-          topics: [],
-          anchors: [pr(3, 'A decimal used to throw a traceback. It now prints that cents must be a whole number and exits.')],
-          name: { eng: 'A decimal amount prints a sentence, not a traceback', plain: 'Typing 10.50 shows a plain sentence instead of an error' },
-          says: [
-            {
-              eng: 'tally.py catches the ValueError from int() and prints that cents must be a whole number.',
-              plain: 'Typing an amount with a decimal point now says what went wrong.',
-              ev: { kind: 'file', path: 'tally.py', at: 'c-usage', quote: 'print("cents must be a whole number", file=sys.stderr)' },
-            },
-          ],
-          why: {
-            reason: {
-              eng: 'Maya Ruiz typed 10.50, got a long red error, and asked for it to say what she did wrong.',
-              plain: 'Maya Ruiz typed 10.50, got a long red error, and asked the app to say what she did wrong.',
-              ev: { kind: 'issue', number: 2, quote: 'It printed a long red error and stopped. Can it say what I did wrong?' },
-            },
-          },
-        },
-      ],
-    },
+    'pr#3': { topics: [] },
     'pr#4': {
       topics: ['storage', 'adding'],
       findings: [
@@ -1248,41 +1223,7 @@ const views = {
     'pr#9': { topics: ['storage'] },
     'pr#12': { topics: ['settling', 'money'] },
     'c-remainder': { topics: ['leftover'] },
-    'c-dollars': {
-      topics: ['money'],
-      findings: [
-        {
-          id: 'f-dollars',
-          severity: 'behavior',
-          topics: ['money'],
-          anchors: [
-            { kind: 'file', path: 'tally/cli.py', at: 'c-dollars', quote: 'return "%s$%d.%02d" % (sign, cents // 100, cents % 100)' },
-            commit('c-dollars', 'print dollars, not raw cents'),
-          ],
-          name: { eng: 'Amounts print as dollars, not raw cents', plain: 'Amounts show as dollars and cents' },
-          says: [
-            {
-              eng: 'show() formats every printed amount as dollars and cents.',
-              plain: 'Every amount the app prints is now in dollars and cents.',
-              ev: headFile('tally/cli.py', 'return "%s$%d.%02d" % (sign, cents // 100, cents % 100)'),
-            },
-            {
-              eng: 'git shows the author as Lena P, and Lena Voss said on PR #3 that this is still her, pushing from her laptop.',
-              plain: "It was pushed from Lena Voss's laptop, which shows a different name.",
-              ev: comment('pr3-lena', 'git will say Lena P and lena@laptop.local. That is still me.'),
-            },
-          ],
-          why: {
-            reason: {
-              eng: 'ADR-0003 already said dollars are printed only when a person is reading the output.',
-              plain: 'A written decision says amounts are shown in dollars only when a person reads them.',
-              ev: headFile(adr.cents, 'Dollars are printed only when a person is reading the output.'),
-            },
-          },
-          covers: ['noise-who-wrote'],
-        },
-      ],
-    },
+    'c-dollars': { topics: ['money'] },
     'pr#17': {
       topics: [],
       routine: [
@@ -1325,26 +1266,7 @@ const views = {
         },
       ],
     },
-    'pr#21': {
-      topics: ['leftover'],
-      findings: [
-        {
-          id: 'f-round-default',
-          severity: 'behavior',
-          topics: ['leftover'],
-          anchors: [pr(21, 'Changes the default of --round from payer to first.')],
-          name: { eng: 'Extra cents go to the earliest names', plain: 'Leftover cents now go to the first people listed' },
-          says: [
-            {
-              eng: 'Commands without --round stop flooring the split.',
-              plain: 'Bills split without the setting now hand out the spare cents differently.',
-              ev: pr(21, 'A command that omits the flag now hands extra cents to the earliest names instead of flooring.'),
-            },
-          ],
-          why: askOwen,
-        },
-      ],
-    },
+    'pr#21': { topics: ['leftover'] },
     'pr#22': { topics: ['leftover'] },
     'pr#23': {
       topics: ['storage'],
@@ -1419,7 +1341,7 @@ const views = {
       id: 'd-note',
       what: {
         eng: 'The default note is now unmarked.',
-        plain: 'A bill with no note is now marked unmarked.',
+        plain: 'The note used when none is typed is now "unmarked".',
         ev: commit('c-note-default', 'cli: default note is unmarked'),
       },
       topics: ['adding'],
@@ -1453,6 +1375,36 @@ const views = {
           eng: 'The flag was not stored per bill, so the new default changed older bills.',
           plain: 'The setting was not saved with each bill, so the new default changed older bills too.',
           ev: pr(22, 'The flag is not stored on the row, so the new default changed older bills too.'),
+        },
+      },
+    },
+    {
+      id: 'd-round-first',
+      what: {
+        eng: 'The default of --round changed from payer to first.',
+        plain: 'By default, leftover cents now go to the first people listed.',
+        ev: pr(21, 'Changes the default of --round from payer to first.'),
+      },
+      topics: ['leftover'],
+      carriedBy: 'pr#21',
+      replacedBy: 'd-round-revert',
+      why: askOwen,
+    },
+    {
+      id: 'd-round-flag',
+      what: {
+        eng: '--round lets a bill split leftover cents two ways, and its default, payer, keeps the floor split.',
+        plain: 'A new setting offers two ways to split a bill, and by default bills split the same way as before.',
+        ev: pr(20, 'Adds --round so a bill can split two ways.'),
+      },
+      topics: ['leftover'],
+      carriedBy: 'pr#20',
+      replacedBy: 'd-round-revert',
+      why: {
+        reason: {
+          eng: 'With payer as the default, a command with no flag still matches the notebook.',
+          plain: 'With that default, a bill entered without the setting still matches the notebook.',
+          ev: pr(20, 'Default is payer, so a command with no flag still matches the notebook.'),
         },
       },
     },
@@ -1508,6 +1460,23 @@ const views = {
       covers: ['declined-texts', 'noise-text-edit'],
     },
     {
+      id: 'd-dollars',
+      what: {
+        eng: 'Dollars are printed only when a person is reading the output (ADR-0003).',
+        plain: 'Amounts show as dollars only where a person reads them.',
+        ev: headFile(adr.cents, 'Dollars are printed only when a person is reading the output.'),
+      },
+      topics: ['money'],
+      carriedBy: 'c-dollars',
+      why: {
+        reason: {
+          eng: 'A float cannot represent 10 cents exactly, and a grocery bill would drift.',
+          plain: 'A number with a decimal point cannot hold 10 cents exactly, so a grocery bill would drift.',
+          ev: headFile(adr.cents, 'A float cannot represent 10 cents exactly,\nand a grocery bill would drift.'),
+        },
+      },
+    },
+    {
       id: 'd-floor',
       what: {
         eng: 'The payer covers the leftover cent.',
@@ -1537,9 +1506,9 @@ const views = {
       carriedBy: 'pr#12',
       why: {
         reason: {
-          eng: 'So the same file always prints the same lines.',
-          plain: 'So the same bills always print the same payments.',
-          ev: pr(12, 'so the same file always prints the same lines.'),
+          eng: 'balances printed three numbers, and Maya still asked Owen who pays whom.',
+          plain: 'The app showed three numbers, and Maya still asked Owen who pays whom.',
+          ev: pr(12, 'balances prints three numbers and Maya still asks Owen who pays whom.'),
         },
       },
       covers: ['who-settle', 'how-settle', 'growth-arc'],
@@ -1566,7 +1535,7 @@ const views = {
       id: 'd-sqlite',
       what: {
         eng: 'The ledger moved into a SQLite file, ledger.db (ADR-0002).',
-        plain: 'The list of bills moved into a database file.',
+        plain: 'The app started keeping bills in a database file.',
         ev: pr(9, 'This replaces tally/store.py with sqlite3 and ledger.db.'),
       },
       alsoIntent: [headFile(adr.sqlite, 'tally/store.py keeps the ledger in a SQLite database file named')],
@@ -1631,7 +1600,7 @@ const views = {
       replacedBy: 'd-sqlite',
       why: {
         reason: {
-          eng: 'The one-shot script was fine for a single detergent bottle and useless for a month of groceries.',
+          eng: 'The one-shot script was useless for a month of groceries.',
           plain: 'One bill at a time was useless for a month of groceries.',
           ev: pr(4, 'The one-shot script is fine for a single detergent bottle. It is useless for a month of groceries.'),
         },
@@ -1655,6 +1624,41 @@ const views = {
         },
       },
       covers: ['adrs-current'],
+    },
+    {
+      id: 'd-decimal',
+      what: {
+        eng: 'A decimal amount prints a sentence and exits, instead of a traceback.',
+        plain: 'An amount with a decimal point gets a short sentence instead of a long error.',
+        ev: pr(3, 'A decimal used to throw a traceback. It now prints that cents must be a whole number and exits.'),
+      },
+      topics: ['root'],
+      carriedBy: 'pr#3',
+      why: {
+        reason: {
+          eng: 'Maya Ruiz typed 10.50, got a long red error, and asked for it to say what she did wrong.',
+          plain: 'Maya Ruiz typed 10.50, got a long red error, and asked the app to say what she did wrong.',
+          ev: { kind: 'issue', number: 2, quote: 'It printed a long red error and stopped. Can it say what I did wrong?' },
+        },
+      },
+    },
+    {
+      id: 'd-one-bill',
+      what: {
+        eng: 'tally.py prints who owes the payer for one bill, then exits, with no file yet.',
+        plain: 'The app worked out one bill at a time, said who owes the payer, and saved nothing yet.',
+        ev: pr(1, 'No file yet. One bill, then it exits.'),
+      },
+      topics: ['root'],
+      carriedBy: 'pr#1',
+      replacedBy: 'd-textfile',
+      why: {
+        reason: {
+          eng: 'They had been splitting bills in a notes app, and someone was always short.',
+          plain: 'They had been splitting bills in a notes app, and someone always came up short.',
+          ev: pr(1, 'We have been doing this in a notes app and someone is always short.'),
+        },
+      },
     },
   ],
   claims: [
@@ -1764,8 +1768,8 @@ print("new name --ledger: exit %d, file written: %s" % attempt("--ledger", "new.
       topic: 'root',
       from: '2023-10-22',
       to: '2023-11-01',
-      counts: { decision: 1, net: 1 },
-      named: ['d-round-revert', 'undone:pr#20'],
+      counts: { decision: 3, net: 1 },
+      named: ['d-round-revert', 'd-round-first', 'd-round-flag'],
       routine: quiet,
     },
     {
@@ -1773,8 +1777,8 @@ print("new name --ledger: exit %d, file written: %s" % attempt("--ledger", "new.
       topic: 'root',
       from: '2023-10-25',
       to: '2023-10-30',
-      counts: { behavior: 1 },
-      named: ['f-round-default'],
+      counts: { decision: 1 },
+      named: ['d-round-first'],
       notes: { 'pr#21': 'part-of-later-undo' },
       routine: quiet,
     },
@@ -1797,7 +1801,7 @@ print("new name --ledger: exit %d, file written: %s" % attempt("--ledger", "new.
       topic: 'root',
       from: '2023-02-11',
       to: '2023-11-21',
-      counts: { decision: 14, behavior: 5, check: 1, net: 1 },
+      counts: { decision: 19, behavior: 3, check: 1, net: 1 },
       named: ['d-note', 'f-old-flag', 'f-negative-dropped'],
       routine: { count: 5, lines: 91 },
     },
@@ -1816,6 +1820,7 @@ print("new name --ledger: exit %d, file written: %s" % attempt("--ledger", "new.
     { key: 'spaces-from-maya', why: 'd-sqlite cites the reason PR #9 gives. Who first reported the problem, in issue #8, is not a view field.' },
     { key: 'ci-caught-import', why: 'Test runs inside a pull request are not view objects. PR #12 shows only as the two decisions it carries.' },
     { key: 'noise-kit-time', why: 'v1 shows days, not clock times or time zones.' },
+    { key: 'noise-who-wrote', why: 'v1 shows deciders and who to ask, not commit authors. Both Lena P commits carry decisions whose decider derives as Lena Voss (PR #3 is hers, and ADR-0003 is the intent behind c-dollars), so no page shows the second name.' },
     { key: 'noise-web-claim', why: "Kit's claim and Maya's correction sit in a closed pull request's thread. d-web shows only Kit's closing reason." },
   ],
 };

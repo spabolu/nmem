@@ -86,10 +86,9 @@ test('null is usable on at most 0.05 of every row except claim/holds', async () 
     ['change/routine', { yes: 0, n: 10 }],
     ['claim/changed', { yes: 0, n: 2 }],
     ['claim/holds', { yes: 8, n: 8 }],
-    ['decision/gap', { yes: 0, n: 4 }],
-    ['decision/reason', { yes: 0, n: 24 }],
-    ['finding/gap', { yes: 0, n: 12 }],
-    ['finding/reason', { yes: 0, n: 4 }],
+    ['decision/gap', { yes: 0, n: 6 }],
+    ['decision/reason', { yes: 0, n: 32 }],
+    ['finding/gap', { yes: 0, n: 10 }],
     ['screen/page', { yes: 0, n: 14 }],
     ['screen/timeline', { yes: 0, n: 42 }],
     ['topic/page', { yes: 0, n: 14 }],
@@ -150,12 +149,12 @@ test('render of tally root whole life matches the gold hand-computed screen', ()
   const text = renderTimeline(goldFile.oracle, facts, { topic: 'root', from: facts.born, to: facts.end }, 'eng', nameOf);
   assert.equal(text, [
     'Timeline root 2023-02-11..2023-11-21',
-    'Since Feb 11: 14 decisions, 5 behavior changes, 1 thing to check and 1 that came and went with no net change.',
-    'counts: decision 14, behavior 5, check 1, net 1',
+    'Since Feb 11: 19 decisions, 3 behavior changes, 1 thing to check and 1 that came and went with no net change.',
+    'counts: decision 19, behavior 3, check 1, net 1',
     'named: d-note, f-old-flag, f-negative-dropped',
     'routine: 5 changes, 91 lines',
-    'up: 14 cards, +0 more',
-    'down: 7 cards, +0 more',
+    'up: 19 cards, +0 more',
+    'down: 5 cards, +0 more',
   ].join('\n'));
 });
 
@@ -247,7 +246,7 @@ test('running the tally oracle twice leaves the run directory unchanged', async 
   const id = await run(config, null);
   const snapshot = JSON.parse(fs.readFileSync(path.join(runsDir, id, 'oracle', 't1', 'tally', 'snapshot.json'), 'utf8')) as Snapshot;
   assert.equal(snapshot.head, 'f01e078fb8078de4ae5cd32111cc88f9730c3074');
-  assert.equal(snapshot.decisions.length, 14);
+  assert.equal(snapshot.decisions.length, 19);
   assert.equal(snapshot.topics.find((topic) => topic.parent === null)?.id, 'root');
   const before = treeBytes(path.join(runsDir, id));
   const again = await run(config, null);

@@ -437,7 +437,7 @@ const viewCases = [
   {
     name: 'hand-computed timeline that disagrees with the kernel',
     slug: 'tally',
-    expect: 'the kernel computes {"counts":{"behavior":1}',
+    expect: 'the kernel computes {"counts":{"decision":1}',
     mutate(views) {
       views.screens[3].counts = { behavior: 1, check: 1 };
     },
