@@ -1515,7 +1515,7 @@ const views = {
       headline: [
         {
           eng: 'A swap link is signed for one volunteer and one date, and stops working after that date.',
-          plain: 'Each swap link works for one person and one day, and stops working after that day.',
+          plain: "Each swap link is for one person's shift on one day, and stops working after that day.",
           ev: headFile('internal/swap/swap.go', 'if err != nil || date.Before(now.Truncate(24*time.Hour)) {'),
         },
         {
@@ -1608,7 +1608,7 @@ const views = {
             { kind: 'file', path: 'cmd/seedling/swap.go', at: 'c-swap-taker', quote: 'if !onRoster(roster, taker) {' },
             commit('c-swap-adjacent', 'but the swap page would hand a shift to someone who already waters the day'),
           ],
-          name: { eng: 'A swap can give someone two days in a row', plain: 'Handing off a shift can give someone two days in a row' },
+          name: { eng: 'A swap could give someone two days in a row', plain: 'Handing off a shift could give someone two days in a row' },
           says: [
             {
               eng: 'Minh Tran wrote that the swap page would hand a shift to someone who already waters the day before or after.',
