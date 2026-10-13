@@ -99,7 +99,7 @@ function lockTree(dir: string): void {
 function fixtureHashOf(fixtureDir: string, githubBytes: Buffer): Hash {
   const repoDir = path.join(fixtureDir, 'repo');
   const refs = git(repoDir, ['for-each-ref', '--format=%(refname) %(objectname)']).stdout;
-  return hashOf(githubBytes.toString('base64'), git(repoDir, ['rev-parse', 'main']).stdout.trim(), refs);
+  return hashOf(githubBytes.toString('base64'), git(repoDir, ['rev-parse', 'HEAD']).stdout.trim(), refs);
 }
 
 /**
@@ -117,9 +117,10 @@ export async function buildWorkspace(fixtureDir: string, parent: string): Promis
   const repoDir = path.join(root, 'repo');
   const cloned = spawnSync('git', ['clone', '--no-local', '--no-hardlinks', '--quiet', path.join(fixtureDir, 'repo'), repoDir], { encoding: 'utf8' });
   if (cloned.status !== 0) throw new Error(`git clone failed: ${cloned.stderr}`);
+  const branch = git(repoDir, ['symbolic-ref', '--short', 'HEAD']).stdout.trim();
   git(repoDir, ['checkout', '--quiet', '--detach']);
   git(repoDir, ['fetch', '--quiet', 'origin', '+refs/pull/*:refs/pull/*', '+refs/heads/*:refs/heads/*', '+refs/tags/*:refs/tags/*']);
-  git(repoDir, ['checkout', '--quiet', 'main']);
+  git(repoDir, ['checkout', '--quiet', branch]);
   fs.rmSync(path.join(repoDir, '.git', 'logs'), { recursive: true, force: true });
   for (const name of ['ORIG_HEAD', 'FETCH_HEAD', 'COMMIT_EDITMSG']) fs.rmSync(path.join(repoDir, '.git', name), { force: true });
   fs.rmSync(path.join(repoDir, '.git', 'refs', 'remotes'), { recursive: true, force: true });
@@ -130,7 +131,7 @@ export async function buildWorkspace(fixtureDir: string, parent: string): Promis
   return {
     dir: root,
     identity,
-    mainSha: git(repoDir, ['rev-parse', 'main']).stdout.trim() as Sha,
+    mainSha: git(repoDir, ['rev-parse', 'HEAD']).stdout.trim() as Sha,
     fixtureHash: fixtureHashOf(fixtureDir, githubBytes),
   };
 }
@@ -396,7 +397,7 @@ export function openRecord(ws: Workspace): RepoRecord {
       return { day: (day ?? '') as IsoDay, author: loginFor(sha, name ?? ''), url: `${base}/commit/${sha}` };
     }
     if (ref.kind === 'file') {
-      const added = git(repoDir, ['log', '--reverse', '--diff-filter=A', '--format=%H%x09%an%x09%cs', 'main', '--', ref.path]).stdout.split('\n').find(Boolean);
+      const added = git(repoDir, ['log', '--reverse', '--diff-filter=A', '--format=%H%x09%an%x09%cs', ws.mainSha, '--', ref.path]).stdout.split('\n').find(Boolean);
       if (!added) return null;
       const [sha, name, day] = added.split('\t');
       const cited = revision(ref.rev);
@@ -470,7 +471,7 @@ export function openFixture(fixtureDir: string): RepoRecord {
   const ws: Workspace = {
     dir: fixtureDir,
     identity: { owner: github.repo.owner, name: github.repo.name },
-    mainSha: git(repoDir, ['rev-parse', 'main']).stdout.trim() as Sha,
+    mainSha: git(repoDir, ['rev-parse', 'HEAD']).stdout.trim() as Sha,
     fixtureHash: fixtureHashOf(fixtureDir, githubBytes),
   };
   const key = `${path.resolve(fixtureDir)}:${ws.fixtureHash}`;

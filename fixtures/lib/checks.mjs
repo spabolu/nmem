@@ -356,9 +356,9 @@ const PROOFS = {
     },
     format: (p) => `introduced ${word(p.path)} ${word(p.needle)}`,
     run(repoDir, p) {
-      const now = showFile(repoDir, 'main', p.path);
+      const now = showFile(repoDir, 'HEAD', p.path);
       if (now === null) return failed('bad-path', `${p.path} is not on main`);
-      const log = git(repoDir, ['log', '--reverse', '--format=%H%x09%as%x09%an', `-S${p.needle}`, 'main', '--', p.path]).stdout;
+      const log = git(repoDir, ['log', '--reverse', '--format=%H%x09%as%x09%an', `-S${p.needle}`, 'HEAD', '--', p.path]).stdout;
       const first = log.split('\n').find(Boolean);
       if (!first) return ok(p, '(never added)');
       const [sha, day, author] = first.split('\t');

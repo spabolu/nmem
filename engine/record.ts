@@ -458,7 +458,7 @@ export function ingest(workspace: string): RepoRecord {
   }
   for (const file of atHead.filter((name) => /\.(md|markdown)$/i.test(name))) {
     const body = (showFile(repoDir, facts.head, file) as string | null) ?? '';
-    const added = lines(git(repoDir, ['log', '--reverse', '--diff-filter=A', '--format=%H%x09%an', 'main', '--', file]).stdout)[0] ?? '';
+    const added = lines(git(repoDir, ['log', '--reverse', '--diff-filter=A', '--format=%H%x09%an', facts.head, '--', file]).stdout)[0] ?? '';
     const [sha = '', name = ''] = added.split('\t');
     const status = adrStatus(body);
     const ref = `${head7}:${file}`;

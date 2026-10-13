@@ -3,7 +3,7 @@
  * enumerated here and only here: the generator uses this for gold and harness/record.ts factsOf uses it for systems,
  * so a gold change id and a harness change id cannot drift apart.
  *
- * First-parent walk of main. A commit that github.json names as a pull request's mergeCommitSha is "pr#<n>". Any
+ * First-parent walk of the default branch, which is the clone's HEAD (main in every fixture). A commit that github.json names as a pull request's mergeCommitSha is "pr#<n>". Any
  * other first-parent commit is its 7-hex SHA. live is that commit's committer day. touched is the numstat of
  * before..after, where before is its first parent. end is the latest day over every commit and every github.json
  * timestamp, so a snapshot cannot move the axis.
@@ -47,15 +47,15 @@ function assertPartition(repoDir, changes) {
       owner.set(sha, change.id);
     }
   }
-  for (const sha of lines(git(repoDir, ['rev-list', '--no-merges', 'main']).stdout)) {
-    if (!owner.has(sha)) throw new Error(`commit ${sha.slice(0, 7)} on main lies in no change`);
+  for (const sha of lines(git(repoDir, ['rev-list', '--no-merges', 'HEAD']).stdout)) {
+    if (!owner.has(sha)) throw new Error(`commit ${sha.slice(0, 7)} on the default branch lies in no change`);
   }
 }
 
 export function factsOf(repoDir, github) {
   const pullByMerge = new Map(github.pulls.filter((p) => p.mergeCommitSha).map((p) => [p.mergeCommitSha, p]));
   const loginByName = new Map(github.users.map((u) => [u.name, u.login]));
-  const head = git(repoDir, ['rev-parse', 'main']).stdout.trim();
+  const head = git(repoDir, ['rev-parse', 'HEAD']).stdout.trim();
   const changes = lines(git(repoDir, ['rev-list', '--first-parent', '--reverse', head]).stdout).map((sha) => {
     const parent = git(repoDir, ['rev-parse', '--verify', '--quiet', `${sha}^1`], { allowStatus: [0, 1] }).stdout.trim();
     const before = parent || EMPTY_TREE;
