@@ -520,131 +520,9 @@ Facts:
 
 Paraphrase: Bills and paybacks are stored in ledger.json, an ordinary text file that sits beside the app. The --ledger option selects which file gets used.
 
-## wayfinder: 29 sets, 9 flagged and 20 drawn at random
+## wayfinder: 20 sets, 0 flagged and 20 drawn at random
 
-### 49. callers, example, Non-engineer (flagged)
-
-Original: The app's own check expects a request with no key to be called anonymous.
-
-Facts:
-- **headline** The app's own check expects a request with no key to be called anonymous.
-
-Paraphrase: The application's built-in review wants a submission lacking a secret to be labeled anonymous.
-
-Why it is flagged:
-- the cross-check says the paraphrase changes the meaning
-
-### 50. claim-exceed-readme, claim-why, Non-engineer (flagged)
-
-Original: Tried against two copies of the service allowing 2 each, one caller got 8 requests through.
-
-Facts:
-- **headline** One caller got 8 requests through.
-- The try was against two copies of the service allowing 2 each.
-
-Paraphrase: Tested on two copies of the public product, each permitting 2, one person got 8 messages through.
-
-Why it is flagged:
-- the cross-check says the paraphrase changes the meaning
-
-### 51. d-bucket, reason, Engineer (flagged)
-
-Original: A client could send the full limit on both sides of a window boundary, and the polling partner did that every minute.
-
-Facts:
-- **headline** A client could send the full limit on both sides of a window boundary.
-- The polling partner did that every minute.
-
-Paraphrase: Every minute, the polling partner transmitted the full limit at each side of a window boundary, which a client could also do.
-
-Why it is flagged:
-- the cross-check says the paraphrase changes the meaning
-
-### 52. d-bucket, reason, Non-engineer (flagged)
-
-Original: A customer could use its full allowance on both sides of each block of time, and one partner did that every minute.
-
-Facts:
-- **headline** A customer could use its full allowance on both sides of each block of time.
-- One partner used a full allowance on both sides of each block of time every minute.
-
-Paraphrase: A buyer was able to spend the entire share at each edge of every time span, and a single partner repeated it every minute.
-
-Why it is flagged:
-- the cross-check says fact 2 ("One partner used a full allowance on both sides of each block of time every minute.") is not what the sentence says
-- the cross-check says the sentence also states: One partner did that every minute.
-
-### 53. d-cluster, what, Engineer (flagged)
-
-Original: Jon Okonkwo closed PR #6, the Redis Cluster adapter.
-
-Facts:
-- **headline** Jon Okonkwo closed PR #6.
-- PR #6 is the Redis Cluster adapter.
-
-Paraphrase: Jon Okonkwo shut the Redis Cluster adapter, PR #6.
-
-Why it is flagged:
-- the cross-check says the paraphrase changes the meaning
-
-### 54. d-no-switch, what, Non-engineer (flagged)
-
-Original: Remove the shared database code completely, with no switch to bring it back.
-
-Facts:
-- **headline** The shared database code will be removed completely.
-- There is no switch to bring the shared database code back.
-
-Paraphrase: Drop the shared information storage entirely, with no control left to restore it.
-
-Why it is flagged:
-- the cross-check says fact 1 ("The shared database code will be removed completely.") is not what the sentence says
-- the cross-check says the sentence also states: Remove the shared database code completely.
-
-### 55. f-clock-split, card, Non-engineer (flagged)
-
-Original: The app's own check expects a step of 10 thousandths of a second on Node 18. The guide says the step is 1 thousandth of a second and names no exception.
-
-Facts:
-- **headline** The app's own check expects a step of 10 thousandths of a second on Node 18.
-- **headline** The guide says the step is 1 thousandth of a second.
-- The guide names no exception.
-
-Paraphrase: The program's own test expects a unit of 10 thousandths per second on version 18. The guide says each unit lasts 1 thousandth of a second but names no exception.
-
-Why it is flagged:
-- the cross-check says the paraphrase changes the meaning
-
-### 56. metrics, headline, Non-engineer (flagged)
-
-Original: From the code: the service counts allowed and blocked requests in its own memory. Each decision is counted when the app using the limiter asks for counts. No guide names the function that keeps these counts.
-
-Facts:
-- **headline** The service counts allowed and blocked requests in its own memory.
-- **headline** Each decision is counted when the app using the limiter asks for counts.
-- Reading the code shows that the service counts allowed and blocked requests in its own memory.
-- No guide names the function that keeps these counts.
-
-Paraphrase: From how it is built, the offering tallies permitted and refused calls in space of its own. Every choice is tallied when the program that uses the limit tool asks for the totals. No handbook names the piece that holds these totals.
-
-Why it is flagged:
-- the cross-check says the paraphrase changes the meaning
-
-### 57. stores, headline, Non-engineer (flagged)
-
-Original: Counts stay inside each copy of the service, and there is no shared database to set up. Each caller's balance and a timestamp are kept in memory.
-
-Facts:
-- **headline** Counts stay inside each copy of the service.
-- **headline** There is no shared database to set up.
-- Each caller's balance and a timestamp are kept in memory.
-
-Paraphrase: The tallies remain inside every separate copy, and you do not have to prepare any common store. Each person's remaining amount and a time mark are kept only for the current run.
-
-Why it is flagged:
-- the cross-check says the paraphrase changes the meaning
-
-### 58. claim-adr-burst, claim-why, Engineer
+### 49. claim-adr-burst, claim-why, Engineer
 
 Original: With the clock held still at limit 2, test/limit.test.ts expects four 200s and then a 429.
 
@@ -654,7 +532,7 @@ Facts:
 
 Paraphrase: Holding the clock motionless while limit equals 2 leads test/limit.test.ts to demand four 200s plus a later 429.
 
-### 59. claim-exceed-guide, claim-why, Engineer
+### 50. claim-exceed-guide, claim-why, Engineer
 
 Original: Two limiters with their own stores, each at limit 2, let one key through 8 times, four times the limit.
 
@@ -666,18 +544,32 @@ Facts:
 
 Paraphrase: Two limiters, each using a private store and set to limit 2, passed one key 8 times, or four times the limit.
 
-### 60. claim-exceed-guide, claim-why, Non-engineer
+### 51. claim-exceed-guide, claim-why, Non-engineer
 
-Original: Two copies of the service, each allowing 2, let one caller through 8 times, four times the allowance.
+Original: Two limiters that each keep their own counts, each set to allow 2, let one caller through 8 times, four times the allowance.
 
 Facts:
-- **headline** One caller gets through 8 times, four times the allowance.
-- There are two copies of the service.
-- Each copy allows 2.
+- **headline** Two limiters let one caller through 8 times.
+- **headline** 8 times is four times the allowance.
+- Each limiter keeps its own counts.
+- Each limiter is set to allow 2.
 
-Paraphrase: A pair of service copies, each one permitting 2, let one person pass 8 times, equal to fourfold the stated cap.
+Paraphrase: Separate limits that each track a private tally, each configured to permit 2, together admit one caller 8 times, four times what was allowed.
 
-### 61. clock, example, Engineer
+### 52. claim-exceed-readme, claim-why, Non-engineer
+
+Original: Tried against two limiters that each keep their own counts, each set to allow 2, one caller got 8 requests through, four times the allowance.
+
+Facts:
+- **headline** One caller got 8 requests through.
+- **headline** 8 requests is four times the allowance.
+- The try was against two limiters.
+- Each limiter keeps its own counts.
+- Each limiter was set to allow 2.
+
+Paraphrase: Checked using two separate caps that each track their own totals, both configured to permit 2, a single client completed 8 tries, four times the permitted amount.
+
+### 53. clock, example, Engineer
 
 Original: test/retry.test.ts expects a 25 ms wait to round up to 30 on Node 18.
 
@@ -687,7 +579,7 @@ Facts:
 
 Paraphrase: On Node 18, test/retry.test.ts requires that a 25 ms wait round up to 30.
 
-### 62. d-api-key, what, Engineer
+### 54. d-api-key, what, Engineer
 
 Original: The limiter's default key becomes the API key.
 
@@ -696,7 +588,35 @@ Facts:
 
 Paraphrase: The limiter's default key is switched to the API key.
 
-### 63. d-fail-open, what, Non-engineer
+### 55. d-bucket, reason, Non-engineer
+
+Original: A customer could use its full allowance just before and just after one block of time gave way to the next, and one partner did that every minute.
+
+Facts:
+- **headline** A customer could use its full allowance just before and just after one block of time gave way to the next.
+- One partner did that every minute.
+
+Paraphrase: A buyer was able to spend an entire share right as one period ended and the following period began, and one partner repeated that pattern each minute.
+
+### 56. d-clock-step, what, Engineer
+
+Original: Add a clock step helper.
+
+Facts:
+- **headline** Add a clock step helper.
+
+Paraphrase: Create a helper for the clock step.
+
+### 57. d-clock-step, what, Non-engineer
+
+Original: A helper that gives the clock step was added.
+
+Facts:
+- **headline** A helper that gives the clock step was added.
+
+Paraphrase: An aid that reports the clock's step was put in.
+
+### 58. d-fail-open, what, Non-engineer
 
 Original: When the shared database fails, let requests through instead of blocking them.
 
@@ -705,7 +625,7 @@ Facts:
 
 Paraphrase: If the shared database stops working, allow requests to proceed rather than holding them back.
 
-### 64. d-fixed-window, reason, Non-engineer
+### 59. d-fixed-window, reason, Non-engineer
 
 Original: The public service ran as a single copy, and a shared database was more than the partner launch could carry.
 
@@ -715,7 +635,7 @@ Facts:
 
 Paraphrase: The public service operated as one lone copy, and a joint record store was beyond what the partner launch was able to manage.
 
-### 65. d-in-process, what, Engineer
+### 60. d-in-process, what, Engineer
 
 Original: Delete the Redis adapter and keep buckets in each process's memory (ADR-0004).
 
@@ -726,35 +646,16 @@ Facts:
 
 Paraphrase: Remove the Redis adapter and retain buckets inside the memory of each process (ADR-0004).
 
-### 66. d-no-new-service, reason, Engineer
-
-Original: A counter they can scrape is enough, and it can wait.
-
-Facts:
-- **headline** A counter they can scrape is enough.
-- A counter they can scrape can wait.
-
-Paraphrase: A counter they are able to scrape will suffice, and it may be deferred.
-
-### 67. d-no-switch, reason, Non-engineer
+### 61. d-no-switch, reason, Non-engineer
 
 Original: Someone would switch it back on in the middle of an outage.
 
 Facts:
 - **headline** Someone would switch it back on in the middle of an outage.
 
-Paraphrase: A person might turn it on again while a breakdown was still going.
+Paraphrase: A person would turn it on again while an outage was still going on.
 
-### 68. d-redis, what, Engineer
-
-Original: Production shares one counter through a Redis store (ADR-0002).
-
-Facts:
-- **headline** Production shares one counter through a Redis store (ADR-0002).
-
-Paraphrase: Production uses one shared counter held in a Redis store (ADR-0002).
-
-### 69. d-rename, what, Engineer
+### 62. d-rename, what, Engineer
 
 Original: Renamed the windowMs option to refillWindowMs.
 
@@ -763,19 +664,17 @@ Facts:
 
 Paraphrase: The windowMs option now goes by the name refillWindowMs.
 
-### 70. d-retry-headers, what, Non-engineer
+### 63. d-retry-headers, what, Non-engineer
 
 Original: Replies tell callers their allowance, what is left, when it resets, and how long to wait.
 
 Facts:
-- **headline** Replies tell callers their allowance.
-- **headline** Replies tell callers what is left.
-- Replies tell callers when their allowance resets.
-- Replies tell callers how long to wait.
+- **headline** Replies tell callers how long to wait.
+- **headline** Replies tell callers their allowance, what is left, and when it resets.
 
-Paraphrase: Answers tell people their allowed amount, the remainder, when counting starts over, and how long they should pause.
+Paraphrase: Answers let people know their allowed amount, how much remains, when it renews, and how long they should pause.
 
-### 71. d-revert-fail-open, what, Non-engineer
+### 64. d-revert-fail-open, what, Non-engineer
 
 Original: Undid the change that stopped blocking callers when the shared database fails.
 
@@ -784,16 +683,7 @@ Facts:
 
 Paraphrase: Reversed the step that had stopped refusing people when the shared data store fails.
 
-### 72. d-store-interface, what, Engineer
-
-Original: Storage moves behind a Store interface.
-
-Facts:
-- **headline** Storage moves behind a Store interface.
-
-Paraphrase: Storage now sits behind a Store interface.
-
-### 73. d-window-bound, reason, Non-engineer
+### 65. d-window-bound, reason, Non-engineer
 
 Original: Jon Okonkwo pointed out in review that one extra request got through once the limit was reached.
 
@@ -803,30 +693,19 @@ Facts:
 
 Paraphrase: Jon Okonkwo noted in the review that one further try still succeeded after the allowed maximum was met.
 
-### 74. f-rename, card, Non-engineer
-
-Original: Nothing in the app reads the old setting name, so a caller still using it has it ignored. We tried the old setting name with an allowance of 2, and all ten requests went through.
-
-Facts:
-- **headline** A caller still using the old setting name has it ignored.
-- **headline** The old setting name was tried with an allowance of 2, and all ten requests went through.
-- Nothing in the app reads the old setting name.
-
-Paraphrase: No part of the application looks at the previous option name, so someone who still sends it finds it disregarded. We tested the previous option name using a limit of 2, and every one of the ten attempts succeeded.
-
-### 75. metrics, headline, Engineer
+### 66. metrics, headline, Engineer
 
 Original: From the code: `createMetrics()` counts allowed and rejected requests in memory. `createLimiter()` records each decision when the caller passes metrics in. Neither the README nor any guide names `createMetrics()`.
 
 Facts:
 - **headline** `createMetrics()` counts allowed and rejected requests in memory.
 - **headline** Neither the README nor any guide names `createMetrics()`.
-- This count is from the code.
+- This headline is drawn from the code, not from a doc.
 - `createLimiter()` records each decision when the caller passes metrics in.
 
 Paraphrase: Per the implementation: `createMetrics()` tallies permitted and refused requests while stored in memory. `createLimiter()` notes every decision whenever the caller hands over metrics. The README and all guides fail to mention `createMetrics()`.
 
-### 76. replies, example, Non-engineer
+### 67. replies, example, Non-engineer
 
 Original: With nothing left and 3 seconds to wait, a reply says 0 are left and to try again in 3 seconds.
 
@@ -838,7 +717,7 @@ Facts:
 
 Paraphrase: If none remain and the pause is 3 seconds, the answer reports that 0 remain and asks for another try after 3 seconds.
 
-### 77. root, headline, Engineer
+### 68. root, headline, Engineer
 
 Original: Wayfinder limits how many requests each API key can make to the Northwind public API. The package is published so other teams can use the same limiter.
 

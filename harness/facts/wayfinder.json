@@ -24,12 +24,10 @@
     ],
     "supporting": [],
     "paraphrase": [
-      "The application's built-in review wants a submission lacking a secret to be labeled anonymous."
+      "The app's automated test expects a request without any key to be named anonymous."
     ],
-    "review": "flagged",
-    "flags": [
-      "the cross-check says the paraphrase changes the meaning"
-    ]
+    "review": "owner-checked",
+    "flags": []
   },
   "wayfinder/callers/headline/eng": {
     "source": "509525fda0c45d767b7cb9dda7914d23",
@@ -157,27 +155,31 @@
     "flags": []
   },
   "wayfinder/claim-adr-exceed/claim-why/plain": {
-    "source": "a5a4ee374d82537bcdd17c576a215fd7",
+    "source": "6e4b8ddc628a14c43d161b9c6d4bef07",
     "headline": [
       {
         "id": "f1",
-        "text": "Each copy let one caller in 4 times."
+        "text": "Each limiter let one caller in 4 times."
       }
     ],
     "supporting": [
       {
         "id": "f2",
-        "text": "The trial used two copies."
+        "text": "A try used two limiters."
       },
       {
         "id": "f3",
-        "text": "Each copy allowed 2."
+        "text": "Each limiter keeps its own counts."
+      },
+      {
+        "id": "f4",
+        "text": "Each limiter is set to allow 2."
       }
     ],
     "paraphrase": [
-      "A trial ran two duplicates that each permitted 2, and every duplicate admitted one person 4 times."
+      "A test with two separate caps that each track a private tally, each configured to permit 2, saw each admit one caller 4 times."
     ],
-    "review": "auto",
+    "review": "owner-checked",
     "flags": []
   },
   "wayfinder/claim-adr-stores/claim-why/eng": {
@@ -382,70 +384,88 @@
     "flags": []
   },
   "wayfinder/claim-exceed-guide/claim-why/plain": {
-    "source": "3a7f79ec6165270402a5f12d93659ee5",
+    "source": "b84016bbca8a0c7bea5cc781c744e4cc",
     "headline": [
       {
         "id": "f1",
-        "text": "One caller gets through 8 times, four times the allowance."
+        "text": "Two limiters let one caller through 8 times."
+      },
+      {
+        "id": "f2",
+        "text": "8 times is four times the allowance."
       }
     ],
     "supporting": [
       {
-        "id": "f2",
-        "text": "There are two copies of the service."
+        "id": "f3",
+        "text": "Each limiter keeps its own counts."
       },
       {
-        "id": "f3",
-        "text": "Each copy allows 2."
+        "id": "f4",
+        "text": "Each limiter is set to allow 2."
       }
     ],
     "paraphrase": [
-      "A pair of service copies, each one permitting 2, let one person pass 8 times, equal to fourfold the stated cap."
+      "Separate limits that each track a private tally, each configured to permit 2, together admit one caller 8 times, four times what was allowed."
     ],
-    "review": "auto",
+    "review": "owner-checked",
     "flags": []
   },
   "wayfinder/claim-exceed-readme/claim-why/eng": {
-    "source": "493c67c98387d318ef698d87ca2d88d4",
+    "source": "28b58039a9ee9864383f313f5031926a",
     "headline": [
       {
         "id": "f1",
         "text": "One key got 8 requests through."
+      },
+      {
+        "id": "f2",
+        "text": "8 requests is four times the limit."
       }
     ],
     "supporting": [
       {
-        "id": "f2",
+        "id": "f3",
         "text": "The run was against two limiters at limit 2."
       }
     ],
     "paraphrase": [
-      "One key had 8 requests accepted when tried on two limiters, both using limit 2."
+      "Executed on two limiters whose limit is 2, one key completed 8 requests, four times the limit."
     ],
     "review": "auto",
     "flags": []
   },
   "wayfinder/claim-exceed-readme/claim-why/plain": {
-    "source": "282242e99d59a7f624189c834030732b",
+    "source": "af457889fc0af984f61ac9a7b0d6d908",
     "headline": [
       {
         "id": "f1",
         "text": "One caller got 8 requests through."
+      },
+      {
+        "id": "f2",
+        "text": "8 requests is four times the allowance."
       }
     ],
     "supporting": [
       {
-        "id": "f2",
-        "text": "The try was against two copies of the service allowing 2 each."
+        "id": "f3",
+        "text": "The try was against two limiters."
+      },
+      {
+        "id": "f4",
+        "text": "Each limiter keeps its own counts."
+      },
+      {
+        "id": "f5",
+        "text": "Each limiter was set to allow 2."
       }
     ],
     "paraphrase": [
-      "Tested on two copies of the public product, each permitting 2, one person got 8 messages through."
+      "Checked using two separate caps that each track their own totals, both configured to permit 2, a single client completed 8 tries, four times the permitted amount."
     ],
-    "review": "flagged",
-    "flags": [
-      "the cross-check says the paraphrase changes the meaning"
-    ]
+    "review": "owner-checked",
+    "flags": []
   },
   "wayfinder/clock/example/eng": {
     "source": "3f62c10cc1aa4a1fb6d0270b9fb37cdb",
@@ -539,89 +559,123 @@
     "flags": []
   },
   "wayfinder/counting/example/eng": {
-    "source": "4e748c29f33c9dde6bbda376c194f222",
+    "source": "84602e6a39b04bf237b1c84a744c2de8",
     "headline": [
       {
         "id": "f1",
-        "text": "test/limit.test.ts sends five requests from a new key at limit 2 in the same instant."
+        "text": "Four 200s are expected."
       },
       {
         "id": "f2",
-        "text": "test/limit.test.ts expects four 200s, then a 429."
+        "text": "A 429 is expected after those four 200s."
       }
     ],
-    "supporting": [],
+    "supporting": [
+      {
+        "id": "f3",
+        "text": "test/limit.test.ts sends five requests from a new key."
+      },
+      {
+        "id": "f4",
+        "text": "The limit is 2."
+      },
+      {
+        "id": "f5",
+        "text": "The requests are sent one after another."
+      },
+      {
+        "id": "f6",
+        "text": "The clock is held still."
+      }
+    ],
     "paraphrase": [
-      "In test/limit.test.ts, five requests go out together from a fresh key while the limit is 2, and the expected results are four 200s and then a 429."
+      "With the clock frozen, test/limit.test.ts fires five requests back to back from a fresh key whose limit is 2, and looks for four 200s followed by a 429."
     ],
     "review": "auto",
     "flags": []
   },
   "wayfinder/counting/example/plain": {
-    "source": "fafaf46db9fa5c9528926478efe78b8a",
+    "source": "c2342eb3058f4a3e4800614aa0c9c025",
     "headline": [
       {
         "id": "f1",
-        "text": "The app's own check sends five requests in the same instant from a new caller allowed 2."
-      },
-      {
-        "id": "f2",
         "text": "The app's own check expects four through, then a block."
       }
     ],
-    "supporting": [],
+    "supporting": [
+      {
+        "id": "f2",
+        "text": "The app's own check sends five requests one after another."
+      },
+      {
+        "id": "f3",
+        "text": "No time passes between the five requests."
+      },
+      {
+        "id": "f4",
+        "text": "The five requests come from a new caller allowed 2."
+      }
+    ],
     "paraphrase": [
-      "The application's own test sends five asks at the same moment from a fresh caller permitted 2, and looks for four to pass, then a stop."
+      "The app's built-in test fires five attempts in a row, letting no time pass, from a fresh caller permitted 2, and looks for four to succeed, then a stop."
     ],
     "review": "auto",
     "flags": []
   },
   "wayfinder/counting/headline/eng": {
-    "source": "21626cf40b8a5553a9520ff0053f2f92",
+    "source": "339875006ca649fa609714244d4aa647",
     "headline": [
       {
         "id": "f1",
-        "text": "A bucket of permits refills over time."
+        "text": "A request is rejected when less than one permit is left."
       },
       {
         "id": "f2",
-        "text": "A request is rejected when less than one permit is left."
+        "text": "Every key gets twice the configured limit."
       }
     ],
     "supporting": [
       {
         "id": "f3",
-        "text": "A new key is allowed up to twice the configured limit."
+        "text": "A bucket of permits refills over time."
+      },
+      {
+        "id": "f4",
+        "text": "The twice-configured limit applies at first."
+      },
+      {
+        "id": "f5",
+        "text": "The twice-configured limit applies again after each refill window."
       }
     ],
     "paraphrase": [
-      "As time passes a bucket of permits fills back up, and a request is refused once fewer than one permit remains.",
-      "A new key may be granted as much as twice the configured limit."
+      "Permits in a bucket are restored as time passes, and any request gets turned away if fewer than one permit remains.",
+      "Each key receives twice the configured limit, initially and once more following every refill window."
     ],
     "review": "auto",
     "flags": []
   },
   "wayfinder/counting/headline/plain": {
-    "source": "816fdad3882d395234b164073884b2c7",
+    "source": "a208f1819822926416b51046425c9fc9",
     "headline": [
       {
         "id": "f1",
-        "text": "An allowance refills over time."
+        "text": "A request is blocked when less than one allowance is left."
       },
       {
         "id": "f2",
-        "text": "A request is blocked when less than one is left."
+        "text": "Every caller gets twice its allowance at first and again each time it refills."
       }
     ],
     "supporting": [
       {
         "id": "f3",
-        "text": "A new caller can send up to twice its allowance."
+        "text": "An allowance refills over time."
       }
     ],
     "paraphrase": [
-      "A permitted amount builds back up as time passes, and a try is stopped when fewer than one remains.",
-      "A newcomer may send as many as twice the amount it is permitted."
+      "A permitted amount builds back as time goes by, and a try is refused if under one remains.",
+      "Each user receives double that amount, both initially and once more whenever the amount is restored."
     ],
     "review": "auto",
     "flags": []
@@ -705,35 +759,30 @@
       }
     ],
     "paraphrase": [
-      "Every minute, the polling partner transmitted the full limit at each side of a window boundary, which a client could also do."
+      "Any client was able to use the whole limit on each side of a window edge, and the polling partner did so once a minute."
     ],
-    "review": "flagged",
-    "flags": [
-      "the cross-check says the paraphrase changes the meaning"
-    ]
+    "review": "owner-checked",
+    "flags": []
   },
   "wayfinder/d-bucket/reason/plain": {
-    "source": "56bf4744e0ca96cdf86e79945ee94bdb",
+    "source": "e5a5a1b0a3294cdfb7e2adf0ba4fd274",
     "headline": [
       {
         "id": "f1",
-        "text": "A customer could use its full allowance on both sides of each block of time."
+        "text": "A customer could use its full allowance just before and just after one block of time gave way to the next."
       }
     ],
     "supporting": [
       {
         "id": "f2",
-        "text": "One partner used a full allowance on both sides of each block of time every minute."
+        "text": "One partner did that every minute."
       }
     ],
     "paraphrase": [
-      "A buyer was able to spend the entire share at each edge of every time span, and a single partner repeated it every minute."
+      "A buyer was able to spend an entire share right as one period ended and the following period began, and one partner repeated that pattern each minute."
     ],
-    "review": "flagged",
-    "flags": [
-      "the cross-check says fact 2 (\"One partner used a full allowance on both sides of each block of time every minute.\") is not what the sentence says",
-      "the cross-check says the sentence also states: One partner did that every minute."
-    ]
+    "review": "owner-checked",
+    "flags": []
   },
   "wayfinder/d-bucket/what/eng": {
     "source": "08789af3a0954c931fbb5ea59ac43eb8",
@@ -761,6 +810,66 @@
     "supporting": [],
     "paraphrase": [
       "A budget that comes back little by little takes the place of rigid stretches of time."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "wayfinder/d-clock-step/reason/eng": {
+    "source": "865d26a25eebd1ad7e8db34491cb9e96",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "A later change could round waits to a step."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "It was added so that a future change might round waiting times to a step."
+    ],
+    "review": "owner-checked",
+    "flags": []
+  },
+  "wayfinder/d-clock-step/reason/plain": {
+    "source": "1bba0e33c371346c761e80fce937a74e",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "A later change could round wait times to that step."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "This was so a future update could bring waiting periods in line with that interval."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "wayfinder/d-clock-step/what/eng": {
+    "source": "58d28ba45d15f669468ff96ffe45391a",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "Add a clock step helper."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "Create a helper for the clock step."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "wayfinder/d-clock-step/what/plain": {
+    "source": "0d20349f5d1e16c2260bd40c164097a1",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "A helper that gives the clock step was added."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "An aid that reports the clock's step was put in."
     ],
     "review": "auto",
     "flags": []
@@ -823,12 +932,10 @@
       }
     ],
     "paraphrase": [
-      "Jon Okonkwo shut the Redis Cluster adapter, PR #6."
+      "PR #6, a proposed Redis Cluster adapter, was closed unmerged by Jon Okonkwo."
     ],
-    "review": "flagged",
-    "flags": [
-      "the cross-check says the paraphrase changes the meaning"
-    ]
+    "review": "owner-checked",
+    "flags": []
   },
   "wayfinder/d-cluster/what/plain": {
     "source": "058352fbe5c44f447e7cd72c4af6cea9",
@@ -1347,9 +1454,9 @@
     ],
     "supporting": [],
     "paraphrase": [
-      "A person might turn it on again while a breakdown was still going."
+      "A person would turn it on again while an outage was still going on."
     ],
-    "review": "auto",
+    "review": "owner-checked",
     "flags": []
   },
   "wayfinder/d-no-switch/what/eng": {
@@ -1377,23 +1484,19 @@
     "headline": [
       {
         "id": "f1",
-        "text": "The shared database code will be removed completely."
-      }
-    ],
-    "supporting": [
+        "text": "Remove the shared database code completely."
+      },
       {
         "id": "f2",
-        "text": "There is no switch to bring the shared database code back."
+        "text": "Leave no switch to bring the shared database code back."
       }
     ],
+    "supporting": [],
     "paraphrase": [
-      "Drop the shared information storage entirely, with no control left to restore it."
+      "Take out every bit of the code for the shared database, leaving no switch that could restore it."
     ],
-    "review": "flagged",
-    "flags": [
-      "the cross-check says fact 1 (\"The shared database code will be removed completely.\") is not what the sentence says",
-      "the cross-check says the sentence also states: Remove the shared database code completely."
-    ]
+    "review": "owner-checked",
+    "flags": []
   },
   "wayfinder/d-per-route/reason/eng": {
     "source": "abed5b0f2cdff3163940c9440a017d2a",
@@ -1648,27 +1751,18 @@
     "headline": [
       {
         "id": "f1",
-        "text": "Replies tell callers their allowance."
+        "text": "Replies tell callers how long to wait."
       },
       {
         "id": "f2",
-        "text": "Replies tell callers what is left."
+        "text": "Replies tell callers their allowance, what is left, and when it resets."
       }
     ],
-    "supporting": [
-      {
-        "id": "f3",
-        "text": "Replies tell callers when their allowance resets."
-      },
-      {
-        "id": "f4",
-        "text": "Replies tell callers how long to wait."
-      }
-    ],
+    "supporting": [],
     "paraphrase": [
-      "Answers tell people their allowed amount, the remainder, when counting starts over, and how long they should pause."
+      "Answers let people know their allowed amount, how much remains, when it renews, and how long they should pause."
     ],
-    "review": "auto",
+    "review": "owner-checked",
     "flags": []
   },
   "wayfinder/d-revert-fail-open/what/eng": {
@@ -1751,18 +1845,92 @@
     "flags": []
   },
   "wayfinder/d-store-interface/what/plain": {
-    "source": "3fc2799c53f1d4bf14e0302c13cd372b",
+    "source": "f1b59b55dab45aa2fe709d7089e34cdf",
     "headline": [
       {
         "id": "f1",
-        "text": "Storage became its own separate step."
+        "text": "Keeping counts was split out behind a fixed shape that any store can follow."
       }
     ],
     "supporting": [],
     "paraphrase": [
-      "Storage became a step of its own."
+      "Tracking totals was separated behind one set form that every storage place can match."
     ],
     "review": "auto",
+    "flags": []
+  },
+  "wayfinder/d-whole-remaining/reason/eng": {
+    "source": "b7b37655054048f7c9d60c647aaae6eb",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "test (18) and test (20) expected RateLimit-Remaining 1 and got 1.7."
+      }
+    ],
+    "supporting": [
+      {
+        "id": "f2",
+        "text": "The first push failed test (18) and test (20)."
+      }
+    ],
+    "paraphrase": [
+      "The initial push did not pass test (18) or test (20); those looked for RateLimit-Remaining 1 but received 1.7."
+    ],
+    "review": "owner-checked",
+    "flags": []
+  },
+  "wayfinder/d-whole-remaining/reason/plain": {
+    "source": "5f15e60f8259b317fca102e594237684",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "The automatic checks expected 1 left and got 1.7."
+      }
+    ],
+    "supporting": [
+      {
+        "id": "f2",
+        "text": "The automatic checks failed on the first try."
+      }
+    ],
+    "paraphrase": [
+      "The self-running reviews did not pass their opening attempt: they looked for 1 remaining and received 1.7."
+    ],
+    "review": "owner-checked",
+    "flags": []
+  },
+  "wayfinder/d-whole-remaining/what/eng": {
+    "source": "1ce43fcd3b25569513505078431fe10d",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "RateLimit-Remaining is clamped to a non-negative integer."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "Pin RateLimit-Remaining to an integer of zero or more."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "wayfinder/d-whole-remaining/what/plain": {
+    "source": "6990ee6e9e70ee4b0fa44cd4ef776af7",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "The number of requests left that a reply shows is made a whole number."
+      },
+      {
+        "id": "f2",
+        "text": "The shown number of requests left is never below zero."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "The tries still left, shown by an answer, become a complete number and stay at or above zero."
+    ],
+    "review": "owner-checked",
     "flags": []
   },
   "wayfinder/d-window-bound/reason/eng": {
@@ -1879,54 +2047,74 @@
       }
     ],
     "paraphrase": [
-      "The program's own test expects a unit of 10 thousandths per second on version 18.",
-      "The guide says each unit lasts 1 thousandth of a second but names no exception."
+      "The program's own test expects a 10-thousandths-of-a-second unit on Node 18.",
+      "The guide gives the unit as one thousandth of a second and mentions no exception."
     ],
-    "review": "flagged",
-    "flags": [
-      "the cross-check says the paraphrase changes the meaning"
-    ]
+    "review": "owner-checked",
+    "flags": []
   },
   "wayfinder/f-double/card/eng": {
-    "source": "b0abdb96a938406296f781a382ca05e5",
+    "source": "ade14727c7b56e32755b539787ecf951",
     "headline": [
       {
         "id": "f1",
-        "text": "test/limit.test.ts expects four 200s, then a 429, at limit 2"
+        "text": "test/limit.test.ts expects four 200s, then a 429, at limit 2."
+      },
+      {
+        "id": "f2",
+        "text": "One refill window later the same key gets four more 200s."
       }
     ],
     "supporting": [
       {
-        "id": "f2",
-        "text": "The PR #16 description calls the change mostly mechanical"
+        "id": "f3",
+        "text": "One refill window later, the same key's first reply says RateLimit-Remaining 3 under RateLimit-Limit 2."
+      },
+      {
+        "id": "f4",
+        "text": "The PR #16 description calls the change mostly mechanical."
       }
     ],
     "paraphrase": [
-      "At limit 2, test/limit.test.ts requires four 200s and then a 429.",
-      "The description of PR #16 calls this change mostly mechanical."
+      "At limit 2, test/limit.test.ts looks for four 200s followed by a 429.",
+      "After one refill window, the same key receives four extra 200s, and the first response states RateLimit-Remaining 3 beneath RateLimit-Limit 2.",
+      "The PR #16 write-up labels the change as mostly mechanical."
     ],
     "review": "auto",
     "flags": []
   },
   "wayfinder/f-double/card/plain": {
-    "source": "359d742cbbdc267157e44c2874bd9da0",
+    "source": "989441934a3def46a660f7923f4631fc",
     "headline": [
       {
         "id": "f1",
         "text": "The app's own check lets four requests through on an allowance of two."
+      },
+      {
+        "id": "f2",
+        "text": "After one refill the same caller got four more through."
       }
     ],
     "supporting": [
       {
-        "id": "f2",
+        "id": "f3",
+        "text": "We tried it."
+      },
+      {
+        "id": "f4",
+        "text": "The same caller's first reply said 3 were left of an allowance of 2."
+      },
+      {
+        "id": "f5",
         "text": "The write-up called the change mostly mechanical."
       }
     ],
     "paraphrase": [
-      "Even with an allowance of two, four requests still pass the app's own check.",
-      "The notes described that update as largely routine."
+      "The program's own test lets four tries pass on a cap of two.",
+      "We tested this: after one top-up the same client received four extra passes, and the opening answer reported 3 remaining from a limit of 2.",
+      "The written note described the edit as largely routine."
     ],
-    "review": "auto",
+    "review": "owner-checked",
     "flags": []
   },
   "wayfinder/f-rename/card/eng": {
@@ -2018,6 +2206,46 @@
     "review": "auto",
     "flags": []
   },
+  "wayfinder/f-round-unused/card/eng": {
+    "source": "e7ebd3be30534e4e3795ebda3022331e",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "No file in src imports src/retry.ts."
+      },
+      {
+        "id": "f2",
+        "text": "src/limit.ts turns the wait into whole seconds with `Math.ceil(decision.retryAfterMs / 1000)`."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "src/retry.ts is imported by no file in src.",
+      "src/limit.ts converts the wait to whole seconds via `Math.ceil(decision.retryAfterMs / 1000)`."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "wayfinder/f-round-unused/card/plain": {
+    "source": "46e3e8f2fd9c32633ee4c09d31e7bf75",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "No other file in the app loads the rounding code."
+      },
+      {
+        "id": "f2",
+        "text": "The wait a reply gives is worked out in whole seconds."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "No other part of the program uses the rounding piece.",
+      "The pause an answer provides is figured out in full seconds."
+    ],
+    "review": "auto",
+    "flags": []
+  },
   "wayfinder/metrics/headline/eng": {
     "source": "f75205d9504d761835a52ab9b5673f3d",
     "headline": [
@@ -2033,7 +2261,7 @@
     "supporting": [
       {
         "id": "f3",
-        "text": "This count is from the code."
+        "text": "This headline is drawn from the code, not from a doc."
       },
       {
         "id": "f4",
@@ -2045,11 +2273,11 @@
       "`createLimiter()` notes every decision whenever the caller hands over metrics.",
       "The README and all guides fail to mention `createMetrics()`."
     ],
-    "review": "auto",
+    "review": "owner-checked",
     "flags": []
   },
   "wayfinder/metrics/headline/plain": {
-    "source": "ed909d4cafd246c415a4a53112ab69d0",
+    "source": "cd7df0964e1e2864f3a651738bb7a586",
     "headline": [
       {
         "id": "f1",
@@ -2057,13 +2285,13 @@
       },
       {
         "id": "f2",
-        "text": "Each decision is counted when the app using the limiter asks for counts."
+        "text": "If the app using the limiter turns counting on, every request is counted as let through or blocked."
       }
     ],
     "supporting": [
       {
         "id": "f3",
-        "text": "Reading the code shows that the service counts allowed and blocked requests in its own memory."
+        "text": "The counting behavior is known from the code."
       },
       {
         "id": "f4",
@@ -2071,14 +2299,12 @@
       }
     ],
     "paraphrase": [
-      "From how it is built, the offering tallies permitted and refused calls in space of its own.",
-      "Every choice is tallied when the program that uses the limit tool asks for the totals.",
-      "No handbook names the piece that holds these totals."
+      "From how it is built: the program tallies permitted and stopped asks in storage it holds itself.",
+      "If the program that uses the limit tool switches tallying on, each ask is recorded as passed or stopped.",
+      "No handbook identifies the part that holds these totals."
     ],
-    "review": "flagged",
-    "flags": [
-      "the cross-check says the paraphrase changes the meaning"
-    ]
+    "review": "auto",
+    "flags": []
   },
   "wayfinder/replies/example/eng": {
     "source": "e918154c4364998e2b2a0b6749bbf469",
@@ -2178,26 +2404,7 @@
     "flags": []
   },
   "wayfinder/root/example/eng": {
-    "source": "c6341731b3055e0e9b17a3e14d6f04ea",
-    "headline": [
-      {
-        "id": "f1",
-        "text": "A new key with limit 2 that sends five requests at once gets four through."
-      },
-      {
-        "id": "f2",
-        "text": "The fifth gets a 429."
-      }
-    ],
-    "supporting": [],
-    "paraphrase": [
-      "A fresh key capped at 2, when it fires five requests together, allows four to pass, and the fifth is answered with a 429."
-    ],
-    "review": "auto",
-    "flags": []
-  },
-  "wayfinder/root/example/plain": {
-    "source": "6d62462a57cc2e8016d5abbca9e5096c",
+    "source": "480f49bb6cd3a3c7c03c463eec14d520",
     "headline": [
       {
         "id": "f1",
@@ -2205,25 +2412,61 @@
       },
       {
         "id": "f2",
-        "text": "The fifth is blocked."
+        "text": "The fifth request gets a 429."
       }
     ],
     "supporting": [
       {
         "id": "f3",
-        "text": "The caller is new."
+        "text": "The key is new."
       },
       {
         "id": "f4",
-        "text": "The caller is allowed 2 requests."
+        "text": "The limit is 2."
       },
       {
         "id": "f5",
-        "text": "The caller sends five at once."
+        "text": "Five requests are sent one after another."
+      },
+      {
+        "id": "f6",
+        "text": "No time passes."
       }
     ],
     "paraphrase": [
-      "A first-time person permitted 2 requests who submits five together has four accepted, and the fifth is stopped."
+      "A fresh key whose limit is 2 issues five requests in sequence while zero time elapses, lets four pass, and the fifth receives a 429."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "wayfinder/root/example/plain": {
+    "source": "b1fc56358a676cb382228f9bf0f95e58",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "Four requests get through."
+      },
+      {
+        "id": "f2",
+        "text": "The fifth request is blocked."
+      }
+    ],
+    "supporting": [
+      {
+        "id": "f3",
+        "text": "A new caller is allowed 2 requests."
+      },
+      {
+        "id": "f4",
+        "text": "The new caller sends five requests one after another."
+      },
+      {
+        "id": "f5",
+        "text": "No time passes while those requests are sent."
+      }
+    ],
+    "paraphrase": [
+      "Someone new, cleared for 2 tries, who fires five in a row while time does not move, has four accepted, and sees the fifth turned away."
     ],
     "review": "auto",
     "flags": []
@@ -2291,22 +2534,31 @@
     "flags": []
   },
   "wayfinder/stores/example/plain": {
-    "source": "e7965edf136eca6117bfe8ed461ef8b5",
+    "source": "59ece227f09c41d7b15794caf8664a2e",
     "headline": [
       {
         "id": "f1",
-        "text": "Two copies of the service count the same caller separately."
+        "text": "Two limiters track the same caller separately."
       },
       {
         "id": "f2",
-        "text": "At an allowance of 2, each lets it through 4 times."
+        "text": "Each limiter lets the same caller through 4 times."
       }
     ],
-    "supporting": [],
-    "paraphrase": [
-      "A pair of running copies tallies one sender on its own: with a permitted amount of 2, each allows that sender 4 times."
+    "supporting": [
+      {
+        "id": "f3",
+        "text": "Each limiter keeps its own counts."
+      },
+      {
+        "id": "f4",
+        "text": "Each limiter is set to allow 2."
+      }
     ],
-    "review": "auto",
+    "paraphrase": [
+      "A pair of caps that each hold a private tally follow one caller apart from the other: configured to permit 2, each admits that caller 4 times."
+    ],
+    "review": "owner-checked",
     "flags": []
   },
   "wayfinder/stores/headline/eng": {
@@ -2354,12 +2606,10 @@
     ],
     "paraphrase": [
       "The tallies remain inside every separate copy, and you do not have to prepare any common store.",
-      "Each person's remaining amount and a time mark are kept only for the current run."
+      "Each caller's remaining amount and a time mark sit in working memory."
     ],
-    "review": "flagged",
-    "flags": [
-      "the cross-check says the paraphrase changes the meaning"
-    ]
+    "review": "owner-checked",
+    "flags": []
   },
   "wayfinder/undone:8635c79/undone/eng": {
     "source": "209bb63b3e74fcb4277b72d0fab66221",
