@@ -48,6 +48,9 @@ const PROOF_SPECS = {
   run: { strings: ['id'], wire: (p) => ({ verb: 'run', id: p.id }) },
 };
 
+/** Verbs that name a file at HEAD, so they can show where a change's behavior lives now. */
+const LIVES_IN_VERBS = ['grep', 'introduced'];
+
 const VERDICT_FIELDS = {
   'still-true': [],
   'true-since': ['since', 'why'],
@@ -269,16 +272,29 @@ function parseRoutine(raw, path, ctx) {
   };
 }
 
+function parseLivesIn(raw, path, ctx) {
+  const entries = Object.entries(object(raw, path, ctx)).map(([topic, ev]) => {
+    const at = `${path}.${topic}`;
+    const proof = object(ev, at, ctx);
+    oneOf(proof.verb, `${at}.verb`, ctx, LIVES_IN_VERBS);
+    const parsed = parseProofSpec(proof, at, ctx);
+    if (parsed.verb === 'grep' && parsed.paths.length === 0) ctx.fail(`${at}.paths`, `name the ${topic} code files the grep reads`);
+    return [topic, parsed];
+  });
+  return new Map(entries);
+}
+
 function parseChange(key, raw, path, ctx) {
   changeKey(key, path, ctx);
   const obj = object(raw, path, ctx);
-  rejectUnknown(obj, path, ctx, ['topics', 'findings', 'routine', 'covers']);
+  rejectUnknown(obj, path, ctx, ['topics', 'livesIn', 'findings', 'routine', 'covers']);
   requireFields(obj, path, ctx, ['topics']);
   const list = (field, parse) => (Object.hasOwn(obj, field) ? array(obj[field], `${path}.${field}`, ctx).map((x, i) => parse(x, `${path}.${field}[${i}]`, ctx)) : []);
   return {
     key,
     path,
     topics: uniqueList(obj.topics, `${path}.topics`, ctx, (t, at) => nonEmpty(t, at, ctx)),
+    livesIn: Object.hasOwn(obj, 'livesIn') ? parseLivesIn(obj.livesIn, `${path}.livesIn`, ctx) : new Map(),
     findings: list('findings', parseFinding),
     routine: list('routine', parseRoutine),
     covers: parseCovers(obj, path, ctx, key, true),
@@ -423,6 +439,9 @@ function linkViews(views, ctx) {
     change.topics.forEach((t, k) => {
       if (topic(t, `${change.path}.topics[${k}]`).parent === null) ctx.fail(`${change.path}.topics[${k}]`, 'list child topics only; the root shows every change');
     });
+    for (const t of change.livesIn.keys()) {
+      if (!change.topics.includes(t)) ctx.fail(`${change.path}.livesIn.${t}`, `${t} is not one of the change's topics`);
+    }
     change.findings.forEach((f, j) => f.topics.forEach((t, k) => {
       if (!change.topics.includes(t)) ctx.fail(`${change.path}.findings[${j}].topics[${k}]`, `${t} is not one of the change's topics`);
     }));
@@ -614,12 +633,40 @@ function changeAuthors(facts, ctx) {
   return new Set([facts.author, ...names.map((n) => ctx.loginByName.get(n))].filter(Boolean));
 }
 
+/** Docs and tests describe a behavior, so only a topic's other files can show the topic implements it. */
+function codeOf(topic) {
+  return topic.files.filter((file) => !topic.docs.includes(file) && !isTestFile(file));
+}
+
+/**
+ * A change placed on a topic whose files it never touched must show that the topic's code implements what it did:
+ * a grep at HEAD over that code that finds it, or an introduced proof of a needle still in that code at HEAD.
+ */
+function checkLivesIn(proof, topic, path, ctx) {
+  const code = codeOf(topic);
+  const named = proof.verb === 'grep' ? proof.paths : [proof.path];
+  named.forEach((file) => {
+    if (!code.includes(file)) ctx.fail(path, `${file} is not ${topic.id} code; name one of ${code.join(', ')}`);
+  });
+  if (proof.verb === 'grep' && ctx.record.rev(proof.at) !== ctx.record.head) ctx.fail(`${path}.at`, `the grep reads ${proof.at}, but ${topic.id}'s code is the code at HEAD`);
+  const { text } = resolveProof(proof, path, ctx);
+  const missing = proof.verb === 'grep' ? text === '(no matches)' : text === '(never added)' || text.includes('no longer in');
+  if (missing) ctx.fail(path, `the proof finds nothing in ${topic.id}'s code at HEAD: ${text}`);
+}
+
 function resolveChange(change, ctx, topics) {
   const { path } = change;
   const id = ctx.changeId(change.key, path);
   const facts = ctx.byId.get(id);
   change.topics.forEach((t, k) => {
-    if (!topics.get(t).files.some((file) => facts.touched.has(file))) ctx.fail(`${path}.topics[${k}]`, `${change.key} touches none of ${t}'s files`);
+    const topic = topics.get(t);
+    const touched = topic.files.some((file) => facts.touched.has(file));
+    const evidence = change.livesIn.get(t);
+    if (touched && evidence) ctx.fail(`${path}.livesIn.${t}`, `${change.key} touches ${t}'s files, so it needs no proof that its behavior lives there`);
+    if (!touched && !evidence) {
+      ctx.fail(`${path}.topics[${k}]`, `${change.key} touches none of ${t}'s files; give livesIn.${t} a grep or introduced proof that ${t}'s code at HEAD implements what it did`);
+    }
+    if (evidence) checkLivesIn(evidence, topic, `${path}.livesIn.${t}`, ctx);
   });
   const authors = changeAuthors(facts, ctx);
   const findings = change.findings.map((f, j) => {

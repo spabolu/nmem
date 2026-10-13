@@ -72,14 +72,24 @@
  *   findings, decisions, and claims are hyphenated, so each is a canary. A finding's topics are among its change's,
  *   and each topic of a change with findings holds at least one of them. A finding of a root-only change lists none.
  *
+ * @typedef {(
+ *   | { verb: "grep", at: RevKey, pattern: string, flags?: Array<"i" | "E">, paths: [string, ...string[]], shows: string }
+ *   | { verb: "introduced", path: string, needle: string, shows: string }
+ * )} LivesInSpec
+ *   Proof that a topic's code at HEAD implements what a change did. Its files must be the topic's code: files that
+ *   are neither its docs nor tests. A grep reads HEAD and must find a match. An introduced needle must still be there.
+ *
  * @typedef {{
  *   topics: string[],
+ *   livesIn?: Record<string, LivesInSpec>,
  *   findings?: FindingSpec[],
  *   routine?: Array<{ files: [string, ...string[]], name: Text, reason: Text & { ev: ProofSpec } }>,
  *   covers?: string[]
  * }} ChangeSpec
- *   topics are child topics whose files the change touched. An empty list means the change shows on the root only,
- *   such as one that touched only files gone at HEAD. A routine part names touched files, no file twice, and its
+ *   topics are child topics whose files the change touched, or whose code now implements what it did. A listed topic
+ *   the change did not touch needs a livesIn proof keyed by that topic, such as a change confined to files gone at
+ *   HEAD whose code moved or was replaced. A touched topic takes no livesIn. An empty list means the change shows on
+ *   the root only. A routine part names touched files, no file twice, and its
  *   reason is always a proof. The change must classify: a finding, a decision it carries, or routine parts that
  *   partition every touched file. covers on a change records it under its change id.
  *

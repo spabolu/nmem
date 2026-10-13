@@ -1391,7 +1391,10 @@ const views = {
       ['.github/workflows/test.yml', '.gitignore', 'README.md', 'package.json', 'tsconfig.json'],
     ),
     'pr#1': { topics: ['counting', 'stores'] },
-    'c-fix-bound': { topics: [] },
+    'c-fix-bound': {
+      topics: ['counting'],
+      livesIn: { counting: { verb: 'grep', at: 'head', pattern: 'refilled < 1', paths: ['src/bucket.ts'], shows: 'src/bucket.ts' } },
+    },
     'c-changelog-010': routineOf(
       'c-changelog-010',
       { eng: '0.1.0 release notes', plain: 'release notes' },
@@ -1633,7 +1636,7 @@ const views = {
         plain: 'A counting mistake in the window was fixed.',
         ev: commit('c-fix-bound', 'fix window off-by-one'),
       },
-      topics: ['root'],
+      topics: ['counting'],
       carriedBy: 'c-fix-bound',
       replacedBy: 'd-bucket',
       why: {
@@ -2279,7 +2282,7 @@ console.log(\`files in src besides retry.ts that use roundRetryMs: \${users.leng
       kind: 'timeline',
       topic: 'counting',
       ...lifetime,
-      counts: { decision: 4, behavior: 2 },
+      counts: { decision: 5, behavior: 2 },
       named: ['d-rename', 'f-double', 'd-bucket'],
       routine: quiet,
     },

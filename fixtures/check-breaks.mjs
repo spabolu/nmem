@@ -544,6 +544,46 @@ const viewCases = [
       views.changes['c-fix-tests'].topics.push('storage');
     },
   },
+  {
+    name: 'change on a topic it did not touch, with no proof that the topic code does what it did',
+    slug: 'wayfinder',
+    expect: "c-fix-bound touches none of counting's files; give livesIn.counting a grep or introduced proof",
+    mutate(views) {
+      delete views.changes['c-fix-bound'].livesIn;
+    },
+  },
+  {
+    name: 'livesIn proof that greps a topic doc instead of its code',
+    slug: 'wayfinder',
+    expect: 'docs/concepts/limits.md is not counting code',
+    mutate(views) {
+      views.changes['c-fix-bound'].livesIn.counting = { verb: 'grep', at: 'head', pattern: 'below 1', paths: ['docs/concepts/limits.md'], shows: 'docs/concepts/limits.md' };
+    },
+  },
+  {
+    name: 'livesIn grep that reads an old commit instead of HEAD',
+    slug: 'wayfinder',
+    expect: "the grep reads c-fix-bound, but counting's code is the code at HEAD",
+    mutate(views) {
+      views.changes['c-fix-bound'].livesIn.counting.at = 'c-fix-bound';
+    },
+  },
+  {
+    name: 'livesIn proof that finds nothing in the topic code at HEAD',
+    slug: 'wayfinder',
+    expect: "the proof finds nothing in counting's code at HEAD: (no matches)",
+    mutate(views) {
+      views.changes['c-fix-bound'].livesIn.counting = { verb: 'grep', at: 'head', pattern: 'count < limit', paths: ['src/bucket.ts'], shows: '(no matches)' };
+    },
+  },
+  {
+    name: 'livesIn on a topic the change already touched',
+    slug: 'wayfinder',
+    expect: "pr#16 touches counting's files, so it needs no proof that its behavior lives there",
+    mutate(views) {
+      views.changes['pr#16'].livesIn = { counting: { verb: 'grep', at: 'head', pattern: 'refilled < 1', paths: ['src/bucket.ts'], shows: 'src/bucket.ts' } };
+    },
+  },
 ];
 
 // Owner decision 2026-10-10: depends reads "Out of date since", the same line as no-longer-true.
