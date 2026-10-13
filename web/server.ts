@@ -23,6 +23,7 @@ export function parseArgs(argv: readonly string[]): ServeOptions {
 }
 
 const stylesPath = fileURLToPath(new URL('./styles.css', import.meta.url));
+const monaSansPath = fileURLToPath(new URL('./fonts/mona-sans.woff2', import.meta.url));
 
 /** Serves the site until the process exits, and prints "listening on <url>" once it accepts connections. */
 export function serve(args: ServeOptions): void {
@@ -47,6 +48,11 @@ export function serve(args: ServeOptions): void {
     if (url.pathname === '/styles.css') {
       res.writeHead(200, { 'content-type': 'text/css; charset=utf-8', 'cache-control': 'no-store' });
       res.end(fs.readFileSync(stylesPath));
+      return;
+    }
+    if (url.pathname === '/fonts/mona-sans.woff2') {
+      res.writeHead(200, { 'content-type': 'font/woff2', 'cache-control': 'max-age=31536000, immutable' });
+      res.end(fs.readFileSync(monaSansPath));
       return;
     }
     void htmlFor(site, url).then(
