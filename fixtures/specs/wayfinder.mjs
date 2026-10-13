@@ -1231,8 +1231,8 @@ const views = {
         },
       ],
       example: {
-        eng: 'test/limit.test.ts sends five requests at once from a new key at limit 2 and expects four 200s, then a 429.',
-        plain: "The app's own check sends five requests at once from a new caller allowed 2, and expects four through, then a block.",
+        eng: 'test/limit.test.ts sends five requests from a new key at limit 2 in the same instant, and expects four 200s, then a 429.',
+        plain: "The app's own check sends five requests in the same instant from a new caller allowed 2, and expects four through, then a block.",
         ev: headFile('test/limit.test.ts', q.burstAssert),
       },
       words: ['bucket', 'permit', 'balance', 'refill', 'twice', 'reject'],
@@ -1249,12 +1249,12 @@ const views = {
       headline: [
         {
           eng: '`rateLimitHeaders()` sets RateLimit-Limit, RateLimit-Remaining as a whole number, RateLimit-Reset, and Retry-After when there is a wait.',
-          plain: 'A reply gives the allowance, how many are left as a whole number, when it resets, and how long to wait when there is a wait.',
+          plain: 'A reply gives the allowance, the whole number left, when it resets, and how long to wait if a wait applies.',
           ev: headFile('src/headers.ts', 'if (retryAfterSec > 0) headers["Retry-After"] = String(retryAfterSec);'),
         },
         {
-          eng: 'Every response gets them, except that an allowed one loses RateLimit-Reset.',
-          plain: 'Every reply carries them, except that a reply letting the request through leaves out the reset time.',
+          eng: 'Once `take()` decides, the response gets the headers `rateLimitHeaders()` returns, but an allowed one loses RateLimit-Reset.',
+          plain: 'Once a request is counted, its reply carries whichever of these apply, but a reply letting it through leaves out the reset time.',
           ev: headFile('src/limit.ts', 'for (const [name, value] of Object.entries(extra)) res.setHeader(name, value);'),
         },
       ],
@@ -1276,13 +1276,13 @@ const views = {
       docs: ['README.md'],
       headline: [
         {
-          eng: '`apiKey()` names each caller by its x-api-key header, else its bearer token, else anonymous.',
+          eng: '`apiKey()` names each caller by its x-api-key header, else its authorization header without the Bearer prefix, else anonymous.',
           plain: 'Each caller is known by the key its app sends, and a caller with no key is called anonymous.',
           ev: headFile('src/key.ts', 'const raw = header(req, "x-api-key") ?? header(req, "authorization");'),
         },
         {
           eng: '`createLimiter()` uses `apiKey()` unless the caller passes its own key function.',
-          plain: 'The limiter uses that rule unless the app using it supplies another.',
+          plain: 'The limiter tells callers apart by their key unless the app using it supplies its own rule.',
           ev: headFile('src/limit.ts', 'const keyFn = options.key ?? apiKey;'),
         },
       ],
@@ -1309,7 +1309,7 @@ const views = {
         },
         {
           eng: "`createMemoryStore()` keeps each key's balance and timestamp in a Map inside the process.",
-          plain: "Each caller's balance and the time of its last request are kept in memory.",
+          plain: "Each caller's balance and a timestamp are kept in memory.",
           ev: headFile('src/store.ts', 'const rows = new Map<string, BucketState>();'),
         },
       ],
@@ -1337,18 +1337,18 @@ const views = {
         },
         {
           eng: '`clockStepMs()` makes the step 1 ms on Node 20 and later, and 10 ms on older Node.',
-          plain: 'The step is 1 thousandth of a second on newer systems and 10 thousandths on older ones.',
+          plain: 'The step is 1 thousandth of a second on Node 20 and later, and 10 thousandths before that.',
           ev: headFile('src/clock.ts', q.clockBranch),
         },
         {
-          eng: 'No other file in src names `roundRetryMs()`, so nothing calls it yet.',
-          plain: 'Nothing in the app uses the rounding yet.',
+          eng: 'Searching src for `roundRetryMs` finds only src/retry.ts.',
+          plain: "A search of the app's code finds the rounding in one file only.",
           ev: { verb: 'grep', at: head, pattern: 'roundRetryMs', paths: ['src'], shows: 'src/retry.ts' },
         },
       ],
       example: {
         eng: 'test/retry.test.ts expects a 25 ms wait to round up to 30 on Node 18.',
-        plain: "The app's own check expects a wait of 25 thousandths of a second to become 30 on an older system.",
+        plain: "The app's own check expects a wait of 25 thousandths of a second to become 30 on Node 18.",
         ev: headFile('test/retry.test.ts', 'assert.equal(roundRetryMs(25, 18), 30);'),
       },
       words: ['clock', 'step', 'round', 'wait', 'retry', 'Node 18'],
@@ -1374,7 +1374,7 @@ const views = {
         },
         {
           eng: 'Neither the README nor any guide names `createMetrics()`.',
-          plain: 'No guide mentions these counts.',
+          plain: 'No guide names the function that keeps these counts.',
           ev: { verb: 'grep', at: head, pattern: 'createMetrics', paths: ['README.md', 'docs'], shows: '(no matches)' },
         },
       ],
@@ -1406,14 +1406,9 @@ const views = {
           name: { eng: 'A limit of 2 stops letting a third request through', plain: 'An allowance of 2 no longer lets a third request through' },
           says: [
             {
-              eng: 'test/window.test.ts expects a limit of 2 to allow two requests, then block the next two.',
-              plain: "The app's own check expects two requests through at an allowance of 2, then two blocked.",
-              ev: { kind: 'file', path: 'test/window.test.ts', at: 'c-fix-bound', quote: 'assert.deepEqual(hits, [true, true, false, false]);' },
-            },
-            {
-              eng: 'The commit message calls it an off-by-one fix.',
-              plain: 'The note on the change calls it a fix for a count that was off by one.',
-              ev: commit('c-fix-bound', 'fix window off-by-one'),
+              eng: '`hitWindow()` allows a request only while the count is below the limit.',
+              plain: 'The counting code lets a request through only while the count is under the limit.',
+              ev: { kind: 'file', path: 'src/window.ts', at: 'c-fix-bound', quote: q.boundFix },
             },
           ],
           why: {
@@ -1499,7 +1494,7 @@ const views = {
             },
             {
               eng: 'PR #16 says "no behavior change intended."',
-              plain: 'The write-up said no change in behavior was intended.',
+              plain: 'The write-up called the change mostly mechanical.',
               ev: pr16(q.mostlyMechanical),
             },
           ],
@@ -1583,7 +1578,7 @@ const views = {
           says: [
             {
               eng: 'test/clock.test.ts expects a 10 ms step on Node 18.',
-              plain: "The app's own check expects a step of 10 thousandths of a second on an older system.",
+              plain: "The app's own check expects a step of 10 thousandths of a second on Node 18.",
               ev: headFile('test/clock.test.ts', 'assert.equal(clockStepMs(18), 10);'),
             },
             {
@@ -1631,7 +1626,7 @@ const views = {
     {
       id: 'd-store-interface',
       what: {
-        eng: 'Extract a Store interface.',
+        eng: 'Storage moves behind a Store interface.',
         plain: 'Storage became its own separate step.',
         ev: pr(2, 'Extract a store interface'),
       },
@@ -1680,7 +1675,7 @@ const views = {
       id: 'd-redis',
       what: {
         eng: 'Production shares one counter through a Redis store (ADR-0002).',
-        plain: 'Every copy of the service shares one count, kept in a shared database.',
+        plain: 'Copies of the service share one count, kept in one shared store.',
         ev: headFile(adrs.redis, q.useRedis),
       },
       alsoIntent: [pr(4, 'createRedisStore shares the counter.')],
@@ -1727,7 +1722,7 @@ const views = {
       why: {
         reason: {
           eng: 'Priya Nair said they run one Redis on a small VM, and Cluster is another bill and another thing that fails at 3am.',
-          plain: 'Priya Nair said they run one small shared database, and a bigger setup is another bill and another thing that fails at 3am.',
+          plain: 'Priya Nair said they run a single small server for this, and the bigger setup is another bill and another thing that fails at 3am.',
           ev: comment('pr6-thread-priya', `We run one Redis on a small VM. ${q.clusterBill}`),
         },
       },
@@ -1777,7 +1772,7 @@ const views = {
       why: {
         reason: {
           eng: 'Redis was unreachable for 11 minutes, the limiter failed closed, and the public API returned 429 for every customer.',
-          plain: 'The shared database was unreachable for 11 minutes, and the public service blocked every customer.',
+          plain: 'The store every copy shared was unreachable for 11 minutes, and the public service blocked every customer.',
           ev: { kind: 'discussion', number: 10, quote: `${q.elevenDisc} The limiter failed closed and the public API returned 429 for every customer.` },
         },
       },
@@ -1929,7 +1924,7 @@ const views = {
       brokenBy: 'pr#17',
       why: {
         eng: 'On Node versions before 20, `clockStepMs()` returns 10, not 1.',
-        plain: 'On older systems the step is 10 thousandths of a second, not 1.',
+        plain: 'Before Node 20, the step is 10 thousandths of a second, not 1.',
         ev: headFile('src/clock.ts', q.clockBranch),
       },
       covers: ['currency-clock-step'],
@@ -2010,8 +2005,8 @@ const views = {
       name: { eng: 'Fail-open on Redis errors', plain: 'Letting requests through when the shared database failed' },
       says: [
         {
-          eng: 'Before the change and after its revert, the code is the same.',
-          plain: 'Once it was undone, nothing was different from before.',
+          eng: 'The code before commit 8635c79 matches the code at commit 5f4bea4.',
+          plain: 'We compared the code before and after and found no differences.',
           ev: { verb: 'diff', from: 'c-changelog-030', to: 'c-revert-fail-open', shows: '(no differences)' },
         },
       ],
