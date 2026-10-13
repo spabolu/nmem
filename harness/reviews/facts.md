@@ -378,7 +378,17 @@ Paraphrase: The tallies remain inside every separate copy, and you do not have t
 Why it is flagged:
 - the cross-check says the paraphrase changes the meaning
 
-### 33. claim-exceed-guide, claim-why, Engineer
+### 33. claim-adr-burst, claim-why, Engineer
+
+Original: With the clock held still at limit 2, test/limit.test.ts expects four 200s and then a 429.
+
+Facts:
+- **headline** test/limit.test.ts expects four 200s and then a 429
+- The clock is held still at limit 2
+
+Paraphrase: Holding the clock motionless while limit equals 2 leads test/limit.test.ts to demand four 200s plus a later 429.
+
+### 34. claim-exceed-guide, claim-why, Engineer
 
 Original: Two limiters with their own stores, each at limit 2, let one key through 8 times, four times the limit.
 
@@ -390,7 +400,7 @@ Facts:
 
 Paraphrase: Two limiters, each using a private store and set to limit 2, passed one key 8 times, or four times the limit.
 
-### 34. claim-exceed-guide, claim-why, Non-engineer
+### 35. claim-exceed-guide, claim-why, Non-engineer
 
 Original: Two copies of the service, each allowing 2, let one caller through 8 times, four times the allowance.
 
@@ -401,7 +411,7 @@ Facts:
 
 Paraphrase: A pair of service copies, each one permitting 2, let one person pass 8 times, equal to fourfold the stated cap.
 
-### 35. clock, example, Engineer
+### 36. clock, example, Engineer
 
 Original: test/retry.test.ts expects a 25 ms wait to round up to 30 on Node 18.
 
@@ -411,7 +421,7 @@ Facts:
 
 Paraphrase: On Node 18, test/retry.test.ts requires that a 25 ms wait round up to 30.
 
-### 36. d-api-key, what, Engineer
+### 37. d-api-key, what, Engineer
 
 Original: The limiter's default key becomes the API key.
 
@@ -419,17 +429,6 @@ Facts:
 - **headline** The limiter's default key becomes the API key.
 
 Paraphrase: The limiter's default key is switched to the API key.
-
-### 37. d-cluster, reason, Engineer
-
-Original: Priya Nair said they run one Redis on a small VM, and Cluster is another bill and another thing that fails at 3am.
-
-Facts:
-- **headline** Cluster is another bill.
-- **headline** Cluster is another thing that fails at 3am.
-- Priya Nair said they run one Redis on a small VM.
-
-Paraphrase: Priya Nair explained that they keep a single Redis on a modest VM, while Cluster means a further invoice and one more piece that breaks at 3am.
 
 ### 38. d-fail-open, what, Non-engineer
 
@@ -519,16 +518,7 @@ Facts:
 
 Paraphrase: Reversed the step that had stopped refusing people when the shared data store fails.
 
-### 47. d-round-retry, what, Non-engineer
-
-Original: Wait times are rounded to a fixed step.
-
-Facts:
-- **headline** Wait times are rounded to a fixed step.
-
-Paraphrase: Times spent waiting are adjusted to a set interval.
-
-### 48. d-store-interface, what, Engineer
+### 47. d-store-interface, what, Engineer
 
 Original: Storage moves behind a Store interface.
 
@@ -536,6 +526,16 @@ Facts:
 - **headline** Storage moves behind a Store interface.
 
 Paraphrase: Storage now sits behind a Store interface.
+
+### 48. d-window-bound, reason, Non-engineer
+
+Original: Jon Okonkwo pointed out in review that one extra request got through once the limit was reached.
+
+Facts:
+- **headline** One extra request got through once the limit was reached.
+- Jon Okonkwo pointed out the extra request in review.
+
+Paraphrase: Jon Okonkwo noted in the review that one further try still succeeded after the allowed maximum was met.
 
 ### 49. f-rename, card, Non-engineer
 

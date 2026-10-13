@@ -71,6 +71,149 @@
     "review": "auto",
     "flags": []
   },
+  "wayfinder/claim-adr-burst/claim-why/eng": {
+    "source": "e6097b193a2aab3dc9d1533712030ca4",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "test/limit.test.ts expects four 200s and then a 429"
+      }
+    ],
+    "supporting": [
+      {
+        "id": "f2",
+        "text": "The clock is held still at limit 2"
+      }
+    ],
+    "paraphrase": [
+      "Holding the clock motionless while limit equals 2 leads test/limit.test.ts to demand four 200s plus a later 429."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "wayfinder/claim-adr-burst/claim-why/plain": {
+    "source": "8d00ca997f510cda138c45213f532b3d",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "With no time passing, the app's own check lets four requests through on an allowance of two."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "If the clock does not advance, the program's own review allows four tries on a permit of two."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "wayfinder/claim-adr-cap/claim-why/eng": {
+    "source": "42073c0f9dc31afeab7b38841600f63a",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "src/limit.ts calls `take()` with `options.limit * 2`."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "src/limit.ts invokes `take()` using `options.limit * 2`."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "wayfinder/claim-adr-cap/claim-why/plain": {
+    "source": "f04a731dbd8abbec82d48de953549441",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "The app passes twice the limit into the counting step."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "The application sends double the allowed amount into the tallying stage."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "wayfinder/claim-adr-exceed/claim-why/eng": {
+    "source": "1e870042c7086c7be29acc9713e9da89",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "Each limiter allowed one key 4 requests, so the key got 8."
+      }
+    ],
+    "supporting": [
+      {
+        "id": "f2",
+        "text": "The run used two limiters at limit 2."
+      }
+    ],
+    "paraphrase": [
+      "In a trial using two limiters set at limit 2, each limiter let one key make 4 requests, so that key ended at 8."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "wayfinder/claim-adr-exceed/claim-why/plain": {
+    "source": "a5a4ee374d82537bcdd17c576a215fd7",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "Each copy let one caller in 4 times."
+      }
+    ],
+    "supporting": [
+      {
+        "id": "f2",
+        "text": "The trial used two copies."
+      },
+      {
+        "id": "f3",
+        "text": "Each copy allowed 2."
+      }
+    ],
+    "paraphrase": [
+      "A trial ran two duplicates that each permitted 2, and every duplicate admitted one person 4 times."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "wayfinder/claim-adr-stores/claim-why/eng": {
+    "source": "61d1abe4bb3da4c85c499e7f1d403412",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "src/index.ts exports createMemoryStore."
+      },
+      {
+        "id": "f2",
+        "text": "src/index.ts exports no other store."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "src/index.ts exports createMemoryStore alone, with no other store."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "wayfinder/claim-adr-stores/claim-why/plain": {
+    "source": "c07a3d8840f510b9a41f1eddc27c1605",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "The app offers only one place to keep counts."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "The program supplies just one location for holding tallies."
+    ],
+    "review": "auto",
+    "flags": []
+  },
   "wayfinder/claim-allowed-headers/claim-why/eng": {
     "source": "6f6cbcf64b252da253c012e122cce6d0",
     "headline": [
@@ -703,6 +846,40 @@
     ],
     "paraphrase": [
       "Jon Okonkwo removed the update that created a second path for getting to the common record store."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "wayfinder/d-fail-closed/what/eng": {
+    "source": "2012ab015873031b163792de6164ced7",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "When the store throws, the limiter fails closed."
+      },
+      {
+        "id": "f2",
+        "text": "When the store throws, the limiter returns 429."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "Should the store raise an error, the limiter fails closed, answering 429."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "wayfinder/d-fail-closed/what/plain": {
+    "source": "4198a43ce7d0369b2b1c84ba0c0fcfd8",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "If the store of counts fails, requests are blocked instead of let through."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "When tally storage breaks, tries are stopped rather than waved through."
     ],
     "review": "auto",
     "flags": []
@@ -1588,6 +1765,76 @@
     "review": "auto",
     "flags": []
   },
+  "wayfinder/d-window-bound/reason/eng": {
+    "source": "1d5fb1a95b2e0a81f818b56d4d0ebbb0",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "count <= limit lets one extra request through once the count reaches the limit."
+      }
+    ],
+    "supporting": [
+      {
+        "id": "f2",
+        "text": "Jon Okonkwo pointed that out in review."
+      }
+    ],
+    "paraphrase": [
+      "In review, Jon Okonkwo noted that count <= limit allows an additional request after the count hits the limit."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "wayfinder/d-window-bound/reason/plain": {
+    "source": "7b96dca41d03746e866b0ec24074879a",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "One extra request got through once the limit was reached."
+      }
+    ],
+    "supporting": [
+      {
+        "id": "f2",
+        "text": "Jon Okonkwo pointed out the extra request in review."
+      }
+    ],
+    "paraphrase": [
+      "Jon Okonkwo noted in the review that one further try still succeeded after the allowed maximum was met."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "wayfinder/d-window-bound/what/eng": {
+    "source": "dd7090bb88acc3aa50f9b4ad726c5cbd",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "Fix the off-by-one in the window."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "Correct the off-by-one inside the window."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "wayfinder/d-window-bound/what/plain": {
+    "source": "1f2e11a2e5da25540da8c20c647faf3e",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "A counting mistake in the window was fixed."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "A tally error inside the time span was corrected."
+    ],
+    "review": "auto",
+    "flags": []
+  },
   "wayfinder/f-clock-split/card/eng": {
     "source": "9d6c5e3837b03116ffcbfd3f84ab43b8",
     "headline": [
@@ -1677,76 +1924,6 @@
     "paraphrase": [
       "Even with an allowance of two, four requests still pass the app's own check.",
       "The notes described that update as largely routine."
-    ],
-    "review": "auto",
-    "flags": []
-  },
-  "wayfinder/f-off-by-one/card/eng": {
-    "source": "9b7ed6da107517083558714523db611a",
-    "headline": [
-      {
-        "id": "f1",
-        "text": "hitWindow() allows a request only while the count is below the limit."
-      }
-    ],
-    "supporting": [],
-    "paraphrase": [
-      "hitWindow() permits a request solely when the count remains under the limit."
-    ],
-    "review": "auto",
-    "flags": []
-  },
-  "wayfinder/f-off-by-one/card/plain": {
-    "source": "e5ee611bfb33b50a9fb1f6bc27291c41",
-    "headline": [
-      {
-        "id": "f1",
-        "text": "The counting code lets a request through only while the count is under the limit."
-      }
-    ],
-    "supporting": [],
-    "paraphrase": [
-      "The tallying piece allows an ask past solely when the running total stays below the ceiling."
-    ],
-    "review": "auto",
-    "flags": []
-  },
-  "wayfinder/f-off-by-one/reason/eng": {
-    "source": "1d5fb1a95b2e0a81f818b56d4d0ebbb0",
-    "headline": [
-      {
-        "id": "f1",
-        "text": "count <= limit lets one extra request through once the count reaches the limit."
-      }
-    ],
-    "supporting": [
-      {
-        "id": "f2",
-        "text": "Jon Okonkwo pointed that out in review."
-      }
-    ],
-    "paraphrase": [
-      "In review, Jon Okonkwo noted that count <= limit allows an additional request after the count hits the limit."
-    ],
-    "review": "auto",
-    "flags": []
-  },
-  "wayfinder/f-off-by-one/reason/plain": {
-    "source": "7b96dca41d03746e866b0ec24074879a",
-    "headline": [
-      {
-        "id": "f1",
-        "text": "One extra request got through once the limit was reached."
-      }
-    ],
-    "supporting": [
-      {
-        "id": "f2",
-        "text": "Jon Okonkwo pointed out the extra request in review."
-      }
-    ],
-    "paraphrase": [
-      "Jon Okonkwo noted in the review that one further try still succeeded after the allowed maximum was met."
     ],
     "review": "auto",
     "flags": []
