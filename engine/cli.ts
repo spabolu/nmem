@@ -7,13 +7,15 @@
  *   nmem build <workspace> <out.json> [--store <dir>] [--no-model]
  *   nmem auth copilot
  *
- * add mirrors a GitHub repo into ~/.cache/nmem/repos/<owner>/<repo>. build-repo writes snapshot.json there, and serve
+ * add mirrors a GitHub repo into ~/.cache/nmem/repos/<owner>/<repo>. build-repo writes snapshot.json there, plus the
+ * site.json the app reads in place of git and proof runs (harness/bake.ts), and serve
  * opens the site for it on localhost. Exit codes: 0 ok, 1 the command failed, 2 bad usage.
  */
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { add, NMEM_CACHE, parseSlug, summaryLine, workspaceOf } from './add.ts';
+import { bakeSite } from '../harness/bake.ts';
 import { build } from './build.ts';
 import { deviceLogin, loadCredential, ModelUnavailable, openClient } from './copilot.ts';
 import type { ModelClient, Totals } from './copilot.ts';
@@ -21,7 +23,7 @@ import { findToken, graphqlRemote, openGraphql } from './github.ts';
 import { limited, MODELS } from './model.ts';
 
 export type Command =
-  | { readonly kind: 'build'; readonly workspace: string; readonly out: string; readonly store: string | null; readonly model: boolean }
+  | { readonly kind: 'build'; readonly workspace: string; readonly out: string; readonly store: string | null; readonly model: boolean; readonly site: boolean }
   | { readonly kind: 'add'; readonly repo: string }
   | { readonly kind: 'serve'; readonly workspace: string; readonly port: number }
   | { readonly kind: 'auth-copilot' };
@@ -71,13 +73,13 @@ export function parseArgs(argv: readonly string[]): Command {
   if (command === 'build') {
     const [workspace, out] = positional;
     if (!workspace || !out || positional.length !== 2) throw new Error(USAGE);
-    return { kind: 'build', workspace: path.resolve(workspace), out: path.resolve(out), store: resolvedStore, model };
+    return { kind: 'build', workspace: path.resolve(workspace), out: path.resolve(out), store: resolvedStore, model, site: false };
   }
   const [repo] = positional;
   if (!repo || positional.length !== 1) throw new Error(USAGE);
   const workspace = addedWorkspace(repo);
   if (command === 'serve') return { kind: 'serve', workspace, port };
-  return { kind: 'build', workspace, out: path.join(workspace, 'snapshot.json'), store: resolvedStore, model };
+  return { kind: 'build', workspace, out: path.join(workspace, 'snapshot.json'), store: resolvedStore, model, site: true };
 }
 
 export async function main(argv: readonly string[]): Promise<number> {
@@ -139,6 +141,7 @@ export async function main(argv: readonly string[]): Promise<number> {
   const temp = `${command.out}.${process.pid}.tmp`;
   fs.writeFileSync(temp, built.bytes);
   fs.renameSync(temp, command.out);
+  if (command.site) await bakeSite(command.workspace, command.out);
   for (const note of built.notes) console.error(`note: ${note}`);
   console.error(`${built.summary}; ${client === null ? 'no model' : callsLine(client.totals())}`);
   return 0;

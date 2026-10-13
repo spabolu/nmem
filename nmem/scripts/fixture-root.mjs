@@ -1,6 +1,6 @@
 /**
  * Lays out the generated fixtures the way `nmem add` and `nmem build-repo` lay out a real repo, so the site can serve
- * them: <root>/<owner>/<repo>/ links each fixture file and holds snapshot.json, the gold oracle web/verify.mjs serves.
+ * them: <root>/<owner>/<repo>/ links each fixture file and holds snapshot.json and its site.json, the gold oracle web/verify.mjs serves.
  *
  *   node nmem/scripts/fixture-root.mjs [dir]    prints the root; point NMEM_REPOS at it (plus ~/.cache/nmem/repos)
  */
@@ -8,6 +8,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { bakeSite } from "../../harness/bake.ts";
 import { loadGold } from "../../harness/gold.ts";
 
 const repoRoot = path.resolve(
@@ -19,7 +20,7 @@ const out = path.join(repoRoot, "out");
 
 export const FIXTURES = ["tally", "wayfinder", "seedling"];
 
-export function fixtureRoot(
+export async function fixtureRoot(
   dir = fs.mkdtempSync(path.join(os.tmpdir(), "nmem-fixtures-")),
 ) {
   for (const slug of FIXTURES) {
@@ -32,15 +33,14 @@ export function fixtureRoot(
     fs.mkdirSync(target, { recursive: true });
     for (const entry of fs.readdirSync(source))
       fs.symlinkSync(path.join(source, entry), path.join(target, entry));
-    fs.writeFileSync(
-      path.join(target, "snapshot.json"),
-      JSON.stringify(loadGold(out, slug).oracle),
-    );
+    const snapshot = path.join(target, "snapshot.json");
+    fs.writeFileSync(snapshot, JSON.stringify(loadGold(out, slug).oracle));
+    await bakeSite(target, snapshot);
   }
   return dir;
 }
 
 if (import.meta.main)
   console.log(
-    fixtureRoot(process.argv[2] ? path.resolve(process.argv[2]) : undefined),
+    await fixtureRoot(process.argv[2] ? path.resolve(process.argv[2]) : undefined),
   );

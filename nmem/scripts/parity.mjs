@@ -13,6 +13,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { plainHits } from "../../fixtures/lib/plain.mjs";
+import { bakeSite } from "../../harness/bake.ts";
 import { nullSnapshot } from "../../harness/corruptions.ts";
 import { loadGold } from "../../harness/gold.ts";
 import { factsOf, openFixture } from "../../harness/record.ts";
@@ -102,7 +103,7 @@ function goldName(ref, findings) {
 }
 
 /** A repos root holding one workspace: links to the fixture's files plus the snapshot under test. */
-function rootWith(snapshotFile, ws = workspace) {
+async function rootWith(snapshotFile, ws = workspace) {
   const { repo } = JSON.parse(
     fs.readFileSync(path.join(ws, "github.json"), "utf8"),
   );
@@ -110,10 +111,11 @@ function rootWith(snapshotFile, ws = workspace) {
   const target = path.join(dir, repo.owner, repo.name);
   fs.mkdirSync(target, { recursive: true });
   for (const entry of fs.readdirSync(ws)) {
-    if (entry !== "snapshot.json")
+    if (entry !== "snapshot.json" && entry !== "site.json")
       fs.symlinkSync(path.join(ws, entry), path.join(target, entry));
   }
   fs.copyFileSync(snapshotFile, path.join(target, "snapshot.json"));
+  await bakeSite(target, path.join(target, "snapshot.json"));
   return dir;
 }
 
@@ -448,7 +450,7 @@ function namesOf(html) {
 }
 
 async function checkOracle(snapshotFile, snapshot, facts, screens, findings) {
-  const server = start(rootWith(snapshotFile));
+  const server = start(await rootWith(snapshotFile));
   try {
     const port = await server.ready;
     const identity = JSON.parse(
@@ -635,7 +637,7 @@ async function checkOracle(snapshotFile, snapshot, facts, screens, findings) {
 }
 
 async function checkHonest(snapshotFile, label, expect) {
-  const server = start(rootWith(snapshotFile));
+  const server = start(await rootWith(snapshotFile));
   try {
     const port = await server.ready;
     const identity = JSON.parse(
@@ -715,7 +717,7 @@ async function checkHonest(snapshotFile, label, expect) {
 async function refuseBad() {
   const file = path.join(tmp, "bad.json");
   fs.writeFileSync(file, "{");
-  const server = start(rootWith(file));
+  const server = start(await rootWith(file));
   try {
     const port = await server.ready;
     const home = await get(port, "/");
@@ -1123,7 +1125,7 @@ async function shoot(cdp, sessionId, port) {
 }
 
 async function checkFixtures() {
-  const repos = fixtureRoot(fs.mkdtempSync(path.join(tmp, "fixtures-")));
+  const repos = await fixtureRoot(fs.mkdtempSync(path.join(tmp, "fixtures-")));
   const server = start(repos);
   try {
     const port = await server.ready;
@@ -1179,7 +1181,7 @@ async function checkLayout() {
   if (!fs.existsSync(chromeBin)) return;
   const cache = plimitCache;
   const browser = launchChrome();
-  const oracle = start(rootWith(oracleFile));
+  const oracle = start(await rootWith(oracleFile));
   try {
     const debugPort = await browser.ready;
     const version = await fetch(
