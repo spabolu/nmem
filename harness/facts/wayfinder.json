@@ -1,0 +1,2216 @@
+{
+  "wayfinder/callers/example/eng": {
+    "source": "926c1b166aa187640b76d4c8dc477763",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "test/key.test.ts expects `apiKey()` to name a request with no key anonymous."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "test/key.test.ts requires `apiKey()` to label a request that has no key as anonymous."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "wayfinder/callers/example/plain": {
+    "source": "25c06c6f25f84e93cd8267367adc63a7",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "The app's own check expects a request with no key to be called anonymous."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "The application's built-in review wants a submission lacking a secret to be labeled anonymous."
+    ],
+    "review": "flagged",
+    "flags": [
+      "the cross-check says the paraphrase changes the meaning"
+    ]
+  },
+  "wayfinder/callers/headline/eng": {
+    "source": "509525fda0c45d767b7cb9dda7914d23",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "`apiKey()` names each caller by its x-api-key header, else its authorization header without the Bearer prefix, else anonymous."
+      },
+      {
+        "id": "f2",
+        "text": "`createLimiter()` uses `apiKey()` unless the caller passes its own key function."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "`apiKey()` identifies every caller from the x-api-key header, or from the authorization header stripped of the Bearer prefix, or as anonymous.",
+      "`createLimiter()` calls `apiKey()` except when the caller supplies a key function of its own."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "wayfinder/callers/headline/plain": {
+    "source": "25b7ac52e14939b2c8348cb3a82299fa",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "Each caller is known by the key its app sends, and a caller with no key is called anonymous."
+      },
+      {
+        "id": "f2",
+        "text": "The limiter tells callers apart by their key unless the app using it supplies its own rule."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "Every caller is identified from the key that its application transmits, and one lacking a key gets the name anonymous.",
+      "The limiter separates callers using their key, except when the application that uses it provides a rule of its own."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "wayfinder/claim-allowed-headers/claim-why/eng": {
+    "source": "6f6cbcf64b252da253c012e122cce6d0",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "`createLimiter()` deletes RateLimit-Reset from the headers when the request is allowed."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "`createLimiter()` removes RateLimit-Reset out of the headers whenever that request is allowed."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "wayfinder/claim-allowed-headers/claim-why/plain": {
+    "source": "dc97a83d30ed7cce16507f0e527aa369",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "A reply that lets the request through has its reset time removed."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "A response that permits the request to continue has the reset time taken off."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "wayfinder/claim-balance-cap/claim-why/eng": {
+    "source": "946593c5367982349e85e9e62e9d86f7",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "src/limit.ts has used `options.limit * 2` since 2024-11-19."
+      }
+    ],
+    "supporting": [
+      {
+        "id": "f2",
+        "text": "Jon Okonkwo added `options.limit * 2` on 2024-11-19."
+      }
+    ],
+    "paraphrase": [
+      "Starting 2024-11-19, src/limit.ts applies `options.limit * 2`, which Jon Okonkwo added."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "wayfinder/claim-balance-cap/claim-why/plain": {
+    "source": "8abfc6acb3a28fcfb09a21beb38f63bc",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "Since Nov 19, 2024, the app doubles the configured limit."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "Beginning Nov 19, 2024, the program makes the chosen maximum twice as big."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "wayfinder/claim-clock-caller/claim-why/eng": {
+    "source": "8a1062e500e392ab41774d505845b93e",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "The rounding in src/retry.ts was first added on 2024-11-21."
+      }
+    ],
+    "supporting": [
+      {
+        "id": "f2",
+        "text": "Jon Okonkwo added that rounding in a commit."
+      }
+    ],
+    "paraphrase": [
+      "Rounding inside src/retry.ts first showed up on 2024-11-21, via a commit from Jon Okonkwo."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "wayfinder/claim-clock-caller/claim-why/plain": {
+    "source": "e37f250eff8d3848fb4be78434c40a4c",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "The app first rounded a wait to that step on Nov 21, 2024"
+      }
+    ],
+    "supporting": [
+      {
+        "id": "f2",
+        "text": "Jon Okonkwo made that change"
+      }
+    ],
+    "paraphrase": [
+      "On Nov 21, 2024, Jon Okonkwo changed the app so a wait was rounded to that step for the first time."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "wayfinder/claim-clock-step/claim-why/eng": {
+    "source": "e83f3281e78daa4780d6af3986377bed",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "On Node versions before 20, `clockStepMs()` returns 10."
+      },
+      {
+        "id": "f2",
+        "text": "On Node versions before 20, `clockStepMs()` does not return 1."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "With Node releases older than 20, `clockStepMs()` gives 10 rather than 1."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "wayfinder/claim-clock-step/claim-why/plain": {
+    "source": "e4e5ab608c8cb792c644cdea801e58f9",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "Before Node 20, the step is 10 thousandths of a second, not 1."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "Earlier than Node 20, the time unit is 10 thousandths of one second rather than 1."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "wayfinder/claim-exceed-guide/claim-why/eng": {
+    "source": "c75f20434df0c418a69e41ef06e51dbe",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "Two limiters let one key through 8 times."
+      },
+      {
+        "id": "f2",
+        "text": "8 times is four times the limit."
+      }
+    ],
+    "supporting": [
+      {
+        "id": "f3",
+        "text": "Each limiter has its own store."
+      },
+      {
+        "id": "f4",
+        "text": "Each limiter is at limit 2."
+      }
+    ],
+    "paraphrase": [
+      "Two limiters, each using a private store and set to limit 2, passed one key 8 times, or four times the limit."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "wayfinder/claim-exceed-guide/claim-why/plain": {
+    "source": "3a7f79ec6165270402a5f12d93659ee5",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "One caller gets through 8 times, four times the allowance."
+      }
+    ],
+    "supporting": [
+      {
+        "id": "f2",
+        "text": "There are two copies of the service."
+      },
+      {
+        "id": "f3",
+        "text": "Each copy allows 2."
+      }
+    ],
+    "paraphrase": [
+      "A pair of service copies, each one permitting 2, let one person pass 8 times, equal to fourfold the stated cap."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "wayfinder/claim-exceed-readme/claim-why/eng": {
+    "source": "493c67c98387d318ef698d87ca2d88d4",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "One key got 8 requests through."
+      }
+    ],
+    "supporting": [
+      {
+        "id": "f2",
+        "text": "The run was against two limiters at limit 2."
+      }
+    ],
+    "paraphrase": [
+      "One key had 8 requests accepted when tried on two limiters, both using limit 2."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "wayfinder/claim-exceed-readme/claim-why/plain": {
+    "source": "282242e99d59a7f624189c834030732b",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "One caller got 8 requests through."
+      }
+    ],
+    "supporting": [
+      {
+        "id": "f2",
+        "text": "The try was against two copies of the service allowing 2 each."
+      }
+    ],
+    "paraphrase": [
+      "Tested on two copies of the public product, each permitting 2, one person got 8 messages through."
+    ],
+    "review": "flagged",
+    "flags": [
+      "the cross-check says the paraphrase changes the meaning"
+    ]
+  },
+  "wayfinder/clock/example/eng": {
+    "source": "3f62c10cc1aa4a1fb6d0270b9fb37cdb",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "test/retry.test.ts expects a 25 ms wait to round up to 30."
+      }
+    ],
+    "supporting": [
+      {
+        "id": "f2",
+        "text": "The expectation applies on Node 18."
+      }
+    ],
+    "paraphrase": [
+      "On Node 18, test/retry.test.ts requires that a 25 ms wait round up to 30."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "wayfinder/clock/example/plain": {
+    "source": "5fbf8cba3223f773951b594160df4daf",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "The app's own check expects a wait of 25 thousandths of a second to become 30 on Node 18."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "The application's own test expects that a wait lasting 25 thousandths of one second will become 30 on Node 18."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "wayfinder/clock/headline/eng": {
+    "source": "f0b2e8f0e693ac4b12f755393bc107e6",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "`roundRetryMs()` rounds a wait up to a multiple of the clock step."
+      },
+      {
+        "id": "f2",
+        "text": "`clockStepMs()` makes the step 1 ms on Node 20 and later, and 10 ms on older Node."
+      }
+    ],
+    "supporting": [
+      {
+        "id": "f3",
+        "text": "Searching src for `roundRetryMs` finds only src/retry.ts."
+      }
+    ],
+    "paraphrase": [
+      "`roundRetryMs()` raises a wait so it equals some multiple of the clock step.",
+      "`clockStepMs()` sets the step to 1 ms for Node 20 and later, and to 10 ms for older Node.",
+      "A search of src for `roundRetryMs` locates solely src/retry.ts."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "wayfinder/clock/headline/plain": {
+    "source": "1df5f0fcca11f9f38f02d5061731d4f5",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "A wait is rounded up to a whole number of clock steps."
+      },
+      {
+        "id": "f2",
+        "text": "The step is 1 thousandth of a second on Node 20 and later."
+      }
+    ],
+    "supporting": [
+      {
+        "id": "f3",
+        "text": "Before Node 20 the step is 10 thousandths of a second."
+      },
+      {
+        "id": "f4",
+        "text": "A search of the app's code finds the rounding in one file only."
+      }
+    ],
+    "paraphrase": [
+      "A pause is raised until it equals a whole count of time units.",
+      "From version 20 onward that unit lasts 1 thousandth of a second, and earlier ones last 10 thousandths.",
+      "A look through the program finds the rounding in only one place."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "wayfinder/counting/example/eng": {
+    "source": "4e748c29f33c9dde6bbda376c194f222",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "test/limit.test.ts sends five requests from a new key at limit 2 in the same instant."
+      },
+      {
+        "id": "f2",
+        "text": "test/limit.test.ts expects four 200s, then a 429."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "In test/limit.test.ts, five requests go out together from a fresh key while the limit is 2, and the expected results are four 200s and then a 429."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "wayfinder/counting/example/plain": {
+    "source": "fafaf46db9fa5c9528926478efe78b8a",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "The app's own check sends five requests in the same instant from a new caller allowed 2."
+      },
+      {
+        "id": "f2",
+        "text": "The app's own check expects four through, then a block."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "The application's own test sends five asks at the same moment from a fresh caller permitted 2, and looks for four to pass, then a stop."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "wayfinder/counting/headline/eng": {
+    "source": "21626cf40b8a5553a9520ff0053f2f92",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "A bucket of permits refills over time."
+      },
+      {
+        "id": "f2",
+        "text": "A request is rejected when less than one permit is left."
+      }
+    ],
+    "supporting": [
+      {
+        "id": "f3",
+        "text": "A new key is allowed up to twice the configured limit."
+      }
+    ],
+    "paraphrase": [
+      "As time passes a bucket of permits fills back up, and a request is refused once fewer than one permit remains.",
+      "A new key may be granted as much as twice the configured limit."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "wayfinder/counting/headline/plain": {
+    "source": "816fdad3882d395234b164073884b2c7",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "An allowance refills over time."
+      },
+      {
+        "id": "f2",
+        "text": "A request is blocked when less than one is left."
+      }
+    ],
+    "supporting": [
+      {
+        "id": "f3",
+        "text": "A new caller can send up to twice its allowance."
+      }
+    ],
+    "paraphrase": [
+      "A permitted amount builds back up as time passes, and a try is stopped when fewer than one remains.",
+      "A newcomer may send as many as twice the amount it is permitted."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "wayfinder/d-api-key/reason/eng": {
+    "source": "d9d0c5003fb947a828cc184ade90fb8b",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "Harbor and Co.'s whole office shares one egress IP."
+      },
+      {
+        "id": "f2",
+        "text": "Forty people were counted as one client and cut off."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "Harbor and Co.'s entire workplace uses one egress IP, and that meant forty people got treated as one client before being blocked."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "wayfinder/d-api-key/reason/plain": {
+    "source": "6ebdba853f880572c0553d1a172b6033",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "Because one customer's whole office shares one internet address, forty people were counted as one caller and blocked."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "One customer's entire office uses a single internet address, so forty people got treated as one caller and were blocked."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "wayfinder/d-api-key/what/eng": {
+    "source": "d83994352c78af06889acb08e92d4807",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "The limiter's default key becomes the API key."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "The limiter's default key is switched to the API key."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "wayfinder/d-api-key/what/plain": {
+    "source": "57ab0a629eac9ba5a87459be83eea6f0",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "By default, each caller is counted by its own key."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "As the usual choice, each asker is tallied by a marker of their own."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "wayfinder/d-bucket/reason/eng": {
+    "source": "f69b33ab9b238cc8ea4d6fbde5dc1639",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "A client could send the full limit on both sides of a window boundary."
+      }
+    ],
+    "supporting": [
+      {
+        "id": "f2",
+        "text": "The polling partner did that every minute."
+      }
+    ],
+    "paraphrase": [
+      "Every minute, the polling partner transmitted the full limit at each side of a window boundary, which a client could also do."
+    ],
+    "review": "flagged",
+    "flags": [
+      "the cross-check says the paraphrase changes the meaning"
+    ]
+  },
+  "wayfinder/d-bucket/reason/plain": {
+    "source": "56bf4744e0ca96cdf86e79945ee94bdb",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "A customer could use its full allowance on both sides of each block of time."
+      }
+    ],
+    "supporting": [
+      {
+        "id": "f2",
+        "text": "One partner used a full allowance on both sides of each block of time every minute."
+      }
+    ],
+    "paraphrase": [
+      "A buyer was able to spend the entire share at each edge of every time span, and a single partner repeated it every minute."
+    ],
+    "review": "flagged",
+    "flags": [
+      "the cross-check says fact 2 (\"One partner used a full allowance on both sides of each block of time every minute.\") is not what the sentence says",
+      "the cross-check says the sentence also states: One partner did that every minute."
+    ]
+  },
+  "wayfinder/d-bucket/what/eng": {
+    "source": "08789af3a0954c931fbb5ea59ac43eb8",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "A token bucket replaces the fixed window (ADR-0003)."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "The fixed window is replaced by a token bucket (ADR-0003)."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "wayfinder/d-bucket/what/plain": {
+    "source": "1a13c8ddfc3703ad9c012961a2aaab52",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "An allowance that refills over time replaces fixed blocks of time."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "A budget that comes back little by little takes the place of rigid stretches of time."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "wayfinder/d-cluster/reason/eng": {
+    "source": "027a31d0dfaf3c46446d7a645aaf2e4e",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "Cluster is another bill."
+      },
+      {
+        "id": "f2",
+        "text": "Cluster is another thing that fails at 3am."
+      }
+    ],
+    "supporting": [
+      {
+        "id": "f3",
+        "text": "Priya Nair said they run one Redis on a small VM."
+      }
+    ],
+    "paraphrase": [
+      "Priya Nair explained that they keep a single Redis on a modest VM, while Cluster means a further invoice and one more piece that breaks at 3am."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "wayfinder/d-cluster/reason/plain": {
+    "source": "8172ba16be9b4065b357126686cecfe3",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "Priya Nair said they run a single small server for this."
+      },
+      {
+        "id": "f2",
+        "text": "Priya Nair said the bigger setup is another bill and another thing that fails at 3am."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "Priya Nair said they use one small machine for this work, and the larger arrangement is one more invoice plus one more thing that breaks at 3am."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "wayfinder/d-cluster/what/eng": {
+    "source": "b38b0565960f3501805fe1f718f9ce7b",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "Jon Okonkwo closed PR #6."
+      }
+    ],
+    "supporting": [
+      {
+        "id": "f2",
+        "text": "PR #6 is the Redis Cluster adapter."
+      }
+    ],
+    "paraphrase": [
+      "Jon Okonkwo shut the Redis Cluster adapter, PR #6."
+    ],
+    "review": "flagged",
+    "flags": [
+      "the cross-check says the paraphrase changes the meaning"
+    ]
+  },
+  "wayfinder/d-cluster/what/plain": {
+    "source": "058352fbe5c44f447e7cd72c4af6cea9",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "Jon Okonkwo dropped the change."
+      }
+    ],
+    "supporting": [
+      {
+        "id": "f2",
+        "text": "That change added a second way to reach the shared database."
+      }
+    ],
+    "paraphrase": [
+      "Jon Okonkwo removed the update that created a second path for getting to the common record store."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "wayfinder/d-fail-open/reason/eng": {
+    "source": "8bee9d3e4e38b707843a1d997f0c2852",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "A Redis blip would not send a 429 to every caller."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "So that a Redis hiccup would not return 429 to all callers."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "wayfinder/d-fail-open/reason/plain": {
+    "source": "6538897b61408532d0e8c0b759181d13",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "A hiccup in the shared database would not block every caller."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "So a brief snag in the shared records would not stop every person asking."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "wayfinder/d-fail-open/what/eng": {
+    "source": "6e43c3f6deed23c0300cc65bd5e538ea",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "When Redis errors, let the request through rather than sending a 429."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "On a Redis error, allow the request instead of returning a 429."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "wayfinder/d-fail-open/what/plain": {
+    "source": "d890f048fb50f97d721d17248ec3fc4a",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "When the shared database fails, let requests through instead of blocking them."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "If the shared database stops working, allow requests to proceed rather than holding them back."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "wayfinder/d-fixed-window/reason/eng": {
+    "source": "ff0ceb8cc47ece7c7ccf2d6cfe5727c3",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "The public API ran as one Node process."
+      },
+      {
+        "id": "f2",
+        "text": "A shared database was more moving parts than the partner launch could carry."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "The public API operated as a single Node process, while a shared database meant extra pieces in motion beyond what the partner launch could handle."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "wayfinder/d-fixed-window/reason/plain": {
+    "source": "165d53ae409c08fcf0a7bbcb3cb10134",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "The public service ran as a single copy."
+      },
+      {
+        "id": "f2",
+        "text": "A shared database was more than the partner launch could carry."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "The public service operated as one lone copy, and a joint record store was beyond what the partner launch was able to manage."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "wayfinder/d-fixed-window/what/eng": {
+    "source": "bd610fdb2b8da3a1a5deb5a5278aa15d",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "Requests are counted in a fixed window inside one process."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "Tally requests across a set interval within a single process."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "wayfinder/d-fixed-window/what/plain": {
+    "source": "4a3cae423e87372aa0fefffd6ca36bab",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "Requests are counted in fixed blocks of time."
+      },
+      {
+        "id": "f2",
+        "text": "Requests are counted inside one copy of the service."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "Tries are tallied during set stretches of time within a single running copy."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "wayfinder/d-in-process/reason/eng": {
+    "source": "646c55f835565613b3efca1a6b596feb",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "Redis was unreachable for 11 minutes."
+      },
+      {
+        "id": "f2",
+        "text": "The limiter failed closed."
+      }
+    ],
+    "supporting": [
+      {
+        "id": "f3",
+        "text": "The public API returned 429 for every customer."
+      }
+    ],
+    "paraphrase": [
+      "The limiter failed closed, Redis having been unreachable across 11 minutes, and the public API gave every customer 429."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "wayfinder/d-in-process/reason/plain": {
+    "source": "04b21aaee9dd1bc9286940e6209fcbc7",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "The store every copy shared was unreachable for 11 minutes."
+      },
+      {
+        "id": "f2",
+        "text": "The public service blocked every customer."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "For 11 minutes the store that every copy shared could not be reached, and the public service turned away every customer."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "wayfinder/d-in-process/what/eng": {
+    "source": "98b4fda0dbbdb552aa556393040d878a",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "Delete the Redis adapter."
+      },
+      {
+        "id": "f2",
+        "text": "Keep buckets in each process's memory."
+      }
+    ],
+    "supporting": [
+      {
+        "id": "f3",
+        "text": "The decision is ADR-0004."
+      }
+    ],
+    "paraphrase": [
+      "Remove the Redis adapter and retain buckets inside the memory of each process (ADR-0004)."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "wayfinder/d-in-process/what/plain": {
+    "source": "2c96ec2dd699e005d5dba9ad211ec1e3",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "The shared database was dropped."
+      },
+      {
+        "id": "f2",
+        "text": "Each copy of the service keeps its own counts."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "The common store of records was removed, and every separate copy now tracks its own numbers."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "wayfinder/d-metrics/reason/eng": {
+    "source": "bbdd4651fb510640261f2ed38fcff9cc",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "Priya Nair only saw 429s in the access log"
+      },
+      {
+        "id": "f2",
+        "text": "429s in the access log are not an alert"
+      }
+    ],
+    "supporting": [
+      {
+        "id": "f3",
+        "text": "Priya Nair asked for a reject counter"
+      }
+    ],
+    "paraphrase": [
+      "Priya Nair requested a reject counter after finding only 429s inside the access log, which does not count as an alert."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "wayfinder/d-metrics/reason/plain": {
+    "source": "12ac169eb813e70f44ab77e391b69348",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "Priya Nair asked for a count of blocked requests."
+      }
+    ],
+    "supporting": [
+      {
+        "id": "f2",
+        "text": "Priya Nair only saw blocked requests in a log."
+      },
+      {
+        "id": "f3",
+        "text": "Seeing blocked requests only in a log warns nobody."
+      }
+    ],
+    "paraphrase": [
+      "Priya Nair sought a tally of refused attempts, since she had noticed them only inside a record, and a record alerts nobody."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "wayfinder/d-metrics/what/eng": {
+    "source": "9c5f1c8ea7ec4ec3228f7db62773ba28",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "`createMetrics()` records allowed requests."
+      },
+      {
+        "id": "f2",
+        "text": "`createMetrics()` records rejected requests."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "`createMetrics()` logs allowed requests as well as rejected ones."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "wayfinder/d-metrics/what/plain": {
+    "source": "a60207b93f4aca40d250a7078602ff37",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "The service counts allowed and blocked requests."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "The service tallies both accepted and stopped attempts."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "wayfinder/d-no-new-service/reason/eng": {
+    "source": "2fea7f88ec7d9dd5f3490e600b26c0f6",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "A counter they can scrape is enough."
+      }
+    ],
+    "supporting": [
+      {
+        "id": "f2",
+        "text": "A counter they can scrape can wait."
+      }
+    ],
+    "paraphrase": [
+      "A counter they are able to scrape will suffice, and it may be deferred."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "wayfinder/d-no-new-service/reason/plain": {
+    "source": "b9768c65e1e6639f3969bb062229f139",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "A count the team can read from outside is enough."
+      }
+    ],
+    "supporting": [
+      {
+        "id": "f2",
+        "text": "The count can wait."
+      }
+    ],
+    "paraphrase": [
+      "A number the team can see from outside is sufficient, and that number can come later."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "wayfinder/d-no-new-service/what/eng": {
+    "source": "2849202bce563ea3415dd52b0d3b298c",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "Do not add a new service for reject alerts"
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "Do not introduce an additional service meant for reject alerts."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "wayfinder/d-no-new-service/what/plain": {
+    "source": "ded8d73e0636340aaa2dd4bc61af416d",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "There will be no new service just to warn about blocked requests."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "No separate offering only to alert people about refused requests."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "wayfinder/d-no-shared-db/reason/eng": {
+    "source": "d77c11abecfa8e3ed8e7c5559c6590c0",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "That database is how the site blocked everyone in August."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "In August, everyone was blocked by the site through that database."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "wayfinder/d-no-shared-db/reason/plain": {
+    "source": "a20cc4560c69fe09b619796077fdac28",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "That database is how the site blocked everyone in August."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "In August the website blocked everyone by using that record store."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "wayfinder/d-no-shared-db/what/eng": {
+    "source": "cd91741d9b7c380ed6a4f6b2d4625344",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "The shared database stays off."
+      },
+      {
+        "id": "f2",
+        "text": "No bigger database is bought to get exact counts back."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "The shared database remains disabled, and nobody buys a larger one in order to restore exact counts."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "wayfinder/d-no-shared-db/what/plain": {
+    "source": "d9c945fa3470dc9159caad5380f57257",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "The shared database stays off."
+      },
+      {
+        "id": "f2",
+        "text": "No bigger database will be bought to get exact counts back."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "The shared store of records remains switched off, and no larger one will be purchased to recover exact totals."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "wayfinder/d-no-switch/reason/eng": {
+    "source": "fa70f1c3abecb9fb45224c4bee3d6573",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "Someone would turn it back on during an incident."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "During an incident, somebody would switch it on again."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "wayfinder/d-no-switch/reason/plain": {
+    "source": "46fc5b67577896e05918db4ef427eb21",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "Someone would switch it back on in the middle of an outage."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "A person might turn it on again while a breakdown was still going."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "wayfinder/d-no-switch/what/eng": {
+    "source": "dbb5550a04267d61b190ef8eec17329d",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "Delete the Redis adapter outright."
+      }
+    ],
+    "supporting": [
+      {
+        "id": "f2",
+        "text": "There is no switch to turn it back on."
+      }
+    ],
+    "paraphrase": [
+      "Remove the Redis adapter entirely, without any toggle for restoring it later."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "wayfinder/d-no-switch/what/plain": {
+    "source": "788e465076d09d3cfc06831d63677b16",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "The shared database code will be removed completely."
+      }
+    ],
+    "supporting": [
+      {
+        "id": "f2",
+        "text": "There is no switch to bring the shared database code back."
+      }
+    ],
+    "paraphrase": [
+      "Drop the shared information storage entirely, with no control left to restore it."
+    ],
+    "review": "flagged",
+    "flags": [
+      "the cross-check says fact 1 (\"The shared database code will be removed completely.\") is not what the sentence says",
+      "the cross-check says the sentence also states: Remove the shared database code completely."
+    ]
+  },
+  "wayfinder/d-per-route/reason/eng": {
+    "source": "abed5b0f2cdff3163940c9440a017d2a",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "Last November the checkout override sat at zero for nine days."
+      },
+      {
+        "id": "f2",
+        "text": "Last November the limit was off."
+      }
+    ],
+    "supporting": [
+      {
+        "id": "f3",
+        "text": "Nobody noticed until a partner scraped them."
+      }
+    ],
+    "paraphrase": [
+      "For nine days last November the checkout override stayed at zero and the limit stayed off, with nobody aware until a partner scraped them."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "wayfinder/d-per-route/reason/plain": {
+    "source": "d4d0395d4adc6d8624a1fc6aeda76e2a",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "A special limit on the checkout page once sat at zero for nine days."
+      },
+      {
+        "id": "f2",
+        "text": "Sitting at zero turned the limit off."
+      }
+    ],
+    "supporting": [
+      {
+        "id": "f3",
+        "text": "Nobody noticed until a partner scraped the site."
+      }
+    ],
+    "paraphrase": [
+      "Once, for nine days, a special checkout page limit remained at zero and therefore was switched off, yet no one realized this until a partner copied pages from the site."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "wayfinder/d-per-route/what/eng": {
+    "source": "d5b8ad07c8892d1c39f520daa88dc764",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "There are no per-route limits."
+      },
+      {
+        "id": "f2",
+        "text": "Raise the one limit on the API key if checkout needs more room."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "There are no per-route limits; increase the API key's single allowance if checkout requires more capacity."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "wayfinder/d-per-route/what/plain": {
+    "source": "cace25e4831356809d819e6f8879de3b",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "There are no separate limits for each part of the service."
+      }
+    ],
+    "supporting": [
+      {
+        "id": "f2",
+        "text": "If checkout needs more room, the customer's one limit goes up."
+      }
+    ],
+    "paraphrase": [
+      "Service sections do not receive distinct caps; should checkout require extra space, the customer's one cap is raised."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "wayfinder/d-redis/reason/eng": {
+    "source": "9c6e266876fb62336116fea8edb01a8a",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "They were about to run a second API process."
+      },
+      {
+        "id": "f2",
+        "text": "An in-process counter would grant each process its own full limit."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "They were about to launch a second API process, so an in-process counter would hand each process a full limit of its own."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "wayfinder/d-redis/reason/plain": {
+    "source": "be5d612d53497c6701455a47e33e1c97",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "A second copy of the service was coming."
+      },
+      {
+        "id": "f2",
+        "text": "Counting inside each copy would give each one its own full limit."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "Another copy of the service was on its way, and a count kept inside each copy would let every copy have its own complete limit."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "wayfinder/d-redis/what/eng": {
+    "source": "9e440b7546799a7e4e21b11467f7d14f",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "Production shares one counter through a Redis store (ADR-0002)."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "Production uses one shared counter held in a Redis store (ADR-0002)."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "wayfinder/d-redis/what/plain": {
+    "source": "8c14ed18a18883b13f7581b648a064eb",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "Copies of the service share one count."
+      },
+      {
+        "id": "f2",
+        "text": "The one count is kept in one shared store."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "All copies of the offering share one tally, held in one common place."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "wayfinder/d-rename/what/eng": {
+    "source": "dd7d921bfb0ba25e503f811428ba9267",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "Renamed the windowMs option to refillWindowMs."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "The windowMs option now goes by the name refillWindowMs."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "wayfinder/d-rename/what/plain": {
+    "source": "b0a8c919b724559f5445bf1577d5f57f",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "The refill setting got a new name."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "A new name was given to the refill setting."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "wayfinder/d-retry-headers/reason/eng": {
+    "source": "fff6f7030132c75ffce44641c29526a4",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "Brightline retried the moment it was blocked, which made the block last longer."
+      }
+    ],
+    "supporting": [
+      {
+        "id": "f2",
+        "text": "Sam Ellison said that."
+      }
+    ],
+    "paraphrase": [
+      "Sam Ellison reported that Brightline tried again the instant a block began, extending how long that block stayed in effect."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "wayfinder/d-retry-headers/reason/plain": {
+    "source": "c65a9f9dc258247b8352a897e0687904",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "Trying again the moment it was blocked made the block last longer."
+      }
+    ],
+    "supporting": [
+      {
+        "id": "f2",
+        "text": "Sam Ellison said one customer tried again the moment it was blocked."
+      }
+    ],
+    "paraphrase": [
+      "Sam Ellison stated that one customer came back at the instant the block began, and that return made the block continue longer."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "wayfinder/d-retry-headers/what/eng": {
+    "source": "a4f6c9e0ba7248dcfafc9b2c71fca677",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "Responses carry Retry-After."
+      },
+      {
+        "id": "f2",
+        "text": "Responses carry the RateLimit headers."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "Replies include Retry-After together with the RateLimit headers."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "wayfinder/d-retry-headers/what/plain": {
+    "source": "b3ef7785b7ecece31d16474afc39bf0b",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "Replies tell callers their allowance."
+      },
+      {
+        "id": "f2",
+        "text": "Replies tell callers what is left."
+      }
+    ],
+    "supporting": [
+      {
+        "id": "f3",
+        "text": "Replies tell callers when their allowance resets."
+      },
+      {
+        "id": "f4",
+        "text": "Replies tell callers how long to wait."
+      }
+    ],
+    "paraphrase": [
+      "Answers tell people their allowed amount, the remainder, when counting starts over, and how long they should pause."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "wayfinder/d-revert-fail-open/what/eng": {
+    "source": "92cf409c9d3d3f827eac43413ba45233",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "The fail-open commit was reverted."
+      },
+      {
+        "id": "f2",
+        "text": "A Redis error sends a 429 again."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "The fail-open commit was rolled back, so a Redis error once more answers with a 429."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "wayfinder/d-revert-fail-open/what/plain": {
+    "source": "c707bbe503289efde2be53c1d6b822fe",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "The change that stopped blocking callers when the shared database fails was undone."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "Reversed the step that had stopped refusing people when the shared data store fails."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "wayfinder/d-round-retry/what/eng": {
+    "source": "af9b0eb6c54e7a45e4d068055e20af05",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "Retry waits are rounded to the clock step."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "Make retry waits round to the clock step."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "wayfinder/d-round-retry/what/plain": {
+    "source": "d65cd44a41b5806cc1c0e106c83acad2",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "Wait times are rounded to a fixed step."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "Times spent waiting are adjusted to a set interval."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "wayfinder/d-store-interface/what/eng": {
+    "source": "ef8c657ff0ef95c7caf295cc55201864",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "Storage moves behind a Store interface."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "Storage now sits behind a Store interface."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "wayfinder/d-store-interface/what/plain": {
+    "source": "3fc2799c53f1d4bf14e0302c13cd372b",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "Storage became its own separate step."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "Storage became a step of its own."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "wayfinder/f-clock-split/card/eng": {
+    "source": "9d6c5e3837b03116ffcbfd3f84ab43b8",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "test/clock.test.ts expects a 10 ms step on Node 18."
+      },
+      {
+        "id": "f2",
+        "text": "docs/concepts/clock.md says the clock step is 1 ms."
+      }
+    ],
+    "supporting": [
+      {
+        "id": "f3",
+        "text": "docs/concepts/clock.md names no Node version."
+      }
+    ],
+    "paraphrase": [
+      "test/clock.test.ts requires a 10 ms step under Node 18.",
+      "docs/concepts/clock.md puts the clock step at 1 ms and identifies no Node version."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "wayfinder/f-clock-split/card/plain": {
+    "source": "a350b40ba2937a71a98ad2a45774d9af",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "The app's own check expects a step of 10 thousandths of a second on Node 18."
+      },
+      {
+        "id": "f2",
+        "text": "The guide says the step is 1 thousandth of a second."
+      }
+    ],
+    "supporting": [
+      {
+        "id": "f3",
+        "text": "The guide names no exception."
+      }
+    ],
+    "paraphrase": [
+      "The program's own test expects a unit of 10 thousandths per second on version 18.",
+      "The guide says each unit lasts 1 thousandth of a second but names no exception."
+    ],
+    "review": "flagged",
+    "flags": [
+      "the cross-check says the paraphrase changes the meaning"
+    ]
+  },
+  "wayfinder/f-double/card/eng": {
+    "source": "3cdbf205f62d21a21ed63d396d7634ab",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "test/limit.test.ts expects four 200s, then a 429, at limit 2."
+      },
+      {
+        "id": "f2",
+        "text": "PR #16 says \"no behavior change intended.\""
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "At limit 2, test/limit.test.ts looks for four 200s followed by a 429.",
+      "PR #16 states \"no behavior change intended.\""
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "wayfinder/f-double/card/plain": {
+    "source": "359d742cbbdc267157e44c2874bd9da0",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "The app's own check lets four requests through on an allowance of two."
+      }
+    ],
+    "supporting": [
+      {
+        "id": "f2",
+        "text": "The write-up called the change mostly mechanical."
+      }
+    ],
+    "paraphrase": [
+      "Even with an allowance of two, four requests still pass the app's own check.",
+      "The notes described that update as largely routine."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "wayfinder/f-off-by-one/card/eng": {
+    "source": "9b7ed6da107517083558714523db611a",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "hitWindow() allows a request only while the count is below the limit."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "hitWindow() permits a request solely when the count remains under the limit."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "wayfinder/f-off-by-one/card/plain": {
+    "source": "e5ee611bfb33b50a9fb1f6bc27291c41",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "The counting code lets a request through only while the count is under the limit."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "The tallying piece allows an ask past solely when the running total stays below the ceiling."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "wayfinder/f-off-by-one/reason/eng": {
+    "source": "1d5fb1a95b2e0a81f818b56d4d0ebbb0",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "count <= limit lets one extra request through once the count reaches the limit."
+      }
+    ],
+    "supporting": [
+      {
+        "id": "f2",
+        "text": "Jon Okonkwo pointed that out in review."
+      }
+    ],
+    "paraphrase": [
+      "In review, Jon Okonkwo noted that count <= limit allows an additional request after the count hits the limit."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "wayfinder/f-off-by-one/reason/plain": {
+    "source": "7b96dca41d03746e866b0ec24074879a",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "One extra request got through once the limit was reached."
+      }
+    ],
+    "supporting": [
+      {
+        "id": "f2",
+        "text": "Jon Okonkwo pointed out the extra request in review."
+      }
+    ],
+    "paraphrase": [
+      "Jon Okonkwo noted in the review that one further try still succeeded after the allowed maximum was met."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "wayfinder/f-rename/card/eng": {
+    "source": "04889d9b0181e60f5e4f89a971979424",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "A caller still passing windowMs has that option ignored."
+      },
+      {
+        "id": "f2",
+        "text": "The old name means no limit at all."
+      }
+    ],
+    "supporting": [
+      {
+        "id": "f3",
+        "text": "Nothing in src or test reads windowMs."
+      },
+      {
+        "id": "f4",
+        "text": "With windowMs: 1000 at limit 2, all ten requests get a 200."
+      }
+    ],
+    "paraphrase": [
+      "src and test contain no read of windowMs, so a caller who keeps supplying it finds that choice dropped.",
+      "Given windowMs: 1000 and limit 2, each of the ten requests receives a 200, which shows the former name enforces no limit whatsoever."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "wayfinder/f-rename/card/plain": {
+    "source": "cd17f15d2649d113ec49e919b0686d64",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "A caller still using the old setting name has it ignored."
+      },
+      {
+        "id": "f2",
+        "text": "The old setting name was tried with an allowance of 2, and all ten requests went through."
+      }
+    ],
+    "supporting": [
+      {
+        "id": "f3",
+        "text": "Nothing in the app reads the old setting name."
+      }
+    ],
+    "paraphrase": [
+      "No part of the application looks at the previous option name, so someone who still sends it finds it disregarded.",
+      "We tested the previous option name using a limit of 2, and every one of the ten attempts succeeded."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "wayfinder/f-reset/card/eng": {
+    "source": "2ba382c6a17eacd2d3d3ae204bc68ef5",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "Issue #20 reports the missing header on allowed responses."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "Issue #20 notes that the header is absent from allowed responses."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "wayfinder/f-reset/card/plain": {
+    "source": "50fd57f75b5db23f645091ddac2accca",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "Replies to allowed requests are missing the reset time."
+      }
+    ],
+    "supporting": [
+      {
+        "id": "f2",
+        "text": "Priya Nair reported that replies to allowed requests are missing the reset time."
+      }
+    ],
+    "paraphrase": [
+      "Priya Nair noted that answers to permitted calls leave out the renewal time."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "wayfinder/metrics/headline/eng": {
+    "source": "f75205d9504d761835a52ab9b5673f3d",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "`createMetrics()` counts allowed and rejected requests in memory."
+      },
+      {
+        "id": "f2",
+        "text": "Neither the README nor any guide names `createMetrics()`."
+      }
+    ],
+    "supporting": [
+      {
+        "id": "f3",
+        "text": "This count is from the code."
+      },
+      {
+        "id": "f4",
+        "text": "`createLimiter()` records each decision when the caller passes metrics in."
+      }
+    ],
+    "paraphrase": [
+      "Per the implementation: `createMetrics()` tallies permitted and refused requests while stored in memory.",
+      "`createLimiter()` notes every decision whenever the caller hands over metrics.",
+      "The README and all guides fail to mention `createMetrics()`."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "wayfinder/metrics/headline/plain": {
+    "source": "ed909d4cafd246c415a4a53112ab69d0",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "The service counts allowed and blocked requests in its own memory."
+      },
+      {
+        "id": "f2",
+        "text": "Each decision is counted when the app using the limiter asks for counts."
+      }
+    ],
+    "supporting": [
+      {
+        "id": "f3",
+        "text": "Reading the code shows that the service counts allowed and blocked requests in its own memory."
+      },
+      {
+        "id": "f4",
+        "text": "No guide names the function that keeps these counts."
+      }
+    ],
+    "paraphrase": [
+      "From how it is built, the offering tallies permitted and refused calls in space of its own.",
+      "Every choice is tallied when the program that uses the limit tool asks for the totals.",
+      "No handbook names the piece that holds these totals."
+    ],
+    "review": "flagged",
+    "flags": [
+      "the cross-check says the paraphrase changes the meaning"
+    ]
+  },
+  "wayfinder/replies/example/eng": {
+    "source": "e918154c4364998e2b2a0b6749bbf469",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "rateLimitHeaders(10, -0.2, 3) gives RateLimit-Remaining 0 and Retry-After 3."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "rateLimitHeaders(10, -0.2, 3) returns RateLimit-Remaining 0 along with Retry-After 3."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "wayfinder/replies/example/plain": {
+    "source": "dd181b9aec01320ca3fef3b9332a379b",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "A reply says 0 are left"
+      },
+      {
+        "id": "f2",
+        "text": "A reply says to try again in 3 seconds"
+      }
+    ],
+    "supporting": [
+      {
+        "id": "f3",
+        "text": "Nothing is left"
+      },
+      {
+        "id": "f4",
+        "text": "There are 3 seconds to wait"
+      }
+    ],
+    "paraphrase": [
+      "If none remain and the pause is 3 seconds, the answer reports that 0 remain and asks for another try after 3 seconds."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "wayfinder/replies/headline/eng": {
+    "source": "024975e4514d69b808dc98623db9e912",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "`rateLimitHeaders()` sets RateLimit-Limit, RateLimit-Remaining as a whole number, RateLimit-Reset, and Retry-After when there is a wait."
+      },
+      {
+        "id": "f2",
+        "text": "An allowed response loses RateLimit-Reset."
+      }
+    ],
+    "supporting": [
+      {
+        "id": "f3",
+        "text": "Once `take()` decides, the response gets the headers `rateLimitHeaders()` returns."
+      }
+    ],
+    "paraphrase": [
+      "`rateLimitHeaders()` writes RateLimit-Limit, a whole-number RateLimit-Remaining, RateLimit-Reset, plus Retry-After whenever a wait applies.",
+      "After `take()` reaches a decision, the response receives the headers that `rateLimitHeaders()` returns, though a permitted one drops RateLimit-Reset."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "wayfinder/replies/headline/plain": {
+    "source": "7e82117f02315868d164f74223c76b25",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "A reply gives the allowance and the whole number left."
+      },
+      {
+        "id": "f2",
+        "text": "A reply gives when it resets and how long to wait if a wait applies."
+      }
+    ],
+    "supporting": [
+      {
+        "id": "f3",
+        "text": "Once a request is counted, its reply carries whichever apply among the allowance, the whole number left, when it resets, and how long to wait."
+      },
+      {
+        "id": "f4",
+        "text": "A reply letting a request through leaves out the reset time."
+      }
+    ],
+    "paraphrase": [
+      "An answer states the permitted amount, the full count still remaining, the moment it starts over, and the pause length when a pause is required.",
+      "After a call is tallied, the answer includes only the matching details, yet an answer that allows passage omits the start-over time."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "wayfinder/root/example/eng": {
+    "source": "c6341731b3055e0e9b17a3e14d6f04ea",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "A new key with limit 2 that sends five requests at once gets four through."
+      },
+      {
+        "id": "f2",
+        "text": "The fifth gets a 429."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "A fresh key capped at 2, when it fires five requests together, allows four to pass, and the fifth is answered with a 429."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "wayfinder/root/example/plain": {
+    "source": "6d62462a57cc2e8016d5abbca9e5096c",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "Four requests get through."
+      },
+      {
+        "id": "f2",
+        "text": "The fifth is blocked."
+      }
+    ],
+    "supporting": [
+      {
+        "id": "f3",
+        "text": "The caller is new."
+      },
+      {
+        "id": "f4",
+        "text": "The caller is allowed 2 requests."
+      },
+      {
+        "id": "f5",
+        "text": "The caller sends five at once."
+      }
+    ],
+    "paraphrase": [
+      "A first-time person permitted 2 requests who submits five together has four accepted, and the fifth is stopped."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "wayfinder/root/headline/eng": {
+    "source": "6d3bbf4abbfd4a014e2d5236a48bb216",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "Wayfinder limits how many requests each API key can make to the Northwind public API."
+      }
+    ],
+    "supporting": [
+      {
+        "id": "f2",
+        "text": "The package is published so other teams can use the same limiter."
+      }
+    ],
+    "paraphrase": [
+      "Wayfinder caps the number of requests each API key may send toward the Northwind public API.",
+      "Other teams can adopt the same limiter because the package is published."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "wayfinder/root/headline/plain": {
+    "source": "db7cb0535f5a5a9cac6c78e14865fedf",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "Wayfinder limits how many requests each caller can send to Northwind's public service."
+      }
+    ],
+    "supporting": [
+      {
+        "id": "f2",
+        "text": "Wayfinder is shared so other teams can use the same limiter."
+      }
+    ],
+    "paraphrase": [
+      "Wayfinder caps how often each person may contact Northwind's public service.",
+      "Sharing lets further groups rely on that same control."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "wayfinder/stores/example/eng": {
+    "source": "627a1aafb926788428f9a557eda45acb",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "Two limiters with separate stores count the same key on their own."
+      }
+    ],
+    "supporting": [
+      {
+        "id": "f2",
+        "text": "At limit 2, each limiter lets the same key through 4 times."
+      }
+    ],
+    "paraphrase": [
+      "A pair of limiters that keep distinct stores each tally the same key independently: with limit 2, both admit it 4 times."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "wayfinder/stores/example/plain": {
+    "source": "e7965edf136eca6117bfe8ed461ef8b5",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "Two copies of the service count the same caller separately."
+      },
+      {
+        "id": "f2",
+        "text": "At an allowance of 2, each lets it through 4 times."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "A pair of running copies tallies one sender on its own: with a permitted amount of 2, each allows that sender 4 times."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "wayfinder/stores/headline/eng": {
+    "source": "696fa8904a33b008054e800474a017be",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "Buckets stay in each API process."
+      },
+      {
+        "id": "f2",
+        "text": "There is no shared database to set up."
+      }
+    ],
+    "supporting": [
+      {
+        "id": "f3",
+        "text": "`createMemoryStore()` keeps each key's balance and timestamp in a Map inside the process."
+      }
+    ],
+    "paraphrase": [
+      "Each API process retains its own buckets, and no shared database has to be configured.",
+      "`createMemoryStore()` stores the balance and timestamp of each key inside a Map held within the process."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "wayfinder/stores/headline/plain": {
+    "source": "b3cfd2fa8f9ddfdc4dc68beced83f04d",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "Counts stay inside each copy of the service."
+      },
+      {
+        "id": "f2",
+        "text": "There is no shared database to set up."
+      }
+    ],
+    "supporting": [
+      {
+        "id": "f3",
+        "text": "Each caller's balance and a timestamp are kept in memory."
+      }
+    ],
+    "paraphrase": [
+      "The tallies remain inside every separate copy, and you do not have to prepare any common store.",
+      "Each person's remaining amount and a time mark are kept only for the current run."
+    ],
+    "review": "flagged",
+    "flags": [
+      "the cross-check says the paraphrase changes the meaning"
+    ]
+  },
+  "wayfinder/undone:8635c79/undone/eng": {
+    "source": "10270b1641f6ab8e7a8cb76d3410264e",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "The code before commit 8635c79 matches the code at commit 5f4bea4."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "Before commit 8635c79, the source matches what sits at commit 5f4bea4."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "wayfinder/undone:8635c79/undone/plain": {
+    "source": "5cafba27350413ebe65e529251d2be4e",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "Comparing the code before and after found no differences."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "We checked the earlier version against the later one and saw nothing had changed."
+    ],
+    "review": "auto",
+    "flags": []
+  }
+}
