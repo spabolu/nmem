@@ -18,6 +18,9 @@ Every number the harness prints stays labelled UNREVIEWED until this review is s
 | 4 | docs/how-scheduling-works.md | Watering days are Monday through Saturday. There are no shifts on Sundays. | still true today | none | Nothing changed what it describes. |
 | 5 | docs/how-scheduling-works.md | The link lets you hand your shift to anyone else on the roster who isn't already watering the day before or after. | still true today | none | Nothing changed what it describes. |
 | 6 | docs/adr/0003-swap-links-not-accounts.md | Each reminder ends with a swap link. | no longer true since the change named | PR #16, Feb 15, 2025, "Email reminders and a printed weekly sheet (replaces texts)" | cmd/seedling/remind.go writes the swap link before the closing "Thank you!" and "The garden crew" lines. |
+| 7 | docs/adr/0003-swap-links-not-accounts.md | The volunteer picks who is taking it and `shifts.csv` is updated. | true only in some setups since the change named | commit af5ef6a, Mar 26, 2025, "swap: don't hand a shift to someone on the day before or after" | cmd/seedling/swap.go refuses a taker who already waters the day before or after, and returns before it reassigns the shift. |
+| 8 | docs/how-scheduling-works.md | Each day goes to the free volunteer with the fewest shifts so far that week. | true only in some setups since the change named | PR #17, Mar 4, 2025, "Docs for season 2: index page and how scheduling works" | `schedule.Assign` starts its shift counts once for all the days it is given and never resets them by week. |
+| 9 | docs/how-scheduling-works.md | Nobody is scheduled two days in a row. | still true today | none | Nothing changed what it describes. |
 
 ## tally
 
