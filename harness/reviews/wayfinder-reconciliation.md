@@ -78,7 +78,7 @@ Calibration on wayfinder first failed on two sentences whose one source did not 
 
 ## Left open
 
-- d-window-bound sits on the root page alone. Fixing it needs a generator rule for changes confined to files deleted before HEAD.
+- d-window-bound sat on the root page alone until 2026-10-13. A change spec can now give `livesIn` proof that a topic's code at HEAD implements what the change did, and c-fix-bound and d-window-bound moved to counting on a grep for `refilled < 1` in `src/bucket.ts`.
 - PR #2 changed two things it never stated: limiters in one process stopped sharing counts, and any thrown error became a 429. Neither reaches a setup the record has. The owner may promote either to a finding.
 - Between PR #4 and PR #11, `createRedisStore` read and wrote the counter in two round trips, so concurrent requests across processes could lose updates. This is inferred from the code at 0b5d8a8 and was not run. Neither reviewer raised it, and the code is gone at HEAD.
 - `answer-key.json` entries why-burst-gap and assist-behavior speak of a new key's starting allowance, which is narrower than PR #16's effect. They were not changed, to keep public output byte-identical.

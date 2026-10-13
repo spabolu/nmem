@@ -1078,40 +1078,31 @@
     "flags": []
   },
   "tally/d-round-revert/what/eng": {
-    "source": "affb81924e647076b239fa4f41ec2e5b",
+    "source": "b029ca9a2dc044d1f29163b5c74900e1",
     "headline": [
       {
         "id": "f1",
         "text": "PRs #20 and #21 were reverted."
-      },
-      {
-        "id": "f2",
-        "text": "The floor split is back."
       }
     ],
     "supporting": [],
     "paraphrase": [
-      "PRs #20 and #21 were rolled back, restoring the floor split."
+      "Rolled back PRs #20 and #21."
     ],
     "review": "auto",
     "flags": []
   },
   "tally/d-round-revert/what/plain": {
-    "source": "951645e86a07dff9a28660bc755b3bd0",
+    "source": "e97573fc8f5b4a48c2d6d5699cf1a434",
     "headline": [
       {
         "id": "f1",
-        "text": "The two earlier changes were undone."
+        "text": "Two earlier changes were undone."
       }
     ],
-    "supporting": [
-      {
-        "id": "f2",
-        "text": "Bills split the old way again."
-      }
-    ],
+    "supporting": [],
     "paraphrase": [
-      "Those two prior adjustments were reversed, so bills divide the former way again."
+      "Reversed two previous modifications."
     ],
     "review": "auto",
     "flags": []

@@ -377,13 +377,12 @@ Paraphrase: The option was not stored on every bill, so changing the usual choic
 
 ### 36. d-round-revert, what, Non-engineer
 
-Original: Undid the two earlier changes, so bills split the old way again.
+Original: Undid two earlier changes.
 
 Facts:
-- **headline** The two earlier changes were undone.
-- Bills split the old way again.
+- **headline** Two earlier changes were undone.
 
-Paraphrase: Those two prior adjustments were reversed, so bills divide the former way again.
+Paraphrase: Reversed two previous modifications.
 
 ### 37. d-textfile, reason, Engineer
 

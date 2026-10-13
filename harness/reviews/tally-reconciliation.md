@@ -67,3 +67,12 @@ Facts were refrozen for the 40 changed fields (grok-4.7 extracting, gpt-5.5 cros
 
 - `answer-key.json` entry how-settle says settle "repeatedly pays min(largest debt, largest credit)" and that the guide states the same rule. That is exact for four people or fewer only. It was not changed, to keep public output byte-identical.
 - Tally gold no longer has a finding with a recorded reason, so its report has no finding/reason row.
+
+## Later fixes (2026-10-13)
+
+The H1c census found two `what` sentences that said more than the quote a page shows. Both were fixed in gold, and the judge was not changed.
+
+- **d-round-revert.** Its quote is "Reverts #20 and #21." The sentence also said the floor split is back. It now says only the revert: "Reverted PRs #20 and #21." and "Undid two earlier changes." Both fact sets were frozen again. The plain set is in the spot-check sample, so its row in `facts.json` was checked against the quote and re-signed. No other row changed.
+- **d-ties.** Lena's comment on issue #10, its second intent, already holds the sentence. The PR #12 quote now spans the two body sentences that state the fewest payments and the same lines for the same file. The sentence and its facts did not change.
+- **d-decimal moves to adding.** PR #3 changed tally.py, which PR #4 replaced with `tally/cli.py`. At f01e078, `tally add --cents 10.50` prints the usage line and "argument --cents: invalid int value: '10.50'", then exits 2 and writes no file. pr#3 now lists adding, with a grep at HEAD for the `--cents` argument in `tally/cli.py` as its `livesIn` proof.
+- f-first-names stays on the root. The rule it describes, extra cents to the first names typed, has been gone since c-remainder, so no topic's code implements it.
