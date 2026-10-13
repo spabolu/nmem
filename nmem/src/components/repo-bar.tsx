@@ -39,6 +39,24 @@ export function RepoBar(props: RepoBarProps) {
             {props.name}
           </NextLink>
         </nav>
+        <UnderlineNav aria-label="Repository views">
+          <UnderlineNav.Item
+            as={NextLink}
+            href={props.topicsHref}
+            leadingVisual={<ListUnorderedIcon />}
+            aria-current={props.view === "topics" ? "page" : undefined}
+          >
+            Topics
+          </UnderlineNav.Item>
+          <UnderlineNav.Item
+            as={NextLink}
+            href={props.timelineHref}
+            leadingVisual={<HistoryIcon />}
+            aria-current={props.view === "timeline" ? "page" : undefined}
+          >
+            Timeline
+          </UnderlineNav.Item>
+        </UnderlineNav>
         <div className="repo-bar-tools">
           <span className="readas" id="readas">
             Reading as
@@ -73,24 +91,6 @@ export function RepoBar(props: RepoBarProps) {
           </Button>
         </div>
       </div>
-      <UnderlineNav aria-label="Repository views">
-        <UnderlineNav.Item
-          as={NextLink}
-          href={props.topicsHref}
-          leadingVisual={<ListUnorderedIcon />}
-          aria-current={props.view === "topics" ? "page" : undefined}
-        >
-          Topics
-        </UnderlineNav.Item>
-        <UnderlineNav.Item
-          as={NextLink}
-          href={props.timelineHref}
-          leadingVisual={<HistoryIcon />}
-          aria-current={props.view === "timeline" ? "page" : undefined}
-        >
-          Timeline
-        </UnderlineNav.Item>
-      </UnderlineNav>
     </header>
   );
 }
