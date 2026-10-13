@@ -7,6 +7,7 @@ import type { ChangeId } from '../harness/contract.ts';
 import { ModelUnavailable } from './copilot.ts';
 import type { ModelClient } from './copilot.ts';
 import { arr, ask, nullable, obj, OPUS, str } from './model.ts';
+import { proveRoutine } from './proofs.ts';
 import type { Gated, Task } from './model.ts';
 import type { Change, RepoRecord } from './record.ts';
 import { collapse } from './steps.ts';
@@ -64,10 +65,12 @@ type LinkAnswer = ReturnType<typeof LINK_ANSWER.parse>;
 
 const LINK: Task<{ readonly text: string }, LinkAnswer> = {
   id: 'link',
-  version: 2,
+  version: 3,
   model: OPUS,
-  maxOutputTokens: 800,
-  rules: `You join an agreement, made in a thread or written in a decision record, to the later change that put it into effect.
+  maxOutputTokens: 2000,
+  rules: `Answer only by calling the answer tool, with no other text.
+
+You join an agreement, made in a thread or written in a decision record, to the later change that put it into effect.
 
 Answer with handles only. Each agreement is [A#]. Each later change under it is [C#]. Code copies the change, so never write a commit id and never make up a handle.
 - choice: the [A#] agreement.
@@ -123,6 +126,7 @@ export async function linkChoices(record: RepoRecord, client: ModelClient, choic
   const byKey = new Map(open.map((item) => [item.choice, item.key]));
   return choices.map((choice) => {
     const change = picked.get(byKey.get(choice) ?? '');
-    return change ? carried(choice, change) : choice;
+    if (change && proveRoutine(record.repoDir, change)) note(`link: ${change.id} is proven routine, so it carries no choice: ${collapse(choice.sentence.text)}`);
+    return change && !proveRoutine(record.repoDir, change) ? carried(choice, change) : choice;
   });
 }

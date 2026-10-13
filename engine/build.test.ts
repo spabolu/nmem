@@ -450,6 +450,20 @@ test('an agreement is carried by the later change the model names, and a carried
   assert.deepEqual(linked[1]?.files, ['notes.txt']);
 });
 
+test('a change proven routine never carries an agreement, even when the model names it', async () => {
+  const record = ingest(toyWorkspace([
+    { title: 'Agree on owners', body: 'Agreed, Ana owns the fee code.', files: { 'notes.txt': 'agreed\n' } },
+    { title: 'Add CODEOWNERS', body: 'Owners file.', files: { '.github/CODEOWNERS': 'src/fee.py @ana\n' } },
+  ]));
+  const sentence = record.changes.find((change) => change.id === 'pr#1')?.objects.find((object) => object.ref === 'pr#1')?.sentences.find((item) => item.text.includes('owns'));
+  assert.ok(sentence);
+  const open = { sentence, stance: 'chose' as const, what: { eng: 'Ana owns the fee code.', plain: 'Ana owns the fee code.' }, carriedBy: null, files: [] as readonly string[] };
+  const notes: string[] = [];
+  const linked = await linkChoices(record, fakeClient({ link: [{ links: [{ choice: 'A1', carrier: 'C1' }] }] }), [open], (line) => notes.push(line));
+  assert.equal(linked[0]?.carriedBy, null);
+  assert.deepEqual(notes, ['link: pr#2 is proven routine, so it carries no choice: Agreed, Ana owns the fee code.']);
+});
+
 test('a later sentence of an ADR decision is its own decision when a later change carries it, and is dropped when none does', async () => {
   const adr = '# ADR-0001: Amounts are cents\n\nStatus: Accepted\n\n## Decision\n\nAmounts are stored as cents. Totals are shown in dollars. The commands take cents.\n';
   const record = ingest(toyWorkspace([
