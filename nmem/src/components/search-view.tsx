@@ -1,11 +1,10 @@
-import { SearchIcon } from "@primer/octicons-react";
 import { Button } from "@primer/react";
-import { Blankslate } from "@primer/react/experimental";
 import Form from "next/form";
 import NextLink from "next/link";
 import { repoPath, topicHref } from "@/lib/hrefs";
 import { topicById } from "@/lib/present";
 import { search, statusOf, TEMPLATES } from "../../../harness/view.ts";
+import { Blank } from "./blank";
 import { type Ctx, Prose } from "./said";
 import { Tree } from "./tree";
 
@@ -44,16 +43,10 @@ export function SearchView({
             Type a topic name, a word, or part of a headline.
           </p>
         ) : ids.length === 0 ? (
-          <Blankslate>
-            <Blankslate.Visual>
-              <SearchIcon size="medium" />
-            </Blankslate.Visual>
-            <Blankslate.Heading>No topic matches.</Blankslate.Heading>
-            <Blankslate.Description>
-              Search reads topic names, headlines, and the words each topic
-              covers. Try a shorter word.
-            </Blankslate.Description>
-          </Blankslate>
+          <Blank search heading="No topic matches.">
+            Search reads topic names, headlines, and the words each topic
+            covers. Try a shorter word.
+          </Blank>
         ) : (
           <p className="hint" aria-live="polite">
             {ids.length} {ids.length === 1 ? "topic" : "topics"}
