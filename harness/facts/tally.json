@@ -38,7 +38,7 @@
     "flags": []
   },
   "tally/adding/headline/eng": {
-    "source": "040eb6f4ee19ba216d340ad32a3f0eda",
+    "source": "a7f97165cc896e40aef4a372f13537bf",
     "headline": [
       {
         "id": "f1",
@@ -52,19 +52,19 @@
     "supporting": [
       {
         "id": "f3",
-        "text": "The check was first added in a commit whose title only mentions fixing tests."
+        "text": "tally/cli.py got the check in a commit whose title only mentions fixing tests."
       }
     ],
     "paraphrase": [
-      "`tally add` accepts who paid plus a whole-cents amount, a note, and the people who share that bill.",
-      "A negative amount gets rejected.",
-      "The check first appeared inside a commit whose title mentions nothing but fixing tests."
+      "`tally add` accepts the payer, a whole-cent amount, a note, and the people sharing the bill.",
+      "Negative amounts are turned down.",
+      "tally/cli.py received the check through a commit whose title speaks only of fixing tests."
     ],
     "review": "auto",
     "flags": []
   },
   "tally/adding/headline/plain": {
-    "source": "62515491fef29e9bf7543a2704aeedcd",
+    "source": "b983b9febf8c9ff5c758b12db82ed38b",
     "headline": [
       {
         "id": "f1",
@@ -78,48 +78,132 @@
     "supporting": [
       {
         "id": "f3",
-        "text": "The check was first added in a change labeled only as a test fix."
+        "text": "The current check came in with a change labeled only as a test fix."
       }
     ],
     "paraphrase": [
-      "You enter who paid, the sum in cents, a brief remark, and who splits the cost.",
-      "An amount below zero is rejected.",
-      "That refusal first showed up in an update marked solely as a test fix."
+      "You enter who covered the cost, the sum in cents, a brief comment, and who splits the charge.",
+      "An amount under zero is rejected.",
+      "Today's guard arrived in an edit described only as repairing tests."
     ],
-    "review": "auto",
+    "review": "owner-checked",
     "flags": []
   },
-  "tally/claim-negative/claim-why/eng": {
-    "source": "53b03ddbb311eb7c9100ed1fd99283ae",
+  "tally/claim-fewest/claim-why/eng": {
+    "source": "fb43c612db40feb13970a6914cf0e0dc",
     "headline": [
       {
         "id": "f1",
-        "text": "`if args.cents < 0:` was first added to tally/cli.py on 2023-11-12."
+        "text": "For five people owing 6, 4 and 4, settle prints 4 where 3 would do."
       }
     ],
     "supporting": [
       {
         "id": "f2",
-        "text": "Owen Briggs authored the commit that first added `if args.cents < 0:`."
+        "text": "On every four-person ledger tried, settle prints the fewest payments."
       }
     ],
     "paraphrase": [
-      "Back on 2023-11-12, Owen Briggs's commit was the first to place `if args.cents < 0:` inside tally/cli.py."
+      "Each four-person ledger tried had settle emit the fewest payments, yet five people with debts 6, 4 and 4 make it print 4 when 3 would work."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "tally/claim-fewest/claim-why/plain": {
+    "source": "40ee621821ee038bb3b12af59d3d3d25",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "With five people it can ask for 4 where 3 would do."
+      }
+    ],
+    "supporting": [
+      {
+        "id": "f2",
+        "text": "In every four-person case tried, the app asks for the fewest payments."
+      }
+    ],
+    "paraphrase": [
+      "In every four-person case that was tried, the program requests the smallest number of payments, yet with five people it may request 4 when 3 would do."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "tally/claim-negative/claim-why/eng": {
+    "source": "91825d31ebdb91e6d9486a8463d4af95",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "The check `if args.cents < 0:` went into tally/cli.py on 2023-11-12."
+      }
+    ],
+    "supporting": [
+      {
+        "id": "f2",
+        "text": "Owen Briggs made that commit."
+      }
+    ],
+    "paraphrase": [
+      "Owen Briggs added `if args.cents < 0:` to tally/cli.py in his 2023-11-12 commit."
     ],
     "review": "auto",
     "flags": []
   },
   "tally/claim-negative/claim-why/plain": {
-    "source": "843247ac153a83ae1b8536f47c28d765",
+    "source": "dca8353e1ca7014b781bb4b52852215c",
     "headline": [
       {
         "id": "f1",
-        "text": "The app started checking for a negative amount on Nov 12, 2023, in a change by Owen Briggs."
+        "text": "The app's current check for a negative amount came in on Nov 12, 2023."
+      }
+    ],
+    "supporting": [
+      {
+        "id": "f2",
+        "text": "That change was by Owen Briggs."
+      }
+    ],
+    "paraphrase": [
+      "The program's present test for a sum below zero arrived on Nov 12, 2023, inside a revision by Owen Briggs."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "tally/claim-repeats/claim-why/eng": {
+    "source": "861f0f47c3ee28bb7afe2f2d4c64e34a",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "For five people owing 6, 4 and 4, settle prints different payments than re-matching the largest debt and credit each time."
+      }
+    ],
+    "supporting": [
+      {
+        "id": "f2",
+        "text": "On every four-person ledger tried, settle prints the same payments as re-matching the largest debt and credit each time."
+      }
+    ],
+    "paraphrase": [
+      "On each four-person ledger that was tried, settle outputs identical payments to repeatedly matching the biggest debt with the biggest credit, yet for five people who owe 6, 4 and 4 it outputs different payments."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "tally/claim-repeats/claim-why/plain": {
+    "source": "e4c3499ac5ad005a10caf08cecc3e4e9",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "In every four-person case tried, the app gives the same payments as matching the biggest amounts again after each payment."
+      },
+      {
+        "id": "f2",
+        "text": "With five people it gives different payments."
       }
     ],
     "supporting": [],
     "paraphrase": [
-      "On Nov 12, 2023, Owen Briggs changed the app so that it began to check for a negative amount."
+      "Whenever a group of four was tested, the program produced identical payouts to choosing the largest figures over again after every payout, yet a group of five produced other payouts."
     ],
     "review": "auto",
     "flags": []
@@ -263,6 +347,159 @@
     "supporting": [],
     "paraphrase": [
       "The application will not deal with a second form of money."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "tally/d-decimal/reason/eng": {
+    "source": "4b7ea87a10a6648f1f0a7d2012d68967",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "Maya Ruiz typed 10.50 and got a long red error."
+      },
+      {
+        "id": "f2",
+        "text": "Maya Ruiz asked for the error to say what she did wrong."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "Maya Ruiz entered 10.50, received a lengthy red error, and asked for that message to explain her mistake."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "tally/d-decimal/reason/plain": {
+    "source": "b9b897509631c265da6e04ca02a462d4",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "Maya Ruiz got a long red error."
+      },
+      {
+        "id": "f2",
+        "text": "Maya Ruiz asked the app to say what she did wrong."
+      }
+    ],
+    "supporting": [
+      {
+        "id": "f3",
+        "text": "Maya Ruiz typed 10.50."
+      }
+    ],
+    "paraphrase": [
+      "Maya Ruiz entered 10.50, received a lengthy red failure message, and asked the program to explain her mistake."
+    ],
+    "review": "owner-checked",
+    "flags": []
+  },
+  "tally/d-decimal/what/eng": {
+    "source": "82fbf41325604916a4c437b87cefeebb",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "A decimal amount prints a sentence and exits instead of a traceback."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "A decimal amount outputs a sentence and quits, rather than a traceback."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "tally/d-decimal/what/plain": {
+    "source": "212c6a0bfda26d4e13d94878fb18d931",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "An amount with a decimal point gets a short sentence."
+      }
+    ],
+    "supporting": [
+      {
+        "id": "f2",
+        "text": "The short sentence is used instead of a long error."
+      }
+    ],
+    "paraphrase": [
+      "A figure containing a decimal point receives a brief message rather than a lengthy error."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "tally/d-dollars/reason/eng": {
+    "source": "5cb10e065915eedb553b610e08daed72",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "A float cannot represent 10 cents exactly."
+      }
+    ],
+    "supporting": [
+      {
+        "id": "f2",
+        "text": "A grocery bill would drift."
+      }
+    ],
+    "paraphrase": [
+      "A float cannot capture 10 cents precisely, so grocery charges would gradually slip."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "tally/d-dollars/reason/plain": {
+    "source": "b1ec674323da36106e8eb965357a39e1",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "A number with a decimal point cannot hold 10 cents exactly."
+      }
+    ],
+    "supporting": [
+      {
+        "id": "f2",
+        "text": "A grocery bill would drift."
+      }
+    ],
+    "paraphrase": [
+      "A figure using a point cannot store 10 cents without error, and thus a grocery bill would slowly shift."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "tally/d-dollars/what/eng": {
+    "source": "6402c7541499a9dea1041c2208f7a33a",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "Dollars are printed only when a person is reading the output."
+      }
+    ],
+    "supporting": [
+      {
+        "id": "f2",
+        "text": "This rule is ADR-0003."
+      }
+    ],
+    "paraphrase": [
+      "Dollar amounts appear solely if a human is viewing the result (ADR-0003)."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "tally/d-dollars/what/plain": {
+    "source": "5ed8b5840eb9697901040dd919489aa4",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "Amounts show as dollars only where a person reads them."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "Sums appear in dollar form solely in the places a person looks at them."
     ],
     "review": "auto",
     "flags": []
@@ -449,16 +686,100 @@
     "flags": []
   },
   "tally/d-note/what/plain": {
-    "source": "689ac42b599b32012d8eccb649f5b27a",
+    "source": "0bc3a3f80ec475e195ea4082d6357cb8",
     "headline": [
       {
         "id": "f1",
-        "text": "A bill with no note is now marked unmarked."
+        "text": "The note used when none is typed is now \"unmarked\"."
       }
     ],
     "supporting": [],
     "paraphrase": [
-      "A bill that has no note is currently marked unmarked."
+      "If no text is entered, the remark that appears is now \"unmarked\"."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "tally/d-one-bill/reason/eng": {
+    "source": "1d813efe0d298ad0482546f9319f33a7",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "Someone was always short."
+      }
+    ],
+    "supporting": [
+      {
+        "id": "f2",
+        "text": "They had been splitting bills in a notes app."
+      }
+    ],
+    "paraphrase": [
+      "Shared bills were divided inside a notes app, and one person was always short."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "tally/d-one-bill/reason/plain": {
+    "source": "c6665b32b1cad04658340845fb131e53",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "Someone always came up short."
+      }
+    ],
+    "supporting": [
+      {
+        "id": "f2",
+        "text": "They had been splitting bills in a notes app."
+      }
+    ],
+    "paraphrase": [
+      "Shared costs were divided inside a notes program, and one person always ended up short."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "tally/d-one-bill/what/eng": {
+    "source": "bba394eac087bcfa38c22f1331faf0a6",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "tally.py prints who owes the payer for one bill, then exits."
+      }
+    ],
+    "supporting": [
+      {
+        "id": "f2",
+        "text": "There is no file yet."
+      }
+    ],
+    "paraphrase": [
+      "tally.py outputs who is indebted to the payer for a single bill, then quits, and no file exists yet."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "tally/d-one-bill/what/plain": {
+    "source": "10d156a0906adbfef791b179d83ea087",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "The app worked out one bill at a time."
+      },
+      {
+        "id": "f2",
+        "text": "The app said who owes the payer."
+      }
+    ],
+    "supporting": [
+      {
+        "id": "f3",
+        "text": "The app saved nothing yet."
+      }
+    ],
+    "paraphrase": [
+      "The program figured one charge at a time, named who must repay the payer, and stored nothing so far."
     ],
     "review": "auto",
     "flags": []
@@ -620,6 +941,104 @@
     "review": "auto",
     "flags": []
   },
+  "tally/d-round-first/what/eng": {
+    "source": "9670842c0355a91404474ad276fc996b",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "The default of --round changed from payer to first."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "The default for --round switched from payer to first."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "tally/d-round-first/what/plain": {
+    "source": "2415962e8f7b4fefefd3bfa7c999ac1e",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "By default, leftover cents now go to the first people listed."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "Normally, extra cents are now given to the people named first."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "tally/d-round-flag/reason/eng": {
+    "source": "4701f40912d81f9f282515b5ee66e12e",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "With payer as the default, a command with no flag still matches the notebook."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "When payer is the default, a command lacking a flag still matches the notebook."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "tally/d-round-flag/reason/plain": {
+    "source": "5f799a3425a3ed6bbcf9eb054c5b8dd3",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "With that default, a bill entered without the setting still matches the notebook."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "Because of this preset, a bill typed in while the option is absent still agrees with the notebook."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "tally/d-round-flag/what/eng": {
+    "source": "a47504e41154c9f9dc71dcbd467e6fe6",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "`--round` lets a bill split leftover cents two ways."
+      },
+      {
+        "id": "f2",
+        "text": "Its default, payer, keeps the floor split."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "`--round` offers two ways for a bill to divide leftover cents, and default payer retains the floor split."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "tally/d-round-flag/what/plain": {
+    "source": "2ead4382cf68b153fb2bf97ba8ee3165",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "A new setting offers two ways to split a bill."
+      },
+      {
+        "id": "f2",
+        "text": "By default bills split the same way as before."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "A fresh option provides a pair of methods for dividing a bill, and unless someone changes it, bills divide just as they used to."
+    ],
+    "review": "auto",
+    "flags": []
+  },
   "tally/d-round-revert/reason/eng": {
     "source": "128d825a6f6d1099d07c93075425dc9a",
     "headline": [
@@ -645,18 +1064,17 @@
       {
         "id": "f1",
         "text": "The setting was not saved with each bill."
-      }
-    ],
-    "supporting": [
+      },
       {
         "id": "f2",
         "text": "The new default changed older bills too."
       }
     ],
+    "supporting": [],
     "paraphrase": [
       "The option was not stored on every bill, so changing the usual choice also altered earlier ones."
     ],
-    "review": "auto",
+    "review": "owner-checked",
     "flags": []
   },
   "tally/d-round-revert/what/eng": {
@@ -754,37 +1172,31 @@
     "flags": []
   },
   "tally/d-sqlite/what/plain": {
-    "source": "c0ddad0a3397c98e5653fbd338095906",
+    "source": "2945873a7b75b3366259a5cb29d5e1c4",
     "headline": [
       {
         "id": "f1",
-        "text": "The list of bills moved into a database file."
+        "text": "The app started keeping bills in a database file."
       }
     ],
     "supporting": [],
     "paraphrase": [
-      "The bills were relocated from a list into a stored records file."
+      "The program began storing bills inside a database."
     ],
-    "review": "flagged",
-    "flags": [
-      "the cross-check says the paraphrase changes the meaning"
-    ]
+    "review": "owner-checked",
+    "flags": []
   },
   "tally/d-textfile/reason/eng": {
-    "source": "ceeb05fe46a758edf1a894bee5980951",
+    "source": "dfb98a78f4ee964f6b21cc01d9375711",
     "headline": [
       {
         "id": "f1",
-        "text": "The one-shot script was fine for a single detergent bottle."
-      },
-      {
-        "id": "f2",
         "text": "The one-shot script was useless for a month of groceries."
       }
     ],
     "supporting": [],
     "paraphrase": [
-      "The one-shot script handled a single detergent bottle well and could not cope with a month of groceries."
+      "The one-shot script could not handle a month of groceries."
     ],
     "review": "auto",
     "flags": []
@@ -833,12 +1245,10 @@
     ],
     "supporting": [],
     "paraphrase": [
-      "The app began saving every bill inside a plain document."
+      "The app began saving every bill inside a plain text document."
     ],
-    "review": "flagged",
-    "flags": [
-      "the cross-check says the paraphrase changes the meaning"
-    ]
+    "review": "owner-checked",
+    "flags": []
   },
   "tally/d-texts/reason/eng": {
     "source": "405c01b49faf4553d210e19f64a9438b",
@@ -909,33 +1319,40 @@
     "flags": []
   },
   "tally/d-ties/reason/eng": {
-    "source": "b53c308b9eee3cadf603b797ad13ec75",
+    "source": "1984dba15780111b4967b241d9463105",
     "headline": [
       {
         "id": "f1",
-        "text": "The same file always prints the same lines."
+        "text": "balances printed three numbers."
+      },
+      {
+        "id": "f2",
+        "text": "Maya still asked Owen who pays whom."
       }
     ],
     "supporting": [],
     "paraphrase": [
-      "The aim is that one file emits identical lines every time."
+      "balances displayed three figures, yet Maya continued to question Owen about which person pays which."
     ],
-    "review": "flagged",
-    "flags": [
-      "the cross-check says the paraphrase changes the meaning"
-    ]
+    "review": "auto",
+    "flags": []
   },
   "tally/d-ties/reason/plain": {
-    "source": "ecf60548b4773d2e9991dd3b661764cb",
+    "source": "219dc0aa07f2a92a1ea7a7db5e96fcfb",
     "headline": [
       {
         "id": "f1",
-        "text": "The same bills always print the same payments"
+        "text": "Maya still asked Owen who pays whom."
       }
     ],
-    "supporting": [],
+    "supporting": [
+      {
+        "id": "f2",
+        "text": "The app showed three numbers."
+      }
+    ],
     "paraphrase": [
-      "That way, identical bills always come out with matching payments."
+      "Three figures were shown, yet Maya still asked Owen who should pay whom."
     ],
     "review": "auto",
     "flags": []
@@ -973,9 +1390,9 @@
     ],
     "supporting": [],
     "paraphrase": [
-      "People settling up ought to make as few payments as possible, and equal bills must always create equal payments."
+      "People settling up ought to make as few payments as possible, and rerunning one set of bills must always yield those payments again."
     ],
-    "review": "auto",
+    "review": "owner-checked",
     "flags": []
   },
   "tally/d-web/reason/eng": {
@@ -1053,179 +1470,6 @@
       "the cross-check says the paraphrase changes the meaning"
     ]
   },
-  "tally/f-decimal-sentence/card/eng": {
-    "source": "edf95f90cb69cc74dbdb612084db6533",
-    "headline": [
-      {
-        "id": "f1",
-        "text": "tally.py catches the ValueError from int()."
-      },
-      {
-        "id": "f2",
-        "text": "tally.py prints that cents must be a whole number."
-      }
-    ],
-    "supporting": [],
-    "paraphrase": [
-      "tally.py traps the ValueError raised by int() and writes that cents has to be a whole number."
-    ],
-    "review": "auto",
-    "flags": []
-  },
-  "tally/f-decimal-sentence/card/plain": {
-    "source": "413bb21556d163c92db59ac1cdd07e81",
-    "headline": [
-      {
-        "id": "f1",
-        "text": "Typing an amount with a decimal point now says what went wrong."
-      }
-    ],
-    "supporting": [],
-    "paraphrase": [
-      "Keying in a sum that has a decimal point now reports the mistake."
-    ],
-    "review": "auto",
-    "flags": []
-  },
-  "tally/f-decimal-sentence/reason/eng": {
-    "source": "4b7ea87a10a6648f1f0a7d2012d68967",
-    "headline": [
-      {
-        "id": "f1",
-        "text": "Maya Ruiz asked for the error to say what she did wrong."
-      }
-    ],
-    "supporting": [
-      {
-        "id": "f2",
-        "text": "Maya Ruiz typed 10.50."
-      },
-      {
-        "id": "f3",
-        "text": "Maya Ruiz got a long red error."
-      }
-    ],
-    "paraphrase": [
-      "Maya Ruiz entered 10.50, then saw a lengthy red error, and requested that it explain what she had done wrong."
-    ],
-    "review": "auto",
-    "flags": []
-  },
-  "tally/f-decimal-sentence/reason/plain": {
-    "source": "b9b897509631c265da6e04ca02a462d4",
-    "headline": [
-      {
-        "id": "f1",
-        "text": "Maya Ruiz asked the app to say what she did wrong."
-      }
-    ],
-    "supporting": [
-      {
-        "id": "f2",
-        "text": "Maya Ruiz typed 10.50."
-      },
-      {
-        "id": "f3",
-        "text": "Maya Ruiz got a long red error."
-      }
-    ],
-    "paraphrase": [
-      "Maya Ruiz entered 10.50, received a lengthy red warning, and wanted the app to explain her mistake."
-    ],
-    "review": "flagged",
-    "flags": [
-      "the cross-check says the paraphrase changes the meaning"
-    ]
-  },
-  "tally/f-dollars/card/eng": {
-    "source": "f62dca9d5e8a88853915ee6d2f854c53",
-    "headline": [
-      {
-        "id": "f1",
-        "text": "show() formats every printed amount as dollars and cents."
-      },
-      {
-        "id": "f2",
-        "text": "git shows the author as Lena P."
-      }
-    ],
-    "supporting": [
-      {
-        "id": "f3",
-        "text": "Lena Voss said on PR #3 that Lena P is still her."
-      },
-      {
-        "id": "f4",
-        "text": "Lena Voss is pushing from her laptop."
-      }
-    ],
-    "paraphrase": [
-      "show() writes each amount it prints using dollars and cents.",
-      "git records the author name as Lena P; Lena Voss wrote in PR #3 that she is still that person, and she pushes from her laptop."
-    ],
-    "review": "flagged",
-    "flags": [
-      "the cross-check says fact 4 (\"Lena Voss is pushing from her laptop.\") is not what the sentence says",
-      "the cross-check says the sentence also states: Lena Voss said on PR #3 that this is still her, pushing from her laptop."
-    ]
-  },
-  "tally/f-dollars/card/plain": {
-    "source": "cf95c168f496fb1588f0ae614a6a0f1d",
-    "headline": [
-      {
-        "id": "f1",
-        "text": "Every amount the app prints is now in dollars and cents."
-      }
-    ],
-    "supporting": [
-      {
-        "id": "f2",
-        "text": "The update was pushed from Lena Voss's laptop."
-      },
-      {
-        "id": "f3",
-        "text": "Lena Voss's laptop shows a different name."
-      }
-    ],
-    "paraphrase": [
-      "All sums the program displays are now shown in dollars and cents.",
-      "This update came from Lena Voss's laptop, and that computer lists a different name."
-    ],
-    "review": "auto",
-    "flags": []
-  },
-  "tally/f-dollars/reason/eng": {
-    "source": "b3dd680272859b42179e1e0164a219f5",
-    "headline": [
-      {
-        "id": "f1",
-        "text": "ADR-0003 already said dollars are printed only when a person is reading the output."
-      }
-    ],
-    "supporting": [],
-    "paraphrase": [
-      "ADR-0003 had already stated that dollars show up solely while a person reads the output."
-    ],
-    "review": "auto",
-    "flags": []
-  },
-  "tally/f-dollars/reason/plain": {
-    "source": "e47a6692b39f5e317254abb46821ea65",
-    "headline": [
-      {
-        "id": "f1",
-        "text": "A written decision says amounts are shown in dollars only when a person reads them."
-      }
-    ],
-    "supporting": [],
-    "paraphrase": [
-      "A written decision states that dollar amounts appear solely while a person is reading them."
-    ],
-    "review": "flagged",
-    "flags": [
-      "the cross-check says the paraphrase changes the meaning"
-    ]
-  },
   "tally/f-first-names/card/eng": {
     "source": "3867f3d1de637b4ec9e837e19a5c6398",
     "headline": [
@@ -1262,6 +1506,51 @@
     ],
     "paraphrase": [
       "Owen Briggs saw that Lena finished one cent above, since her name had been entered ahead."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "tally/f-negative-dropped/card/eng": {
+    "source": "5b1923554a53dec7439c057c9fd80e7e",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "Before PR #4, tally.py refused an amount below zero."
+      },
+      {
+        "id": "f2",
+        "text": "At the PR #4 merge, adding a bill of -5 cents exits 0 and saves it."
+      }
+    ],
+    "supporting": [
+      {
+        "id": "f3",
+        "text": "The refusal message was \"cents must be zero or more\"."
+      }
+    ],
+    "paraphrase": [
+      "Prior to PR #4, tally.py blocked sums under zero and reported that cent values had to stay nonnegative.",
+      "When PR #4 merged, adding -5 cents as a bill exits 0 and keeps the record."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "tally/f-negative-dropped/card/plain": {
+    "source": "7b14bd043437deb876137592693feccc",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "Before this change, the app refused an amount below zero."
+      },
+      {
+        "id": "f2",
+        "text": "After this change, a bill of minus 5 cents is accepted and saved."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "Until this update, the application rejected any total under zero.",
+      "Following this update, a charge of minus 5 cents is taken in and stored."
     ],
     "review": "auto",
     "flags": []
@@ -1316,6 +1605,44 @@
     "review": "auto",
     "flags": []
   },
+  "tally/f-not-fewest/card/eng": {
+    "source": "df9d56903a6322fcaaa4e461b83fbede",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "For five people owing 6, 4 and 4 and owed 8 and 6, settle prints 4 payments."
+      },
+      {
+        "id": "f2",
+        "text": "3 would settle everyone."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "For five people who owe 6, 4 and 4 and are owed 8 and 6, settle shows 4 payments though 3 would clear everyone."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "tally/f-not-fewest/card/plain": {
+    "source": "c27a6feb85e0040723541530213f06a6",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "With five people, the app can ask for 4 payments."
+      },
+      {
+        "id": "f2",
+        "text": "3 payments would settle everyone."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "Given five people, the app is able to request 4 payments even if 3 would fully settle everyone."
+    ],
+    "review": "auto",
+    "flags": []
+  },
   "tally/f-old-flag/card/eng": {
     "source": "d822e4140f23aeb233689b54f7ab0ec2",
     "headline": [
@@ -1362,36 +1689,6 @@
     "paraphrase": [
       "Trying the previous option name fails and stores nothing.",
       "The remark about the change states only that the option for the file now has a different name."
-    ],
-    "review": "auto",
-    "flags": []
-  },
-  "tally/f-round-default/card/eng": {
-    "source": "5b2807cafa8c26dbe33c39f546447290",
-    "headline": [
-      {
-        "id": "f1",
-        "text": "Commands without --round stop flooring the split."
-      }
-    ],
-    "supporting": [],
-    "paraphrase": [
-      "Commands that omit --round no longer floor the split."
-    ],
-    "review": "auto",
-    "flags": []
-  },
-  "tally/f-round-default/card/plain": {
-    "source": "9a73595feff502ce638b780c1397287f",
-    "headline": [
-      {
-        "id": "f1",
-        "text": "Bills split without the setting now hand out the spare cents differently."
-      }
-    ],
-    "supporting": [],
-    "paraphrase": [
-      "Bills divided without the setting now give spare cents out differently."
     ],
     "review": "auto",
     "flags": []
@@ -1698,15 +1995,15 @@
     "flags": []
   },
   "tally/root/headline/eng": {
-    "source": "f7bc452f37755478c648fe5999b1f73d",
+    "source": "3f949ecfa22c55d60f2a1954af2db235",
     "headline": [
       {
         "id": "f1",
-        "text": "tally splits shared household bills between roommates."
+        "text": "tally splits shared household expenses between roommates."
       },
       {
         "id": "f2",
-        "text": "tally prints the fewest payments that settle everyone up."
+        "text": "tally says who should pay whom."
       }
     ],
     "supporting": [
@@ -1724,14 +2021,14 @@
       }
     ],
     "paraphrase": [
-      "tally divides joint home costs among housemates and outputs the smallest set of transfers that clear every balance.",
-      "`tally add` records a bill, `balances_for()` derives the balances from the stored bills, and `minimal_transfers()` converts those balances into owed payments."
+      "tally apportions joint household costs among roommates and indicates who ought to pay whom.",
+      "`tally add` records a bill, `balances_for()` calculates the balances from bills that were already stored, and `minimal_transfers()` converts those balances into the payments."
     ],
     "review": "auto",
     "flags": []
   },
   "tally/root/headline/plain": {
-    "source": "af9276fa6f2b4000b243e139f3384e7c",
+    "source": "b7326f1ec78c25289d00be9000efbcaa",
     "headline": [
       {
         "id": "f1",
@@ -1753,12 +2050,12 @@
       },
       {
         "id": "f5",
-        "text": "The balances become the fewest payments."
+        "text": "The balances are turned into payments."
       }
     ],
     "paraphrase": [
-      "tally divides shared home bills among roommates and states who ought to pay whom.",
-      "Every bill gets stored, what people owe is figured from all stored bills, and those results become the smallest number of payments."
+      "tally divides joint home bills among roommates and tells who needs to pay whom.",
+      "Every bill gets stored, what people owe is figured from all stored bills, and those amounts become payments."
     ],
     "review": "auto",
     "flags": []
@@ -1812,57 +2109,65 @@
     "flags": []
   },
   "tally/settling/headline/eng": {
-    "source": "3d35c12a475c68de0c5b77b8978a760b",
+    "source": "69bed57bdd164cfcc0b61dff7a86b76c",
     "headline": [
       {
         "id": "f1",
-        "text": "`minimal_transfers()` has the person who owes most pay the person owed most."
+        "text": "`minimal_transfers()` sorts the people who owe and the people owed from the largest amount down."
       },
       {
         "id": "f2",
-        "text": "`minimal_transfers()` repeats until everyone is at zero."
+        "text": "It pays down both lists in that one order until everyone is at zero."
       }
     ],
     "supporting": [
       {
         "id": "f3",
-        "text": "Ties go by name."
+        "text": "Amount ties are broken by name."
+      },
+      {
+        "id": "f4",
+        "text": "It never re-sorts."
       }
     ],
     "paraphrase": [
-      "`minimal_transfers()` makes whoever owes the largest amount pay whoever is owed the largest amount, and repeats until everyone reaches zero.",
-      "Ties are settled by name."
+      "`minimal_transfers()` ranks who owes and who is owed from biggest amount to smallest, with name breaking ties.",
+      "Both lists are then reduced in that same sequence, with no further sort, until every balance hits zero."
     ],
     "review": "auto",
     "flags": []
   },
   "tally/settling/headline/plain": {
-    "source": "f5b55793caddff5f9a54bb4c5a3a616d",
+    "source": "4680baa30688d3883db316833769376e",
     "headline": [
       {
         "id": "f1",
-        "text": "The app has the person who owes the most pay the person owed the most."
+        "text": "The app lines up the people who owe and the people owed from the biggest amount down."
       },
       {
         "id": "f2",
-        "text": "The app repeats until everyone is even."
+        "text": "It pays down both lines in that order until everyone is even."
       }
     ],
     "supporting": [
       {
         "id": "f3",
-        "text": "Ties go by name."
+        "text": "Ties are broken by name."
+      },
+      {
+        "id": "f4",
+        "text": "The lines are not reordered."
       }
     ],
     "paraphrase": [
-      "The app makes whoever owes the largest sum pay whoever is owed the largest sum, then keeps going until everyone comes out equal.",
-      "Names break ties."
+      "The app orders who owes and who is owed from the largest sum downward, breaking equal sums by name.",
+      "Both lines are then settled in that same sequence and are not reshuffled, until all are even."
     ],
     "review": "auto",
     "flags": []
   },
   "tally/storage/example/eng": {
-    "source": "d8003edcfd0f3b3f6580ccca6879677a",
+    "source": "81e12ca39a8ea24422718ac4ef8e80c6",
     "headline": [
       {
         "id": "f1",
@@ -1870,22 +2175,15 @@
       },
       {
         "id": "f2",
-        "text": "The old name --data exits 2."
+        "text": "The old name --data exits 2 and writes no file."
       }
     ],
-    "supporting": [
-      {
-        "id": "f3",
-        "text": "The old name --data writes nothing."
-      }
-    ],
+    "supporting": [],
     "paraphrase": [
-      "--ledger selects the file, whereas --data, the former name, exits 2 and produces no output."
+      "--ledger selects the file, whereas the former name --data exits 2 and produces no file."
     ],
-    "review": "flagged",
-    "flags": [
-      "the cross-check says the paraphrase changes the meaning"
-    ]
+    "review": "auto",
+    "flags": []
   },
   "tally/storage/example/plain": {
     "source": "74eed9aed552745533d77c882874671a",

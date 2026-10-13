@@ -14,6 +14,10 @@
       "verdict": "still-true",
       "change": null
     },
+    "tally/claim-repeats": {
+      "verdict": "depends",
+      "change": "pr#23"
+    },
     "tally/claim-payback": {
       "verdict": "still-true",
       "change": null
@@ -21,6 +25,10 @@
     "tally/claim-json-readme": {
       "verdict": "still-true",
       "change": null
+    },
+    "tally/claim-fewest": {
+      "verdict": "depends",
+      "change": "pr#23"
     }
   },
   "coveredElsewhere": {
