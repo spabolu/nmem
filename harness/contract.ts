@@ -228,9 +228,12 @@ export type Named = { readonly eng: string; readonly plain: string };
 export type ChangeId = `pr#${number}` | (string & { readonly __brand: 'DirectCommit' });
 export type Login = string & { readonly __brand: 'Login' };
 
+/** Accounts made before GitHub's current rules may end in a hyphen or hold two in a row, such as justin-- on sindresorhus/p-limit. */
+const LOGIN_RE = /^[A-Za-z0-9][A-Za-z0-9-]*(?:\[bot\])?$/;
+
 /** A GitHub login, checked for shape. Whether the person exists in github.json is scored, not parsed. */
 export function login(s: string): Login {
-  if (!/^[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\[bot\])?$/.test(s)) throw new Error(`not a GitHub login: ${JSON.stringify(s)}`);
+  if (!LOGIN_RE.test(s)) throw new Error(`not a GitHub login: ${JSON.stringify(s)}`);
   return s as Login;
 }
 /** A system's own id for a topic or decision. The harness never compares ids. It aligns objects by evidence. */
@@ -392,8 +395,6 @@ const FORBIDDEN: Readonly<Record<string, string>> = {
   status: 'unknown key; status is derived from claims',
   output: 'unknown key; the harness computes proof output',
 };
-
-const LOGIN_RE = /^[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\[bot\])?$/;
 
 function isVerdict(value: unknown): value is Verdict {
   return typeof value === 'string' && (VERDICTS as readonly string[]).includes(value);
