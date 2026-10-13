@@ -14,6 +14,7 @@ import { EMPTY_TREE, factsOf } from './facts.mjs';
 import { DENIAL } from './plain.mjs';
 import { array, filePath, integer, nonEmpty, object, oneOf, positive, rejectUnknown, requireFields, SpecError } from './fields.mjs';
 import { git, showFile } from './git.mjs';
+import { isTestFile } from './tests.mjs';
 
 const GOLD_ID = /^[a-z0-9]+(?:-[a-z0-9]+)+$/;
 const TOPIC_ID = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
@@ -23,7 +24,6 @@ const SCOPES = ['slice', 'full'];
 const SEVERITIES = ['behavior', 'check'];
 const COUNTED = ['decision', 'behavior', 'check', 'net'];
 const NOTES = ['part-of-later-undo', 'undoes-earlier'];
-const TEST_PATH = /(^|\/)tests?\//;
 const MAX_HEADLINE_WORDS = 45;
 const MAX_POINTS = 3;
 const TRUTH_GRAM = 6;
@@ -592,7 +592,7 @@ function resolveTopic(topic, path, ctx) {
   }
   if (topic.example) {
     const { ref, proof } = topic.example.ev;
-    const backed = proof ? proof.verb === 'run' : ref.kind === 'file' && ctx.record.rev(ref.at) === ctx.record.head && TEST_PATH.test(ref.path);
+    const backed = proof ? proof.verb === 'run' : ref.kind === 'file' && ctx.record.rev(ref.at) === ctx.record.head && isTestFile(ref.path);
     if (!backed) ctx.fail(`${path}.example.ev`, 'an example cites a test file at HEAD or a run; otherwise the topic shows none');
   }
   return {

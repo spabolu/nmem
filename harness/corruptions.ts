@@ -24,6 +24,7 @@ import type { RepoRecord } from './record.ts';
 import { deciderOf } from './view.ts';
 import type { RepoFacts } from './view.ts';
 import { git } from '../fixtures/lib/git.mjs';
+import { isTestFile } from '../fixtures/lib/tests.mjs';
 
 export type CorruptionContext = { readonly gold: Gold; readonly facts: RepoFacts; readonly record: RepoRecord };
 
@@ -159,8 +160,7 @@ function retarget(ctx: CorruptionContext, source: RecordSource): RecordSource {
   if (!ref) return source;
   let candidates: string[] = [];
   if (ref.kind === 'file') {
-    const test = (file: string): boolean => /(?:^|\/)(?:test|tests)\//.test(file);
-    const files = lines(ctx, ['ls-tree', '-r', '--name-only', ref.rev]).filter((file) => test(file) === test(ref.path));
+    const files = lines(ctx, ['ls-tree', '-r', '--name-only', ref.rev]).filter((file) => isTestFile(file) === isTestFile(ref.path));
     candidates = after(files, ref.path).map((file) => `${ref.rev}:${file}`);
   } else if (ref.kind === 'commit') {
     const shas = lines(ctx, ['rev-list', '--topo-order', 'main']).map((sha) => sha.slice(0, 7));

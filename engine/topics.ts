@@ -6,6 +6,7 @@
 import { createHash } from 'node:crypto';
 import type { LocalId, Named, RecordSource, Said, Topic } from '../harness/contract.ts';
 import { JARGON, plainHits } from '../fixtures/lib/plain.mjs';
+import { isTestFile } from '../fixtures/lib/tests.mjs';
 import { ModelUnavailable } from './copilot.ts';
 import type { ModelClient } from './copilot.ts';
 import { arr, ask, lengthProblems, named, nullable, obj, OPUS, plainProblems, str, words } from './model.ts';
@@ -18,10 +19,6 @@ import type { Placeable, TreeSignals } from './steps.ts';
 const PLAIN_RULE = `plain is for someone who does not read code. It names no file, function, option, flag, command, code, commit id, or number with a number sign, and none of these words: ${JARGON.join(', ')}.`;
 const MAX_SHOWN = 1500;
 const MAX_START = 40;
-
-function isTest(path: string): boolean {
-  return /(?:^|\/)(?:test|tests)\//.test(path);
-}
 
 /** Markdown at HEAD a topic may list as its doc. A superseded ADR is history, not a doc. */
 function writtenDocs(record: RepoRecord): readonly FileObject[] {
@@ -83,7 +80,7 @@ function formInputOf(record: RepoRecord, signals: TreeSignals): FormInput {
   const out = ['Files at HEAD. Only lines with a handle can be Start here.'];
   let shown = 0;
   for (const file of record.files.filter((item) => !isDoc(item.path))) {
-    const tag = isTest(file.path) ? ', a test' : '';
+    const tag = isTestFile(file.path) ? ', a test' : '';
     if (file.path.startsWith('.') || shown + file.lines.length > MAX_SHOWN) {
       out.push(`${file.path} (${file.lines.length} lines${tag}, not shown)`);
       continue;
@@ -201,7 +198,7 @@ function ownPageInput(record: RepoRecord, topic: Topic): PageInput {
       out.push('', `Doc: ${path}`);
       showSentences(file, handles, out);
     } else {
-      out.push('', `${isTest(path) || isTestPath(path) ? 'Tests' : 'Code'}: ${path}`);
+      out.push('', `${isTestFile(path) ? 'Tests' : 'Code'}: ${path}`);
       showLines(file, handles, out);
     }
   }
@@ -225,8 +222,8 @@ function pageInputOf(record: RepoRecord, tree: readonly Skeleton[], topic: Skele
   const parent = tree.find((other) => other.id === topic.parent);
   const out = [`Topic: ${topic.name.eng}${parent ? `, part of ${parent.name.eng}` : ', the whole repository'}.`];
   const startPath = topic.start.ref.replace(/^[^:]+:/, '').replace(/#.*$/, '');
-  const code = record.files.filter((file) => (topic.files.includes(file.path) || file.path === startPath) && !isDoc(file.path) && !isTest(file.path));
-  const tests = record.files.filter((file) => isTest(file.path) && (topic.files.includes(file.path) || topic.parent === null || !topic.files.some(isTest)));
+  const code = record.files.filter((file) => (topic.files.includes(file.path) || file.path === startPath) && !isDoc(file.path) && !isTestFile(file.path));
+  const tests = record.files.filter((file) => isTestFile(file.path) && (topic.files.includes(file.path) || topic.parent === null || !topic.files.some(isTestFile)));
   const docs = record.docs.filter((doc) => topic.docs.includes(doc.path) || (topic.parent === null && isReadme(doc.path)));
   let shown = 0;
   for (const [title, files] of [['Code', code], ['Tests', tests]] as const) {
@@ -285,7 +282,7 @@ function floorPage(record: RepoRecord, topic: Topic): Page | null {
   const eng = collapse(quote).split(' ').slice(0, 45).join(' ');
   const plain = plainHits(eng).length === 0 ? eng : 'This page covers only what its own file shows.';
   let example: Said | null = null;
-  if (isTest(path) || isTestPath(path)) {
+  if (isTestFile(path)) {
     const asserted = file.lines.find((item) => item.text.trim() && /assert|expect/.test(item.text));
     if (asserted) {
       const text = collapse(asserted.text).split(' ').slice(0, 30).join(' ');
@@ -326,7 +323,7 @@ function gatePage(record: RepoRecord, input: PageInput, answer: PageAnswer): Gat
   if (answer.example !== null) {
     const found = sourceOf(record, input.handles, answer.example.source);
     const text: Named = { eng: answer.example.eng, plain: answer.example.plain };
-    const bad = [...(found && isTest(found.path) ? [] : [`example.source: ${answer.example.source} is not a test line`]), ...plainProblems('example', text), ...lengthProblems('example', text, 30)];
+    const bad = [...(found && isTestFile(found.path) ? [] : [`example.source: ${answer.example.source} is not a test line`]), ...plainProblems('example', text), ...lengthProblems('example', text, 30)];
     if (bad.length > 0 || !found) problems.push(...bad);
     else example = { ...text, source: found.source };
   }
@@ -409,9 +406,6 @@ function stemOf(path: string): string {
   return base.replace(/^test_/, '').replace(/_test$/, '');
 }
 
-function isTestPath(path: string): boolean {
-  return /(?:^|\/)test_/.test(path) || /_test\./.test(path);
-}
 
 /**
  * A test that does not check this topic's code, or a decision record that does not name this topic's code, is its own
@@ -422,10 +416,10 @@ export function splitMixed(record: RepoRecord, topics: readonly [Topic, ...Topic
   const rest = topics.slice(1).map((topic) => ({ ...topic, files: [...topic.files], docs: [...topic.docs] }));
   const added: Topic[] = [];
   for (const topic of rest) {
-    const code = topic.files.filter((file) => !isTestPath(file) && !file.includes('/adr/'));
+    const code = topic.files.filter((file) => !isTestFile(file) && !file.includes('/adr/'));
     const stems = new Set(code.map(stemOf).filter((stem) => stem.length > 2));
     const move = topic.files.filter((file) => {
-      if (isTestPath(file)) return !stems.has(stemOf(file));
+      if (isTestFile(file)) return !stems.has(stemOf(file));
       if (file.includes('/adr/')) return ![...stems].some((stem) => file.toLowerCase().includes(stem));
       return false;
     });

@@ -20,6 +20,7 @@ import { hashOf } from './hash.ts';
 import { decisionDay, decisionsFor, kindOf, labelChange, pageOf, presets, rangeOf, statusOf, TEMPLATES, TRUST_WORDS } from './view.ts';
 import type { Audience, Item, RepoFacts } from './view.ts';
 import { plainHits } from '../fixtures/lib/plain.mjs';
+import { isTestFile } from '../fixtures/lib/tests.mjs';
 
 export type Outcome =
   | { readonly kind: 'scored'; readonly value: number; readonly why: string; readonly verdict?: string }
@@ -439,7 +440,7 @@ function proofCompute(ctx: ItemContext): Outcome {
         exampleOk = proof?.verb === 'run';
       } else {
         const ref = parseRef(source.ref, REPO);
-        exampleOk = ref?.kind === 'file' && /(?:^|\/)(?:test|tests)\//.test(ref.path) && atHead(ref.rev, ctx.facts.head);
+        exampleOk = ref?.kind === 'file' && isTestFile(ref.path) && atHead(ref.rev, ctx.facts.head);
       }
     }
     const ok = startOk && lineOk && exampleOk;
