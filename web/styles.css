@@ -108,11 +108,11 @@ nav a.on:hover { border-bottom-color: var(--underlineNav-borderColor-active); }
 .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; padding: 8px 16px 12px; }
 .stat { border: 1px solid var(--borderColor-default); border-radius: 6px; padding: 8px; font-size: 12px; color: var(--fgColor-muted); line-height: 1.25; }
 .stat b { display: block; font-size: 20px; color: var(--fgColor-default); }
-a.node { display: grid; grid-template-columns: 14px 1fr; gap: 8px; padding: 8px 16px; color: var(--fgColor-default); border-top: 1px solid var(--borderColor-muted); border-left: 3px solid transparent; }
+a.node { display: grid; grid-template-columns: 16px 1fr; gap: 8px; padding: 8px 16px 8px 12px; color: var(--fgColor-default); border-top: 1px solid var(--borderColor-muted); border-left: 4px solid transparent; }
 a.node:hover { background: var(--bgColor-muted); text-decoration: none; }
 a.node.on { background: var(--bgColor-nmem-muted); border-left-color: var(--bgColor-nmem-emphasis); }
-a.node.d1 { padding-left: 32px; }
-a.node.d2 { padding-left: 42px; }
+a.node.d1 { padding-left: 28px; }
+a.node.d2 { padding-left: 44px; }
 a.node .nm { display: block; font-weight: 600; }
 a.node .st { display: block; color: var(--fgColor-muted); font-size: 12px; }
 .dot { width: 10px; height: 10px; border-radius: 50%; margin-top: 5px; }
@@ -207,7 +207,7 @@ article.decision time { color: var(--fgColor-muted); font-size: 12px; }
 .hatch { margin: 8px 0 0; padding: 8px 12px; border-radius: 6px; border: 1px solid var(--borderColor-muted); background: repeating-linear-gradient(135deg, var(--bgColor-muted), var(--bgColor-muted) 6px, var(--bgColor-neutral-muted) 6px, var(--bgColor-neutral-muted) 12px); }
 .rolls { margin-top: 8px; }
 .rolls .census { padding: 0 0 8px; }
-.roll { display: grid; grid-template-columns: 14px 1fr; gap: 8px; padding: 8px 0; color: var(--fgColor-default); border-top: 1px solid var(--borderColor-muted); }
+.roll { display: grid; grid-template-columns: 16px 1fr; gap: 8px; padding: 8px 0; color: var(--fgColor-default); border-top: 1px solid var(--borderColor-muted); }
 .roll:hover { text-decoration: none; }
 .roll b { font-weight: 600; }
 .roll q { display: block; margin: 4px 0 0; color: var(--fgColor-muted); font-style: italic; }
