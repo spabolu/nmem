@@ -4,7 +4,9 @@ import { fileURLToPath } from 'node:url';
 import { htmlFor } from './render.ts';
 import { SnapshotRejected, loadSite } from './site.ts';
 
-export function parseArgs(argv: readonly string[]): { readonly workspace: string; readonly snapshot: string; readonly port: number } {
+export type ServeOptions = { readonly workspace: string; readonly snapshot: string; readonly port: number };
+
+export function parseArgs(argv: readonly string[]): ServeOptions {
   let workspace = '';
   let snapshot = '';
   let port = 4173;
@@ -20,51 +22,58 @@ export function parseArgs(argv: readonly string[]): { readonly workspace: string
   return { workspace, snapshot, port };
 }
 
-const args = parseArgs(process.argv.slice(2));
-let site;
-try {
-  site = loadSite(args.workspace, args.snapshot);
-} catch (err) {
-  if (err instanceof SnapshotRejected) {
-    process.stderr.write(`${err.message}\n`);
-    process.exit(1);
-  }
-  throw err;
-}
 const stylesPath = fileURLToPath(new URL('./styles.css', import.meta.url));
 
-const server = http.createServer((req, res) => {
-  const url = new URL(req.url ?? '/', 'http://127.0.0.1');
-  if (url.pathname === '/favicon.ico') {
-    res.writeHead(204);
-    res.end();
-    return;
+/** Serves the site until the process exits, and prints "listening on <url>" once it accepts connections. */
+export function serve(args: ServeOptions): void {
+  let site;
+  try {
+    site = loadSite(args.workspace, args.snapshot);
+  } catch (err) {
+    if (err instanceof SnapshotRejected) {
+      process.stderr.write(`${err.message}\n`);
+      process.exit(1);
+    }
+    throw err;
   }
-  if (url.pathname === '/styles.css') {
-    res.writeHead(200, { 'content-type': 'text/css; charset=utf-8', 'cache-control': 'no-store' });
-    res.end(fs.readFileSync(stylesPath));
-    return;
-  }
-  void htmlFor(site, url).then(
-    (page) => {
-      res.writeHead(page.status, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' });
-      res.end(page.html);
-    },
-    (err: unknown) => {
-      const message = err instanceof Error ? err.message : String(err);
-      res.writeHead(500, { 'content-type': 'text/plain; charset=utf-8' });
-      res.end(message);
-    },
-  );
-});
 
-server.on('error', (err: NodeJS.ErrnoException) => {
-  process.stderr.write(`${err.message}\n`);
-  process.exit(1);
-});
+  const server = http.createServer((req, res) => {
+    const url = new URL(req.url ?? '/', 'http://127.0.0.1');
+    if (url.pathname === '/favicon.ico') {
+      res.writeHead(204);
+      res.end();
+      return;
+    }
+    if (url.pathname === '/styles.css') {
+      res.writeHead(200, { 'content-type': 'text/css; charset=utf-8', 'cache-control': 'no-store' });
+      res.end(fs.readFileSync(stylesPath));
+      return;
+    }
+    void htmlFor(site, url).then(
+      (page) => {
+        res.writeHead(page.status, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' });
+        res.end(page.html);
+      },
+      (err: unknown) => {
+        const message = err instanceof Error ? err.message : String(err);
+        res.writeHead(500, { 'content-type': 'text/plain; charset=utf-8' });
+        res.end(message);
+      },
+    );
+  });
 
-server.listen(args.port, '127.0.0.1', () => {
-  const address = server.address();
-  const port = typeof address === 'object' && address ? address.port : args.port;
-  process.stdout.write(`listening on http://127.0.0.1:${port}\n`);
-});
+  server.on('error', (err: NodeJS.ErrnoException) => {
+    process.stderr.write(`${err.message}\n`);
+    process.exit(1);
+  });
+
+  const home = `/${site.identity.owner}/${site.identity.name}`;
+  server.listen(args.port, '127.0.0.1', () => {
+    const address = server.address();
+    const port = typeof address === 'object' && address ? address.port : args.port;
+    process.stdout.write(`listening on http://127.0.0.1:${port}\n`);
+    process.stdout.write(`open http://127.0.0.1:${port}${home}\n`);
+  });
+}
+
+if (import.meta.main) serve(parseArgs(process.argv.slice(2)));
