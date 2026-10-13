@@ -12,7 +12,7 @@ import type { ModelClient } from './copilot.ts';
 import { arr, ask, lengthProblems, named, nullable, obj, OPUS, plainProblems, str, words } from './model.ts';
 import type { Gated, Task } from './model.ts';
 import { isDoc, isReadme } from './record.ts';
-import type { FileObject, Line, RepoRecord, Sentence } from './record.ts';
+import type { Change, FileObject, Line, RepoRecord, Sentence } from './record.ts';
 import { collapse, ROOT } from './steps.ts';
 import type { Placeable } from './steps.ts';
 
@@ -451,23 +451,67 @@ export function overlapping(tree: readonly Topic[], files: readonly string[]): r
   return tree.filter((topic) => topic.parent !== null && topic.files.some((file) => files.includes(file))).map((topic) => topic.id);
 }
 
+function callsIn(text: string): string[] {
+  return [...text.matchAll(/\b([A-Za-z_]\w*)\s*\(/g)].map((match) => match[1] ?? '').filter((name) => name.length > 2);
+}
+
+/** The names a changed line hands on to other code: each option it declares, by its name and its dest. */
+function optionsIn(text: string): string[] {
+  return [
+    ...[...text.matchAll(/--([A-Za-z][\w-]*)/g)].map((match) => (match[1] ?? '').replace(/-/g, '_')),
+    ...[...text.matchAll(/\bdest\s*=\s*["'](\w+)["']/g)].map((match) => match[1] ?? ''),
+  ].filter((name) => name.length > 0);
+}
+
+function definitionOf(file: FileObject, name: string): Line | null {
+  const pattern = new RegExp(`^\\s*(?:export\\s+)?(?:async\\s+)?(?:def|function|func|fn|class)\\s+${name.replace(/[$]/g, '\\$')}\\b`);
+  return file.lines.find((line) => pattern.test(line.text)) ?? null;
+}
+
+/**
+ * The code at HEAD that acts on an option a change declared or renamed, by path, with the definition lines it reaches.
+ * An option leads to every function called on a line of that file that reads the option's value, so a flag in a shared
+ * entry point is followed to the module that does the work. Only a file still at HEAD is followed, because code that is
+ * gone says nothing about what carries the behavior now.
+ */
+export function implementers(record: RepoRecord, change: Change): ReadonlyMap<string, readonly string[]> {
+  const code = record.files.filter((file) => !isDoc(file.path) && !isTestFile(file.path));
+  const found = new Map<string, Set<string>>();
+  for (const patch of change.patches) {
+    if (patch.file === null || !code.some((file) => file.path === patch.path)) continue;
+    const options = [...new Set(patch.rows.filter((row) => row.kind === 'added' || row.kind === 'removed').flatMap((row) => optionsIn(row.text)))];
+    const names = new Set(patch.file.lines.filter((line) => options.some((option) => new RegExp(`\\.${option}\\b`).test(line.text))).flatMap((line) => callsIn(line.text)));
+    for (const name of names) {
+      for (const file of code) {
+        const line = file.path === patch.path ? null : definitionOf(file, name);
+        if (line === null) continue;
+        const into = found.get(file.path) ?? new Set<string>();
+        into.add(collapse(line.text));
+        found.set(file.path, into);
+      }
+    }
+  }
+  return new Map([...found].sort(([a], [b]) => (a < b ? -1 : 1)).map(([file, lines]) => [file, [...lines].sort()]));
+}
+
 const PLACE_ANSWER = obj({ picks: arr(obj({ key: str, topics: arr(str) })) });
 type PlaceInput = { readonly tree: readonly Topic[]; readonly items: readonly Placeable[] };
 
 const PLACE: Task<PlaceInput, ReturnType<typeof PLACE_ANSWER.parse>> = {
   id: 'place',
-  version: 1,
+  version: 3,
   model: OPUS,
   maxOutputTokens: 3000,
   rules: `Answer only by calling the answer tool, with no other text.
 
-You place decisions and findings from a repository's history on the topics of its map. Each item lists candidate topics, the ones whose files it touches. Pick the candidates the item is about, usually one. A file shared by many topics, such as a command-line entry point, is weak evidence. Never pick a topic outside an item's candidates. Return one pick for every item.`,
+You place decisions and findings from a repository's history on the topics of its map, so a reader of a topic sees what changed how that part works. Each item lists candidate topics: those whose files its change touched, and those holding code its change acts on.
+Pick the candidates whose code carries out what the item decided or changed, usually one. A file shared by many topics, such as a command-line entry point, is weak evidence. When an item lists "Acts on", its option is read by that code, so pick the topic holding it. Pick the entry point's topic as well only when the item changes what people type there, such as an option's name, not when it changes what an option does or its default. Never pick a topic outside an item's candidates. Return one pick for every item.`,
   render: (input) => [
     'Topics:',
-    ...input.tree.filter((topic) => topic.parent !== null).map((topic) => `${topic.id}: ${topic.name.eng}. Files: ${topic.files.join(', ')}`),
+    ...input.tree.filter((topic) => topic.parent !== null).map((topic) => `${topic.id}: ${topic.name.eng}. ${topic.headline[0].eng} Files: ${topic.files.join(', ')}`),
     '',
     'Items:',
-    ...input.items.map((item) => `${item.key} (${item.kind}): ${item.what} Candidates: ${item.candidates.join(', ')}`),
+    ...input.items.map((item) => `${item.key} (${item.kind}): ${item.what} Candidates: ${item.candidates.join(', ')}.${item.acts.length > 0 ? ` Acts on: ${item.acts.join('; ')}.` : ''}`),
   ].join('\n'),
   answer: PLACE_ANSWER,
 };

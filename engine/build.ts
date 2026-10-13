@@ -11,11 +11,11 @@ import { ModelUnavailable } from './copilot.ts';
 import type { ModelClient } from './copilot.ts';
 import { describeRoutine, proveRoutine, proveUndone } from './proofs.ts';
 import type { UndoneProof } from './proofs.ts';
-import { ingest } from './record.ts';
+import { ingest, isDoc } from './record.ts';
 import type { Change, RepoRecord } from './record.ts';
 import { collapse, noModel, ROOT } from './steps.ts';
 import type { Placeable, Steps } from './steps.ts';
-import { formTopics, overlapping, placeItems } from './topics.ts';
+import { formTopics, implementers, overlapping, placeItems } from './topics.ts';
 import { vetFinding } from './vet.ts';
 import { scanReasons, whyOf } from './why.ts';
 
@@ -77,9 +77,15 @@ export async function assemble(record: RepoRecord, steps: Steps, usage: () => Us
   }));
   const decided = await decide(record, steps, classified.flatMap((item) => item.choices));
   const topics = await steps.topics();
+  const where = (changeId: ChangeId | null, files: readonly string[]): Pick<Placeable, 'candidates' | 'acts'> => {
+    const change = record.changes.find((item) => item.id === changeId);
+    if (!change || files.every(isDoc)) return { candidates: overlapping(topics, files), acts: [] };
+    const acts = implementers(record, change);
+    return { candidates: overlapping(topics, [...change.touched.keys(), ...acts.keys()]), acts: [...acts].map(([file, lines]) => `${file}: ${lines.join(' ')}`) };
+  };
   const placeable: Placeable[] = [
-    ...decided.map((item, i) => ({ key: `decision ${i + 1}`, kind: 'decision' as const, what: item.decision.what.eng, candidates: overlapping(topics, item.files) })),
-    ...found.flatMap((items, i) => items.map((item, j) => ({ key: `finding ${i + 1}.${j + 1}`, kind: 'finding' as const, what: item.finding.name.eng, candidates: overlapping(topics, item.files) }))),
+    ...decided.map((item, i) => ({ key: `decision ${i + 1}`, kind: 'decision' as const, what: item.decision.what.eng, ...where(item.decision.carriedBy, item.files) })),
+    ...found.flatMap((items, i) => items.map((item, j) => ({ key: `finding ${i + 1}.${j + 1}`, kind: 'finding' as const, what: item.finding.name.eng, ...where(record.changes[i]?.id ?? null, item.files) }))),
   ];
   const placed = await steps.place(topics, placeable);
   const changes: Entry[] = record.changes.map((change, i) => {

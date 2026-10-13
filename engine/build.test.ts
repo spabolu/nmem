@@ -19,6 +19,7 @@ import { decide } from './choices.ts';
 import { linkChoices } from './link.ts';
 import { ingest, segment } from './record.ts';
 import { noModel } from './steps.ts';
+import { implementers } from './topics.ts';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const tally = path.join(root, 'out', 'tally');
@@ -462,4 +463,24 @@ test('a finding vet reads as a dropped refusal stays, as something to check', as
   });
   const snapshot = JSON.parse((await assemble(record, modelSteps(record, client, []))).bytes) as Snapshot;
   assert.deepEqual(snapshot.changes.find((change) => change.id === 'pr#1')?.findings.map((finding) => [finding.severity, finding.name.eng]), [['check', 'Empty names accepted']]);
+});
+
+test('an option changed in a shared entry point is followed to the code that reads its value, and code that is gone is not', () => {
+  const workspace = toyWorkspace([
+    {
+      title: 'Add the cli and the store',
+      body: 'Adds both.',
+      files: {
+        'toy/cli.py': 'from toy.store import fetch\n\ndef parser(p):\n    p.add_argument("--src", default="a.json")\n\ndef main(args):\n    return fetch(args.src)\n',
+        'toy/store.py': 'def fetch(path):\n    return open(path).read()\n',
+        'toy/fmt.py': 'def show(value):\n    return str(value)\n',
+        'old.py': 'def parser(p):\n    p.add_argument("--n")\n\ndef run(args):\n    return show(args.n)\n',
+      },
+    },
+    { title: 'Rename the option', body: 'Rename --src to --input.', files: { 'toy/cli.py': 'from toy.store import fetch\n\ndef parser(p):\n    p.add_argument("--input", dest="src", default="a.json")\n\ndef main(args):\n    return fetch(args.src)\n', 'old.py': null } },
+  ]);
+  const record = ingest(workspace);
+  const byId = (id: string) => record.changes.find((change) => change.id === id)!;
+  assert.deepEqual([...implementers(record, byId('pr#2'))], [['toy/store.py', ['def fetch(path):']]]);
+  assert.deepEqual([...implementers(record, byId('pr#1'))], [['toy/store.py', ['def fetch(path):']]]);
 });

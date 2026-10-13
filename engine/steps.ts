@@ -27,8 +27,8 @@ export type Found = { readonly finding: Finding; readonly files: readonly string
 
 export type Classification = { readonly choices: readonly Choice[]; readonly findings: readonly Found[] };
 
-/** An item to place on topics, with the topics whose files it touches. */
-export type Placeable = { readonly key: string; readonly kind: 'decision' | 'finding'; readonly what: string; readonly candidates: readonly LocalId[] };
+/** An item to place on topics: the topics its change touches or acts on, and each file it acts on with the definitions reached. */
+export type Placeable = { readonly key: string; readonly kind: 'decision' | 'finding'; readonly what: string; readonly candidates: readonly LocalId[]; readonly acts: readonly string[] };
 
 /**
  * What a reason is sought for: a decision's intent or a finding's anchor, what it says, the change carrying it, and
