@@ -24,9 +24,11 @@ The run grows one vertical slice at a time. Each slice runs end to end, from gol
 | | S1c | Engine v0 for tally, designed by the architect skill: ingest, storage, snapshot | `check-system` passes, and the first deterministic score is recorded |
 | | S1d | Website v0: topic tree and timeline for tally from any snapshot | a headless-Chrome screen-rule check passes on gold and on the engine's snapshot |
 | 2. Judge | S2 | `nmem auth copilot` device login, the Copilot judge and cache, judged metrics, corruptions, calibration labelled unreviewed | calibration passes on tally |
-| 3. Wayfinder | S3 | Full wayfinder gold, with the engine and website widened to it | wayfinder scored, and screens pass |
-| 4. Seedling and floors | S4 | Seedling gold, planted cases up to 10 gap and 10 currency, owner review sheets | floors pass; scores become final once the owner signs |
-| 5. Better engine | S5 | Engine improvements, one hypothesis at a time, under the hillclimb playbook | gains stall; each accepted change is one commit with before and after numbers |
+| 3. Answer key | R | Two independent models (Claude, GPT) check tally's gold, currency verdicts, and fact sets against the record. The agent settles disagreements from git and github.json and signs the reviews, naming both models. The owner delegated this review. | reviews signed; calibration stamp final for tally |
+| 4. Climb tally | H1 | Engine improvements on tally under the hillclimb playbook. Metric is usable items across both audiences. | 80% usable in both audiences, or 3 attempts in a row that do not move the metric past noise |
+| 5. Wayfinder | S3, H2 | Full wayfinder gold and calibration, then the same climb on wayfinder with tally as a regression gate | same stop rule, tally does not drop |
+| 6. Seedling and floors | S4, H3 | Seedling gold, planted cases up to 10 gap objects and 10 currency claims, calibration, then the climb | floors pass; same stop rule on all three repos |
+| 7. Any public repo | G, T | `nmem add owner/repo` ingests a public repo's whole history into the workspace format, `build` and `serve` show both views on this Mac. Model tiers (Opus, Sonnet, Haiku) per step, chosen by score per cost on the fixtures. A first real trial on a repo the agent picks. | a real repo renders both views with no fixture assumptions; tier choices hold fixture scores |
 
 S1b and the S1c design run in parallel. S1d starts after S1b's kernel lands. Parallel units work in separate git worktrees.
 
