@@ -29,6 +29,66 @@
     "tally/claim-fewest": {
       "verdict": "depends",
       "change": "pr#23"
+    },
+    "wayfinder/claim-balance-cap": {
+      "verdict": "no-longer-true",
+      "change": "pr#16"
+    },
+    "wayfinder/claim-allowed-headers": {
+      "verdict": "no-longer-true",
+      "change": "pr#16"
+    },
+    "wayfinder/claim-clock-step": {
+      "verdict": "depends",
+      "change": "pr#17"
+    },
+    "wayfinder/claim-clock-caller": {
+      "verdict": "true-since",
+      "change": "pr#18"
+    },
+    "wayfinder/claim-no-shared-db": {
+      "verdict": "still-true",
+      "change": null
+    },
+    "wayfinder/claim-exceed-guide": {
+      "verdict": "no-longer-true",
+      "change": "pr#16"
+    },
+    "wayfinder/claim-exceed-readme": {
+      "verdict": "no-longer-true",
+      "change": "pr#16"
+    },
+    "wayfinder/claim-per-route": {
+      "verdict": "still-true",
+      "change": null
+    },
+    "wayfinder/claim-below-one": {
+      "verdict": "still-true",
+      "change": null
+    },
+    "wayfinder/claim-default-key": {
+      "verdict": "still-true",
+      "change": null
+    },
+    "wayfinder/claim-adr-cap": {
+      "verdict": "no-longer-true",
+      "change": "pr#16"
+    },
+    "wayfinder/claim-adr-stores": {
+      "verdict": "no-longer-true",
+      "change": "pr#11"
+    },
+    "wayfinder/claim-adr-burst": {
+      "verdict": "no-longer-true",
+      "change": "pr#16"
+    },
+    "wayfinder/claim-adr-exceed": {
+      "verdict": "no-longer-true",
+      "change": "pr#16"
+    },
+    "wayfinder/claim-adr-outage": {
+      "verdict": "still-true",
+      "change": null
     }
   },
   "coveredElsewhere": {

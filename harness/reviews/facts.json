@@ -24,6 +24,26 @@
     "tally/leftover/headline/plain": "1aafe040f3b41082e17a304ec2209da1",
     "tally/paybacks/headline/eng": "a30d25bc68ef3d1b3c099620ece73ebb",
     "tally/root/headline/plain": "b7326f1ec78c25289d00be9000efbcaa",
-    "tally/storage/headline/eng": "14b7a747e1b93df40e24414a609363db"
+    "tally/storage/headline/eng": "14b7a747e1b93df40e24414a609363db",
+    "wayfinder/claim-adr-burst/claim-why/eng": "e6097b193a2aab3dc9d1533712030ca4",
+    "wayfinder/claim-exceed-guide/claim-why/eng": "c75f20434df0c418a69e41ef06e51dbe",
+    "wayfinder/claim-exceed-guide/claim-why/plain": "b84016bbca8a0c7bea5cc781c744e4cc",
+    "wayfinder/claim-exceed-readme/claim-why/plain": "af457889fc0af984f61ac9a7b0d6d908",
+    "wayfinder/clock/example/eng": "3f62c10cc1aa4a1fb6d0270b9fb37cdb",
+    "wayfinder/d-api-key/what/eng": "d83994352c78af06889acb08e92d4807",
+    "wayfinder/d-bucket/reason/plain": "e5a5a1b0a3294cdfb7e2adf0ba4fd274",
+    "wayfinder/d-clock-step/what/eng": "58d28ba45d15f669468ff96ffe45391a",
+    "wayfinder/d-clock-step/what/plain": "0d20349f5d1e16c2260bd40c164097a1",
+    "wayfinder/d-fail-open/what/plain": "d890f048fb50f97d721d17248ec3fc4a",
+    "wayfinder/d-fixed-window/reason/plain": "165d53ae409c08fcf0a7bbcb3cb10134",
+    "wayfinder/d-in-process/what/eng": "98b4fda0dbbdb552aa556393040d878a",
+    "wayfinder/d-no-switch/reason/plain": "46fc5b67577896e05918db4ef427eb21",
+    "wayfinder/d-rename/what/eng": "dd7d921bfb0ba25e503f811428ba9267",
+    "wayfinder/d-retry-headers/what/plain": "b3ef7785b7ecece31d16474afc39bf0b",
+    "wayfinder/d-revert-fail-open/what/plain": "c707bbe503289efde2be53c1d6b822fe",
+    "wayfinder/d-window-bound/reason/plain": "7b96dca41d03746e866b0ec24074879a",
+    "wayfinder/metrics/headline/eng": "f75205d9504d761835a52ab9b5673f3d",
+    "wayfinder/replies/example/plain": "dd181b9aec01320ca3fef3b9332a379b",
+    "wayfinder/root/headline/eng": "6d3bbf4abbfd4a014e2d5236a48bb216"
   }
 }
