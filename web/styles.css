@@ -5,7 +5,7 @@
   --fgColor-accent: #0969da;
   --fgColor-success: #1a7f37;
   --fgColor-attention: #9a6700;
-  --fgColor-danger: #cf222e;
+  --fgColor-danger: #d1242f;
   --fgColor-done: #8250df;
   --fgColor-onEmphasis: #ffffff;
   --bgColor-default: #ffffff;
@@ -22,12 +22,12 @@
   --borderColor-default: #d1d9e0;
   --borderColor-muted: #d1d9e0b3;
   --borderColor-success-muted: #4ac26b66;
-  --borderColor-attention-emphasis: #d4a72c;
+  --borderColor-attention-emphasis: #9a6700;
   --borderColor-danger-muted: #ff818266;
   --borderColor-severe-muted: #fb8f4466;
   --borderColor-accent-emphasis: #0969da;
-  --shadow-resting-small-color: #1f23280a;
-  --focus-outlineColor: #0969da;
+  --shadow-resting-small: 0 1px 1px 0 #1f23280a, 0 1px 2px 0 #1f232808;
+  --focus-outlineColor: var(--borderColor-accent-emphasis);
   --underlineNav-borderColor-active: #fd8c73;
   --fontStack-sansSerif: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif;
   --fontStack-monospace: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
@@ -60,8 +60,8 @@
     --borderColor-danger-muted: #f8514966;
     --borderColor-severe-muted: #db6d2866;
     --borderColor-accent-emphasis: #1f6feb;
-    --shadow-resting-small-color: #0104093d;
-    --focus-outlineColor: #1f6feb;
+    --shadow-resting-small: 0 1px 1px 0 #01040999, 0 1px 3px 0 #01040999;
+    --focus-outlineColor: var(--borderColor-accent-emphasis);
     --underlineNav-borderColor-active: #f78166;
   }
 }
@@ -166,7 +166,7 @@ article.decision time { color: var(--fgColor-muted); font-size: 13px; }
 .k-check, .k-net { color: var(--fgColor-attention); }
 .board { position: relative; border: 1px solid var(--borderColor-default); border-radius: 10px; background: linear-gradient(var(--bgColor-default), var(--bgColor-muted)); padding: 8px 18px 14px; margin: 0 0 14px; overflow: visible; }
 .canvas { position: relative; }
-.tl-card { border: 1px solid var(--borderColor-default); border-radius: 8px; background: var(--bgColor-default); padding: 6px 10px 7px; display: flex; flex-direction: column; gap: 2px; box-shadow: 0 1px 0 var(--shadow-resting-small-color); line-height: 1.3; overflow-wrap: anywhere; }
+.tl-card { border: 1px solid var(--borderColor-default); border-radius: 8px; background: var(--bgColor-default); padding: 6px 10px 7px; display: flex; flex-direction: column; gap: 2px; box-shadow: var(--shadow-resting-small); line-height: 1.3; overflow-wrap: anywhere; }
 .tl-card.placed { position: absolute; left: var(--left); width: 16%; max-width: 16%; min-width: 0; z-index: 3; max-height: 136px; overflow: hidden; }
 .tl-card.folded { display: none; }
 .tl-card .t { font-weight: 600; font-size: 13px; }
