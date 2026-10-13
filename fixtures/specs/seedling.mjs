@@ -1371,8 +1371,8 @@ const views = {
           ev: headFile('docs/index.md', 'Seedling runs the watering schedule for the Eastside Commons community garden.'),
         },
         {
-          eng: 'Its commands are `export` for the weekly schedule, `serve` for the sign-up and swap pages, `remind` to email tomorrow\'s volunteer, and `sheet` for the shed door.',
-          plain: "It makes the weekly schedule, runs the sign-up page and the pages for handing off a shift, emails tomorrow's volunteer, and prints a weekly sheet for the shed door.",
+          eng: "`export` makes the weekly schedule, `serve` runs the sign-up and swap pages, `remind` emails tomorrow's volunteer, and `sheet` prints the shed door sheet.",
+          plain: "It makes the weekly schedule, runs the sign-up and swap pages, emails tomorrow's volunteer, and prints a sheet for the shed door.",
           ev: headFile('cmd/seedling/main.go', "  remind   email tomorrow's volunteer"),
         },
       ],
@@ -1390,7 +1390,7 @@ const views = {
       docs: ['README.md', handbookDoc],
       headline: [
         {
-          eng: '`seedling serve` shows a sign-up form for a name, phone, email, and the weekdays from Monday to Saturday someone can water.',
+          eng: '`seedling serve` shows a sign-up form that asks for a name, phone, email, and weekdays from Monday to Saturday.',
           plain: 'Volunteers sign up on a web page with their name, phone, email, and the weekdays they can water.',
           ev: headFile('cmd/seedling/serve.go', 'Email: r.FormValue("email"),'),
         },
@@ -1413,13 +1413,13 @@ const views = {
       docs: [howDoc, handbookDoc],
       headline: [
         {
-          eng: '`schedule.Assign` gives each day to the free volunteer with the fewest shifts so far, and ties go to whoever comes first in the roster.',
-          plain: 'Each day goes to a free volunteer with the fewest shifts so far, and a tie goes to whoever is first on the list.',
+          eng: '`schedule.Assign` gives each day to the free volunteer with the fewest shifts, and ties go to roster order.',
+          plain: 'Each day goes to a free volunteer with the fewest shifts, and a tie goes to whoever is first on the list.',
           ev: headFile('internal/schedule/assign.go', '// Ties go to whoever comes first in the roster.'),
         },
         {
-          eng: 'It skips anyone who watered the day before, and a day nobody can take stays blank.',
-          plain: 'Nobody gets a day right after a day they watered, and a day nobody can take stays open.',
+          eng: 'It skips whoever watered the day before, and a day nobody can take stays blank.',
+          plain: 'Nobody waters two days running, and a day nobody can take stays open.',
           ev: headFile('internal/schedule/assign.go', 'if last[v.Name].Equal(day.AddDate(0, 0, -1)) {'),
         },
       ],
@@ -1506,13 +1506,13 @@ const views = {
       docs: [howDoc, handbookDoc],
       headline: [
         {
-          eng: 'A swap link carries a signed token for one volunteer and one date, and it stops working after that date.',
-          plain: 'Each hand-off link works for one person and one day, and stops working after that day.',
+          eng: 'A swap link is signed for one volunteer and one date, and stops working after that date.',
+          plain: 'Each swap link works for one person and one day, and stops working after that day.',
           ev: headFile('internal/swap/swap.go', 'if err != nil || date.Before(now.Truncate(24*time.Hour)) {'),
         },
         {
-          eng: 'The swap page hands the shift only to someone on the roster who does not water the day before or after.',
-          plain: "The hand-off page only accepts someone on the volunteer list who isn't watering the day before or after.",
+          eng: 'The swap page refuses anyone not on the roster or already watering the day before or after.',
+          plain: 'The swap page refuses anyone not on the volunteer list or already watering the day before or after.',
           ev: headFile('cmd/seedling/swap.go', 'if nextTo(shifts, date, taker) {'),
         },
       ],
@@ -1572,7 +1572,7 @@ const views = {
           says: [
             {
               eng: 'Minh Tran wrote that the swap page would hand a shift to someone who already waters the day before or after.',
-              plain: 'Minh Tran wrote that the hand-off page would give a shift to someone already watering the day before or after.',
+              plain: 'Minh Tran wrote that the swap page used to give a shift to someone already watering the day before or after.',
               ev: commit('c-swap-adjacent', 'but the swap page would hand a shift to someone who already waters the day'),
             },
           ],
@@ -1590,7 +1590,7 @@ const views = {
           says: [
             {
               eng: 'The swap page lists names in the order people signed up.',
-              plain: 'The hand-off page lists names in the order people signed up.',
+              plain: 'The swap page lists names in the order people signed up.',
               ev: comment('issue11-minh', "They're in the order people signed up"),
             },
             {
@@ -1663,8 +1663,8 @@ const views = {
     {
       id: 'd-remind-5pm',
       what: {
-        eng: 'Tobias Lindqvist set the crontab to send reminders at 5pm.',
-        plain: 'Tobias Lindqvist set reminders to go out at 5pm.',
+        eng: "Tobias Lindqvist changed the crontab's reminder time to 5pm.",
+        plain: 'Tobias Lindqvist changed the reminder time to 5pm.',
         ev: commit('c-cron-5pm', 'crontab: remind at 5pm'),
       },
       topics: ['reminders'],
@@ -1731,7 +1731,7 @@ const views = {
       id: 'd-go123',
       what: {
         eng: 'Tobias Lindqvist moved the project to Go version 1.23.',
-        plain: 'Tobias Lindqvist moved the app to version 1.23 of Go.',
+        plain: "Tobias Lindqvist changed the app's Go version to 1.23.",
         ev: commit('c-go123', 'go 1.23'),
       },
       topics: ['root'],
@@ -1781,7 +1781,7 @@ const views = {
       id: 'd-no-heat-texts',
       what: {
         eng: 'The app will not text the whole crew at once when it is hot.',
-        plain: 'The app will not send one text to the whole crew when it is hot.',
+        plain: 'Rosa will keep texting the crew herself on hot days, instead of the app texting everyone at once.',
         ev: comment('issue9-rosa-2', "I'll keep texting the crew myself when it's hot"),
       },
       topics: ['reminders'],
@@ -1836,8 +1836,8 @@ const views = {
     {
       id: 'd-no-repeat',
       what: {
-        eng: 'The scheduler skips anyone who watered the day before.',
-        plain: 'Nobody is scheduled for the day after a day they watered.',
+        eng: 'The scheduler should skip anyone who watered the day before.',
+        plain: 'The schedule should not give anyone the day after a day they watered.',
         ev: commit('c-no-repeat', 'schedule: skip anyone who watered the day before'),
       },
       alsoIntent: [comment('pr4-thread-minh', 'skip anyone who had the day before, and leave the day blank if nobody is left')],
@@ -1948,7 +1948,7 @@ const views = {
       why: {
         reason: {
           eng: 'Rosa imports the CSV into the sign-up Google Sheet instead of typing the dates in by hand like last year.',
-          plain: 'Rosa loads the list into the sign-up spreadsheet instead of typing the dates in by hand like last year.',
+          plain: 'Rosa loads the dates into the sign-up spreadsheet instead of typing them in by hand like last year.',
           ev: pr(1, 'Rosa imports that into the sign-up Google Sheet instead of typing the dates in by hand like last year.'),
         },
       },
@@ -2015,9 +2015,9 @@ const views = {
       verdict: 'true-since',
       since: 'c-swap-adjacent',
       why: {
-        eng: 'Before this change the swap page would hand a shift to someone who already waters the day before or after, and now it asks for someone else.',
-        plain: 'Before this change the hand-off page could give a shift to someone already watering the day before or after, and now it asks for someone else.',
-        ev: commit('c-swap-adjacent', 'Now it asks for someone else.'),
+        eng: 'The check `if nextTo(shifts, date, taker) {` went into cmd/seedling/swap.go on 2025-03-26, in a commit by Minh Tran.',
+        plain: 'The swap page started refusing someone who waters the day before or after on Mar 26, 2025, in a change by Minh Tran.',
+        ev: { verb: 'introduced', path: 'cmd/seedling/swap.go', needle: 'if nextTo(shifts, date, taker) {', shows: 'by Minh Tran' },
       },
       covers: ['currency-two-days-in-a-row'],
     },

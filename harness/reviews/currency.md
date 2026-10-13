@@ -14,7 +14,7 @@ Every number the harness prints stays labelled UNREVIEWED until this review is s
 | --- | --- | --- | --- | --- | --- |
 | 1 | README.md | Standard library only. | still true today | none | Nothing changed what it describes. |
 | 2 | README.md | Cron runs this at 6pm on the garden server. | no longer true since the change named | commit a41783c, Mar 29, 2025, "crontab: remind at 5pm" | deploy/crontab runs `seedling remind` at 17:00, which is 5pm. |
-| 3 | docs/volunteer-handbook.md | It spreads shifts out so nobody does more than their share, and you'll never get two days in a row. | true, but only since the change named | commit af5ef6a, Mar 26, 2025, "swap: don't hand a shift to someone on the day before or after" | Before this change the swap page would hand a shift to someone who already waters the day before or after, and now it asks for someone else. |
+| 3 | docs/volunteer-handbook.md | It spreads shifts out so nobody does more than their share, and you'll never get two days in a row. | true, but only since the change named | commit af5ef6a, Mar 26, 2025, "swap: don't hand a shift to someone on the day before or after" | The check `if nextTo(shifts, date, taker) {` went into cmd/seedling/swap.go on 2025-03-26, in a commit by Minh Tran. |
 | 4 | docs/how-scheduling-works.md | Watering days are Monday through Saturday. There are no shifts on Sundays. | still true today | none | Nothing changed what it describes. |
 | 5 | docs/how-scheduling-works.md | The link lets you hand your shift to anyone else on the roster who isn't already watering the day before or after. | still true today | none | Nothing changed what it describes. |
 
