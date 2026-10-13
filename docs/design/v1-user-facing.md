@@ -34,8 +34,8 @@ Each topic page shows, top to bottom:
 ## Timeline
 
 - By default it shows the whole repo over its whole life. The reader can narrow it to one topic and pick a range with presets or two dates.
-- A one-sentence summary leads, for example "Since Nov 18: 2 behavior changes and 2 things to check."
-- Only important changes get a card: **Decision**, **Behavior change**, or **Worth a look**. A card shows what changed and why, and links to the change on GitHub.
+- A one-sentence summary leads, for example "Since Nov 18: 2 behavior changes and 2 things to check." When the range is longer than a year, the summary names the year, for example "Since Oct 21, 2016".
+- Only important changes get a card: **Decision**, **Behavior change**, or **Worth a look**. A card shows what changed and why, and links to the change on GitHub. The name is what changed, never a commit id alone.
 - Routine work is one counted strip, for example "14 routine changes, 2,285 lines". It opens to a list, and each row gives the reason nmem treats it as routine.
 - Changes that were added and later undone collapse into one "no net change" bracket.
 

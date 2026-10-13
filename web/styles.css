@@ -116,22 +116,27 @@ h2 { font-size: 16px; margin: 22px 0 6px; }
 .k-decision { color: var(--done); }
 .k-behavior { color: var(--danger); }
 .k-check, .k-net { color: var(--stale); }
-.board { position: relative; border: 1px solid var(--border); border-radius: 10px; background: linear-gradient(#fff, #fbfcfd); padding: 8px 18px 14px; margin: 0 0 14px; overflow: hidden; }
+.board { position: relative; border: 1px solid var(--border); border-radius: 10px; background: linear-gradient(#fff, #fbfcfd); padding: 8px 18px 14px; margin: 0 0 14px; overflow: visible; }
 .canvas { position: relative; }
 .tl-card { border: 1px solid var(--border); border-radius: 8px; background: #fff; padding: 6px 10px 7px; display: flex; flex-direction: column; gap: 2px; box-shadow: 0 1px 0 #1f23280a; line-height: 1.3; overflow-wrap: anywhere; }
-.tl-card.placed { position: absolute; width: 16%; max-width: 16%; min-width: 0; z-index: 3; max-height: 116px; overflow: hidden; }
+.tl-card.placed { position: absolute; left: var(--left); width: 16%; max-width: 16%; min-width: 0; z-index: 3; max-height: 136px; overflow: hidden; }
 .tl-card.folded { display: none; }
 .tl-card .t { font-weight: 600; font-size: 13px; }
 .tl-card .point, .tl-card .c, .tl-card .note { font-size: 12px; color: var(--muted); }
 .tl-card.placed .point ~ .point, .tl-card.placed .c, .tl-card.placed .note { display: none; }
-.tl-card.placed .k { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tl-card.placed .k { white-space: normal; overflow: visible; }
+.tl-card.placed .k .d { display: block; }
 .tl-card.placed .t, .tl-card.placed .point { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.tl-card.placed:hover, .tl-card.placed:focus-within { z-index: 8; max-height: none; overflow: visible; width: 280px; max-width: 280px; left: min(var(--left), calc(100% - 280px)); background: #fff; }
+.tl-card.placed:focus-within { outline: 2px solid var(--accent); outline-offset: 1px; }
+.tl-card.placed:hover .point ~ .point, .tl-card.placed:focus-within .point ~ .point, .tl-card.placed:hover .c, .tl-card.placed:focus-within .c, .tl-card.placed:hover .note, .tl-card.placed:focus-within .note { display: block; }
+.tl-card.placed:hover .t, .tl-card.placed:focus-within .t, .tl-card.placed:hover .point, .tl-card.placed:focus-within .point { display: block; -webkit-line-clamp: unset; overflow: visible; }
 .tl-card .cluster { font-size: 12px; font-weight: 600; }
 .tl-card.behavior { border-color: #ff818266; background: #fffafa; }
 .tl-card.check { border-color: #fb8f4466; background: #fffaf5; }
 .tl-card.net { border: 1px dashed #59636e; }
 .fewer { position: absolute; right: 0; top: 0; z-index: 4; font-size: 12px; font-weight: 600; }
-.axis { position: absolute; left: 0; right: 0; height: 64px; color: var(--muted); font-size: 12px; }
+.axis { position: absolute; left: 0; right: 0; height: 72px; color: var(--muted); font-size: 12px; }
 .axis .end { position: absolute; top: 0; z-index: 3; white-space: nowrap; font-size: 11px; }
 .axis .end.start { left: 0; }
 .axis .end:last-child { right: 0; }
@@ -142,6 +147,8 @@ h2 { font-size: 16px; margin: 22px 0 6px; }
 .pin.check { background: var(--stale); }
 .pin.net { background: #fff; border: 2px solid #59636e; box-shadow: none; }
 .tick { position: absolute; top: 22px; transform: translateX(-50%); font-size: 11px; color: var(--muted); white-space: nowrap; }
+.tick.edge-start { transform: translateX(0); }
+.tick.edge-end { transform: translateX(-100%); }
 .bracket { position: absolute; top: 7px; height: 4px; background: #59636e; border-radius: 2px; z-index: 1; }
 .empty { position: absolute; left: 0; right: 0; text-align: center; color: var(--faint); font-size: 12.5px; margin: 0; }
 .today { color: var(--accent); font-weight: 600; }

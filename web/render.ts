@@ -1,3 +1,4 @@
+import { plainHits } from '../fixtures/lib/plain.mjs';
 import { parseProof, parseRef } from '../harness/contract.ts';
 import type { ChangeId, Decision, LocalId, Login, RecordRef, Said, Source, Topic, Why } from '../harness/contract.ts';
 import { resolveProof } from '../harness/record.ts';
@@ -412,13 +413,14 @@ function timelineBody(site: Site, topic: LocalId, from: IsoDay, to: IsoDay, quer
     return `<a class="chip${on ? ' on' : ''}" href="${esc(timelineHref(site, row.id, from, to, audience))}">${esc(row.name[audience])}</a>`;
   }).join('');
   const allCards = [...view.up.cards, ...view.down.cards];
+  const unclassifiedCount = allCards.filter((card) => card.kind !== 'decision' && card.kind !== 'net' && kindOf(card.change, site.snapshot, site.facts) === 'unclassified').length;
   const cardsAttr = allCards.map((card) => cardToken(card)).join(' ');
   const notesAttr = allCards.flatMap((card) => {
     if (card.kind === 'net' || !card.undoneNote) return [];
     const change = card.kind === 'decision' ? card.carries[0] : card.change;
     return change ? [`${change}=${card.undoneNote}`] : [];
   }).sort().join(',');
-  return `<section class="tl" data-topic="${esc(topic)}" data-from="${from}" data-to="${to}" data-summary="${esc(view.summary[audience])}" data-counts="${esc(countsAttr(view.counts))}" data-named="${esc(view.named.map((item) => item.ref).join(','))}" data-routine-count="${view.routine.count}" data-routine-lines="${view.routine.lines}" data-cards="${esc(cardsAttr)}" data-notes="${esc(notesAttr)}">
+  return `<section class="tl" data-topic="${esc(topic)}" data-from="${from}" data-to="${to}" data-summary="${esc(view.summary[audience])}" data-counts="${esc(countsAttr(view.counts))}" data-named="${esc(view.named.map((item) => item.ref).join(','))}" data-routine-count="${view.routine.count}" data-routine-lines="${view.routine.lines}" data-cards="${esc(cardsAttr)}" data-notes="${esc(notesAttr)}" data-unclassified-count="${unclassifiedCount}">
     <div class="tl-head"><span class="mark" aria-hidden="true">n</span><h1>Timeline</h1></div>
     <p class="tl-sub">${audience === 'plain'
       ? 'Decisions sit above the time line. Changes sit below it. Each row folds crowded cards into +N more.'
@@ -454,7 +456,8 @@ function namedItem(site: Site, item: Item, audience: Audience): string {
   const label = item.kind === 'decision' ? 'Decision' : item.kind === 'behavior' ? 'Behavior change' : item.kind === 'check' ? 'Worth a look' : 'Came and went';
   const source = itemSource(site, item);
   const cited = source ? ` ${chip(site, source, audience)}` : '';
-  return `<li data-ref="${esc(item.ref)}" data-kind="${item.kind}"><span class="k k-${item.kind}">${label}</span> <time>${esc(formatDay(item.day))}</time> <span class="said" data-nmem>${textOf(itemText(site, item, audience), audience)}${cited}</span></li>`;
+  const name = itemText(site, item, audience);
+  return `<li data-ref="${esc(item.ref)}" data-kind="${item.kind}"><span class="k k-${item.kind}">${label}</span> <time>${esc(formatDay(item.day))}</time> <span class="said" data-nmem data-name="${esc(name)}">${textOf(name, audience)}${cited}</span></li>`;
 }
 
 function itemSource(site: Site, item: Item): Source | null {
@@ -478,14 +481,46 @@ function itemText(site: Site, item: Item, audience: Audience): string {
   const finding = /^(.+)\/(\d+)$/.exec(item.ref);
   if (finding?.[1]) {
     const change = site.snapshot.changes.find((row) => row.id === finding[1]);
-    return change?.findings[Number(finding[2])]?.name[audience] ?? item.ref;
+    const name = change?.findings[Number(finding[2])]?.name[audience];
+    if (name && !isBareCommit(name)) return name;
   }
-  return audience === 'eng' ? labelChange(item.ref as ChangeId) : 'a change';
+  return namedChange(site, finding?.[1] ?? item.ref, item.day, audience);
+}
+
+function isBareCommit(text: string): boolean {
+  return /^(?:commit\s+)?[0-9a-f]{7,40}$/i.test(text.trim());
+}
+
+function firstLine(text: string): string {
+  return text.split('\n')[0]?.trim() ?? '';
+}
+
+function recordTitle(site: Site, id: string): string {
+  const pull = /^pr#(\d+)$/.exec(id);
+  if (pull) {
+    const number = Number(pull[1]);
+    return firstLine(site.record.github.pulls.find((row) => row.number === number)?.title ?? '');
+  }
+  const parsed = parseRef(id, site.identity);
+  if (!parsed || parsed.kind !== 'commit') return '';
+  return firstLine(site.record.resolve(parsed)?.revisions[0] ?? '');
+}
+
+function namedChange(site: Site, id: string, day: IsoDay, audience: Audience): string {
+  const title = recordTitle(site, id);
+  if (audience === 'plain') {
+    if (title && plainHits(title).length === 0) return title;
+    return `A change on ${formatDay(day)}`;
+  }
+  if (title) return title;
+  const pull = /^pr#(\d+)$/.exec(id);
+  return pull ? `PR #${pull[1]}` : 'A commit with no message';
 }
 
 const CARD_PCT = 16;
-const LANE_H = 128;
-const AXIS_H = 56;
+const LANE_H = 148;
+const AXIS_H = 72;
+const AXIS_INSET = 6;
 
 type Slot = { readonly card: Card; readonly left: number; readonly lane: number; readonly more: number; readonly folded: boolean };
 
@@ -496,9 +531,8 @@ function cardToken(card: Card): string {
 }
 
 function leftPct(day: IsoDay, from: IsoDay, to: IsoDay): number {
-  const span = dayNum(to) - dayNum(from);
-  const at = span <= 0 ? 0.5 : (dayNum(day) - dayNum(from)) / span;
-  return Math.max(0, Math.min(100 - CARD_PCT - 2, at * (100 - CARD_PCT - 2)));
+  const at = pct(day, from, to);
+  return Math.max(0, Math.min(100 - CARD_PCT, at - CARD_PCT / 2));
 }
 
 function packRow(cards: readonly Card[], from: IsoDay, to: IsoDay, open: boolean): { readonly slots: readonly Slot[]; readonly lanes: number } {
@@ -555,7 +589,7 @@ function boardHtml(
   const paint = (slots: readonly Slot[], row: 'up' | 'down', lanes: number): string => slots.map((slot) => {
     const top = row === 'up' ? axisTop - (slot.lane + 1) * LANE_H + 6 : axisTop + AXIS_H + slot.lane * LANE_H;
     const layout = {
-      style: slot.folded ? '' : `left:${slot.left.toFixed(2)}%;top:${top}px`,
+      style: slot.folded ? '' : `--left:${slot.left.toFixed(2)}%;top:${top}px`,
       folded: slot.folded,
       more: moreLink(site, topic, from, to, audience, row, slot.more, query),
     };
@@ -600,7 +634,7 @@ type Layout = { readonly style: string; readonly folded: boolean; readonly more:
 
 function placed(layout: Layout): string {
   if (layout.folded) return ' folded" hidden';
-  return ` placed" style="${layout.style}`;
+  return ` placed" tabindex="0" style="${layout.style}`;
 }
 
 function cardHtml(site: Site, card: Card, audience: Audience, layout: Layout): string {
@@ -638,9 +672,8 @@ function changeCard(site: Site, card: Extract<Card, { kind: 'behavior' | 'check'
     const finding = entry?.findings[index];
     return finding ? [finding] : [];
   });
-  const title = unclassified
-    ? 'Worth a look'
-    : findings[0]?.name[audience] ?? (audience === 'eng' ? labelChange(card.change) : 'A change');
+  const findingName = findings[0]?.name[audience] ?? '';
+  const title = findingName && !isBareCommit(findingName) ? findingName : namedChange(site, card.change, card.day, audience);
   const points: string[] = [];
   const push = (html: string): void => {
     if (points.length < 3) points.push(html);
@@ -657,7 +690,7 @@ function changeCard(site: Site, card: Extract<Card, { kind: 'behavior' | 'check'
   return `<article class="tl-card ${card.kind}${placed(layout)}" data-row="down" data-kind="${card.kind}" data-id="${esc(card.change)}" data-points="${points.length}" data-unclassified="${unclassified ? '1' : '0'}"${note.attr}>
     <span class="k k-${card.kind}">${label} <span class="d">${esc(shortWhen(site, card.day))}</span></span>
     ${layout.more}
-    <span class="t" data-nmem>${textOf(title, audience)} ${githubLinkInline(site, card.change, audience)}</span>
+    <span class="t" data-nmem data-name="${esc(title)}">${textOf(title, audience)} ${githubLinkInline(site, card.change, audience)}</span>
     ${points.join('')}
     ${skip ? `<span class="c">${esc(skip[audience])}</span>` : ''}
     ${carries}
@@ -675,7 +708,7 @@ function netCard(site: Site, card: Extract<Card, { kind: 'net' }>, audience: Aud
   return `<article class="tl-card net${placed(layout)}" data-row="down" data-kind="net" data-id="${esc(id)}" data-points="${says.length + 1}">
     <span class="k k-net">Came and went <span class="d">${esc(shortWhen(site, card.from))} to ${esc(shortWhen(site, card.to))}</span></span>
     ${layout.more}
-    <span class="t" data-nmem>${textOf(title, audience)} ${githubLinkInline(site, first, audience)}</span>
+    <span class="t" data-nmem data-name="${esc(title)}">${textOf(title, audience)} ${githubLinkInline(site, first, audience)}</span>
     ${says.join('')}
     <span class="point template" data-nmem>${esc(TEMPLATES.net[audience])}</span>
     ${carries}
@@ -721,7 +754,14 @@ function dayNum(iso: string): number {
 function pct(day: string, from: string, to: string): number {
   const span = dayNum(to) - dayNum(from);
   if (span <= 0) return 50;
-  return Math.max(0, Math.min(100, ((dayNum(day) - dayNum(from)) / span) * 100));
+  const at = Math.max(0, Math.min(1, (dayNum(day) - dayNum(from)) / span));
+  return AXIS_INSET + at * (100 - 2 * AXIS_INSET);
+}
+
+function tickClass(at: number): string {
+  if (at <= AXIS_INSET + 1) return 'tick edge-start';
+  if (at >= 100 - AXIS_INSET - 1) return 'tick edge-end';
+  return 'tick';
 }
 
 function cardDay(card: Card): IsoDay {
@@ -751,9 +791,11 @@ function monthTicks(from: IsoDay, to: IsoDay): string {
     const day = `${year}-${String(month).padStart(2, '0')}-01`;
     if (day >= from && day <= to && everyYears === 0) {
       const label = month === 1 || ticks.length === 0 ? `${MONTHS[month - 1] ?? ''} ${year}` : MONTHS[month - 1] ?? '';
-      ticks.push(`<span class="tick" style="left:${pct(day, from, to).toFixed(2)}%">${label}</span>`);
+      const at = pct(day, from, to);
+      ticks.push(`<span class="${tickClass(at)}" style="left:${at.toFixed(2)}%">${label}</span>`);
     } else if (day > from && day <= to && month === 1 && year % everyYears === 0) {
-      ticks.push(`<span class="tick" style="left:${pct(day, from, to).toFixed(2)}%">${year}</span>`);
+      const at = pct(day, from, to);
+      ticks.push(`<span class="${tickClass(at)}" style="left:${at.toFixed(2)}%">${year}</span>`);
     }
     month += 1;
     if (month > 12) {
@@ -778,7 +820,7 @@ function routineRows(site: Site, rows: readonly { readonly change: ChangeId; rea
   return rows.map((row) => {
     const live = site.facts.changes.find((change) => change.id === row.change)?.live;
     const when = live ? formatDay(live) : '';
-    const label = audience === 'eng' ? labelChange(row.change) : 'A routine change';
+    const label = audience === 'eng' ? namedChange(site, row.change, live ?? site.facts.end, audience) : 'A routine change';
     const parts = row.parts.map((part) => `<span class="said" data-nmem>${textOf(part[audience], audience)} ${chip(site, part.source, audience)}</span>`).join('');
     return `<div class="row"><span class="dt">${esc(when)}</span><span>${esc(label)}</span><span class="why">${parts}</span></div>`;
   }).join('');

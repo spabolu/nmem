@@ -72,13 +72,14 @@ function goldName(ref, findings) {
   return findings[finding[1]]?.[Number(finding[2])] ?? ref;
 }
 
-function start(snapshot) {
-  const child = spawn(process.execPath, [path.join(root, 'web', 'server.ts'), '--workspace', workspace, '--snapshot', snapshot, '--port', '0'], {
+function start(snapshot, ws = workspace) {
+  const child = spawn(process.execPath, [path.join(root, 'web', 'server.ts'), '--workspace', ws, '--snapshot', snapshot, '--port', '0'], {
     cwd: root,
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   let out = '';
   let err = '';
+  let listening = false;
   const ready = new Promise((resolve, reject) => {
     const timer = setTimeout(() => {
       child.kill('SIGKILL');
@@ -88,6 +89,7 @@ function start(snapshot) {
       out += buf;
       const match = /listening on http:\/\/127\.0\.0\.1:(\d+)/.exec(out);
       if (match) {
+        listening = true;
         clearTimeout(timer);
         resolve(Number(match[1]));
       }
@@ -96,6 +98,7 @@ function start(snapshot) {
       err += buf;
     });
     child.on('exit', (code) => {
+      if (listening) return;
       clearTimeout(timer);
       reject(new Error(`server exited ${code} before listening\n${err}`));
     });
@@ -226,6 +229,14 @@ function formatDay(day) {
   return `${months[Number(day.slice(5, 7)) - 1]} ${Number(day.slice(8, 10))}, ${day.slice(0, 4)}`;
 }
 
+function bareCommit(text) {
+  return /^(?:commit\s+)?[0-9a-f]{7,40}$/i.test(text.trim());
+}
+
+function namesOf(html) {
+  return [...html.matchAll(/data-name="([^"]*)"/g)].map((match) => decode(match[1]));
+}
+
 async function checkOracle(snapshotFile, snapshot, facts, screens, findings) {
   const server = start(snapshotFile);
   try {
@@ -277,6 +288,14 @@ async function checkOracle(snapshotFile, snapshot, facts, screens, findings) {
     const trust = new Set(Object.values(TRUST_WORDS).flatMap((line) => [line.eng, line.plain]));
     const proof = bare.html.match(/href="[^"]*proof=[^"]*"[^>]*>([^<]+)</);
     if (proof) check(trust.has(decode(proof[1])), `trust chip "${proof[1]}" is not a kernel trust word`);
+    const long = await get(port, timelineUrl(realBase, rootId, '2016-10-21', '2026-09-19', 'eng'));
+    const longSummary = attr(long.html, 'data-summary') ?? '';
+    check(longSummary.startsWith('Since Oct 21, 2016:'), `multi-year summary is "${longSummary}"`);
+    const round = await get(port, timelineUrl(realBase, rootId, '2023-10-22', '2023-11-01', 'eng'));
+    const roundSummary = attr(round.html, 'data-summary') ?? '';
+    check(roundSummary.startsWith('Since Oct 22:'), `short range summary is "${roundSummary}"`);
+    check(!roundSummary.startsWith('Since Oct 22,'), `short range names a year: "${roundSummary}"`);
+    for (const name of namesOf(round.html)) check(!bareCommit(name), `round range names a commit id: ${name}`);
     console.log(`oracle: ${snapshot.topics.length} topics, ${screens.filter((row) => row.kind === 'timeline').length} gold ranges, both audiences`);
   } finally {
     await server.stop();
@@ -307,6 +326,7 @@ async function checkHonest(snapshotFile, label, expect) {
       check(life.status === 200, `${label} timeline status ${life.status}`);
       const view = timelineOf(snapshot, facts, { topic: rootId, from: facts.born, to: facts.end });
       check(attr(life.html, 'data-summary') === view.summary[audience], `${label} timeline summary differs from the kernel`);
+      console.log(`${label} unclassified cards: ${attr(life.html, 'data-unclassified-count')} of ${facts.changes.length} changes`);
       check(sameCounts(parseCounts(attr(life.html, 'data-counts')), view.counts), `${label} timeline counts differ from the kernel`);
       check(!life.html.includes('d-note') && !life.html.includes('d-round-revert'), `${label} shows a gold decision it does not have`);
       screenRules(life.html, audience, `${label} timeline ${audience}`);
@@ -361,6 +381,239 @@ fs.writeFileSync(oracleFile, JSON.stringify(gold.oracle));
 const nullFile = path.join(tmp, 'null.json');
 fs.writeFileSync(nullFile, JSON.stringify(nullSnapshot(facts)));
 
+async function checkPlimit() {
+  const cache = path.join(os.homedir(), '.cache/nmem/repos/sindresorhus/p-limit');
+  const snapshotFile = path.join(cache, 'snapshot.json');
+  check(fs.existsSync(snapshotFile), 'p-limit snapshot is missing');
+  if (!fs.existsSync(snapshotFile)) return;
+  const server = start(snapshotFile, cache);
+  try {
+    const port = await server.ready;
+    const identity = JSON.parse(fs.readFileSync(path.join(cache, 'github.json'), 'utf8')).repo;
+    const base = `/${identity.owner}/${identity.name}`;
+    const record = openFixture(cache);
+    const repoFacts = factsOf(record);
+    const snapshot = JSON.parse(fs.readFileSync(snapshotFile, 'utf8'));
+    const rootId = snapshot.topics.find((topic) => topic.parent === null).id;
+    for (const audience of ['eng', 'plain']) {
+      const life = await get(port, timelineUrl(base, rootId, repoFacts.born, repoFacts.end, audience));
+      check(life.status === 200, `p-limit ${audience} timeline status ${life.status}`);
+      const summary = attr(life.html, 'data-summary') ?? '';
+      check(summary.startsWith('Since Oct 21, 2016:'), `p-limit ${audience} summary is "${summary}"`);
+      const names = namesOf(life.html);
+      check(names.length > 0, `p-limit ${audience} has no card or summary names`);
+      for (const name of names) {
+        check(!bareCommit(name), `p-limit ${audience} names a commit id: ${name}`);
+        if (audience === 'plain') {
+          const hits = plainHits(name);
+          check(hits.length === 0, `p-limit plain name has ${hits.join(', ')} in "${name}"`);
+        }
+      }
+      check(names.includes('Fix typo'), `p-limit ${audience} names are ${names.slice(0, 8).join(' | ')}`);
+      const counted = (life.html.match(/data-unclassified="1"/g) ?? []).length;
+      const reported = Number(attr(life.html, 'data-unclassified-count'));
+      check(reported === counted, `p-limit unclassified attribute ${reported} != ${counted} cards`);
+      console.log(`p-limit unclassified cards: ${reported} of ${repoFacts.changes.length} changes (${audience})`);
+    }
+    const rootPage = await get(port, `${base}/t/${encodeURIComponent(rootId)}?audience=eng`);
+    check(rootPage.status === 200, `p-limit root status ${rootPage.status}`);
+    screenRules(rootPage.html, 'eng', 'p-limit root');
+  } finally {
+    await server.stop();
+  }
+}
+
+const chromeBin = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
+
+function launchChrome() {
+  const profile = fs.mkdtempSync(path.join(tmp, 'chrome-'));
+  const child = spawn(chromeBin, [
+    '--headless=new',
+    '--disable-gpu',
+    '--hide-scrollbars',
+    '--remote-debugging-port=0',
+    `--user-data-dir=${profile}`,
+    '--window-size=1400,1600',
+  ], { stdio: ['ignore', 'ignore', 'pipe'] });
+  let err = '';
+  const ready = new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`chrome did not listen\n${err}`)), 20000);
+    child.stderr.on('data', (buf) => {
+      err += buf;
+      const match = /DevTools listening on ws:\/\/127\.0\.0\.1:(\d+)\//.exec(err);
+      if (match) {
+        clearTimeout(timer);
+        resolve(Number(match[1]));
+      }
+    });
+    child.on('exit', (code) => {
+      clearTimeout(timer);
+      reject(new Error(`chrome exited ${code}\n${err}`));
+    });
+  });
+  return {
+    ready,
+    async stop() {
+      child.kill('SIGKILL');
+      await new Promise((resolve) => child.on('exit', resolve));
+    },
+  };
+}
+
+class Cdp {
+  constructor(ws) {
+    this.ws = ws;
+    this.next = 1;
+    this.pending = new Map();
+    this.waiters = [];
+    ws.addEventListener('message', (event) => {
+      const msg = JSON.parse(event.data);
+      if (msg.id && this.pending.has(msg.id)) {
+        const pending = this.pending.get(msg.id);
+        this.pending.delete(msg.id);
+        if (msg.error) pending.reject(new Error(JSON.stringify(msg.error)));
+        else pending.resolve(msg.result);
+        return;
+      }
+      this.waiters = this.waiters.filter((waiter) => {
+        if (waiter.method !== msg.method) return true;
+        waiter.resolve(msg.params);
+        return false;
+      });
+    });
+  }
+
+  send(method, params = {}, sessionId) {
+    const id = this.next++;
+    const result = new Promise((resolve, reject) => this.pending.set(id, { resolve, reject }));
+    const msg = sessionId ? { id, method, params, sessionId } : { id, method, params };
+    this.ws.send(JSON.stringify(msg));
+    return result;
+  }
+
+  wait(method) {
+    return new Promise((resolve) => this.waiters.push({ method, resolve }));
+  }
+}
+
+const CLIP = `(() => {
+  const board = document.querySelector('.board');
+  if (!board) return { error: 'no board' };
+  const box = board.getBoundingClientRect();
+  const clipped = [...document.querySelectorAll('.tick, .axis .end, .pin')].flatMap((el) => {
+    const r = el.getBoundingClientRect();
+    if (r.width === 0 && r.height === 0) return [];
+    if (r.left >= box.left - 1 && r.right <= box.right + 1 && r.top >= box.top - 1 && r.bottom <= box.bottom + 1) return [];
+    return [(el.textContent || el.className || '').replace(/\\s+/g, ' ').trim().slice(0, 40)];
+  });
+  const cutDates = [...document.querySelectorAll('.tl-card.placed .k')].flatMap((el) => {
+    if (el.scrollWidth <= el.clientWidth + 1 && el.scrollHeight <= el.clientHeight + 1) return [];
+    return [el.textContent.replace(/\\s+/g, ' ').trim().slice(0, 60)];
+  });
+  const cards = [...document.querySelectorAll('.tl-card.placed')].map((el) => el.getBoundingClientRect());
+  const overCard = [...document.querySelectorAll('.tick, .axis .end')].filter((el) => {
+    const r = el.getBoundingClientRect();
+    return cards.some((card) => r.left < card.right - 1 && r.right > card.left + 1 && r.top < card.bottom - 1 && r.bottom > card.top + 1);
+  }).map((el) => el.textContent.replace(/\\s+/g, ' ').trim());
+  const track = document.querySelector('.track')?.getBoundingClientRect();
+  const onTrack = [...document.querySelectorAll('.tick')].filter((el) => {
+    if (!track) return false;
+    const r = el.getBoundingClientRect();
+    return r.top < track.bottom - 2 && r.bottom > track.top + 2;
+  }).map((el) => el.textContent.replace(/\\s+/g, ' ').trim());
+  return {
+    clipped,
+    cutDates,
+    onTrack,
+    overCard,
+    ticks: [...document.querySelectorAll('.tick')].map((el) => el.textContent.replace(/\\s+/g, ' ').trim()),
+  };
+})()`;
+
+const HOVER = `(() => {
+  const card = document.querySelector('.tl-card.decision.placed');
+  if (!card) return { error: 'no decision card' };
+  const title = card.querySelector('.t');
+  const extra = card.querySelector('.c, .note, .point ~ .point');
+  return {
+    clamp: title ? getComputedStyle(title).webkitLineClamp : '',
+    extra: extra ? getComputedStyle(extra).display : 'missing',
+    height: Math.round(card.getBoundingClientRect().height),
+  };
+})()`;
+
+async function measureClips(cdp, sessionId, url) {
+  const loaded = cdp.wait('Page.loadEventFired');
+  await cdp.send('Page.navigate', { url }, sessionId);
+  await loaded;
+  await cdp.send('Runtime.evaluate', { expression: 'document.fonts ? document.fonts.ready : 1', awaitPromise: true }, sessionId);
+  const clips = await cdp.send('Runtime.evaluate', { expression: CLIP, returnByValue: true }, sessionId);
+  await cdp.send('DOM.enable', {}, sessionId);
+  await cdp.send('CSS.enable', {}, sessionId);
+  const doc = await cdp.send('DOM.getDocument', { depth: 1 }, sessionId);
+  const before = await cdp.send('Runtime.evaluate', { expression: HOVER, returnByValue: true }, sessionId);
+  const card = await cdp.send('DOM.querySelector', { nodeId: doc.root.nodeId, selector: '.tl-card.decision.placed' }, sessionId);
+  if (card.nodeId) await cdp.send('CSS.forcePseudoState', { nodeId: card.nodeId, forcedPseudoClasses: ['hover'] }, sessionId);
+  const after = await cdp.send('Runtime.evaluate', { expression: HOVER, returnByValue: true }, sessionId);
+  return { clips: clips.result.value, before: before.result.value, after: after.result.value };
+}
+
+async function checkLayout() {
+  check(fs.existsSync(chromeBin), `missing ${chromeBin}`);
+  if (!fs.existsSync(chromeBin)) return;
+  const cache = path.join(os.homedir(), '.cache/nmem/repos/sindresorhus/p-limit');
+  const browser = launchChrome();
+  const oracle = start(oracleFile);
+  try {
+    const debugPort = await browser.ready;
+    const version = await fetch(`http://127.0.0.1:${debugPort}/json/version`).then((res) => res.json());
+    const ws = new WebSocket(version.webSocketDebuggerUrl);
+    await new Promise((resolve, reject) => {
+      ws.addEventListener('open', resolve);
+      ws.addEventListener('error', reject);
+    });
+    const cdp = new Cdp(ws);
+    const created = await cdp.send('Target.createTarget', { url: 'about:blank' });
+    const attached = await cdp.send('Target.attachToTarget', { targetId: created.targetId, flatten: true });
+    const sessionId = attached.sessionId;
+    await cdp.send('Page.enable', {}, sessionId);
+    const tallyPort = await oracle.ready;
+    const tallyIdentity = JSON.parse(fs.readFileSync(path.join(workspace, 'github.json'), 'utf8')).repo;
+    const roundUrl = `http://127.0.0.1:${tallyPort}/${tallyIdentity.owner}/${tallyIdentity.name}/timeline?audience=eng&topic=root&from=2023-10-22&to=2023-11-01`;
+    const round = await measureClips(cdp, sessionId, roundUrl);
+    check(!round.clips.error, `round layout ${round.clips.error}`);
+    check(round.clips.clipped.length === 0, `round range clips ${round.clips.clipped.join(', ')}`);
+    check(round.clips.cutDates.length === 0, `round range truncates ${round.clips.cutDates.join(', ')}`);
+    check(round.clips.ticks.some((tick) => tick === 'Nov 2023'), `round ticks are ${round.clips.ticks.join(', ')}`);
+    check(round.clips.onTrack.length === 0, `round ticks sit on the axis: ${round.clips.onTrack.join(', ')}`);
+    check(round.clips.overCard.length === 0, `round labels cover a card: ${round.clips.overCard.join(', ')}`);
+    check(round.before.extra === 'none', `round card extra starts visible (${round.before.extra})`);
+    check(round.after.clamp === 'none', `hover leaves the title clamped (${round.after.clamp})`);
+    check(round.after.extra !== 'none', `hover hides the rest of the card (${round.after.extra})`);
+    check(round.after.height > round.before.height, `hover does not grow the card (${round.before.height} to ${round.after.height})`);
+    await oracle.stop();
+    const plimit = start(path.join(cache, 'snapshot.json'), cache);
+    try {
+      const plimitPort = await plimit.ready;
+      const plimitIdentity = JSON.parse(fs.readFileSync(path.join(cache, 'github.json'), 'utf8')).repo;
+      const lifeUrl = `http://127.0.0.1:${plimitPort}/${plimitIdentity.owner}/${plimitIdentity.name}/timeline?audience=eng&topic=root&from=2016-10-21&to=2026-09-19`;
+      const life = await measureClips(cdp, sessionId, lifeUrl);
+      check(!life.clips.error, `p-limit layout ${life.clips.error}`);
+      check(life.clips.clipped.length === 0, `p-limit life clips ${life.clips.clipped.join(', ')}`);
+      check(life.clips.cutDates.length === 0, `p-limit life truncates ${life.clips.cutDates.join(', ')}`);
+    check(life.clips.onTrack.length === 0, `p-limit ticks sit on the axis: ${life.clips.onTrack.join(', ')}`);
+    check(life.clips.overCard.length === 0, `p-limit labels cover a card: ${life.clips.overCard.join(', ')}`);
+    } finally {
+      await plimit.stop();
+    }
+    ws.close();
+    console.log('layout: headless Chrome, round range and p-limit life, no clipped labels');
+  } finally {
+    await oracle.stop();
+    await browser.stop();
+  }
+}
+
 try {
   await refuseBad();
   await checkOracle(oracleFile, gold.oracle, facts, goldFile.extras.screens, goldFile.extras.findings);
@@ -373,6 +626,8 @@ try {
     check(snapshot.topics.length === 1, `engine snapshot has ${snapshot.topics.length} topics, the no-model build writes one`);
     check(snapshot.claims.length === 0, 'engine snapshot has claims, so an out-of-date line would not be the empty case');
   });
+  await checkPlimit();
+  await checkLayout();
 } catch (error) {
   fail(error instanceof Error ? error.stack ?? error.message : String(error));
 } finally {
