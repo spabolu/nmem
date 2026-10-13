@@ -2005,7 +2005,7 @@ const views = {
       name: { eng: 'Fail-open on Redis errors', plain: 'Letting requests through when the shared database failed' },
       says: [
         {
-          eng: 'The code before commit 8635c79 matches the code at commit 5f4bea4.',
+          eng: 'We compared the code before and after and found no differences.',
           plain: 'We compared the code before and after and found no differences.',
           ev: { verb: 'diff', from: 'c-changelog-030', to: 'c-revert-fail-open', shows: '(no differences)' },
         },

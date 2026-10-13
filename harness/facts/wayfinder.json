@@ -2184,16 +2184,16 @@
     ]
   },
   "wayfinder/undone:8635c79/undone/eng": {
-    "source": "10270b1641f6ab8e7a8cb76d3410264e",
+    "source": "209bb63b3e74fcb4277b72d0fab66221",
     "headline": [
       {
         "id": "f1",
-        "text": "The code before commit 8635c79 matches the code at commit 5f4bea4."
+        "text": "Comparing the code before and after found no differences."
       }
     ],
     "supporting": [],
     "paraphrase": [
-      "Before commit 8635c79, the source matches what sits at commit 5f4bea4."
+      "A comparison of the earlier and later code revealed no differences."
     ],
     "review": "auto",
     "flags": []
