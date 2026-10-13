@@ -118,7 +118,6 @@ export type Summary = {
   readonly users: number;
   readonly fetched: number;
   readonly reused: number;
-  readonly droppedThreads: number;
   readonly calls: number;
   readonly seconds: number;
 };
@@ -201,7 +200,7 @@ export async function add(input: string, options: AddOptions): Promise<Summary> 
         if (node === null) throw new Error(`${kind} #${number} is in sync.json but not in the cache`);
         return node;
       });
-  const { doc, dropped } = assemble({ slug, meta, pulls: stored('pulls'), issues: stored('issues'), discussions: stored('discussions'), tags: await remote.tags(slug), releases: await remote.releases(slug) });
+  const doc = assemble({ slug, meta, pulls: stored('pulls'), issues: stored('issues'), discussions: stored('discussions'), tags: await remote.tags(slug), releases: await remote.releases(slug) });
   writeAtomic(path.join(workspace, 'github.json'), encode(doc));
   const total = Object.values(next).reduce((n, index) => n + Object.keys(index).length, 0);
   return {
@@ -211,7 +210,6 @@ export async function add(input: string, options: AddOptions): Promise<Summary> 
     defaultBranch: branch,
     fetched,
     reused: total - fetched,
-    droppedThreads: dropped.threads,
     calls: remote.calls(),
     seconds: Math.round(((options.now ?? Date.now)() - started) / 100) / 10,
   };
@@ -242,7 +240,7 @@ export function summaryLine(summary: Summary): string {
   return [
     `${summary.slug.owner}/${summary.slug.name} (${summary.defaultBranch}): ${summary.commits} commits, ${summary.pulls} pulls (${summary.merged} merged), ${summary.issues} issues, ${summary.discussions} discussions, ${summary.tags} tags, ${summary.releases} releases`,
     `${summary.reviews} reviews, ${summary.threads} review threads, ${summary.comments} comments, ${summary.users} people`,
-    `GitHub: ${summary.calls} API calls, ${summary.fetched} items fetched, ${summary.reused} reused from cache${summary.droppedThreads > 0 ? `, ${summary.droppedThreads} review threads with no review dropped` : ''}, ${summary.seconds} s`,
+    `GitHub: ${summary.calls} API calls, ${summary.fetched} items fetched, ${summary.reused} reused from cache, ${summary.seconds} s`,
     `workspace ${summary.workspace}`,
   ].join('\n');
 }

@@ -1,0 +1,1078 @@
+{
+ "meta": {
+  "name": "body-parser",
+  "owner": {
+   "login": "expressjs"
+  },
+  "description": "Node.js body parsing middleware",
+  "defaultBranchRef": {
+   "name": "master"
+  },
+  "hasDiscussionsEnabled": false
+ },
+ "tags": [],
+ "releases": [],
+ "pulls": {
+  "20": {
+   "id": "MDExOlB1bGxSZXF1ZXN0MTYzMDQyOTY=",
+   "number": 20,
+   "title": "added gzip/deflate support",
+   "body": "Allow body-parser to accept gzip/deflate-compressed bodies (in POSTs, e.g.).\n\nWorth discussing whether my handling of length and encoding is correct.\n\nFinally -- no test, as the current supertest does not support posting arbitrary buffers and/or streams. We can either create our own request for this specific test, or modify supertest, or skip the test, or use another request library (requests?).\n",
+   "createdAt": "2014-05-24T09:16:15Z",
+   "updatedAt": "2014-06-20T15:08:12Z",
+   "state": "CLOSED",
+   "mergedAt": null,
+   "closedAt": "2014-06-19T17:02:42Z",
+   "headRefName": "master",
+   "baseRefName": "master",
+   "headRefOid": "94912626155b62f2f100fdab30247d20b7819a6e",
+   "author": null,
+   "mergedBy": null,
+   "mergeCommit": null,
+   "labels": {
+    "nodes": [
+     {
+      "name": "enhancement"
+     },
+     {
+      "name": "pr"
+     }
+    ]
+   },
+   "assignees": {
+    "nodes": [
+     {
+      "login": "dougwilson",
+      "name": "Douglas Wilson"
+     }
+    ]
+   },
+   "reviewRequests": {
+    "nodes": []
+   },
+   "closingIssuesReferences": {
+    "nodes": []
+   },
+   "timelineItems": {
+    "nodes": [
+     {
+      "__typename": "ClosedEvent",
+      "createdAt": "2014-06-19T17:02:42Z",
+      "actor": {
+       "__typename": "User",
+       "login": "dougwilson",
+       "name": "Douglas Wilson"
+      }
+     }
+    ]
+   },
+   "commits": {
+    "nodes": [
+     {
+      "commit": {
+       "oid": "482c06abc2ba9b17b8f40af1d7ed010b2efcc4b5",
+       "message": "added gzip/deflate support",
+       "authoredDate": "2014-05-20T15:45:26Z",
+       "committedDate": "2014-05-20T15:45:26Z",
+       "author": {
+        "name": "Nitzan Shaked",
+        "email": "nitzan.shaked@gmail.com",
+        "user": {
+         "login": "nitzan-shaked",
+         "name": "Nitzan Shaked"
+        }
+       },
+       "committer": {
+        "name": "Nitzan Shaked",
+        "email": "nitzan.shaked@gmail.com"
+       }
+      }
+     },
+     {
+      "commit": {
+       "oid": "afc0eb272c304eece0e89896d0abd9553e0be657",
+       "message": "do not delete options.encoding;\nremoved trailing spaces;",
+       "authoredDate": "2014-05-24T15:52:18Z",
+       "committedDate": "2014-05-24T15:52:18Z",
+       "author": {
+        "name": "Nitzan Shaked",
+        "email": "nitzan.shaked@gmail.com",
+        "user": {
+         "login": "nitzan-shaked",
+         "name": "Nitzan Shaked"
+        }
+       },
+       "committer": {
+        "name": "Nitzan Shaked",
+        "email": "nitzan.shaked@gmail.com"
+       }
+      }
+     },
+     {
+      "commit": {
+       "oid": "538b27578d21b046379c5c6042109756a9daae62",
+       "message": "added gzip tests",
+       "authoredDate": "2014-05-24T17:31:57Z",
+       "committedDate": "2014-05-24T17:31:57Z",
+       "author": {
+        "name": "Nitzan Shaked",
+        "email": "nitzan.shaked@gmail.com",
+        "user": {
+         "login": "nitzan-shaked",
+         "name": "Nitzan Shaked"
+        }
+       },
+       "committer": {
+        "name": "Nitzan Shaked",
+        "email": "nitzan.shaked@gmail.com"
+       }
+      }
+     },
+     {
+      "commit": {
+       "oid": "354ac7b95406997bbd9f9bce0ca557d9f18ae4b2",
+       "message": "modified gzip tests to use supertest",
+       "authoredDate": "2014-05-25T07:43:09Z",
+       "committedDate": "2014-05-25T07:43:09Z",
+       "author": {
+        "name": "Nitzan Shaked",
+        "email": "nitzan.shaked@gmail.com",
+        "user": {
+         "login": "nitzan-shaked",
+         "name": "Nitzan Shaked"
+        }
+       },
+       "committer": {
+        "name": "Nitzan Shaked",
+        "email": "nitzan.shaked@gmail.com"
+       }
+      }
+     },
+     {
+      "commit": {
+       "oid": "020e5a7804eec8fac791ee917f09f789399637f5",
+       "message": "added gzip/deflate support",
+       "authoredDate": "2014-05-20T15:45:26Z",
+       "committedDate": "2014-05-25T11:43:38Z",
+       "author": {
+        "name": "Nitzan Shaked",
+        "email": "nitzan.shaked@gmail.com",
+        "user": {
+         "login": "nitzan-shaked",
+         "name": "Nitzan Shaked"
+        }
+       },
+       "committer": {
+        "name": "Nitzan Shaked",
+        "email": "nitzan.shaked@gmail.com"
+       }
+      }
+     },
+     {
+      "commit": {
+       "oid": "717f991e114fe4a6f49f1a5565d0dae74ae24167",
+       "message": "do not delete options.encoding;\nremoved trailing spaces;",
+       "authoredDate": "2014-05-24T15:52:18Z",
+       "committedDate": "2014-05-25T11:44:37Z",
+       "author": {
+        "name": "Nitzan Shaked",
+        "email": "nitzan.shaked@gmail.com",
+        "user": {
+         "login": "nitzan-shaked",
+         "name": "Nitzan Shaked"
+        }
+       },
+       "committer": {
+        "name": "Nitzan Shaked",
+        "email": "nitzan.shaked@gmail.com"
+       }
+      }
+     },
+     {
+      "commit": {
+       "oid": "3b25c76f7d0ba90a04f23bc5de7f9554efffddd1",
+       "message": "added gzip tests",
+       "authoredDate": "2014-05-24T17:31:57Z",
+       "committedDate": "2014-05-25T11:44:37Z",
+       "author": {
+        "name": "Nitzan Shaked",
+        "email": "nitzan.shaked@gmail.com",
+        "user": {
+         "login": "nitzan-shaked",
+         "name": "Nitzan Shaked"
+        }
+       },
+       "committer": {
+        "name": "Nitzan Shaked",
+        "email": "nitzan.shaked@gmail.com"
+       }
+      }
+     },
+     {
+      "commit": {
+       "oid": "e988b99b4ecb607952137c46106a059ec5a56a3d",
+       "message": "modified gzip tests to use supertest",
+       "authoredDate": "2014-05-25T07:43:09Z",
+       "committedDate": "2014-05-25T11:44:37Z",
+       "author": {
+        "name": "Nitzan Shaked",
+        "email": "nitzan.shaked@gmail.com",
+        "user": {
+         "login": "nitzan-shaked",
+         "name": "Nitzan Shaked"
+        }
+       },
+       "committer": {
+        "name": "Nitzan Shaked",
+        "email": "nitzan.shaked@gmail.com"
+       }
+      }
+     },
+     {
+      "commit": {
+       "oid": "fead6d6f796850280a538aef9abe74c5d21d73a4",
+       "message": "Merge branch 'master' of github-clr:nitzan-shaked-clr/body-parser\n\nConflicts:\n\tindex.js",
+       "authoredDate": "2014-05-25T11:45:50Z",
+       "committedDate": "2014-05-25T11:45:50Z",
+       "author": {
+        "name": "Nitzan Shaked",
+        "email": "nitzan.shaked@gmail.com",
+        "user": {
+         "login": "nitzan-shaked",
+         "name": "Nitzan Shaked"
+        }
+       },
+       "committer": {
+        "name": "Nitzan Shaked",
+        "email": "nitzan.shaked@gmail.com"
+       }
+      }
+     },
+     {
+      "commit": {
+       "oid": "5a065487df69643ca837562ef5ec7a2355033b95",
+       "message": "rebase;\nmade tests slightly more readable;",
+       "authoredDate": "2014-05-25T11:49:36Z",
+       "committedDate": "2014-05-25T11:49:36Z",
+       "author": {
+        "name": "Nitzan Shaked",
+        "email": "nitzan.shaked@gmail.com",
+        "user": {
+         "login": "nitzan-shaked",
+         "name": "Nitzan Shaked"
+        }
+       },
+       "committer": {
+        "name": "Nitzan Shaked",
+        "email": "nitzan.shaked@gmail.com"
+       }
+      }
+     },
+     {
+      "commit": {
+       "oid": "ec9a0dd2a7ec778cdd848b7f070fb6070eb340ca",
+       "message": "added content-length checks (and relevant tests);\nadded pre-set stream encoding checks (and relevant tests);",
+       "authoredDate": "2014-05-25T12:42:51Z",
+       "committedDate": "2014-05-25T12:42:51Z",
+       "author": {
+        "name": "Nitzan Shaked",
+        "email": "nitzan.shaked@gmail.com",
+        "user": {
+         "login": "nitzan-shaked",
+         "name": "Nitzan Shaked"
+        }
+       },
+       "committer": {
+        "name": "Nitzan Shaked",
+        "email": "nitzan.shaked@gmail.com"
+       }
+      }
+     },
+     {
+      "commit": {
+       "oid": "d726634733d775a5cc4c12f1251b0e481b29bc4a",
+       "message": "revised encoding test to run under node 0.8",
+       "authoredDate": "2014-05-25T13:06:53Z",
+       "committedDate": "2014-05-25T13:06:53Z",
+       "author": {
+        "name": "Nitzan Shaked",
+        "email": "nitzan.shaked@gmail.com",
+        "user": {
+         "login": "nitzan-shaked",
+         "name": "Nitzan Shaked"
+        }
+       },
+       "committer": {
+        "name": "Nitzan Shaked",
+        "email": "nitzan.shaked@gmail.com"
+       }
+      }
+     },
+     {
+      "commit": {
+       "oid": "94912626155b62f2f100fdab30247d20b7819a6e",
+       "message": "fixed \"encoding already set\" test to accomodate node versions >0.8 but\n<0.10.6",
+       "authoredDate": "2014-05-27T07:41:41Z",
+       "committedDate": "2014-05-27T07:41:41Z",
+       "author": {
+        "name": "Nitzan Shaked",
+        "email": "nitzan.shaked@gmail.com",
+        "user": {
+         "login": "nitzan-shaked",
+         "name": "Nitzan Shaked"
+        }
+       },
+       "committer": {
+        "name": "Nitzan Shaked",
+        "email": "nitzan.shaked@gmail.com"
+       }
+      }
+     }
+    ]
+   },
+   "comments": {
+    "nodes": [
+     {
+      "id": "MDEyOklzc3VlQ29tbWVudDQ0MDg1NzAx",
+      "fullDatabaseId": "44085701",
+      "author": {
+       "__typename": "User",
+       "login": "Fishrock123",
+       "name": "Jeremiah Senkpiel"
+      },
+      "body": "Needs a test. ~~Using a different request lib is fine.~~ - not familiar enough with supertest.\n\nFuture note to self: shush\n",
+      "createdAt": "2014-05-24T12:27:21Z",
+      "updatedAt": "2014-05-26T03:10:58Z",
+      "lastEditedAt": null
+     },
+     {
+      "id": "MDEyOklzc3VlQ29tbWVudDQ0MDg4Mjgz",
+      "fullDatabaseId": "44088283",
+      "author": {
+       "__typename": "User",
+       "login": "dougwilson",
+       "name": "Douglas Wilson"
+      },
+      "body": "Wow, thanks! This is definitely something useful.\n\n> Worth discussing whether my handling of length and encoding is correct.\n\nI will check it out as soon as I get to a computer :)\n\n> no test, as the current supertest does not support posting arbitrary buffers and/or streams\n\nIt does indeed. You use the `.write()` or `.pipe()` methods; I have done it plenty of times :) If you can't figure it out, that's fine; I can add tests when I merge your PR.\n",
+      "createdAt": "2014-05-24T14:08:54Z",
+      "updatedAt": "2014-05-24T14:08:54Z",
+      "lastEditedAt": null
+     },
+     {
+      "id": "MDEyOklzc3VlQ29tbWVudDQ0MDg4MzEx",
+      "fullDatabaseId": "44088311",
+      "author": {
+       "__typename": "User",
+       "login": "dougwilson",
+       "name": "Douglas Wilson"
+      },
+      "body": "> Using a different request lib is fine.\n\nP.S. Please don't use a different lib :) `supertest` works just fine for sending binary data and streams.\n",
+      "createdAt": "2014-05-24T14:10:04Z",
+      "updatedAt": "2014-05-24T14:10:04Z",
+      "lastEditedAt": null
+     },
+     {
+      "id": "MDEyOklzc3VlQ29tbWVudDQ0MDkxNDMz",
+      "fullDatabaseId": "44091433",
+      "author": null,
+      "body": "@dougwilson : made requested changes.\n\nI'd love to see how to work with supertest(), because I've tried .pipe() and I've tried .send() (not .write()), both to the derived class and to the result of .request().\n\nIn the mean time I've written a test using another request lib, but have not yet committed.\n\nLet me know how you want to proceed.\n",
+      "createdAt": "2014-05-24T15:59:34Z",
+      "updatedAt": "2014-05-24T15:59:34Z",
+      "lastEditedAt": null
+     },
+     {
+      "id": "MDEyOklzc3VlQ29tbWVudDQ0MDkyMDc4",
+      "fullDatabaseId": "44092078",
+      "author": {
+       "__typename": "User",
+       "login": "dougwilson",
+       "name": "Douglas Wilson"
+      },
+      "body": "Thanks, @nitzan-shaked-clr Yes, .send does not work. You probably want to use .write, because that is a proxy to the raw node.js write, so you can do .write(buf)\n\n> In the mean time I've written a test using another request lib, but have not yet committed.\n\nIf you want, you can commit this as a separate commit and I can covert it to supertest when I merge it.\n",
+      "createdAt": "2014-05-24T16:19:18Z",
+      "updatedAt": "2014-05-24T16:19:18Z",
+      "lastEditedAt": null
+     },
+     {
+      "id": "MDEyOklzc3VlQ29tbWVudDQ0MDkyMjMz",
+      "fullDatabaseId": "44092233",
+      "author": {
+       "__typename": "User",
+       "login": "dougwilson",
+       "name": "Douglas Wilson"
+      },
+      "body": "Also, make sure you have a test where invalid gzip is sent to test error handling.\n",
+      "createdAt": "2014-05-24T16:25:01Z",
+      "updatedAt": "2014-05-24T16:25:01Z",
+      "lastEditedAt": null
+     },
+     {
+      "id": "MDEyOklzc3VlQ29tbWVudDQ0MDkzOTU1",
+      "fullDatabaseId": "44093955",
+      "author": null,
+      "body": "added tests using mikeal/request. Added a gzip test, a deflate test, and a \"bad gzip\" test, as requested.\n\nI have to admit I tried using supertest, using both .pipe, and failed. If I understand the code there correctly then using .pipe will not trigger the eventual Test class's asserts(). I am sure I got this wrong since you say you did this before. If you want, point me to an example and I'll convert the tests.\n",
+      "createdAt": "2014-05-24T17:34:56Z",
+      "updatedAt": "2014-05-24T17:34:56Z",
+      "lastEditedAt": null
+     },
+     {
+      "id": "MDEyOklzc3VlQ29tbWVudDQ0MDk0MTQw",
+      "fullDatabaseId": "44094140",
+      "author": null,
+      "body": "Hm. The build is failing for node 0.8 b/c of streams. Should I: allow stream failures, rewrite the test to not use streams (use zlib's convenience methods for compression), or use the 'readable-streams' module which tracks node-core's implementation of streams, but without relying on a specific node version?\n",
+      "createdAt": "2014-05-24T17:41:57Z",
+      "updatedAt": "2014-05-24T17:41:57Z",
+      "lastEditedAt": null
+     },
+     {
+      "id": "MDEyOklzc3VlQ29tbWVudDQ0MDk0NTQ2",
+      "fullDatabaseId": "44094546",
+      "author": {
+       "__typename": "User",
+       "login": "dougwilson",
+       "name": "Douglas Wilson"
+      },
+      "body": "> If you want, point me to an example and I'll convert the tests.\n\nI'm not at a computer. Have you tried .write()? Remember you can't chain with .write(), so you need to use variables.\n\n> The build is failing for node 0.8 b/c of streams\n\nThe failure is because you are using 0.10-style streams in your tests. If you just use supertest, then it'll work. I'll already switch it to supertest if you can't figure it out, so there is no need to start doing a munch of convoluted stuff that I'll just remove.\n\n> rewrite the test to not use streams (use zlib's convenience methods for compression)\n\nyes, no need for streams in the tests. Even putting literal Buffers in there is fine with me.\n",
+      "createdAt": "2014-05-24T17:53:03Z",
+      "updatedAt": "2014-05-24T17:53:03Z",
+      "lastEditedAt": null
+     },
+     {
+      "id": "MDEyOklzc3VlQ29tbWVudDQ0MDk0NjU3",
+      "fullDatabaseId": "44094657",
+      "author": {
+       "__typename": "User",
+       "login": "dougwilson",
+       "name": "Douglas Wilson"
+      },
+      "body": "> Worth discussing whether my handling of length\n\nI forgot to mention that if there is a content-length, we want to check that we got the exact amount, just like raw-body is doing; right now that check is don't done for the gzip stuff.\n",
+      "createdAt": "2014-05-24T17:57:55Z",
+      "updatedAt": "2014-05-24T17:57:55Z",
+      "lastEditedAt": null
+     },
+     {
+      "id": "MDEyOklzc3VlQ29tbWVudDQ0MTExMjU5",
+      "fullDatabaseId": "44111259",
+      "author": {
+       "__typename": "User",
+       "login": "dougwilson",
+       "name": "Douglas Wilson"
+      },
+      "body": "@nitzan-shaked-clr if you wanted an example of using `supertest` to write your gzip:\n\n``` js\nvar test = request(app).post('/')\ntest.set('Content-Encoding', 'gzip')\ntest.set('Content-Type', 'application/json')\ntest.write('1f8b080000000000000bab56ca4bcc4d55b2527ab16e97522d00515be1cc0e000000', 'hex')\ntest.expect(200, '{\"name\":\"论\"}', done)\n```\n",
+      "createdAt": "2014-05-25T04:32:18Z",
+      "updatedAt": "2014-05-25T04:32:18Z",
+      "lastEditedAt": null
+     },
+     {
+      "id": "MDEyOklzc3VlQ29tbWVudDQ0MTIxODE0",
+      "fullDatabaseId": "44121814",
+      "author": null,
+      "body": "@dougwilson : great. Modified tests accordingly. Next on my todo list is checking an exact content-length, which I'll do later today. Nothing else for now, correct?\n",
+      "createdAt": "2014-05-25T07:45:08Z",
+      "updatedAt": "2014-05-25T07:45:08Z",
+      "lastEditedAt": null
+     },
+     {
+      "id": "MDEyOklzc3VlQ29tbWVudDQ0MTI1OTQ0",
+      "fullDatabaseId": "44125944",
+      "author": null,
+      "body": "@dougwilson : it seems like we need to better-define the logic in case of \"bad\" content-length. http.server will truncate incoming data that's longer than content-length, for example.\n",
+      "createdAt": "2014-05-25T08:38:27Z",
+      "updatedAt": "2014-05-25T08:38:27Z",
+      "lastEditedAt": null
+     },
+     {
+      "id": "MDEyOklzc3VlQ29tbWVudDQ0MTI4MTgx",
+      "fullDatabaseId": "44128181",
+      "author": {
+       "__typename": "User",
+       "login": "dougwilson",
+       "name": "Douglas Wilson"
+      },
+      "body": "> http.server will truncate incoming data that's longer than content-length\n\nI am well aware of this. The length check is to check for developer errors, typically on node 0.8, where some data events my fire before this module is invoked, thus data gets lost. We want to give a better error message than a JSON syntax error (or in this case, corrupted gzip).\n\n`raw-body` also does another check we lose in the new content-encoding: that `req.setEndocing('utf8')` has not been called. This one is also very important. If a developer does `req.setEncoding('utf8')` by accident before this module, corrupted data will get sent to the gzip streeam. We want the error to tell what the cause is, not just error out from invalid gzip.\n\nLastly, can you rebase your changes on to the current master? There are conflicting changes there now, because I had to fix a bug.\n",
+      "createdAt": "2014-05-25T10:51:36Z",
+      "updatedAt": "2014-05-25T10:51:36Z",
+      "lastEditedAt": null
+     },
+     {
+      "id": "MDEyOklzc3VlQ29tbWVudDQ0MTI4MjI2",
+      "fullDatabaseId": "44128226",
+      "author": {
+       "__typename": "User",
+       "login": "dougwilson",
+       "name": "Douglas Wilson"
+      },
+      "body": "> Nothing else for now, correct?\n\nP.S. I want to let you know that everything else you do is simply a bonus for me, since I won't have to do it :) I want you to know that if you were to, say, abandon this PR right now, I will still be pulling in this valuable functionality, so I don't want you to feel that it will not get included :)\n\nI have been on vacation this weekend, so I just happen to be leaning more on the PR submitters than usual.\n",
+      "createdAt": "2014-05-25T10:55:00Z",
+      "updatedAt": "2014-05-25T10:55:00Z",
+      "lastEditedAt": null
+     },
+     {
+      "id": "MDEyOklzc3VlQ29tbWVudDQ0MTMyMDcw",
+      "fullDatabaseId": "44132070",
+      "author": null,
+      "body": "@dougwilson : ok, added everything. It is rebased, added content-length checks (see if you like them, I'm not 100% sure!), and also code to detect pre-set encoding. The caveat is that this final thing fails the test in node 0.8.\n\nNote also that I delete req.headers['content-length'] if compressed, for the sake of downstream middlewares, which I didn't do previously.\n\nIf you like everything, just let me know how to fix the test. If there's a Travis directive I can use, or simply use runtime logic in the test to detect streams2+ and only then run the test?\n",
+      "createdAt": "2014-05-25T12:49:23Z",
+      "updatedAt": "2014-05-25T12:49:23Z",
+      "lastEditedAt": null
+     },
+     {
+      "id": "MDEyOklzc3VlQ29tbWVudDQ0MTMyNjQ3",
+      "fullDatabaseId": "44132647",
+      "author": {
+       "__typename": "User",
+       "login": "dougwilson",
+       "name": "Douglas Wilson"
+      },
+      "body": "@nitzan-shaked-clr awesome, this is great!\n\n> The caveat is that this final thing fails the test in node 0.8.\n\nIn node 0.8, you can detect if there is a truthy value at `req._decoder`, then someone did `req.setEncoding`.\n\n> Note also that I delete req.headers['content-length'] if compressed, for the sake of downstream middlewares, which I didn't do previously.\n\nI'm not sure if I like that; since this module is meant to read directly from a `req` and consume the whole body, it does not seem necessary, since there will be nothing to read after this module does `next()` anyway.\n\n> If you like everything, just let me know how to fix the test\n\nYou can use the node 0.8 `setEncoding` detection I outlined above ;)\n",
+      "createdAt": "2014-05-25T13:01:21Z",
+      "updatedAt": "2014-05-25T13:01:21Z",
+      "lastEditedAt": null
+     },
+     {
+      "id": "MDEyOklzc3VlQ29tbWVudDQ0MTMyODQy",
+      "fullDatabaseId": "44132842",
+      "author": null,
+      "body": "@dougwilson : ok, works in 0.8 as well, thanks for the tip.\n\nAs for `content-length` -- I suppose it can't hurt. While it's true that there will be nothing to consume, I wouldn't want downstream middleware to look at the headers and try to guess something about the content give its \"length\".\n\nIf you still feel that way -- by all means I'll remove.\n",
+      "createdAt": "2014-05-25T13:11:37Z",
+      "updatedAt": "2014-05-25T13:11:37Z",
+      "lastEditedAt": null
+     },
+     {
+      "id": "MDEyOklzc3VlQ29tbWVudDQ0MTMyODc2",
+      "fullDatabaseId": "44132876",
+      "author": {
+       "__typename": "User",
+       "login": "dougwilson",
+       "name": "Douglas Wilson"
+      },
+      "body": "> If you still feel that way -- by all means I'll remove.\n\nLet me think about it some more ;) I'll merge your stuff in later today/tomorrow and I should have this even published to `npm` by Tuesday!\n",
+      "createdAt": "2014-05-25T13:13:31Z",
+      "updatedAt": "2014-05-25T13:13:31Z",
+      "lastEditedAt": null
+     },
+     {
+      "id": "MDEyOklzc3VlQ29tbWVudDQ0MTM3MjA4",
+      "fullDatabaseId": "44137208",
+      "author": null,
+      "body": "Cool :)\n",
+      "createdAt": "2014-05-25T15:15:34Z",
+      "updatedAt": "2014-05-25T15:15:34Z",
+      "lastEditedAt": null
+     },
+     {
+      "id": "MDEyOklzc3VlQ29tbWVudDQ0MjMwMTQy",
+      "fullDatabaseId": "44230142",
+      "author": {
+       "__typename": "User",
+       "login": "dougwilson",
+       "name": "Douglas Wilson"
+      },
+      "body": "Sorry, didn't have much time today, haha. I have it on my list for tomorrow :)\n",
+      "createdAt": "2014-05-27T02:24:23Z",
+      "updatedAt": "2014-05-27T02:24:23Z",
+      "lastEditedAt": null
+     },
+     {
+      "id": "MDEyOklzc3VlQ29tbWVudDQ0MzM5NDY0",
+      "fullDatabaseId": "44339464",
+      "author": {
+       "__typename": "User",
+       "login": "jonathanong",
+       "name": "jongleberry"
+      },
+      "body": "I was thinking about adding this. The whole decompress logic could be put in a separate lib. I might've already created a lib for that.\n\nOnly problem is that I don't think anyone would actually use this. Lol\n",
+      "createdAt": "2014-05-27T21:42:39Z",
+      "updatedAt": "2014-05-27T21:42:39Z",
+      "lastEditedAt": null
+     },
+     {
+      "id": "MDEyOklzc3VlQ29tbWVudDQ0MzM5ODcy",
+      "fullDatabaseId": "44339872",
+      "author": {
+       "__typename": "User",
+       "login": "dougwilson",
+       "name": "Douglas Wilson"
+      },
+      "body": "> Only problem is that I don't think anyone would actually use this\n\nRight, at least browser do not support this, so it would only be APIs using it.\n",
+      "createdAt": "2014-05-27T21:46:32Z",
+      "updatedAt": "2014-05-27T21:46:32Z",
+      "lastEditedAt": null
+     },
+     {
+      "id": "MDEyOklzc3VlQ29tbWVudDQ0MzQxMTcw",
+      "fullDatabaseId": "44341170",
+      "author": {
+       "__typename": "User",
+       "login": "dougwilson",
+       "name": "Douglas Wilson"
+      },
+      "body": "> I might've already created a lib for that.\n\nhttps://github.com/stream-utils/inflation :D\n",
+      "createdAt": "2014-05-27T21:59:47Z",
+      "updatedAt": "2014-05-27T21:59:47Z",
+      "lastEditedAt": null
+     },
+     {
+      "id": "MDEyOklzc3VlQ29tbWVudDQ0MzUyMjQ0",
+      "fullDatabaseId": "44352244",
+      "author": {
+       "__typename": "User",
+       "login": "jonathanong",
+       "name": "jongleberry"
+      },
+      "body": "An edge case I was thinking about is that when you inflate, you'd want to check the content length as well. So you'll need a raw-body-like util for decompressing\n",
+      "createdAt": "2014-05-28T00:26:01Z",
+      "updatedAt": "2014-05-28T00:26:01Z",
+      "lastEditedAt": null
+     },
+     {
+      "id": "MDEyOklzc3VlQ29tbWVudDQ0MzUyNTMw",
+      "fullDatabaseId": "44352530",
+      "author": {
+       "__typename": "User",
+       "login": "dougwilson",
+       "name": "Douglas Wilson"
+      },
+      "body": "> An edge case I was thinking about is that when you inflate, you'd want to check the content length as well\n\nYea. This PR I believe does implement this, but I don't remember. I was thinking of just adding that verification to the `inflation` module. Another edge-case is that `content-encoding` can actually be more than a single value ;)\n",
+      "createdAt": "2014-05-28T00:30:47Z",
+      "updatedAt": "2014-05-28T00:30:47Z",
+      "lastEditedAt": null
+     },
+     {
+      "id": "MDEyOklzc3VlQ29tbWVudDQ0MzUyNTYy",
+      "fullDatabaseId": "44352562",
+      "author": {
+       "__typename": "User",
+       "login": "jonathanong",
+       "name": "jongleberry"
+      },
+      "body": "Oh my god why\n",
+      "createdAt": "2014-05-28T00:31:22Z",
+      "updatedAt": "2014-05-28T00:31:22Z",
+      "lastEditedAt": null
+     },
+     {
+      "id": "MDEyOklzc3VlQ29tbWVudDQ0MzUyNjQy",
+      "fullDatabaseId": "44352642",
+      "author": {
+       "__typename": "User",
+       "login": "jonathanong",
+       "name": "jongleberry"
+      },
+      "body": "Maybe just add it to raw body\n",
+      "createdAt": "2014-05-28T00:32:37Z",
+      "updatedAt": "2014-05-28T00:32:37Z",
+      "lastEditedAt": null
+     },
+     {
+      "id": "MDEyOklzc3VlQ29tbWVudDQ0MzUyODkx",
+      "fullDatabaseId": "44352891",
+      "author": {
+       "__typename": "User",
+       "login": "dougwilson",
+       "name": "Douglas Wilson"
+      },
+      "body": "> Maybe just add it to raw body\n\nAdd what to raw-body? The use of inflation? Length check (which is already there)? Sorry, not sure what you are referring to :P\n",
+      "createdAt": "2014-05-28T00:36:36Z",
+      "updatedAt": "2014-05-28T00:36:36Z",
+      "lastEditedAt": null
+     },
+     {
+      "id": "MDEyOklzc3VlQ29tbWVudDQ0MzUzNDc5",
+      "fullDatabaseId": "44353479",
+      "author": {
+       "__typename": "User",
+       "login": "jonathanong",
+       "name": "jongleberry"
+      },
+      "body": "Inflation + length check. You want to check the headers on the original stream and check the length of the final body to avoid zip bombs \n",
+      "createdAt": "2014-05-28T00:46:26Z",
+      "updatedAt": "2014-05-28T00:46:26Z",
+      "lastEditedAt": null
+     },
+     {
+      "id": "MDEyOklzc3VlQ29tbWVudDQ0MzUzNTkw",
+      "fullDatabaseId": "44353590",
+      "author": {
+       "__typename": "User",
+       "login": "dougwilson",
+       "name": "Douglas Wilson"
+      },
+      "body": "> original stream and check the length of the final body to avoid zip bombs \n\nYep, I am aware of that :)\n",
+      "createdAt": "2014-05-28T00:48:19Z",
+      "updatedAt": "2014-05-28T00:48:19Z",
+      "lastEditedAt": null
+     },
+     {
+      "id": "MDEyOklzc3VlQ29tbWVudDQ0NzcwMDk5",
+      "fullDatabaseId": "44770099",
+      "author": null,
+      "body": "@dougwilson : any news?\n",
+      "createdAt": "2014-06-01T08:02:47Z",
+      "updatedAt": "2014-06-01T08:02:47Z",
+      "lastEditedAt": null
+     },
+     {
+      "id": "MDEyOklzc3VlQ29tbWVudDQ0Nzc3NTM5",
+      "fullDatabaseId": "44777539",
+      "author": {
+       "__typename": "User",
+       "login": "dougwilson",
+       "name": "Douglas Wilson"
+      },
+      "body": "Yes. May get to it today. It was brought to my attention above that the inflating was already implemented by the library called `inflation` and so we need to use that here instead to reduce the amount of unnecessary code in here (since it is already implemented).\n",
+      "createdAt": "2014-06-01T13:18:14Z",
+      "updatedAt": "2014-06-01T13:18:14Z",
+      "lastEditedAt": null
+     },
+     {
+      "id": "MDEyOklzc3VlQ29tbWVudDQ1OTI5NzI5",
+      "fullDatabaseId": "45929729",
+      "author": {
+       "__typename": "User",
+       "login": "panahi",
+       "name": "Evan Panahi"
+      },
+      "body": "+1 vote for this issue!\n",
+      "createdAt": "2014-06-12T18:28:48Z",
+      "updatedAt": "2014-06-12T18:28:48Z",
+      "lastEditedAt": null
+     },
+     {
+      "id": "MDEyOklzc3VlQ29tbWVudDQ1OTMyMzE3",
+      "fullDatabaseId": "45932317",
+      "author": {
+       "__typename": "User",
+       "login": "dougwilson",
+       "name": "Douglas Wilson"
+      },
+      "body": "Thanks. It has not been forgotten about, btw.\n",
+      "createdAt": "2014-06-12T18:48:46Z",
+      "updatedAt": "2014-06-12T18:48:46Z",
+      "lastEditedAt": null
+     },
+     {
+      "id": "MDEyOklzc3VlQ29tbWVudDQ2NTA1MDcx",
+      "fullDatabaseId": "46505071",
+      "author": {
+       "__typename": "User",
+       "login": "dougwilson",
+       "name": "Douglas Wilson"
+      },
+      "body": "FYI update on this: it should be landing tonight so I can pack it into a new express 3 release :)\n",
+      "createdAt": "2014-06-18T22:56:46Z",
+      "updatedAt": "2014-06-18T22:56:46Z",
+      "lastEditedAt": null
+     },
+     {
+      "id": "MDEyOklzc3VlQ29tbWVudDQ2NTE5NzQ1",
+      "fullDatabaseId": "46519745",
+      "author": {
+       "__typename": "User",
+       "login": "dougwilson",
+       "name": "Douglas Wilson"
+      },
+      "body": "> it should be landing tonight\n\nJust want to keep people updated here: I'm just bumping this tomorrow since I'm not feeling well\n",
+      "createdAt": "2014-06-19T03:19:29Z",
+      "updatedAt": "2014-06-19T03:19:29Z",
+      "lastEditedAt": null
+     },
+     {
+      "id": "MDEyOklzc3VlQ29tbWVudDQ2NTg5OTk0",
+      "fullDatabaseId": "46589994",
+      "author": {
+       "__typename": "User",
+       "login": "panahi",
+       "name": "Evan Panahi"
+      },
+      "body": "Thanks for the work dougwilson and nitzan-shaked-clr -- I've been using nitzan-shaked-clr's fork for a while and it's working great, look forward to using the released lib.\n",
+      "createdAt": "2014-06-19T17:19:36Z",
+      "updatedAt": "2014-06-19T17:19:36Z",
+      "lastEditedAt": null
+     },
+     {
+      "id": "MDEyOklzc3VlQ29tbWVudDQ2NTkzNjA2",
+      "fullDatabaseId": "46593606",
+      "author": {
+       "__typename": "User",
+       "login": "nitzan-shaked",
+       "name": "Nitzan Shaked"
+      },
+      "body": "@dougwilson great. is this in npm?\n\n@panahi that's nice to hear :)\n",
+      "createdAt": "2014-06-19T17:50:14Z",
+      "updatedAt": "2014-06-19T17:50:14Z",
+      "lastEditedAt": null
+     },
+     {
+      "id": "MDEyOklzc3VlQ29tbWVudDQ2NTkzNzE0",
+      "fullDatabaseId": "46593714",
+      "author": {
+       "__typename": "User",
+       "login": "Fishrock123",
+       "name": "Jeremiah Senkpiel"
+      },
+      "body": "@nitzan-shaked not quite yet.\n",
+      "createdAt": "2014-06-19T17:51:07Z",
+      "updatedAt": "2014-06-19T17:51:07Z",
+      "lastEditedAt": null
+     },
+     {
+      "id": "MDEyOklzc3VlQ29tbWVudDQ2NTk1NjMy",
+      "fullDatabaseId": "46595632",
+      "author": {
+       "__typename": "User",
+       "login": "dougwilson",
+       "name": "Douglas Wilson"
+      },
+      "body": "> is this in npm?\n\nno, because I am still working out some kinks :) It'll be there today sometime, though.\n",
+      "createdAt": "2014-06-19T18:06:09Z",
+      "updatedAt": "2014-06-19T18:06:09Z",
+      "lastEditedAt": null
+     },
+     {
+      "id": "MDEyOklzc3VlQ29tbWVudDQ2NjE1ODE0",
+      "fullDatabaseId": "46615814",
+      "author": {
+       "__typename": "User",
+       "login": "dougwilson",
+       "name": "Douglas Wilson"
+      },
+      "body": "FYI this module should be ready to go, @nitzan-shaked-clr @panahi if you wanted to verify it still works for your use-cases. Install with `npm install expressjs/body-parser`\n",
+      "createdAt": "2014-06-19T20:59:15Z",
+      "updatedAt": "2014-06-19T20:59:33Z",
+      "lastEditedAt": null
+     },
+     {
+      "id": "MDEyOklzc3VlQ29tbWVudDQ2NjY3ODg3",
+      "fullDatabaseId": "46667887",
+      "author": {
+       "__typename": "User",
+       "login": "nitzan-shaked",
+       "name": "Nitzan Shaked"
+      },
+      "body": "@dougwilson : works for me. Thanks for the merge.\n\nOne more thing: I noticed you hadn't converted all my tests (or am I mistaken?) -- plus could it be that the length/encoding handling is different? I only quickly glanced, can't be sure.\n",
+      "createdAt": "2014-06-20T11:12:40Z",
+      "updatedAt": "2014-06-20T11:12:40Z",
+      "lastEditedAt": null
+     },
+     {
+      "id": "MDEyOklzc3VlQ29tbWVudDQ2Njg4ODcw",
+      "fullDatabaseId": "46688870",
+      "author": {
+       "__typename": "User",
+       "login": "dougwilson",
+       "name": "Douglas Wilson"
+      },
+      "body": "Correct, some did not apply to the current code, mainly because the current code is a middle-group before it is moved into it's own module.\n",
+      "createdAt": "2014-06-20T15:08:12Z",
+      "updatedAt": "2014-06-20T15:08:12Z",
+      "lastEditedAt": null
+     }
+    ]
+   },
+   "reviews": {
+    "nodes": []
+   },
+   "reviewThreads": {
+    "nodes": [
+     {
+      "id": "MDIzOlB1bGxSZXF1ZXN0UmV2aWV3VGhyZWFkMTMyOTU5MjU6djI=",
+      "isResolved": false,
+      "path": "index.js",
+      "line": null,
+      "originalLine": null,
+      "comments": {
+       "nodes": [
+        {
+         "id": "MDI0OlB1bGxSZXF1ZXN0UmV2aWV3Q29tbWVudDEzMDI2NTEw",
+         "fullDatabaseId": "13026510",
+         "author": {
+          "__typename": "User",
+          "login": "dougwilson",
+          "name": "Douglas Wilson"
+         },
+         "body": "remove trailing space on this line, please\n",
+         "createdAt": "2014-05-24T14:18:00Z",
+         "updatedAt": "2014-05-27T07:42:39Z",
+         "lastEditedAt": null,
+         "pullRequestReview": null
+        }
+       ]
+      }
+     },
+     {
+      "id": "MDIzOlB1bGxSZXF1ZXN0UmV2aWV3VGhyZWFkMTMyOTU5Mjc6djI=",
+      "isResolved": false,
+      "path": "index.js",
+      "line": null,
+      "originalLine": null,
+      "comments": {
+       "nodes": [
+        {
+         "id": "MDI0OlB1bGxSZXF1ZXN0UmV2aWV3Q29tbWVudDEzMDI2NTEx",
+         "fullDatabaseId": "13026511",
+         "author": {
+          "__typename": "User",
+          "login": "dougwilson",
+          "name": "Douglas Wilson"
+         },
+         "body": "remove trailing space on this line, please\n",
+         "createdAt": "2014-05-24T14:18:04Z",
+         "updatedAt": "2014-05-27T07:42:39Z",
+         "lastEditedAt": null,
+         "pullRequestReview": null
+        }
+       ]
+      }
+     },
+     {
+      "id": "MDIzOlB1bGxSZXF1ZXN0UmV2aWV3VGhyZWFkMTMyOTU5Mjg6djI=",
+      "isResolved": false,
+      "path": "index.js",
+      "line": null,
+      "originalLine": null,
+      "comments": {
+       "nodes": [
+        {
+         "id": "MDI0OlB1bGxSZXF1ZXN0UmV2aWV3Q29tbWVudDEzMDI2NTE2",
+         "fullDatabaseId": "13026516",
+         "author": {
+          "__typename": "User",
+          "login": "dougwilson",
+          "name": "Douglas Wilson"
+         },
+         "body": "do _not_ delete `options.encoding`; this is the encoding of the after-gziped body (like utf-8 or us-ascii, etc.)\n",
+         "createdAt": "2014-05-24T14:19:03Z",
+         "updatedAt": "2014-05-27T07:42:39Z",
+         "lastEditedAt": null,
+         "pullRequestReview": null
+        }
+       ]
+      }
+     },
+     {
+      "id": "MDIzOlB1bGxSZXF1ZXN0UmV2aWV3VGhyZWFkMTMyOTU5MzA6djI=",
+      "isResolved": false,
+      "path": "index.js",
+      "line": null,
+      "originalLine": null,
+      "comments": {
+       "nodes": [
+        {
+         "id": "MDI0OlB1bGxSZXF1ZXN0UmV2aWV3Q29tbWVudDEzMDI2NTE3",
+         "fullDatabaseId": "13026517",
+         "author": {
+          "__typename": "User",
+          "login": "dougwilson",
+          "name": "Douglas Wilson"
+         },
+         "body": "do _not_ delete `options.encoding`; this is the encoding of the after-gziped body (like utf-8 or us-ascii, etc.)\n",
+         "createdAt": "2014-05-24T14:19:07Z",
+         "updatedAt": "2014-05-27T07:42:39Z",
+         "lastEditedAt": null,
+         "pullRequestReview": null
+        }
+       ]
+      }
+     },
+     {
+      "id": "MDIzOlB1bGxSZXF1ZXN0UmV2aWV3VGhyZWFkMTMyOTU5MzU6djI=",
+      "isResolved": false,
+      "path": "index.js",
+      "line": null,
+      "originalLine": null,
+      "comments": {
+       "nodes": [
+        {
+         "id": "MDI0OlB1bGxSZXF1ZXN0UmV2aWV3Q29tbWVudDEzMDI2NTM3",
+         "fullDatabaseId": "13026537",
+         "author": {
+          "__typename": "User",
+          "login": "dougwilson",
+          "name": "Douglas Wilson"
+         },
+         "body": "remove `stream || req` and just set `stream = req` in the identity case\n",
+         "createdAt": "2014-05-24T14:21:59Z",
+         "updatedAt": "2014-05-27T07:42:39Z",
+         "lastEditedAt": null,
+         "pullRequestReview": null
+        }
+       ]
+      }
+     },
+     {
+      "id": "MDIzOlB1bGxSZXF1ZXN0UmV2aWV3VGhyZWFkMTMyOTU5Mzg6djI=",
+      "isResolved": false,
+      "path": "index.js",
+      "line": null,
+      "originalLine": null,
+      "comments": {
+       "nodes": [
+        {
+         "id": "MDI0OlB1bGxSZXF1ZXN0UmV2aWV3Q29tbWVudDEzMDYyNTI4",
+         "fullDatabaseId": "13062528",
+         "author": {
+          "__typename": "User",
+          "login": "dougwilson",
+          "name": "Douglas Wilson"
+         },
+         "body": "I just found out thanks to node.js > 0.8 but < 0.10.6, we need this conditional to be:\n\n``` js\nvar state = req._readableState;\nif (req._decoder || (state && (state.encoding || state.decoder))) {\n```\n\notherwise people using older versions of 0.10 will always trigger this error (since `req._readableState.encoding` will be `undefined`).\n",
+         "createdAt": "2014-05-27T05:23:26Z",
+         "updatedAt": "2014-05-27T07:42:39Z",
+         "lastEditedAt": null,
+         "pullRequestReview": null
+        },
+        {
+         "id": "MDI0OlB1bGxSZXF1ZXN0UmV2aWV3Q29tbWVudDEzMDYyNzA5",
+         "fullDatabaseId": "13062709",
+         "author": null,
+         "body": "You'll fix this, or shall I go ahead and commit to my fork?\nOn May 27, 2014 8:23 AM, \"Douglas Christopher Wilson\" <\nnotifications@github.com> wrote:\n\n> In index.js:\n> \n> > -  function onCompressedEnd() {\n> > -    if (compressedReceived < length) {\n> > -      err = new Error('compressed stream too short')\n> > -      err.status = 400\n> > -      next(err)\n> > -      return\n> > -    } else if (compressedReceived > length) {\n> > -      err = new Error('compressed stream too long')\n> > -      err.status = 400\n> > -      next(err)\n> > -      return\n> > -    }\n> > -  }\n> > -  function setupCompressedStream() {\n> > -    // assert the stream encoding is buffer.\n> > -    if (req._decoder || (req._readableState && req._readableState.encoding !== null)) {\n> \n> I just found out thanks to node.js > 0.8 but < 0.10.6, we need this\n> conditional to be:\n> \n> if (req._decoder || (req._readableState && (req._readableState.encoding !== null || req._readableState.decoder))) {\n> \n> otherwise people using older versions of 0.10 will always trigger this\n> error (since req._readableState.encoding will be undefined).\n> \n> —\n> Reply to this email directly or view it on GitHubhttps://github.com/expressjs/body-parser/pull/20/files#r13062528\n> .\n",
+         "createdAt": "2014-05-27T05:37:52Z",
+         "updatedAt": "2014-05-27T07:42:39Z",
+         "lastEditedAt": null,
+         "pullRequestReview": null
+        },
+        {
+         "id": "MDI0OlB1bGxSZXF1ZXN0UmV2aWV3Q29tbWVudDEzMDYyNzI4",
+         "fullDatabaseId": "13062728",
+         "author": {
+          "__typename": "User",
+          "login": "dougwilson",
+          "name": "Douglas Wilson"
+         },
+         "body": "It's a \"I'll fix this if you don't do it first\" kinda thing ;) You don't have to do anything if you want to think about this as a note to myself for when I merge this :D\n",
+         "createdAt": "2014-05-27T05:39:25Z",
+         "updatedAt": "2014-05-27T07:42:39Z",
+         "lastEditedAt": null,
+         "pullRequestReview": null
+        },
+        {
+         "id": "MDI0OlB1bGxSZXF1ZXN0UmV2aWV3Q29tbWVudDEzMDYyODk5",
+         "fullDatabaseId": "13062899",
+         "author": null,
+         "body": "I might do it later today -- I don't want to \"just do it\" without testing\nfirst, and I'm a bit busy today.\n\nOn Tue, May 27, 2014 at 8:39 AM, Douglas Christopher Wilson <\nnotifications@github.com> wrote:\n\n> In index.js:\n> \n> > -  function onCompressedEnd() {\n> > -    if (compressedReceived < length) {\n> > -      err = new Error('compressed stream too short')\n> > -      err.status = 400\n> > -      next(err)\n> > -      return\n> > -    } else if (compressedReceived > length) {\n> > -      err = new Error('compressed stream too long')\n> > -      err.status = 400\n> > -      next(err)\n> > -      return\n> > -    }\n> > -  }\n> > -  function setupCompressedStream() {\n> > -    // assert the stream encoding is buffer.\n> > -    if (req._decoder || (req._readableState && req._readableState.encoding !== null)) {\n> \n> It's a \"I'll fix this if you don't do it first\" kinda thing ;) You don't\n> have to do anything if you want to think about this as a note to myself for\n> when I merge this :D\n> \n> —\n> Reply to this email directly or view it on GitHubhttps://github.com/expressjs/body-parser/pull/20/files#r13062728\n> .\n",
+         "createdAt": "2014-05-27T05:54:28Z",
+         "updatedAt": "2014-05-27T07:42:39Z",
+         "lastEditedAt": null,
+         "pullRequestReview": null
+        },
+        {
+         "id": "MDI0OlB1bGxSZXF1ZXN0UmV2aWV3Q29tbWVudDEzMDY0OTI5",
+         "fullDatabaseId": "13064929",
+         "author": null,
+         "body": "OK, modified and test under\nv0.8.26\nv0.10.5\nv0.10.28\nv0.11.13\n\nOn Tue, May 27, 2014 at 8:39 AM, Douglas Christopher Wilson <\nnotifications@github.com> wrote:\n\n> In index.js:\n> \n> > -  function onCompressedEnd() {\n> > -    if (compressedReceived < length) {\n> > -      err = new Error('compressed stream too short')\n> > -      err.status = 400\n> > -      next(err)\n> > -      return\n> > -    } else if (compressedReceived > length) {\n> > -      err = new Error('compressed stream too long')\n> > -      err.status = 400\n> > -      next(err)\n> > -      return\n> > -    }\n> > -  }\n> > -  function setupCompressedStream() {\n> > -    // assert the stream encoding is buffer.\n> > -    if (req._decoder || (req._readableState && req._readableState.encoding !== null)) {\n> \n> It's a \"I'll fix this if you don't do it first\" kinda thing ;) You don't\n> have to do anything if you want to think about this as a note to myself for\n> when I merge this :D\n> \n> —\n> Reply to this email directly or view it on GitHubhttps://github.com/expressjs/body-parser/pull/20/files#r13062728\n> .\n",
+         "createdAt": "2014-05-27T07:44:02Z",
+         "updatedAt": "2014-05-27T07:44:02Z",
+         "lastEditedAt": null,
+         "pullRequestReview": null
+        }
+       ]
+      }
+     }
+    ]
+   }
+  }
+ },
+ "issues": {},
+ "discussions": {}
+}

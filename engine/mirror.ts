@@ -171,12 +171,20 @@ function comments(people: People, raw: readonly RawComment[]): Comment[] {
   return byTime(raw.map((item) => comment(people, item)), (item) => item.createdAt);
 }
 
-export type Dropped = { readonly threads: number };
-
 /** The number when the issue or pull request is in this repository, else nothing: a number names an object here. */
 type Here = (item: Partial<Numbered> | null | undefined) => number[];
 
-function pull(people: People, raw: RawPull, dropped: { threads: number }, here: Here): Pull {
+/**
+ * Line comments from before GitHub had reviews (2016) belong to no review, and the fixture format holds threads only
+ * under one. Such a thread gets a bodiless COMMENTED review with its first comment's id, author, and time.
+ */
+function legacyReview(thread: Thread): Review & { readonly threads: Thread[] } {
+  const first = thread.comments[0];
+  if (!first) throw new Error(`review thread ${thread.id} has no comment`);
+  return { id: first.id, author: first.author, at: first.createdAt, state: 'COMMENTED', body: '', commitSha: null, threads: [thread] };
+}
+
+function pull(people: People, raw: RawPull, here: Here): Pull {
   const timeline = nodesOf(raw.timelineItems);
   const baseChanges = timeline.flatMap((event) => (event.__typename === 'BaseRefChangedEvent' ? [event] : []));
   const closes = timeline.flatMap((event) => (event.__typename === 'ClosedEvent' ? [event] : []));
@@ -200,18 +208,15 @@ function pull(people: People, raw: RawPull, dropped: { threads: number }, here: 
     ],
     openedAt: utc(raw.createdAt),
   };
-  const reviews = byTime(
-    nodesOf(raw.reviews).flatMap((review) => (review.submittedAt === null ? [] : [{
-      id: numericId(review),
-      author: people.actor(review.author),
-      at: utc(review.submittedAt),
-      state: review.state,
-      body: text(review.body),
-      commitSha: review.commit?.oid ?? null,
-      threads: [] as Thread[],
-    }])),
-    (review) => review.at,
-  );
+  const reviews = nodesOf(raw.reviews).flatMap((review) => (review.submittedAt === null ? [] : [{
+    id: numericId(review),
+    author: people.actor(review.author),
+    at: utc(review.submittedAt),
+    state: review.state,
+    body: text(review.body),
+    commitSha: review.commit?.oid ?? null,
+    threads: [] as Thread[],
+  }]));
   const reviewById = new Map(reviews.map((review) => [review.id, review]));
   const threads = nodesOf(raw.reviewThreads).flatMap((thread) => {
     const rawComments = nodesOf(thread.comments);
@@ -223,7 +228,7 @@ function pull(people: People, raw: RawPull, dropped: { threads: number }, here: 
   for (const { review, thread } of [...threads].sort((a, b) => compare(a.thread.comments[0]?.createdAt ?? '', b.thread.comments[0]?.createdAt ?? '') || compare(a.thread.id, b.thread.id))) {
     const owner = review === null ? undefined : reviewById.get(Number(review));
     if (owner) owner.threads.push(thread);
-    else dropped.threads += 1;
+    else reviews.push(legacyReview(thread));
   }
   const tail: PullTail = {
     headSha: raw.headRefOid,
@@ -238,7 +243,7 @@ function pull(people: People, raw: RawPull, dropped: { threads: number }, here: 
       authoredAt: utc(commit.authoredDate),
       committedAt: utc(commit.committedDate),
     })),
-    reviews,
+    reviews: byTime(reviews, (review) => review.at),
     comments: comments(people, nodesOf(raw.comments)),
   };
   if (raw.state === 'MERGED' && raw.mergedAt !== null) {
@@ -330,16 +335,15 @@ export type Mirror = {
  * github.json from the mirror. Nodes are mapped oldest update first, so a person's name is the one on their newest
  * item, and every list comes out in a fixed order whatever order the nodes arrive in.
  */
-export function assemble(mirror: Mirror): { readonly doc: GithubJson; readonly dropped: Dropped } {
+export function assemble(mirror: Mirror): GithubJson {
   const people = new People();
-  const dropped = { threads: 0 };
   const items: { readonly updatedAt: string; readonly map: () => void }[] = [];
   const pulls: Pull[] = [];
   const issues: Issue[] = [];
   const discussions: Discussion[] = [];
   const self = `${mirror.meta.owner.login}/${mirror.meta.name}`.toLowerCase();
   const here: Here = (item) => (item?.number !== undefined && item.repository?.nameWithOwner.toLowerCase() === self ? [item.number] : []);
-  for (const raw of mirror.pulls) items.push({ updatedAt: raw.updatedAt, map: () => pulls.push(pull(people, raw, dropped, here)) });
+  for (const raw of mirror.pulls) items.push({ updatedAt: raw.updatedAt, map: () => pulls.push(pull(people, raw, here)) });
   for (const raw of mirror.issues) items.push({ updatedAt: raw.updatedAt, map: () => issues.push(issue(people, raw, here)) });
   for (const raw of mirror.discussions) items.push({ updatedAt: raw.updatedAt, map: () => discussions.push(discussion(people, raw)) });
   for (const item of items.sort((a, b) => compare(a.updatedAt, b.updatedAt))) item.map();
@@ -356,7 +360,7 @@ export function assemble(mirror: Mirror): { readonly doc: GithubJson; readonly d
     tags,
     releases,
   };
-  return { doc, dropped };
+  return doc;
 }
 
 /** The bytes on disk: two-space JSON with no trailing newline, like the fixtures. */
