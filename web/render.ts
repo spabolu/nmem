@@ -616,7 +616,7 @@ function decisionCard(site: Site, card: Extract<Card, { kind: 'decision' }>, aud
   const points = Math.min(3, 1 + (guessText ? 1 : 0));
   const who = card.row.decider ? person(site, card.row.decider) : 'Not named in the record';
   return `<article class="tl-card decision${placed(layout)}" data-row="up" data-kind="decision" data-id="${esc(decision.id)}" data-points="${points}"${note.attr}>
-    <span class="k k-decision">Decision <span class="d">${esc(shortWhen(card.row.day))}</span></span>
+    <span class="k k-decision">Decision <span class="d">${esc(shortWhen(site, card.row.day))}</span></span>
     ${layout.more}
     <span class="t said" data-nmem>${textOf(decision.what[audience], audience)} ${chip(site, decision.what.source, audience)}</span>
     <span class="point ${decision.why.kind === 'recorded' ? 'said' : 'template'}" data-nmem>${whyText(site, decision.why, audience)}</span>
@@ -655,7 +655,7 @@ function changeCard(site: Site, card: Extract<Card, { kind: 'behavior' | 'check'
   const skip = card.skippable[0];
   const label = card.kind === 'behavior' ? 'Behavior change' : 'Worth a look';
   return `<article class="tl-card ${card.kind}${placed(layout)}" data-row="down" data-kind="${card.kind}" data-id="${esc(card.change)}" data-points="${points.length}" data-unclassified="${unclassified ? '1' : '0'}"${note.attr}>
-    <span class="k k-${card.kind}">${label} <span class="d">${esc(shortWhen(card.day))}</span></span>
+    <span class="k k-${card.kind}">${label} <span class="d">${esc(shortWhen(site, card.day))}</span></span>
     ${layout.more}
     <span class="t" data-nmem>${textOf(title, audience)} ${githubLinkInline(site, card.change, audience)}</span>
     ${points.join('')}
@@ -673,7 +673,7 @@ function netCard(site: Site, card: Extract<Card, { kind: 'net' }>, audience: Aud
   const id = `undone:${card.changes[0] ?? ''}`;
   const first = card.changes[0] ?? '';
   return `<article class="tl-card net${placed(layout)}" data-row="down" data-kind="net" data-id="${esc(id)}" data-points="${says.length + 1}">
-    <span class="k k-net">Came and went <span class="d">${esc(shortWhen(card.from))} to ${esc(shortWhen(card.to))}</span></span>
+    <span class="k k-net">Came and went <span class="d">${esc(shortWhen(site, card.from))} to ${esc(shortWhen(site, card.to))}</span></span>
     ${layout.more}
     <span class="t" data-nmem>${textOf(title, audience)} ${githubLinkInline(site, first, audience)}</span>
     ${says.join('')}
@@ -682,8 +682,9 @@ function netCard(site: Site, card: Extract<Card, { kind: 'net' }>, audience: Aud
   </article>`;
 }
 
-function shortWhen(day: IsoDay): string {
-  return formatDay(day).replace(/, \d{4}$/, '');
+/** A card's day, with its year unless it falls in the year the record ends, so a timeline over years stays unambiguous. */
+function shortWhen(site: Site, day: IsoDay): string {
+  return day.slice(0, 4) === site.facts.end.slice(0, 4) ? formatDay(day).replace(/, \d{4}$/, '') : formatDay(day);
 }
 
 function githubLinkInline(site: Site, ref: string, audience: Audience): string {
@@ -738,16 +739,21 @@ function pins(view: { readonly up: { readonly cards: readonly Card[] }; readonly
   }).join('');
 }
 
+/** One tick a month over a year or less; over longer ranges a tick each year, or every few years, labelled by year alone. */
 function monthTicks(from: IsoDay, to: IsoDay): string {
   const ticks: string[] = [];
   let year = Number(from.slice(0, 4));
   let month = Number(from.slice(5, 7));
   const end = to.slice(0, 7);
+  const years = Number(to.slice(0, 4)) - year;
+  const everyYears = years < 2 ? 0 : Math.ceil(years / 10);
   while (`${year}-${String(month).padStart(2, '0')}` <= end) {
     const day = `${year}-${String(month).padStart(2, '0')}-01`;
-    if (day >= from && day <= to) {
+    if (day >= from && day <= to && everyYears === 0) {
       const label = month === 1 || ticks.length === 0 ? `${MONTHS[month - 1] ?? ''} ${year}` : MONTHS[month - 1] ?? '';
       ticks.push(`<span class="tick" style="left:${pct(day, from, to).toFixed(2)}%">${label}</span>`);
+    } else if (day > from && day <= to && month === 1 && year % everyYears === 0) {
+      ticks.push(`<span class="tick" style="left:${pct(day, from, to).toFixed(2)}%">${year}</span>`);
     }
     month += 1;
     if (month > 12) {
