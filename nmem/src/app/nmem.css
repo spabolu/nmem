@@ -372,25 +372,11 @@ article.decision:not(.tl-card) time {
   border-radius: 6px;
   padding: 1px 8px;
 }
-.chip {
-  display: inline-flex;
-  align-items: center;
-  border: 1px solid var(--borderColor-default);
-  border-radius: 2em;
-  padding: 0 8px;
-  background: transparent;
-  color: var(--fgColor-default);
-  font-size: 12px;
-  font-weight: 500;
-  line-height: 18px;
-}
-.chip.on,
 .ranges a.on {
   background: var(--bgColor-emphasis);
   color: var(--fgColor-onEmphasis);
   border-color: var(--bgColor-emphasis);
 }
-.chip:hover,
 .ranges a:hover {
   text-decoration: none;
 }

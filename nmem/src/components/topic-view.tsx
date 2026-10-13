@@ -1,4 +1,5 @@
 import NextLink from "next/link";
+import { CHIP } from "./chip";
 import { sourceHref, timelineHref, topicHref } from "@/lib/hrefs";
 import type { Decision, LocalId, Said, Source } from "@/lib/kernel/contract";
 import { parseProof } from "@/lib/kernel/contract";
@@ -192,7 +193,7 @@ function StatusBox({
         {docs.map((path, index) => (
           <NextLink
             key={path}
-            className="chip receipt"
+            className={CHIP}
             data-chip="receipt"
             href={sourceHref(repo, audience, {
               ref: `${site.facts.head}:${path}`,
@@ -355,7 +356,7 @@ function DecisionRow({
             return topic ? (
               <NextLink
                 key={id}
-                className="chip topic"
+                className={CHIP}
                 href={topicHref(repo, id, audience)}
               >
                 {topic.name[audience]}

@@ -1,6 +1,7 @@
 import { Button } from "@primer/react";
 import Form from "next/form";
 import NextLink from "next/link";
+import { CHIP, CHIP_ON } from "./chip";
 import { repoPath, showParam, timelineHref, topicHref } from "@/lib/hrefs";
 import type { ChangeId, LocalId, Said } from "@/lib/kernel/contract";
 import type { RequestQuery } from "@/lib/kernel/site";
@@ -201,7 +202,7 @@ export function TimelineView({
         {site.snapshot.topics.map((row) => (
           <NextLink
             key={row.id}
-            className={`chip${row.id === topic ? " on" : ""}`}
+            className={row.id === topic ? CHIP_ON : CHIP}
             aria-current={row.id === topic ? "true" : undefined}
             href={timelineHref(repo, row.id, from, to, audience)}
           >

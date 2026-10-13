@@ -1,4 +1,5 @@
 import NextLink from "next/link";
+import { CHIP } from "./chip";
 import { type RepoRef, sourceHref } from "@/lib/hrefs";
 import type { Said, Source, Why } from "@/lib/kernel/contract";
 import type { Site } from "@/lib/kernel/site";
@@ -43,7 +44,7 @@ export function Chip({
   const chip = chipOf(ctx.site, source, ctx.audience);
   return (
     <NextLink
-      className="chip receipt"
+      className={CHIP}
       data-chip="receipt"
       href={sourceHref(ctx.repo, ctx.audience, chip.target)}
     >
