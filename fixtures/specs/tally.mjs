@@ -1387,8 +1387,8 @@ const views = {
     {
       id: 'd-round-revert',
       what: {
-        eng: 'Reverted PRs #20 and #21, so the floor split is back.',
-        plain: 'Undid the two earlier changes, so bills split the old way again.',
+        eng: 'Reverted PRs #20 and #21.',
+        plain: 'Undid two earlier changes.',
         ev: pr(22, 'Reverts #20 and #21.'),
       },
       topics: ['leftover'],
@@ -1522,7 +1522,7 @@ const views = {
       what: {
         eng: '`tally settle` should print the fewest payments, and the same ones every time for the same file.',
         plain: 'Settling up should use the fewest payments, and the same bills should always give the same payments.',
-        ev: pr(12, 'Largest debt against largest credit, ties broken by name'),
+        ev: pr(12, '`tally settle` prints the fewest payments that clear the household. Largest debt against largest credit, ties broken by name, so the same file always prints the same lines.'),
       },
       alsoIntent: [comment('iss10-lena', 'Fewest payments, same file always prints the same lines.')],
       topics: ['settling'],
