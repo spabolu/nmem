@@ -241,14 +241,14 @@ function document(site: Site, url: URL, audience: Audience, view: string, status
   <a class="brand" href="${esc(topicHref(site, root, audience))}"><span class="mark" aria-hidden="true">n</span> nmem</a>
   <span class="crumb"><span class="repo">${esc(site.identity.owner)}</span> <span class="sep">/</span> <b>${esc(site.identity.name)}</b></span>
   <nav>
-    <a class="${topicsOn.trim()}" href="${esc(topicHref(site, root, audience))}">Topics</a>
-    <a class="${timelineOn.trim()}" href="${esc(life)}">Timeline</a>
+    <a class="${topicsOn.trim()}"${topicsOn ? ' aria-current="page"' : ''} href="${esc(topicHref(site, root, audience))}">Topics</a>
+    <a class="${timelineOn.trim()}"${timelineOn ? ' aria-current="page"' : ''} href="${esc(life)}">Timeline</a>
   </nav>
   <span class="spacer"></span>
   <span class="readas">Reading as</span>
-  <span class="aud">
-    <a class="${audience === 'eng' ? 'on' : ''}" href="${esc(audienceHref(url, 'eng'))}">Engineer</a>
-    <a class="${audience === 'plain' ? 'on' : ''}" href="${esc(audienceHref(url, 'plain'))}">Non-engineer</a>
+  <span class="aud" role="group" aria-label="Reading as">
+    <a class="${audience === 'eng' ? 'on' : ''}"${audience === 'eng' ? ' aria-current="true"' : ''} href="${esc(audienceHref(url, 'eng'))}">Engineer</a>
+    <a class="${audience === 'plain' ? 'on' : ''}"${audience === 'plain' ? ' aria-current="true"' : ''} href="${esc(audienceHref(url, 'plain'))}">Non-engineer</a>
   </span>
   <a class="btn" href="${esc(githubHome(site))}" target="_blank" rel="noreferrer">View on GitHub</a>
 </header>
