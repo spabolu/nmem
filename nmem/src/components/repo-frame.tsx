@@ -1,0 +1,59 @@
+import {
+  githubHref,
+  repoPath,
+  timelineHref,
+  topicsHref,
+  withAudience,
+} from "@/lib/hrefs";
+import type { RepoRequest } from "@/lib/request";
+import type { Audience } from "../../../harness/view.ts";
+import { rootId } from "../../../web/site.ts";
+import { RepoBar } from "./repo-bar";
+
+type View = "topics" | "timeline" | "source" | "other";
+
+/** Every repo page: the bar, then main. data-view and data-audience let scripts read which screen this is. */
+export function RepoFrame({
+  request,
+  audience,
+  view,
+  path,
+  layout,
+  children,
+}: {
+  readonly request: RepoRequest;
+  readonly audience: Audience;
+  readonly view: View;
+  readonly path: string;
+  readonly layout: "split" | "wide";
+  readonly children: React.ReactNode;
+}) {
+  const { site, repo, search } = request;
+  const base = repoPath(repo);
+  return (
+    <div data-view={view} data-audience={audience}>
+      <RepoBar
+        owner={repo.owner}
+        name={repo.name}
+        view={view}
+        topicsHref={topicsHref(repo, audience)}
+        timelineHref={timelineHref(
+          repo,
+          rootId(site),
+          site.facts.born,
+          site.facts.end,
+          audience,
+        )}
+        github={githubHref(repo)}
+        audience={audience}
+        audienceHrefs={{
+          eng: withAudience(`${base}${path}`, search, "eng"),
+          plain: withAudience(`${base}${path}`, search, "plain"),
+        }}
+      />
+      <main id="main" className={`page ${layout}`}>
+        {children}
+      </main>
+    </div>
+  );
+}

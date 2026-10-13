@@ -10,22 +10,37 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadGold } from "../../harness/gold.ts";
 
-const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
+const repoRoot = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "..",
+  "..",
+);
 const out = path.join(repoRoot, "out");
 
 export const FIXTURES = ["tally", "wayfinder", "seedling"];
 
-export function fixtureRoot(dir = fs.mkdtempSync(path.join(os.tmpdir(), "nmem-fixtures-"))) {
+export function fixtureRoot(
+  dir = fs.mkdtempSync(path.join(os.tmpdir(), "nmem-fixtures-")),
+) {
   for (const slug of FIXTURES) {
     const source = path.join(out, slug);
-    const { repo } = JSON.parse(fs.readFileSync(path.join(source, "github.json"), "utf8"));
+    const { repo } = JSON.parse(
+      fs.readFileSync(path.join(source, "github.json"), "utf8"),
+    );
     const target = path.join(dir, repo.owner, repo.name);
     fs.rmSync(target, { recursive: true, force: true });
     fs.mkdirSync(target, { recursive: true });
-    for (const entry of fs.readdirSync(source)) fs.symlinkSync(path.join(source, entry), path.join(target, entry));
-    fs.writeFileSync(path.join(target, "snapshot.json"), JSON.stringify(loadGold(out, slug).oracle));
+    for (const entry of fs.readdirSync(source))
+      fs.symlinkSync(path.join(source, entry), path.join(target, entry));
+    fs.writeFileSync(
+      path.join(target, "snapshot.json"),
+      JSON.stringify(loadGold(out, slug).oracle),
+    );
   }
   return dir;
 }
 
-if (import.meta.main) console.log(fixtureRoot(process.argv[2] ? path.resolve(process.argv[2]) : undefined));
+if (import.meta.main)
+  console.log(
+    fixtureRoot(process.argv[2] ? path.resolve(process.argv[2]) : undefined),
+  );
