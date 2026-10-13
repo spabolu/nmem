@@ -1845,16 +1845,21 @@
     "flags": []
   },
   "wayfinder/d-store-interface/what/plain": {
-    "source": "f1b59b55dab45aa2fe709d7089e34cdf",
+    "source": "c955ac0381bc0fe91b0e59a5364a4738",
     "headline": [
       {
         "id": "f1",
-        "text": "Keeping counts was split out behind a fixed shape that any store can follow."
+        "text": "Storage was moved behind a fixed shape."
       }
     ],
-    "supporting": [],
+    "supporting": [
+      {
+        "id": "f2",
+        "text": "Any store can follow that shape."
+      }
+    ],
     "paraphrase": [
-      "Tracking totals was separated behind one set form that every storage place can match."
+      "How data is stored was put behind one common pattern that all stores can match."
     ],
     "review": "auto",
     "flags": []
@@ -2207,41 +2212,51 @@
     "flags": []
   },
   "wayfinder/f-round-unused/card/eng": {
-    "source": "e7ebd3be30534e4e3795ebda3022331e",
+    "source": "e29efc2f96feb79fbd6779768b6c41dc",
     "headline": [
       {
         "id": "f1",
-        "text": "No file in src imports src/retry.ts."
+        "text": "Nothing in src outside src/retry.ts uses `roundRetryMs()`."
       },
       {
         "id": "f2",
         "text": "src/limit.ts turns the wait into whole seconds with `Math.ceil(decision.retryAfterMs / 1000)`."
       }
     ],
-    "supporting": [],
+    "supporting": [
+      {
+        "id": "f3",
+        "text": "The package does not export `roundRetryMs()`."
+      }
+    ],
     "paraphrase": [
-      "src/retry.ts is imported by no file in src.",
-      "src/limit.ts converts the wait to whole seconds via `Math.ceil(decision.retryAfterMs / 1000)`."
+      "No code in src other than src/retry.ts calls `roundRetryMs()`, and the package exports do not include it.",
+      "src/limit.ts converts that pause to integer seconds by applying `Math.ceil(decision.retryAfterMs / 1000)`."
     ],
     "review": "auto",
     "flags": []
   },
   "wayfinder/f-round-unused/card/plain": {
-    "source": "46e3e8f2fd9c32633ee4c09d31e7bf75",
+    "source": "02c75f6eb2fe38ef2e06e70f8afa914d",
     "headline": [
       {
         "id": "f1",
-        "text": "No other file in the app loads the rounding code."
+        "text": "Nothing else in the app uses the rounding."
       },
       {
         "id": "f2",
         "text": "The wait a reply gives is worked out in whole seconds."
       }
     ],
-    "supporting": [],
+    "supporting": [
+      {
+        "id": "f3",
+        "text": "The package does not offer the rounding to other teams."
+      }
+    ],
     "paraphrase": [
-      "No other part of the program uses the rounding piece.",
-      "The pause an answer provides is figured out in full seconds."
+      "No other piece of the app depends on the rounding, and other teams are not given that feature by the package.",
+      "The delay stated in a reply is figured in full seconds."
     ],
     "review": "auto",
     "flags": []
