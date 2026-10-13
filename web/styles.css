@@ -255,3 +255,22 @@ a:focus-visible, button:focus-visible, input:focus-visible, [tabindex]:focus-vis
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
 }
+@media (max-width: 767px) {
+  .bar { flex-wrap: wrap; gap: 8px 16px; padding: 8px 16px; }
+  .bar > nav { order: 3; width: 100%; height: 40px; }
+  .bar .spacer, .readas { display: none; }
+  .page { padding: 16px 16px 32px; }
+  .page.split { grid-template-columns: minmax(0, 1fr); gap: 24px; }
+  .page.split > .tree { order: 2; }
+  .foot { padding: 16px; }
+  .headline { font-size: 18px; }
+  .decision { grid-template-columns: minmax(0, 1fr); gap: 4px; }
+  .routine .row { grid-template-columns: minmax(0, 1fr); gap: 4px; }
+  .ranges input[type="date"] { flex: 1; }
+  .board { padding: 8px 12px 12px; }
+  .canvas { height: auto !important; display: flex; flex-direction: column; gap: 8px; }
+  .axis, .fewer, .empty { display: none; }
+  .tl-card.placed { position: static; width: auto; max-width: none; max-height: none; overflow: visible; }
+  .tl-card.placed .point ~ .point, .tl-card.placed .c, .tl-card.placed .note { display: block; }
+  .tl-card.placed .t, .tl-card.placed .point { display: block; -webkit-line-clamp: unset; overflow: visible; }
+}
