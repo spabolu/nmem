@@ -15,7 +15,7 @@ import { encodeSnapshot } from '../contract.ts';
 import type { Snapshot } from '../contract.ts';
 import { discoverRepos, loadFacts, loadGold } from '../gold.ts';
 import type { Gold, Slug } from '../gold.ts';
-import { factsOf, openRecord } from '../record.ts';
+import { factsOf, openFixture } from '../record.ts';
 
 const FACTS_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'facts');
 
@@ -36,12 +36,7 @@ export async function build(referenceId: ReferenceId, outDir: string, workspace:
     return other.repo.owner === github.repo.owner && other.repo.name === github.repo.name;
   });
   if (!slug) throw new Error(`no gold repo matches ${github.repo.owner}/${github.repo.name}`);
-  const record = openRecord({
-    dir: workspace,
-    identity: { owner: github.repo.owner, name: github.repo.name },
-    mainSha: '' as never,
-    fixtureHash: '' as never,
-  });
+  const record = openFixture(workspace);
   const gold = loadGold(outDir, slug as Slug);
   fs.writeFileSync(outFile, encodeSnapshot(referenceSnapshot(referenceId, gold, { gold, facts: factsOf(record), record })));
 }

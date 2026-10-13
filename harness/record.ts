@@ -460,8 +460,9 @@ export function openRecord(ws: Workspace): RepoRecord {
 const fixtures = new Map<string, RepoRecord>();
 
 /**
- * A fixture checkout, not a scrubbed handoff. Scoring and render use this. The build path uses buildWorkspace. One
- * record per fixture and process, keyed by the fixture hash, so its kept git answers are reused across snapshots.
+ * A directory holding repo/ and github.json: a fixture checkout, or a workspace buildWorkspace made from one, which the
+ * calibration references read. Scoring and render use this. One record per directory and process, keyed by the fixture
+ * hash, so its kept git answers are reused across snapshots.
  */
 export function openFixture(fixtureDir: string): RepoRecord {
   const githubFile = path.join(fixtureDir, 'github.json');
