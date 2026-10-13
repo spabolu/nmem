@@ -3,7 +3,7 @@ import type { RequestQuery, Site } from "@/lib/kernel/site";
 import { formatDay, TRUST_WORDS } from "@/lib/kernel/view";
 import { githubUrlOf, person, stamp } from "@/lib/present";
 import { Avatar, type Ctx } from "./said";
-import { CALLOUT, H1, KICKER, LABEL, MUTED, SOURCE_PRE } from "./styles";
+import { CALLOUT, H1, HINT, KICKER, LABEL, MUTED, SOURCE_PRE } from "./styles";
 
 const CBOX = "grid grid-cols-[40px_1fr] gap-3";
 
@@ -504,7 +504,7 @@ function FileLines({
   return (
     <>
       {to - from + 1 < rows.length ? (
-        <p className="hint">
+        <p className={HINT}>
           Lines {from}-{to} of {rows.length}.
         </p>
       ) : null}

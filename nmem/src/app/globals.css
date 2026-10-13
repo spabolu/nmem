@@ -26,6 +26,32 @@ body {
   font: var(--text-body-size-medium) / 1.5 var(--fontStack-sansSerif);
 }
 
+a {
+  color: var(--fgColor-accent);
+  text-decoration: none;
+}
+a:hover {
+  text-decoration: underline;
+}
+code {
+  font-family: var(--fontStack-monospace);
+  font-size: 0.86em;
+  background: var(--bgColor-neutral-muted);
+  border-radius: var(--borderRadius-small);
+  padding: 0.1em 0.32em;
+}
+q {
+  quotes: none;
+}
+h2 {
+  font-size: 16px;
+  margin: 24px 0 8px;
+}
+mark {
+  background: var(--bgColor-attention-muted);
+  padding: 0 2px;
+}
+
 .skip-link {
   position: absolute;
   left: 8px;

@@ -48,3 +48,18 @@ export const CALLOUT =
 export const SOURCE_PRE =
   "whitespace-pre-wrap rounded-[6px] border border-(color:--borderColor-default) bg-(--bgColor-muted) p-3 [font:12px/20px_var(--fontStack-monospace)]";
 export const HINT = "text-[14px] text-(color:--fgColor-muted)";
+
+export const SEP = "mx-1 text-(color:--fgColor-muted)";
+
+const DOT_TONE = {
+  ok: "bg-(--fgColor-success)",
+  stale:
+    "bg-(--fgColor-attention) shadow-[0_0_0_3px_var(--bgColor-attention-muted)]",
+  none: "border-2 border-solid border-(color:--fgColor-muted) bg-(--bgColor-default)",
+} as const;
+
+/** A status dot: a grid or flex item beside a row, or inline before a sentence. */
+export function dotClass(tone: keyof typeof DOT_TONE, inline = false): string {
+  const place = inline ? "inline-block align-[-1px] mr-1" : "mt-[5px]";
+  return `size-[10px] rounded-[50%] ${place} ${DOT_TONE[tone]}`;
+}

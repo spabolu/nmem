@@ -18,7 +18,29 @@ import {
 import { ancestors, dotOf, person, topicById } from "@/lib/present";
 import { ButtonLink } from "./links";
 import { Avatar, Chip, type Ctx, Prose, SaidText } from "./said";
-import { CALLOUT, CHIP, LABEL, MUTED, SOURCE_PRE } from "./styles";
+import {
+  CALLOUT,
+  CHIP,
+  dotClass,
+  H1,
+  HINT,
+  LABEL,
+  MUTED,
+  SEP,
+  SOURCE_PRE,
+} from "./styles";
+
+const EXAMPLE =
+  "mt-4 rounded-[6px] border border-l-[3px] border-(color:--borderColor-default) border-l-(color:--fgColor-accent) px-4 py-3";
+
+const FRESH_BOX = "mb-4 flex gap-3 rounded-[8px] border px-4 py-3";
+const FRESH = {
+  ok: `${FRESH_BOX} border-(color:--borderColor-success-muted) bg-(--bgColor-success-muted)`,
+  stale: `${FRESH_BOX} border-(color:--borderColor-severe-muted) bg-(--bgColor-severe-muted)`,
+  none: `${FRESH_BOX} border-(color:--borderColor-default) bg-(--bgColor-muted)`,
+  mixed: `${FRESH_BOX} border-(color:--borderColor-default) bg-(--bgColor-muted)`,
+} as const;
+
 import { Tree } from "./tree";
 
 export async function TopicView({
@@ -46,63 +68,65 @@ export async function TopicView({
     <>
       <Tree ctx={ctx} current={id} />
       <article
-        className="doc"
         data-topic={id}
         data-status={page.statusLine[audience]}
         data-shown={rows.map((row) => row.id).join(",")}
         data-more={hidden}
       >
         {chain.length > 0 ? (
-          <nav aria-label="Topic path" className="crumbs">
+          <nav aria-label="Topic path">
             {chain.map((row, index) => (
               <span key={row.id}>
-                {index > 0 ? <span className="sep"> / </span> : null}
-                <NextLink href={topicHref(repo, row.id, audience)}>
+                {index > 0 ? <span className={SEP}> / </span> : null}
+                <NextLink
+                  className="text-(color:--fgColor-muted)!"
+                  href={topicHref(repo, row.id, audience)}
+                >
                   {row.name[audience]}
                 </NextLink>
               </span>
             ))}
           </nav>
         ) : null}
-        <h1>{topic.name[audience]}</h1>
+        <h1 className={H1}>{topic.name[audience]}</h1>
         <StatusBox ctx={ctx} id={id} page={page} docs={topic.docs} />
         <p
-          className="headline"
+          className="my-2 max-w-[760px] text-[20px] leading-[1.6] font-[600] max-md:text-[16px]"
           data-headline
           data-nmem
           data-sentences={page.headline.length}
         >
           <Prose text={headline} audience={audience} />
         </p>
-        <p className="headline-sources" data-sources="headline">
+        <p className="flex flex-wrap gap-2" data-sources="headline">
           {page.headline.map((line, index) => (
             // biome-ignore lint/suspicious/noArrayIndexKey: headline order is fixed
             <Chip key={index} ctx={ctx} source={line.source} />
           ))}
         </p>
         <h2>Decisions</h2>
-        <p className="hint">Newest first.</p>
+        <p className={HINT}>Newest first.</p>
         {rows.length === 0 ? (
-          <p className="hint">No decisions for this topic.</p>
+          <p className={HINT}>No decisions for this topic.</p>
         ) : null}
         {rows.map((decision) => (
           <DecisionRow key={decision.id} ctx={ctx} decision={decision} />
         ))}
         {hidden > 0 ? (
-          <p className="more">
+          <p className="mt-3 mb-0">
             <NextLink href={topicHref(repo, id, audience, true)}>
               Show all ({page.decisions.shown.length + page.decisions.more})
             </NextLink>
           </p>
         ) : all && page.decisions.more > 0 ? (
-          <p className="more">
+          <p className="mt-3 mb-0">
             <NextLink href={topicHref(repo, id, audience)}>
               Show the first three
             </NextLink>
           </p>
         ) : null}
         {page.example ? (
-          <section className="example" data-example="yes" aria-label="Example">
+          <section className={EXAMPLE} data-example="yes" aria-label="Example">
             <span className={LABEL}>Example</span>
             <p className="said" data-nmem>
               <SaidText ctx={ctx} line={page.example} />
@@ -110,21 +134,17 @@ export async function TopicView({
             <ExampleProof site={site} source={page.example.source} />
           </section>
         ) : (
-          <section
-            className="example none"
-            data-example="none"
-            aria-label="Example"
-          >
+          <section className={EXAMPLE} data-example="none" aria-label="Example">
             <span className={LABEL}>Example</span>
             <p>
               No example. A topic shows one only when a test or a run backs it.
             </p>
           </section>
         )}
-        <section className="start" aria-labelledby="start-here">
+        <section aria-labelledby="start-here">
           <h2 id="start-here">Start here</h2>
           <blockquote className={CALLOUT}>{topic.start.quote}</blockquote>
-          <div className="actions">
+          <div className="mt-2 flex flex-wrap gap-2">
             <ButtonLink
               href={sourceHref(repo, audience, {
                 ref: topic.start.ref,
@@ -190,7 +210,7 @@ function StatusBox({
       : dotOf(status);
   const docChips =
     docs.length > 0 ? (
-      <p className="docs">
+      <p className="mt-1 mb-0 flex flex-wrap gap-2">
         {docs.map((path, index) => (
           <NextLink
             key={path}
@@ -211,36 +231,41 @@ function StatusBox({
     ) : null;
   if (rollup) {
     return (
-      <div className={`fresh ${tone}`}>
+      <div className={FRESH[tone]}>
         <div>
-          <p className="lab" data-nmem>
+          <p className="m-0 font-[600]" data-nmem>
             {TEMPLATES.census(census)[audience]}
           </p>
-          <div className="rolls">
+          <div className="mt-2">
             {children.map((topic) => {
               const childStatus = statusOf(topic.id, site.snapshot, site.facts);
               return (
                 <NextLink
                   key={topic.id}
-                  className="roll"
+                  className="grid grid-cols-[16px_1fr] gap-2 border-t border-(color:--borderColor-muted) py-2 text-(color:--fgColor-default)! hover:no-underline!"
                   href={topicHref(repo, topic.id, audience)}
                 >
-                  <span className={`dot ${dotOf(childStatus)}`} />
+                  <span className={dotClass(dotOf(childStatus))} />
                   <span>
-                    <b>{topic.name[audience]}</b>{" "}
-                    <span className="st" data-nmem>
+                    <b className="font-[600]">{topic.name[audience]}</b>{" "}
+                    <span
+                      className="ml-2 font-[400] text-(color:--fgColor-muted)"
+                      data-nmem
+                    >
                       {TEMPLATES.status(childStatus)[audience]}
                     </span>
                     {childStatus.kind === "out-of-date-since" ? (
-                      <q className="source">{childStatus.sentence.quote}</q>
+                      <q className="mt-1 mb-0 block italic text-(color:--fgColor-muted)">
+                        {childStatus.sentence.quote}
+                      </q>
                     ) : null}
                   </span>
                 </NextLink>
               );
             })}
           </div>
-          <p className="own">
-            <span className={`dot ${dotOf(status)}`} />{" "}
+          <p className="mt-2 mb-0 text-[12px] text-(color:--fgColor-muted)">
+            <span className={dotClass(dotOf(status), true)} />{" "}
             <b>{topicById(site, id)?.name[audience] ?? ""}</b>{" "}
             <span data-nmem>{page.statusLine[audience]}</span>
           </p>
@@ -251,18 +276,18 @@ function StatusBox({
   }
   const broken = brokenSource(site, id, status);
   return (
-    <div className={`fresh ${tone}`}>
-      <span className={`dot ${dotOf(status)}`} />
+    <div className={FRESH[tone]}>
+      <span className={dotClass(dotOf(status))} />
       <div>
-        <p className="lab" data-nmem>
+        <p className="m-0 font-[600]" data-nmem>
           {page.statusLine[audience]}
         </p>
         {docChips}
         {status.kind === "out-of-date-since" ? (
-          <q className="source">{status.sentence.quote}</q>
+          <q className="mt-1 mb-0">{status.sentence.quote}</q>
         ) : null}
         {broken ? (
-          <p className="claim-why said" data-nmem>
+          <p className="said mt-1 mb-0" data-nmem>
             <SaidText ctx={ctx} line={broken} />
           </p>
         ) : null}
@@ -280,14 +305,14 @@ async function ExampleProof({
 }) {
   if (source.kind !== "proof") return null;
   const parsed = parseProof(source.proof);
-  if (!parsed) return <p className="hint">nmem could not read this check.</p>;
+  if (!parsed) return <p className={HINT}>nmem could not read this check.</p>;
   const result = site.proof(source.proof) ?? {
     failed: "missing",
     detail:
       "The lab did not bake this check; rebuild this repo with nmem build-repo.",
   };
   if ("failed" in result)
-    return <p className="hint">nmem could not run this check.</p>;
+    return <p className={HINT}>nmem could not run this check.</p>;
   const preview =
     result.text.length > 600 ? `${result.text.slice(0, 600)}\n…` : result.text;
   return <pre className={SOURCE_PRE}>{preview}</pre>;

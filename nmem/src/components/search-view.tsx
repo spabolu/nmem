@@ -6,7 +6,7 @@ import { search, statusOf, TEMPLATES } from "@/lib/kernel/view";
 import { topicById } from "@/lib/present";
 import { Blank } from "./blank";
 import { type Ctx, Prose } from "./said";
-import { TEXT_INPUT } from "./styles";
+import { H1, HINT, TEXT_INPUT } from "./styles";
 import { Tree } from "./tree";
 
 export function SearchView({
@@ -21,8 +21,8 @@ export function SearchView({
   return (
     <>
       <Tree ctx={ctx} current={null} />
-      <section className="doc" data-results={ids.join(",")} data-q={q}>
-        <h1>Search</h1>
+      <section data-results={ids.join(",")} data-q={q}>
+        <h1 className={H1}>Search</h1>
         <Form
           className="mb-3 flex gap-2"
           action={`${repoPath(repo)}/search`}
@@ -40,7 +40,7 @@ export function SearchView({
           <Button type="submit">Search</Button>
         </Form>
         {q.trim() === "" ? (
-          <p className="hint">
+          <p className={HINT}>
             Type a topic name, a word, or part of a headline.
           </p>
         ) : ids.length === 0 ? (
@@ -49,7 +49,7 @@ export function SearchView({
             covers. Try a shorter word.
           </Blank>
         ) : (
-          <p className="hint" aria-live="polite">
+          <p className={HINT} aria-live="polite">
             {ids.length} {ids.length === 1 ? "topic" : "topics"}
           </p>
         )}

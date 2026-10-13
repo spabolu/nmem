@@ -6,7 +6,14 @@ import { rootId } from "@/lib/kernel/site";
 import { censusOf, statusOf, TEMPLATES } from "@/lib/kernel/view";
 import { depthOf, dotOf, topicById } from "@/lib/present";
 import type { Ctx } from "./said";
-import { nodeClass, PANEL, PANEL_HD, PANEL_TITLE, TEXT_INPUT } from "./styles";
+import {
+  dotClass,
+  nodeClass,
+  PANEL,
+  PANEL_HD,
+  PANEL_TITLE,
+  TEXT_INPUT,
+} from "./styles";
 
 const STAT =
   "rounded-[6px] border border-(color:--borderColor-default) p-2 text-[12px] leading-[1.25] text-(color:--fgColor-muted)";
@@ -83,7 +90,7 @@ export function Tree({
                 href={topicHref(ctx.repo, id, audience)}
                 aria-current={on ? "page" : undefined}
               >
-                <span className={`dot ${dotOf(status)}`} />
+                <span className={dotClass(dotOf(status))} />
                 <span>
                   <span className="block font-[600]">
                     {topic.name[audience]}
