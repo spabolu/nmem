@@ -89,6 +89,42 @@
     "wayfinder/claim-adr-outage": {
       "verdict": "still-true",
       "change": null
+    },
+    "seedling/claim-stdlib": {
+      "verdict": "still-true",
+      "change": null
+    },
+    "seedling/claim-6pm": {
+      "verdict": "no-longer-true",
+      "change": "a41783c"
+    },
+    "seedling/claim-two-days": {
+      "verdict": "true-since",
+      "change": "af5ef6a"
+    },
+    "seedling/claim-sundays": {
+      "verdict": "still-true",
+      "change": null
+    },
+    "seedling/claim-swap-rule": {
+      "verdict": "still-true",
+      "change": null
+    },
+    "seedling/claim-adr-swap-link": {
+      "verdict": "no-longer-true",
+      "change": "pr#16"
+    },
+    "seedling/claim-adr-swap-pick": {
+      "verdict": "depends",
+      "change": "af5ef6a"
+    },
+    "seedling/claim-weekly-count": {
+      "verdict": "depends",
+      "change": "pr#17"
+    },
+    "seedling/claim-no-repeat-rule": {
+      "verdict": "still-true",
+      "change": null
     }
   },
   "coveredElsewhere": {
