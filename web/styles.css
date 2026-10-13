@@ -139,7 +139,7 @@ article.decision time { color: var(--fgColor-muted); font-size: 12px; }
 .meta { margin: 0; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; color: var(--fgColor-muted); font-size: 12px; }
 .avatar { display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; color: var(--fgColor-onEmphasis); font-size: 9px; font-weight: 700; }
 .why.gap { color: var(--fgColor-attention); background: var(--bgColor-attention-muted); border: 1px dashed var(--borderColor-attention-emphasis); border-radius: 6px; padding: 1px 8px; }
-.chip { display: inline-flex; align-items: center; border: 1px solid var(--borderColor-default); border-radius: 2em; padding: 0 8px; background: var(--bgColor-muted); color: var(--fgColor-default); font-size: 12px; font-weight: 500; line-height: 20px; }
+.chip { display: inline-flex; align-items: center; border: 1px solid var(--borderColor-default); border-radius: 2em; padding: 0 8px; background: transparent; color: var(--fgColor-default); font-size: 12px; font-weight: 500; line-height: 18px; }
 .chip.on, .ranges a.on { background: var(--bgColor-emphasis); color: var(--fgColor-onEmphasis); border-color: var(--bgColor-emphasis); }
 .chip:hover, .ranges a:hover { text-decoration: none; }
 .replaced { font-size: 12px; color: var(--fgColor-muted); }
