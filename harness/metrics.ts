@@ -17,8 +17,8 @@ import type { Ask, FactVerdict, UnavailableReason } from './judge.ts';
 import { factsOf, findQuote, resolveProof, spanOf } from './record.ts';
 import type { RepoRecord } from './record.ts';
 import { hashOf } from './hash.ts';
-import { decisionDay, kindOf, labelChange, pageOf, presets, rangeOf, statusOf, TEMPLATES, TRUST_WORDS } from './view.ts';
-import type { Audience, RepoFacts } from './view.ts';
+import { decisionDay, decisionsFor, kindOf, labelChange, pageOf, presets, rangeOf, statusOf, TEMPLATES, TRUST_WORDS } from './view.ts';
+import type { Audience, Item, RepoFacts } from './view.ts';
 import { plainHits } from '../fixtures/lib/plain.mjs';
 
 export type Outcome =
@@ -271,6 +271,8 @@ function quotesOverlap(ctx: ItemContext, pathName: string, goldQuote: string, sy
 /**
  * What a screen shows that facts compares, with system ids mapped to gold ids: a page's status, shown decisions, and
  * whether it has an example; a timeline's counts, named items, routine strip, and cards. null when the topic was missed.
+ * The kernel breaks a tie in rank by list order, which carries no judgment. So where it picked one of several equals,
+ * a shown decision is its day and a named item is its rank, not its id.
  */
 function screenView(ctx: ItemContext, side: 'gold' | 'system'): Readonly<Record<string, unknown>> | null {
   const parsed = parseScreen(ctx.item.id);
@@ -279,9 +281,11 @@ function screenView(ctx: ItemContext, side: 'gold' | 'system'): Readonly<Record<
   const snapshot = side === 'gold' ? ctx.gold.oracle : ctx.system;
   if (parsed.kind === 'page') {
     const page = pageOf(snapshot, ctx.facts, topic);
+    const next = decisionsFor(topic, snapshot, ctx.facts)[page.decisions.shown.length];
+    const cut = next ? decisionDay(next, ctx.facts) : null;
     return {
       status: [page.status.kind, 'since' in page.status ? page.status.since : null],
-      shown: page.decisions.shown.map((row) => (side === 'gold' ? row.decision.id : (replacedGold(row.decision.id, ctx) ?? row.decision.id))).sort(),
+      shown: page.decisions.shown.map((row) => (row.day === cut ? row.day : side === 'gold' ? row.decision.id : (replacedGold(row.decision.id, ctx) ?? row.decision.id))).sort(),
       example: page.example !== null,
     };
   }
@@ -291,7 +295,7 @@ function screenView(ctx: ItemContext, side: 'gold' | 'system'): Readonly<Record<
   const cards = (row: 'up' | 'down') => view.cards.filter((card) => (card.kind === 'decision') === (row === 'up')).map((card) => cardIdentity(card, ctx, side)).sort();
   return {
     counts: (['decision', 'behavior', 'check', 'net'] as const).map((kind) => view.counts[kind] ?? 0),
-    named: view.named.map((item) => itemIdentity(item.ref, ctx, side)),
+    named: view.named.map((item) => (view.items.filter((other) => rankOf(other) === rankOf(item)).length > 1 ? rankOf(item) : itemIdentity(item.ref, ctx, side))),
     routine: [view.routine.count, view.routine.lines],
     up: cards('up'),
     down: cards('down'),
@@ -358,6 +362,12 @@ function parseScreen(id: string): { readonly kind: 'page'; readonly topic: strin
   if (id.startsWith('page:')) return { kind: 'page', topic: id.slice('page:'.length) };
   const colon = id.indexOf(':');
   return { kind: 'timeline', preset: id.slice(0, colon), topic: id.slice(colon + 1) };
+}
+
+/** What the summary ranks an item by: a decision's day, a finding's change and severity, an undone group itself. */
+function rankOf(item: Item): string {
+  if (item.kind === 'decision') return `decision ${item.day}`;
+  return item.kind === 'net' ? item.ref : `${item.ref.replace(/\/\d+$/, '')} ${item.kind}`;
 }
 
 function itemIdentity(ref: string, ctx: ItemContext, side: 'gold' | 'system'): string {
@@ -674,8 +684,10 @@ const withProse = (item: GoldItem): boolean => item.kind !== 'screen' && item.ki
  *  finding/*         MATCHED, SEVERITY; topics; ASK as above.
  *  change/*          KIND (view.ts kindOf); routine parts partition gold's routine files; topics.
  *  undone/net        MATCHED (exact members, net zero checked by the kernel).
- *  screen/page       status line, shown decisions in order, example present.
+ *  screen/page       status line, shown decisions, example present.
  *  screen/timeline   summary counts by kind, the named items in order, routine count and lines, cards per row.
+ *                    Where the kernel picked one of several equals by list order, a shown decision compares by its
+ *                    day and a named item by its rank.
  *
  * Why-kind is not a fact. gap-honesty and false-gap own it, so a fabricated reason moves exactly the metric named for
  * it. Facts are audience-independent, so neither column wins on facts alone.

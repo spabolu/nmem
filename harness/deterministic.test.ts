@@ -122,17 +122,77 @@ function relabel(snapshot: Snapshot): Snapshot {
   };
 }
 
-test('relabeling ids and reordering lists changes no deterministic score', async () => {
-  const gold = loadGold(outDir, 'tally' as never);
-  const before = await scoreSnapshot(gold, gold.oracle, 'tally' as never, outDir);
-  const after = await scoreSnapshot(gold, relabel(gold.oracle), 'tally' as never, outDir);
-  const value = (score: (typeof before)[number], id: (typeof DETERMINISTIC)[number]): string => {
-    const got = score.scores[id];
-    return got.kind === 'scored' ? String(got.value) : got.kind;
+for (const slug of ['tally', 'wayfinder']) {
+  test(`relabeling ids and reordering lists changes no deterministic score on ${slug}`, async () => {
+    const gold = loadGold(outDir, slug as never);
+    const before = await scoreSnapshot(gold, gold.oracle, slug as never, outDir);
+    const after = await scoreSnapshot(gold, relabel(gold.oracle), slug as never, outDir);
+    const value = (score: (typeof before)[number], id: (typeof DETERMINISTIC)[number]): string => {
+      const got = score.scores[id];
+      return got.kind === 'scored' ? String(got.value) : got.kind;
+    };
+    const left = before.map((score) => DETERMINISTIC.map((id) => value(score, id)).join(','));
+    const right = after.map((score) => DETERMINISTIC.map((id) => value(score, id)).join(','));
+    assert.deepEqual(right, left);
+  });
+}
+
+test('the summary may name either of two findings that tie on change and severity', async () => {
+  const gold = loadGold(outDir, 'wayfinder' as never);
+  const pr16 = gold.oracle.changes.find((change) => change.id === 'pr#16');
+  assert.deepEqual(pr16?.findings.map((finding) => finding.severity), ['behavior', 'behavior', 'check']);
+  const swapped = {
+    ...gold.oracle,
+    changes: gold.oracle.changes.map((change) => (change.id === 'pr#16' ? { ...change, findings: [change.findings[1], change.findings[0], change.findings[2]] as unknown as typeof change.findings } : change)),
   };
-  const left = before.map((score) => DETERMINISTIC.map((id) => value(score, id)).join(','));
-  const right = after.map((score) => DETERMINISTIC.map((id) => value(score, id)).join(','));
-  assert.deepEqual(right, left);
+  const scores = await scoreSnapshot(gold, swapped, 'wayfinder' as never, outDir);
+  const timelines = scores.filter((score) => score.item.kind === 'screen' && !score.item.id.startsWith('page:') && score.audience === 'eng').map((score) => {
+    const facts = score.scores.facts;
+    return `${score.item.id} ${facts.kind === 'scored' ? facts.value : facts.kind}`;
+  });
+  assert.deepEqual(timelines, [
+    'life:root 1',
+    '3m:root 1',
+    '2w:root 1',
+    'life:counting 1',
+    '3m:counting 1',
+    '2w:counting 1',
+    'life:replies 1',
+    '3m:replies 1',
+    '2w:replies 1',
+    'life:callers 1',
+    '3m:callers 1',
+    '2w:callers 1',
+    'life:stores 1',
+    '3m:stores 1',
+    '2w:stores 1',
+    'life:clock 1',
+    '3m:clock 1',
+    '2w:clock 1',
+    'life:metrics 1',
+    '3m:metrics 1',
+    '2w:metrics 1',
+  ]);
+});
+
+test('a page may show any of the decisions tied on the day its cut falls on', async () => {
+  const gold = loadGold(outDir, 'wayfinder' as never);
+  const tied = { ...gold.oracle, decisions: gold.oracle.decisions.map((decision) => (decision.id === 'd-revert-fail-open' ? { ...decision, carriedBy: 'pr#11' as ChangeId } : decision)) };
+  const reversed = { ...tied, decisions: [...tied.decisions].reverse() };
+  const scores = await scoreSnapshot({ ...gold, oracle: tied }, reversed, 'wayfinder' as never, outDir);
+  const pages = scores.filter((score) => score.item.kind === 'screen' && score.item.id.startsWith('page:') && score.audience === 'eng').map((score) => {
+    const facts = score.scores.facts;
+    return `${score.item.id} ${facts.kind === 'scored' ? facts.value : facts.kind}`;
+  });
+  assert.deepEqual(pages, [
+    'page:root 1',
+    'page:counting 1',
+    'page:replies 1',
+    'page:callers 1',
+    'page:stores 1',
+    'page:clock 1',
+    'page:metrics 1',
+  ]);
 });
 
 test('render of tally root whole life matches the gold hand-computed screen', () => {
