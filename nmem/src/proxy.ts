@@ -3,7 +3,7 @@ import { readQuery } from "@/lib/kernel/site";
 import { siteForProxy } from "@/lib/repos";
 
 /**
- * Pages stream, so once rendering starts the status is 200. Missing repos and topics, and queries web/site.ts refuses,
+ * Pages stream, so once rendering starts the status is 200. Missing repos and topics, and queries readQuery refuses,
  * are decided here instead, before any byte is sent: the proxy serves the static
  * /-refused/<status> page with that status itself, because Next sends a rewrite with the target's 200.
  */

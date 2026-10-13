@@ -1,6 +1,6 @@
 /**
- * Parity for the Next app in nmem/, kept in the lab so the app imports nothing outside nmem/. The content checks
- * web/verify.mjs makes against web/server.ts, made against `next start`.
+ * Parity for the Next app in nmem/, kept in the lab so the app imports nothing outside nmem/, checked against
+ * `next start`.
  * Fetches each page the way a reader would and checks the v1 screen rules against the kernel and gold for the tally
  * oracle, the null and engine snapshots, wayfinder, seedling, and p-limit when it is built. Then measures the timeline
  * layout in headless Chrome and shoots every view at 1400 light, 1400 dark, and 390 into the shots folder.

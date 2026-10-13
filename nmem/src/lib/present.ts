@@ -21,7 +21,7 @@ import {
 
 /**
  * Words and positions the pages print that the kernel does not compute: source labels, card names, avatar initials,
- * and the timeline board geometry. Ported from web/render.ts.
+ * and the timeline board geometry. Ported from the lab's old server renderer.
  */
 
 export function person(site: Site, login: string): string {

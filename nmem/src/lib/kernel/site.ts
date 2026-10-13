@@ -1,5 +1,5 @@
 /**
- * Frozen copy of the lab's web/site.ts loader and query reader, reading built artifacts only: snapshot.json, the
+ * Frozen copy of the lab's old site loader and query reader, reading built artifacts only: snapshot.json, the
  * site.json the lab bakes beside it (harness/bake.ts), and github.json. No git and no child processes.
  */
 import { createHash } from "node:crypto";

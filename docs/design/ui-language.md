@@ -21,12 +21,12 @@ Rule. Colors are design tokens with functional names, and every pattern works in
 
 In nmem:
 
-- `web/styles.css` declares every color once in `:root`, using Primer's functional names. Examples are `--fgColor-default`, `--fgColor-muted`, `--bgColor-muted`, `--borderColor-default`, and `--bgColor-attention-muted`.
+- `nmem/src/app/globals.css` imports Primer's primitives, which declare every color once using Primer's functional names. Examples are `--fgColor-default`, `--fgColor-muted`, `--bgColor-muted`, `--borderColor-default`, and `--bgColor-attention-muted`.
 - A `prefers-color-scheme: dark` block redefines the same names. No rule outside `:root` holds a raw hex value.
 - nmem's own purple has two tokens in the same style, `--bgColor-nmem-emphasis` and `--bgColor-nmem-muted`.
 - Status keeps one meaning per color. Green means up to date. Attention yellow means out of date. Muted gray means never written down. The words always appear next to the dot, so color is never the only signal.
 
-Rule. Text meets WCAG AA. That is 4.5:1 for body text and 3:1 for focus rings and status dots. `node web/contrast.mjs` checks every text and background token pair nmem uses, in both schemes. Source: Primer color usage.
+Rule. Text meets WCAG AA. That is 4.5:1 for body text and 3:1 for focus rings and status dots. Primer's primitives own these pairs, and nmem adds no text color of its own. Source: Primer color usage.
 
 ## Spacing and layout
 
@@ -35,7 +35,7 @@ Rule. Spacing comes from a ramp with a 4px base unit. Closeness means things are
 In nmem:
 
 - Page-level padding, margins, and gaps are multiples of 4: 8, 12, 16, 24, and 32.
-- The timeline board keeps its measured offsets, because `web/verify.mjs` checks that its labels are not clipped.
+- The timeline board keeps its measured offsets, because `harness/app-parity.mjs` checks that its labels are not clipped.
 
 Rule. Follow the reader's natural order, top to bottom, and keep the page focused on its content. Source: Primer layout.
 
@@ -43,7 +43,7 @@ In nmem:
 
 - Below 768px, every view is one column. The topic page puts the answer first and the tree after it.
 - The header wraps. Topics and Timeline take their own row.
-- No view scrolls sideways at 390px. `node web/shoot-ui.mjs <dir>` measures this and prints the result.
+- No view scrolls sideways at 390px. `node harness/app-parity.mjs <dir>` measures this and prints the result.
 
 ## Navigation
 
@@ -106,10 +106,9 @@ Checked Oct 13, 2026 against @primer/primitives 11.10.0 (https://unpkg.com/@prim
 | Blankslate | empty and 404 views lack the icon, heading, description anatomy | left open | https://primer.style/product/components/blankslate/ |
 | PageHeader, CounterLabel | not checked in depth | left open | https://primer.style/product/components/page-header/, https://primer.style/product/components/counter-label/ |
 
-Timeline board labels stay at 11 and 13 px because `web/verify.mjs` measures them for clipping.
+Timeline board labels stay at 11 and 13 px because `harness/app-parity.mjs` measures them for clipping.
 
 ## Rerun the checks
 
-- `node web/verify.mjs` checks the screen rules and the timeline layout.
-- `node web/contrast.mjs` checks WCAG AA for each token pair, light and dark.
-- `node web/shoot-ui.mjs <dir>` shoots every view through Chrome DevTools at 1400px light, 1400px dark, and 390px. It also reports any view that scrolls sideways.
+- `node harness/app-parity.mjs <dir>` checks the screen rules and the timeline layout against `next start`, then shoots every view through Chrome DevTools at 1400px light, 1400px dark, and 390px into `<dir>`. It also reports any view that scrolls sideways.
+- `node harness/pixel-diff.mjs <dir>` compares those shots with the frozen set in `harness/shots-baseline`.

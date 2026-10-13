@@ -41,7 +41,7 @@ How `nmem build <workspace> <out.json>` turns a repo and its GitHub record into 
 node engine/cli.ts add sindresorhus/p-limit        # or https://github.com/sindresorhus/p-limit
 node engine/cli.ts build-repo sindresorhus/p-limit # writes snapshot.json next to github.json
 node engine/cli.ts serve sindresorhus/p-limit      # prints the local URL; stop it with Ctrl-C
-node web/shoot-repo.mjs sindresorhus/p-limit       # parse check, text pages, and screenshots
+node engine/cli.ts bake sindresorhus/p-limit       # rewrites site.json for an existing snapshot, no model calls
 ```
 
 ## Models and auth

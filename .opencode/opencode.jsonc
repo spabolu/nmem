@@ -1,6 +1,6 @@
 {
   "$schema": "https://opencode.ai/config.json",
-  // A subagent that starts the web server from the shell tool waits on it forever. Scripts such as web/verify.mjs start and stop it.
+  // A subagent that starts the web server from the shell tool waits on it forever. Scripts such as harness/app-parity.mjs start and stop it.
   "agents": {
     "poteto-agent": {
       "permissions": [

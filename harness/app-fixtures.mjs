@@ -1,6 +1,6 @@
 /**
  * Lays out the generated fixtures the way `nmem add` and `nmem build-repo` lay out a real repo, so the site can serve
- * them: <root>/<owner>/<repo>/ links each fixture file and holds snapshot.json and its site.json, the gold oracle web/verify.mjs serves.
+ * them: <root>/<owner>/<repo>/ links each fixture file and holds snapshot.json and its site.json, the gold oracle app-parity serves.
  *
  *   node harness/app-fixtures.mjs [dir]    prints the root; point NMEM_REPOS at it (plus ~/.cache/nmem/repos)
  */
