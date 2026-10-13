@@ -1648,7 +1648,7 @@ const views = {
       ],
     },
     'c-go123': { topics: [] },
-    'pr#16': { topics: ['reminders', 'shed-sheet'] },
+    'pr#16': { topics: ['reminders', 'shed-sheet', 'signup'] },
     'pr#17': {
       topics: [],
       routine: [
@@ -1739,6 +1739,23 @@ const views = {
         },
       },
       covers: ['notified-now'],
+    },
+    {
+      id: 'd-keep-phone',
+      what: {
+        eng: "Rosa Delgado decided to keep collecting volunteers' phone numbers.",
+        plain: "Rosa Delgado decided to keep collecting volunteers' phone numbers.",
+        ev: comment('disc15-rosa-2', 'Yes keep phones'),
+      },
+      topics: ['signup'],
+      carriedBy: 'pr#16',
+      why: {
+        reason: {
+          eng: 'Rosa still calls people when there is a heat wave.',
+          plain: 'Rosa still calls people when there is a heat wave.',
+          ev: comment('disc15-rosa-2', 'I still call people when there is a heat wave.'),
+        },
+      },
     },
     {
       id: 'd-go123',
@@ -2083,7 +2100,7 @@ const views = {
       topic: 'root',
       from: '2024-04-06',
       to: '2025-03-29',
-      counts: { decision: 19, check: 2 },
+      counts: { decision: 20, check: 2 },
       named: ['d-remind-5pm', 'f-swap-two-days', 'd-swap-adjacent'],
       routine: { count: 8, lines: 156 },
     },
@@ -2101,8 +2118,8 @@ const views = {
       topic: 'signup',
       from: '2024-04-06',
       to: '2025-03-29',
-      counts: { decision: 3 },
-      named: ['d-signup-site', 'd-big-type', 'd-csv-roster'],
+      counts: { decision: 4 },
+      named: ['d-keep-phone', 'd-signup-site', 'd-big-type'],
       routine: { count: 1, lines: 2 },
     },
     {
