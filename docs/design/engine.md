@@ -6,7 +6,7 @@ How `nmem build <workspace> <out.json>` turns a repo and its GitHub record into 
 
 - **Input.** A workspace holds `repo/` (a git clone) and `github.json`. Nothing else is readable during a scored build.
 - **Output.** One `Snapshot` per `harness/contract.ts`, checked with `parseSnapshot` before it is written. The engine writes judgments only. Kinds, dates, deciders, statuses, counts, and wording templates come from `harness/view.ts`.
-- **State.** The workspace is re-read on every build. The only stored state is a content-addressed cache of model replies, under the directory passed as `--store`. A rerun hits every key, writes the same bytes, and calls no model. A SQLite mirror of the record waits for the real-GitHub slice, which needs sync cursors.
+- **State.** The workspace is re-read on every build. The only stored state is a content-addressed cache of model replies, under the directory passed as `--store`. A rerun hits every key, writes the same bytes, and calls no model. A real repo needs no SQLite: `sync.json` maps each pull, issue, and discussion number to the `updatedAt` its node was cached under, which is all incremental sync needs.
 - **Readers.** The website and the harness read snapshots, never the cache.
 
 ## Pipeline
@@ -31,6 +31,17 @@ How `nmem build <workspace> <out.json>` turns a repo and its GitHub record into 
 - Every gap object is scanned for a stated reason before it is written. A flagged card point is dropped, a flagged name or decision drops the object, and a scan that cannot answer counts as flagged.
 - Each model step has one honest fallback. A scored run fails rather than writing a partial snapshot after an auth or provider failure.
 - Engine ids carry no hyphen, because hyphenated gold ids are leak canaries.
+
+## Real repos
+
+`nmem add` mirrors a public GitHub repo into `~/.cache/nmem/repos/<owner>/<repo>/`: `repo/` is a clone with every branch, tag, and pull head, and HEAD on the default branch, and `github.json` is in the fixture format, built by `engine/mirror.ts` from GraphQL. It leaves out `reactions`, `checks`, `mergeMethod`, `crossReferences`, and `danglingReferences`, which no reader reads. A rerun lists pulls, issues, and discussions newest update first until it reaches what `sync.json` has, fetches only those, and rebuilds `github.json` from `sync.json` and the item cache in `~/.cache/nmem/github`, so the same remote state gives the same bytes. The token comes from `GITHUB_TOKEN`, `gh auth token`, or `nmem auth copilot`, because GraphQL refuses unauthenticated calls.
+
+```sh
+node engine/cli.ts add sindresorhus/p-limit        # or https://github.com/sindresorhus/p-limit
+node engine/cli.ts build-repo sindresorhus/p-limit # writes snapshot.json next to github.json
+node engine/cli.ts serve sindresorhus/p-limit      # prints the local URL; stop it with Ctrl-C
+node web/shoot-repo.mjs sindresorhus/p-limit       # parse check, text pages, and screenshots
+```
 
 ## Models and auth
 
