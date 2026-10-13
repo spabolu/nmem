@@ -1464,7 +1464,7 @@ const views = {
               ev: headFile('test/limit.test.ts', q.burstAssert),
             },
             {
-              eng: 'PR #16 says "no behavior change intended."',
+              eng: 'The PR #16 description calls the change mostly mechanical.',
               plain: 'The write-up called the change mostly mechanical.',
               ev: pr16(q.mostlyMechanical),
             },

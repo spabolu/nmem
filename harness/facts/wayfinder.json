@@ -1888,21 +1888,22 @@
     ]
   },
   "wayfinder/f-double/card/eng": {
-    "source": "3cdbf205f62d21a21ed63d396d7634ab",
+    "source": "b0abdb96a938406296f781a382ca05e5",
     "headline": [
       {
         "id": "f1",
-        "text": "test/limit.test.ts expects four 200s, then a 429, at limit 2."
-      },
-      {
-        "id": "f2",
-        "text": "PR #16 says \"no behavior change intended.\""
+        "text": "test/limit.test.ts expects four 200s, then a 429, at limit 2"
       }
     ],
-    "supporting": [],
+    "supporting": [
+      {
+        "id": "f2",
+        "text": "The PR #16 description calls the change mostly mechanical"
+      }
+    ],
     "paraphrase": [
-      "At limit 2, test/limit.test.ts looks for four 200s followed by a 429.",
-      "PR #16 states \"no behavior change intended.\""
+      "At limit 2, test/limit.test.ts requires four 200s and then a 429.",
+      "The description of PR #16 calls this change mostly mechanical."
     ],
     "review": "auto",
     "flags": []
