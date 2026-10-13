@@ -1224,9 +1224,9 @@ const views = {
           ev: headFile('src/bucket.ts', q.refilledIf),
         },
         {
-          eng: 'A new key is allowed up to twice the configured limit.',
-          plain: 'A new caller can send up to twice its allowance.',
-          ev: headFile('test/limit.test.ts', "test('a new key is allowed up to twice the configured limit', async () => {"),
+          eng: 'Every key gets twice the configured limit, both at first and again after each refill window.',
+          plain: 'Every caller gets twice its allowance, both at first and again each time it refills.',
+          ev: { verb: 'run', id: 'double-every-key', shows: 'same key 1000 ms later, five more: 200 200 200 200 429' },
         },
       ],
       example: {
@@ -1454,14 +1454,19 @@ const views = {
         {
           id: 'f-double',
           severity: 'behavior',
-          topics: ['counting'],
+          topics: ['counting', 'replies'],
           anchors: [assistFile('src/limit.ts', q.burstCall), assistFile('test/limit.test.ts', q.burstAssert)],
-          name: { eng: 'New keys get twice the limit', plain: 'New callers get twice their allowance' },
+          name: { eng: 'Every key gets twice the limit', plain: 'Every caller gets twice its allowance' },
           says: [
             {
               eng: 'test/limit.test.ts expects four 200s, then a 429, at limit 2.',
               plain: "The app's own check lets four requests through on an allowance of two.",
               ev: headFile('test/limit.test.ts', q.burstAssert),
+            },
+            {
+              eng: 'One refill window later the same key gets four more 200s, and its first reply says RateLimit-Remaining 3 under RateLimit-Limit 2.',
+              plain: 'We tried it: after one refill the same caller got four more through, and its first reply said 3 were left of an allowance of 2.',
+              ev: { verb: 'run', id: 'double-every-key', shows: 'first reply: RateLimit-Limit 2, RateLimit-Remaining 3' },
             },
             {
               eng: 'The PR #16 description calls the change mostly mechanical.',
@@ -2107,6 +2112,33 @@ console.log(\`limiter 2: \${second.join(' ')}\`);
 console.log(\`limit 2, one key, two limiters with their own stores: \${allowed} allowed\`);
 `,
     },
+    {
+      id: 'double-every-key',
+      at: head,
+      lang: 'node',
+      source: `import { createLimiter } from './src/limit.ts';
+
+let now = 5000;
+const limit = createLimiter({ limit: 2, refillWindowMs: 1000, now: () => now });
+const send = async () => {
+  const headers = {};
+  const res = { statusCode: 200, setHeader(name, value) { headers[name] = value; }, end() {} };
+  await limit({ headers: { 'x-api-key': 'partner-live' } }, res, () => {});
+  return { code: res.statusCode, headers };
+};
+const five = async () => {
+  const seen = [];
+  for (let i = 0; i < 5; i += 1) seen.push(await send());
+  return seen;
+};
+const first = await five();
+now += 1000;
+const later = await five();
+console.log(\`limit 2, refillWindowMs 1000, five requests with no time passing: \${first.map((r) => r.code).join(' ')}\`);
+console.log(\`first reply: RateLimit-Limit \${first[0].headers['RateLimit-Limit']}, RateLimit-Remaining \${first[0].headers['RateLimit-Remaining']}\`);
+console.log(\`same key 1000 ms later, five more: \${later.map((r) => r.code).join(' ')}\`);
+`,
+    },
   ],
   screens: [
     { kind: 'page', topic: 'counting', status: { eng: 'Out of date since PR #11, Sep 9, 2024', plain: 'Out of date since Sep 9, 2024' } },
@@ -2134,8 +2166,8 @@ console.log(\`limit 2, one key, two limiters with their own stores: \${allowed} 
       topic: 'replies',
       from: '2024-11-19',
       to: '2024-11-19',
-      counts: { check: 1 },
-      named: ['f-reset'],
+      counts: { behavior: 1, check: 1 },
+      named: ['f-double', 'f-reset'],
       routine: quiet,
     },
     { kind: 'page', topic: 'root', status: upToDate },
