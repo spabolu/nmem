@@ -39,7 +39,7 @@ export function RepoBar(props: RepoBarProps) {
             {props.name}
           </NextLink>
         </nav>
-        <UnderlineNav aria-label="Repository views">
+        <UnderlineNav aria-label="Repository views" hideIconsBreakpoint={null}>
           <UnderlineNav.Item
             as={NextLink}
             href={props.topicsHref}
