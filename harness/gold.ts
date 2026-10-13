@@ -219,12 +219,12 @@ export type AnchorResolver = (source: RecordSource) => { readonly object: string
 
 type Span = { readonly object: string; readonly revision: number; readonly span: readonly [number, number] };
 
-function overlapLength(left: Span | null, right: Span | null): number {
+export function overlapLength(left: Span | null, right: Span | null): number {
   if (!left || !right || left.object !== right.object || left.revision !== right.revision) return 0;
   return Math.max(0, Math.min(left.span[1], right.span[1]) - Math.max(left.span[0], right.span[0]));
 }
 
-function topicScore(core: readonly string[], files: readonly string[], allCores: ReadonlySet<string>): number {
+export function topicScore(core: readonly string[], files: readonly string[], allCores: ReadonlySet<string>): number {
   const coreSet = new Set(core);
   const relevant = files.filter((file) => allCores.has(file));
   const inter = relevant.filter((file) => coreSet.has(file)).length;

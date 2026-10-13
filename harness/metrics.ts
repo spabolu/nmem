@@ -92,7 +92,10 @@ function sameSet(left: readonly string[], right: readonly string[]): boolean {
   return right.every((item) => have.has(item));
 }
 
-function share(checks: readonly { readonly ok: boolean; readonly headline?: boolean }[], missed: boolean): Outcome {
+/** One exact fact of an item, named so census can say which one failed. */
+export type FactCheck = { readonly fact: string; readonly ok: boolean; readonly headline?: boolean };
+
+function share(checks: readonly FactCheck[], missed: boolean): Outcome {
   if (missed) return { kind: 'scored', value: 0, why: 'missed' };
   if (checks.length === 0) return { kind: 'scored', value: 1, why: 'no facts' };
   if (checks.some((check) => check.headline && !check.ok)) {
@@ -161,9 +164,15 @@ function alignedTopics(ids: readonly string[], ctx: ItemContext, side: 'gold' | 
 }
 
 function factsCompute(ctx: ItemContext): Outcome {
+  const checks = factChecks(ctx);
+  return share(checks ?? [], checks === null);
+}
+
+/** The named exact facts of an item, or null when no system object aligned to it. */
+export function factChecks(ctx: ItemContext): readonly FactCheck[] | null {
   if (ctx.item.kind === 'topic') {
     const pair = topicPair(ctx);
-    if (!pair) return share([], true);
+    if (!pair) return null;
     const goldStatus = statusOf(pair.gold.id, ctx.gold.oracle, ctx.facts);
     const systemStatus = statusOf(pair.system.id, ctx.system, ctx.facts);
     const goldParent = pair.gold.parent;
@@ -171,84 +180,83 @@ function factsCompute(ctx: ItemContext): Outcome {
     const core = ctx.gold.extras.core.get(ctx.item.id) ?? [];
     const recall = core.length === 0 ? 1 : core.filter((file) => pair.system.files.includes(file)).length / core.length;
     const start = spanOfLength(ctx, pair.gold.start, pair.system.start);
-    return share([
-      { ok: true, headline: true },
-      { ok: goldStatus.kind === systemStatus.kind, headline: true },
-      { ok: ('since' in goldStatus ? goldStatus.since : null) === ('since' in systemStatus ? systemStatus.since : null), headline: true },
-      { ok: start, headline: true },
-      { ok: goldParent === systemParent },
-      { ok: sameSet(pair.gold.docs, pair.system.docs) },
-      { ok: (pair.gold.example === null) === (pair.system.example === null) },
-      { ok: recall >= 0.8 },
-    ], false);
+    return [
+      { fact: 'matched', ok: true, headline: true },
+      { fact: 'status', ok: goldStatus.kind === systemStatus.kind, headline: true },
+      { fact: 'status change', ok: ('since' in goldStatus ? goldStatus.since : null) === ('since' in systemStatus ? systemStatus.since : null), headline: true },
+      { fact: 'start', ok: start, headline: true },
+      { fact: 'parent', ok: goldParent === systemParent },
+      { fact: 'docs', ok: sameSet(pair.gold.docs, pair.system.docs) },
+      { fact: 'example', ok: (pair.gold.example === null) === (pair.system.example === null) },
+      { fact: 'core', ok: recall >= 0.8 },
+    ];
   }
   if (ctx.item.kind === 'claim' && ctx.item.expect === 'holds') {
     const index = ctx.gold.extras.claims.indexOf(ctx.item.id);
     const gold = ctx.gold.oracle.claims[index];
-    if (!gold) return share([], true);
+    if (!gold) return null;
     const flagged = ctx.system.claims.some((claim) => claim.verdict !== 'still-true' && claim.sentence.path === gold.sentence.path && quotesOverlap(ctx, gold.sentence.path, gold.sentence.quote, claim.sentence.quote));
-    return share([{ ok: !flagged, headline: true }], false);
+    return [{ fact: 'not flagged', ok: !flagged, headline: true }];
   }
   if (ctx.item.kind === 'claim') {
     const pair = claimPair(ctx);
-    if (!pair) return share([], true);
+    if (!pair) return null;
     const goldChange = claimChange(pair.gold);
     const systemChange = claimChange(pair.system);
     const systemTopic = [...ctx.alignment.topics].find(([, local]) => local === pair.system.topic)?.[0] ?? pair.system.topic;
-    return share([
-      { ok: true, headline: true },
-      { ok: pair.gold.verdict === pair.system.verdict, headline: true },
-      { ok: goldChange === systemChange, headline: true },
-      { ok: pair.gold.topic === systemTopic },
-    ], false);
+    return [
+      { fact: 'matched', ok: true, headline: true },
+      { fact: 'verdict', ok: pair.gold.verdict === pair.system.verdict, headline: true },
+      { fact: 'change', ok: goldChange === systemChange, headline: true },
+      { fact: 'topic', ok: pair.gold.topic === systemTopic },
+    ];
   }
   if (ctx.item.kind === 'decision') {
     const pair = decisionPair(ctx);
-    if (!pair) return share([], true);
+    if (!pair) return null;
     const topics = sameSet(pair.gold.topics, alignedTopics(pair.system.topics, ctx, 'system'));
     const ask = pair.gold.why.kind === 'not-recorded' && pair.system.why.kind === 'not-recorded'
       ? sameSet(pair.gold.why.ask, pair.system.why.ask)
       : true;
     const days = (ctx.gold.extras.anchors.get(ctx.item.id) ?? [pair.gold.what.source]).map((source) => decisionDay({ ...pair.gold, what: { ...pair.gold.what, source } }, ctx.facts));
-    return share([
-      { ok: true, headline: true },
-      { ok: days.includes(decisionDay(pair.system, ctx.facts)), headline: true },
-      { ok: topics, headline: true },
-      { ok: pair.gold.carriedBy === pair.system.carriedBy },
-      { ok: (pair.gold.replacedBy ?? null) === replacedGold(pair.system.replacedBy, ctx) },
-      { ok: ask },
-    ], false);
+    return [
+      { fact: 'matched', ok: true, headline: true },
+      { fact: 'day', ok: days.includes(decisionDay(pair.system, ctx.facts)), headline: true },
+      { fact: 'topics', ok: topics, headline: true },
+      { fact: 'carried by', ok: pair.gold.carriedBy === pair.system.carriedBy },
+      { fact: 'replaced by', ok: (pair.gold.replacedBy ?? null) === replacedGold(pair.system.replacedBy, ctx) },
+      { fact: 'ask', ok: ask },
+    ];
   }
   if (ctx.item.kind === 'finding') {
     const pair = findingPair(ctx);
-    if (!pair) return share([], true);
+    if (!pair) return null;
     const ask = pair.gold.why.kind === 'not-recorded' && pair.system.why.kind === 'not-recorded'
       ? sameSet(pair.gold.why.ask, pair.system.why.ask)
       : true;
-    return share([
-      { ok: true, headline: true },
-      { ok: pair.gold.severity === pair.system.severity, headline: true },
-      { ok: sameSet(pair.gold.topics, alignedTopics(pair.system.topics, ctx, 'system')), headline: true },
-      { ok: ask },
-    ], false);
+    return [
+      { fact: 'matched', ok: true, headline: true },
+      { fact: 'severity', ok: pair.gold.severity === pair.system.severity, headline: true },
+      { fact: 'topics', ok: sameSet(pair.gold.topics, alignedTopics(pair.system.topics, ctx, 'system')), headline: true },
+      { fact: 'ask', ok: ask },
+    ];
   }
   if (ctx.item.kind === 'change') {
     const pair = changePair(ctx);
-    if (!pair) return share([], true);
+    if (!pair) return null;
     const goldFiles = pair.gold.routine.flatMap((part) => part.files);
     const systemFiles = pair.system.routine.flatMap((part) => part.files);
-    return share([
-      { ok: kindOf(pair.gold.id, ctx.gold.oracle, ctx.facts) === kindOf(pair.system.id, ctx.system, ctx.facts), headline: true },
-      { ok: sameSet(goldFiles, systemFiles) && new Set(systemFiles).size === systemFiles.length },
-      { ok: sameSet(pair.gold.topics, alignedTopics(pair.system.topics, ctx, 'system')) },
-    ], false);
+    return [
+      { fact: 'kind', ok: kindOf(pair.gold.id, ctx.gold.oracle, ctx.facts) === kindOf(pair.system.id, ctx.system, ctx.facts), headline: true },
+      { fact: 'routine files', ok: sameSet(goldFiles, systemFiles) && new Set(systemFiles).size === systemFiles.length },
+      { fact: 'topics', ok: sameSet(pair.gold.topics, alignedTopics(pair.system.topics, ctx, 'system')) },
+    ];
   }
   if (ctx.item.kind === 'undone') {
-    const index = ctx.alignment.undone.get(ctx.item.id);
-    return share([{ ok: index !== undefined, headline: true }], index === undefined);
+    return ctx.alignment.undone.has(ctx.item.id) ? [{ fact: 'matched', ok: true, headline: true }] : null;
   }
-  if (ctx.item.kind === 'screen') return screenFacts(ctx);
-  return share([], true);
+  if (ctx.item.kind === 'screen') return screenChecks(ctx);
+  return null;
 }
 
 function replacedGold(id: string | null, ctx: ItemContext): string | null {
@@ -304,11 +312,11 @@ function screenView(ctx: ItemContext, side: 'gold' | 'system'): Readonly<Record<
 }
 
 /** A screen is right or wrong as a whole: every compared part is a headline fact. */
-function screenFacts(ctx: ItemContext): Outcome {
+function screenChecks(ctx: ItemContext): readonly FactCheck[] | null {
   const gold = screenView(ctx, 'gold');
   const system = screenView(ctx, 'system');
-  if (!gold || !system) return share([], true);
-  return share(Object.keys(gold).map((part) => ({ ok: JSON.stringify(gold[part]) === JSON.stringify(system[part]), headline: true })), false);
+  if (!gold || !system) return null;
+  return Object.keys(gold).map((part) => ({ fact: part, ok: JSON.stringify(gold[part]) === JSON.stringify(system[part]), headline: true }));
 }
 
 function goldTopicOf(id: string, ctx: ItemContext): string {

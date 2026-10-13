@@ -21,6 +21,8 @@ node harness/cli.ts run --system ../proto/eventlog/system.json --repo tally   # 
 node harness/cli.ts run --system ../proto/eventlog/system.json --no-judge     # deterministic metrics only
 node harness/cli.ts report <runId>                               # re-render a finished run
 node harness/cli.ts render --run <runId> --system eventlog --repo wayfinder --topic counting
+node harness/cli.ts compare <runId> <runId>                      # items whose usable verdict flipped, by gold id
+node harness/cli.ts census <runId> [--system nmem]               # first failing gate and reason per not-usable item, grouped
 ```
 
 `run` labels its numbers uncalibrated unless a stamp matches the harness source, the judge model and version, gold, facts, and the two reviews. Every build is unblinded until the sandbox lands. `--offline` uses only judge verdicts already in `harness/.cache/judge/`. `--rescore` scores every cell again from its kept snapshot.

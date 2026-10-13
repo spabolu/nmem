@@ -11,6 +11,7 @@
  *   report <runId>                                re-render report.json and report.md
  *   render --run <runId> --system <name> --repo <slug> [--topic <id>] [--from <day> --to <day>]
  *   compare <runId> <runId>                       items whose usable verdict flipped, by gold id
+ *   census <runId> [--system <name>]              first failing gate and its reason for every not-usable item, grouped
  *   cards --condition gold|github-only|<runId>/<system>/<trial> --out <participant-dir>
  *   score-sheets <dir>
  *
@@ -20,6 +21,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { failureCensus, renderCensus } from './census.ts';
 import { calibrate, findStamp, loadStamp, renderCalibration, stampInputs } from './calibrate.ts';
 import { freezeFacts } from './facts.ts';
 import { discoverRepos, loadGold } from './gold.ts';
@@ -27,7 +29,7 @@ import type { Gold, Slug } from './gold.ts';
 import { assertFamilySeparation, familyOf, openJudge, parseJudgeConfig } from './judge.ts';
 import type { Judge, JudgeConfig } from './judge.ts';
 import { writeCurrencySheet, writeFactsSheet } from './reviews.ts';
-import { buildReport, renderMarkdown } from './report.ts';
+import { buildReport, compareRuns, renderMarkdown } from './report.ts';
 import { checkSystem, detectSandbox, loadRun, MAX_LIVE_CALLS, parseManifest, run } from './run.ts';
 import type { RunId } from './run.ts';
 import { changeIds, factsOf, openFixture } from './record.ts';
@@ -57,6 +59,7 @@ export type Command =
   | { readonly kind: 'report'; readonly runId: string }
   | { readonly kind: 'render'; readonly runId: string; readonly system: string; readonly repo: string; readonly topic: string | null; readonly range: { readonly from: string; readonly to: string } | null }
   | { readonly kind: 'compare'; readonly before: string; readonly after: string }
+  | { readonly kind: 'census'; readonly runId: string; readonly system: string | null }
   | { readonly kind: 'cards'; readonly condition: string; readonly out: string }
   | { readonly kind: 'score-sheets'; readonly dir: string };
 
@@ -148,7 +151,17 @@ export function parseArgs(argv: readonly string[]): Command {
     if ((from === null) !== (to === null)) throw new Error('--from and --to come together');
     return { kind: 'render', runId, system, repo, topic: flag(rest, '--topic'), range: from && to ? { from, to } : null };
   }
-  throw new Error('usage: check-system | facts | reviews | calibrate | run | report | render');
+  if (command === 'compare') {
+    const [before, after] = rest;
+    if (!before || !after) throw new Error('usage: compare <runId> <runId>');
+    return { kind: 'compare', before, after };
+  }
+  if (command === 'census') {
+    const runId = rest[0];
+    if (!runId || runId.startsWith('--')) throw new Error('usage: census <runId> [--system <name>]');
+    return { kind: 'census', runId, system: flag(rest, '--system') };
+  }
+  throw new Error('usage: check-system | facts | reviews | calibrate | run | report | render | compare | census');
 }
 
 const HARNESS_DIR = path.dirname(fileURLToPath(import.meta.url));
@@ -264,6 +277,16 @@ export async function main(argv: readonly string[]): Promise<number> {
     const report = buildReport(loaded, loaded.manifest.repos.map((repo) => loadGold(outDir, repo.slug)), stamp ? { kind: 'stamp', key: stamp.key, label: stamp.label, open: stamp.open } : { kind: 'uncalibrated' });
     fs.writeFileSync(path.join(runsDir, command.runId, 'report.md'), renderMarkdown(report));
     console.log(renderMarkdown(report));
+    return 0;
+  }
+  if (command.kind === 'compare') {
+    const flips = compareRuns(loadRun(runsDir, command.before as RunId), loadRun(runsDir, command.after as RunId));
+    for (const flip of flips) say(`${flip.item} ${flip.was ? 'yes' : 'no'} -> ${flip.now ? 'yes' : 'no'}`);
+    say(`${flips.filter((flip) => flip.now).length} became usable, ${flips.filter((flip) => !flip.now).length} stopped being usable`);
+    return 0;
+  }
+  if (command.kind === 'census') {
+    process.stdout.write(renderCensus(failureCensus(runsDir, outDir, command.runId as RunId, command.system)));
     return 0;
   }
   if (command.kind === 'render') {
