@@ -1025,7 +1025,7 @@ pre.source {
   .readas {
     display: none;
   }
-}
-.contents {
-  display: contents;
+  .repo-crumb {
+    flex-basis: 100%;
+  }
 }

@@ -43,7 +43,10 @@ async function RepoList() {
             Nothing is built yet. Add a repository to get started.
           </p>
         ) : (
-          <ul className="flex flex-col gap-3" data-repos={built.length}>
+          <ul
+            className="m-0 flex list-none flex-col gap-3 p-0"
+            data-repos={built.length}
+          >
             {built.map((card) => {
               const slug = `${card.identity.owner}/${card.identity.name}`;
               return (
@@ -92,7 +95,7 @@ async function RepoList() {
         {waiting.length > 0 ? (
           <>
             <h2 className="section-title mt-8">Added, not built yet</h2>
-            <ul className="flex flex-col gap-2">
+            <ul className="m-0 flex list-none flex-col gap-2 p-0">
               {waiting.map((card) => {
                 const slug = `${card.identity.owner}/${card.identity.name}`;
                 return (

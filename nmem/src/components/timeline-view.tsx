@@ -342,7 +342,7 @@ function Board({
               query.routine,
             )}
           >
-            +{slot.more} more
+            {`+${slot.more} more`}
           </NextLink>
         ) : null;
       return (
