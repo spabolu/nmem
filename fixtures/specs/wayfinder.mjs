@@ -1220,8 +1220,8 @@ const views = {
       docs: [guide.limits],
       headline: [
         {
-          eng: 'Each key has a bucket of permits that refills over time, and a request is rejected when less than one permit is left.',
-          plain: 'Each caller has an allowance that refills over time, and a request is blocked when less than one is left.',
+          eng: 'A bucket of permits refills over time, and a request is rejected when less than one permit is left.',
+          plain: 'An allowance refills over time, and a request is blocked when less than one is left.',
           ev: headFile('src/bucket.ts', q.refilledIf),
         },
         {
@@ -1406,14 +1406,14 @@ const views = {
           name: { eng: 'A limit of 2 stops letting a third request through', plain: 'An allowance of 2 no longer lets a third request through' },
           says: [
             {
-              eng: 'test/window.test.ts now expects a limit of 2 to allow two requests, then block the next two.',
-              plain: "The app's own check now expects two requests through at an allowance of 2, then two blocked.",
+              eng: 'test/window.test.ts expects a limit of 2 to allow two requests, then block the next two.',
+              plain: "The app's own check expects two requests through at an allowance of 2, then two blocked.",
               ev: { kind: 'file', path: 'test/window.test.ts', at: 'c-fix-bound', quote: 'assert.deepEqual(hits, [true, true, false, false]);' },
             },
             {
-              eng: 'Before the fix, the same test expected a third request through.',
-              plain: "Before the fix, the app's own check expected a third request through.",
-              ev: { kind: 'file', path: 'test/window.test.ts', at: 'c-window', quote: 'assert.deepEqual(hits, [true, true, true, false]);' },
+              eng: 'The commit message calls it an off-by-one fix.',
+              plain: 'The note on the change calls it a fix for a count that was off by one.',
+              ev: commit('c-fix-bound', 'fix window off-by-one'),
             },
           ],
           why: {
@@ -1499,7 +1499,7 @@ const views = {
             },
             {
               eng: 'PR #16 says "no behavior change intended."',
-              plain: 'The write-up said nothing would change.',
+              plain: 'The write-up said no change in behavior was intended.',
               ev: pr16(q.mostlyMechanical),
             },
           ],
@@ -1515,7 +1515,7 @@ const views = {
           says: [
             {
               eng: 'Nothing in src or test reads windowMs, so a caller still passing it has that option ignored.',
-              plain: 'Callers still using the old setting name get no error, and the setting is ignored.',
+              plain: 'Nothing in the app reads the old setting name, so a caller still using it has it ignored.',
               ev: { verb: 'grep', at: head, pattern: 'windowMs', paths: ['src', 'test'], shows: '(no matches)' },
             },
             {
@@ -1631,8 +1631,8 @@ const views = {
     {
       id: 'd-store-interface',
       what: {
-        eng: 'Counts are read and written through a Store interface.',
-        plain: 'Reading and saving counts became a separate step.',
+        eng: 'Extract a Store interface.',
+        plain: 'Storage became its own separate step.',
         ev: pr(2, 'Extract a store interface'),
       },
       alsoIntent: [commit('c-store', 'extract a Store interface and an in-memory adapter')],
@@ -1647,7 +1647,6 @@ const views = {
         plain: 'By default, each caller is counted by its own key.',
         ev: commit('c-apikey', q.msgApikey),
       },
-      alsoIntent: [comment('pr2-thread-mira', q.followUp)],
       topics: ['callers'],
       carriedBy: 'c-apikey',
       why: {
@@ -1756,7 +1755,7 @@ const views = {
     {
       id: 'd-revert-fail-open',
       what: {
-        eng: 'Reverted "don\'t 429 the world if redis blips", so a Redis error sends a 429 again.',
+        eng: 'Reverted the fail-open commit, so a Redis error sends a 429 again.',
         plain: 'Undid the change that stopped blocking callers when the shared database fails.',
         ev: commit('c-revert-fail-open', 'Revert "don\'t 429 the world if redis blips"'),
       },
