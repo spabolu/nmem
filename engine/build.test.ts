@@ -15,6 +15,7 @@ import { assemble, modelSteps } from './build.ts';
 import { dossierOf } from './classify.ts';
 import { callKey, ModelUnavailable } from './copilot.ts';
 import type { ChatRequest, ModelClient } from './copilot.ts';
+import { decide } from './choices.ts';
 import { linkChoices } from './link.ts';
 import { ingest, segment } from './record.ts';
 import { noModel } from './steps.ts';
@@ -413,4 +414,18 @@ test('an agreement is carried by the later change the model names, and a carried
   assert.deepEqual(linked[0]?.files, ['src/fee.py']);
   assert.equal(linked[1]?.carriedBy, 'pr#1');
   assert.deepEqual(linked[1]?.files, ['notes.txt']);
+});
+
+test('a later sentence of an ADR decision is its own decision when a later change carries it, and is dropped when none does', async () => {
+  const adr = '# ADR-0001: Amounts are cents\n\nStatus: Accepted\n\n## Decision\n\nAmounts are stored as cents. Totals are shown in dollars. The commands take cents.\n';
+  const record = ingest(toyWorkspace([
+    { title: 'Store amounts as cents', body: 'Adds the record.', files: { 'docs/adr/0001-amounts-are-cents.md': adr } },
+    { title: 'show totals in dollars', body: 'Prints dollars.', files: { 'src/show.py': 'def show(cents):\n    return cents / 100\n' } },
+  ]));
+  const client = fakeClient({ link: [{ links: [{ choice: 'A1', carrier: 'C1' }, { choice: 'A2', carrier: null }] }] });
+  const decided = await decide(record, { ...noModel(record), link: (choices) => linkChoices(record, client, choices, () => {}) }, []);
+  assert.deepEqual(decided.map((item) => [item.decision.what.source.quote, item.decision.carriedBy, item.decision.what.eng, item.files]), [
+    ['Amounts are stored as cents.', 'pr#1', 'Amounts are stored as cents (ADR-0001).', ['docs/adr/0001-amounts-are-cents.md']],
+    ['Totals are shown in dollars.', 'pr#2', 'Totals are shown in dollars (ADR-0001).', ['docs/adr/0001-amounts-are-cents.md']],
+  ]);
 });

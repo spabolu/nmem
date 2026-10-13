@@ -71,6 +71,21 @@ function adrChoices(record: RepoRecord): { readonly adr: Adr; readonly choice: C
   });
 }
 
+/**
+ * The other sentences of an accepted ADR's Decision section, not yet carried. One that a later change put into effect
+ * is a decision of its own, dated by that change. Link looks for the change, and one it finds none for stays part of
+ * the ADR's first choice.
+ */
+function adrLaterChoices(record: RepoRecord): readonly Choice[] {
+  return record.adrs.filter((adr) => adr.status.kind === 'accepted').flatMap((adr) => adr.later.map((sentence): Choice => ({
+    sentence,
+    stance: 'chose',
+    what: { eng: `${collapse(sentence.text).replace(/\.$/, '')} (${adrLabel(adr)}).`, plain: firstPlain([collapse(sentence.text)], 'A choice the team wrote down.') },
+    carriedBy: null,
+    files: [adr.file.path],
+  })));
+}
+
 /** The choices that need no model: each change's first "Reverts #N" line and each decided ADR. */
 export function settledChoices(record: RepoRecord): readonly Choice[] {
   return [...revertChoices(record), ...adrChoices(record).map((item) => item.choice)];
@@ -91,7 +106,9 @@ export async function decide(record: RepoRecord, steps: Steps, classified: reado
   // The carrier sets the day and the files. The reason stays on the agreement's own record, so linking does not
   // rephrase a reason that was already recorded.
   const agreed = new Map(seed.map((choice) => [choice.sentence.ref, choice.carriedBy]));
-  const linked = await steps.link(seed);
+  const later = adrLaterChoices(record);
+  const uncarried = new Set(later.map((choice) => choice.sentence.handle));
+  const linked = (await steps.link([...seed, ...later])).filter((choice) => !(uncarried.has(choice.sentence.handle) && choice.carriedBy === null));
   const position = new Map<ChangeId | null, number>(record.changes.map((change, i) => [change.id, i]));
   const rank = (carriedBy: ChangeId | null): number => position.get(carriedBy) ?? record.changes.length;
   const accepted = linked

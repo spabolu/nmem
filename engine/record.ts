@@ -55,6 +55,8 @@ export type Adr = {
   readonly status: AdrStatus;
   /** The first sentence under the Decision heading, or null when the record has no such section. */
   readonly decision: Sentence | null;
+  /** The other sentences of that section, in order. */
+  readonly later: readonly Sentence[];
 };
 
 /** One row of a unified diff. An added row names the line it added in the file at the patch's commit. */
@@ -323,13 +325,13 @@ function adrStatus(body: string): AdrStatus | null {
 }
 
 /** The first sentence that starts inside the section under a "Decision" heading. */
-function decisionOf(file: FileObject): Sentence | null {
+function decisionSection(file: FileObject): readonly Sentence[] {
   const heading = /^#{1,6}\s+Decision\s*$/im.exec(file.text);
-  if (!heading) return null;
+  if (!heading) return [];
   const from = heading.index + heading[0].length;
   const next = /^#{1,6}\s/m.exec(file.text.slice(from));
   const to = next ? from + next.index : file.text.length;
-  return file.sentences.find((sentence) => sentence.unit !== 'heading' && sentence.start >= from && sentence.start < to) ?? null;
+  return file.sentences.filter((sentence) => sentence.unit !== 'heading' && sentence.start >= from && sentence.start < to);
 }
 
 function fileObject(ref: string, path: string, author: Login | null, body: string): FileObject {
@@ -485,7 +487,10 @@ export function ingest(workspace: string): RepoRecord {
     docs.push(doc);
     files.push(doc);
     const number = /(?:^|\/)0*(\d+)-[^/]*$/.exec(file)?.[1];
-    if (status && number !== undefined && /^#{1,6}\s+Decision\s*$/im.test(body)) adrs.push({ file: doc, number: Number(number), status, decision: decisionOf(doc) });
+    if (status && number !== undefined && /^#{1,6}\s+Decision\s*$/im.test(body)) {
+      const [decision = null, ...later] = decisionSection(doc);
+      adrs.push({ file: doc, number: Number(number), status, decision, later });
+    }
   }
 
   return { repoDir, identity: github.repo, head: facts.head, changes, objects, threads, rootOf, files: files.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0)), docs, adrs, bots };

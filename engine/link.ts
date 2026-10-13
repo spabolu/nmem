@@ -16,9 +16,16 @@ function isTestPath(path: string): boolean {
   return /(?:^|\/)test_/.test(path) || /_test\./.test(path);
 }
 
+/** A file at HEAD has no thread, so its sentences come from the change that added the file. */
+function fileOf(choice: Choice): string | null {
+  return /^[0-9a-f]{7,40}:(.+)$/.exec(choice.sentence.ref)?.[1] ?? null;
+}
+
 function sourceChange(record: RepoRecord, choice: Choice): Change | null {
   const root = record.rootOf.get(choice.sentence.ref) ?? choice.sentence.ref.replace(/#.*$/, '');
-  return record.changes.find((change) => change.id === root || change.objects.some((object) => object.ref === choice.sentence.ref)) ?? null;
+  const own = record.changes.find((change) => change.id === root || change.objects.some((object) => object.ref === choice.sentence.ref));
+  const file = fileOf(choice);
+  return own ?? (file === null ? null : record.changes.find((change) => change.touched.has(file)) ?? null);
 }
 
 function titleOf(change: Change): string {
@@ -57,10 +64,10 @@ type LinkAnswer = ReturnType<typeof LINK_ANSWER.parse>;
 
 const LINK: Task<{ readonly text: string }, LinkAnswer> = {
   id: 'link',
-  version: 1,
+  version: 2,
   model: OPUS,
   maxOutputTokens: 800,
-  rules: `You join an agreement made in a thread to the later change that put it into effect.
+  rules: `You join an agreement, made in a thread or written in a decision record, to the later change that put it into effect.
 
 Answer with handles only. Each agreement is [A#]. Each later change under it is [C#]. Code copies the change, so never write a commit id and never make up a handle.
 - choice: the [A#] agreement.
@@ -92,7 +99,9 @@ function gateLink(open: readonly Open[], answer: LinkAnswer): Gated<ReadonlyMap<
   return { value, problems };
 }
 
+/** A choice written in a file of its own keeps that file, so it stays on the topic of the record that states it. */
 function carried(choice: Choice, change: Change): Choice {
+  if (fileOf(choice) !== null) return { ...choice, carriedBy: change.id };
   const files = [...change.touched.keys()].filter((path) => !isTestPath(path));
   return { ...choice, carriedBy: change.id, files: files.length > 0 ? files : choice.files };
 }
