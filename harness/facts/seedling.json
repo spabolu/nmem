@@ -1,0 +1,1694 @@
+{
+  "seedling/claim-6pm/claim-why/eng": {
+    "source": "d08cf219a7e9405fda71b1f1531977da",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "deploy/crontab runs `seedling remind` at 17:00."
+      }
+    ],
+    "supporting": [
+      {
+        "id": "f2",
+        "text": "17:00 is 5pm."
+      }
+    ],
+    "paraphrase": [
+      "deploy/crontab executes `seedling remind` at 17:00, the same as 5pm."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "seedling/claim-6pm/claim-why/plain": {
+    "source": "e50f7da7ceeba76307abe6644ce720e1",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "The server now sends reminders at 5pm."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "Reminders are now sent out at 5pm."
+    ],
+    "review": "flagged",
+    "flags": [
+      "the cross-check says the paraphrase changes the meaning"
+    ]
+  },
+  "seedling/claim-two-days/claim-why/eng": {
+    "source": "6551ebf01717d93e0f58f4222a1a7204",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "Now the swap page asks for someone else."
+      }
+    ],
+    "supporting": [
+      {
+        "id": "f2",
+        "text": "Before this change the swap page would hand a shift to someone who already waters the day before or after."
+      }
+    ],
+    "paraphrase": [
+      "The swap page, before this change, handed a shift to a person already watering either the prior day or the next one, and it now seeks somebody different."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "seedling/claim-two-days/claim-why/plain": {
+    "source": "a448f2682683b0f8b6394c08c23f6362",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "The hand-off page now asks for someone else."
+      }
+    ],
+    "supporting": [
+      {
+        "id": "f2",
+        "text": "Before this change the hand-off page could give a shift to someone already watering the day before or after."
+      }
+    ],
+    "paraphrase": [
+      "Before the update, the transfer page could assign a shift to a person already watering the prior or next day, but it now asks for a different person."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "seedling/d-auto-schedule/reason/eng": {
+    "source": "af45785840c848355d5f787e2ee4cb25",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "Rosa was building the weekly schedule by hand from volunteers.csv."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "Rosa created the weekly schedule manually from volunteers.csv."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "seedling/d-auto-schedule/reason/plain": {
+    "source": "7601b158706de982e84e44331ac109c3",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "Rosa was making the weekly schedule by hand."
+      }
+    ],
+    "supporting": [
+      {
+        "id": "f2",
+        "text": "Rosa was making the weekly schedule from the volunteer list."
+      }
+    ],
+    "paraphrase": [
+      "Rosa created each week's plan manually, using the helper list."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "seedling/d-auto-schedule/what/eng": {
+    "source": "a202df2fc5718c8485b1f68bdca12154",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "The weekly schedule is filled in automatically from everyone's available days."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "Available days reported by everyone are applied automatically to complete the weekly schedule."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "seedling/d-auto-schedule/what/plain": {
+    "source": "0b9e5a7deb730ddc3ff6fbfae50af912",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "The app now makes the weekly schedule from the days each volunteer is free."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "The tool now creates the weekly schedule using days when each volunteer is free."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "seedling/d-big-type/reason/eng": {
+    "source": "020b88202978116cdfd7a0d0aa8a02e9",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "Most of the crew will sign up on a phone."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "The majority of the crew will enroll using a phone."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "seedling/d-big-type/reason/plain": {
+    "source": "d8c97c41b46f18f95a048113d4ecb33a",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "Most of the crew will sign up on a phone."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "Most of the crew will register using a phone."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "seedling/d-big-type/what/eng": {
+    "source": "2524b327f0bae05feea110c9b05d47aa",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "The sign-up page uses big fonts and big buttons on purpose."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "The sign-up page intentionally relies on large fonts and large buttons."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "seedling/d-big-type/what/plain": {
+    "source": "2ff8a10a0712d07f5404d572cdbd1dc3",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "The sign-up page uses big letters and big buttons on purpose."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "The page for signing up shows oversized letters and oversized buttons deliberately."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "seedling/d-csv-roster/reason/eng": {
+    "source": "dba37f59c1187fe379bbf619be8587bc",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "Rosa needs to read the roster and fix mistakes herself without asking a developer."
+      }
+    ],
+    "supporting": [
+      {
+        "id": "f2",
+        "text": "Rosa is the garden coordinator."
+      }
+    ],
+    "paraphrase": [
+      "Rosa, who coordinates the garden, must review the roster and correct errors herself rather than asking a developer."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "seedling/d-csv-roster/reason/plain": {
+    "source": "a525a8c2ab328d88631b5df747a18406",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "Rosa needs to read the list and fix mistakes herself without asking a programmer."
+      }
+    ],
+    "supporting": [
+      {
+        "id": "f2",
+        "text": "Rosa is the garden coordinator."
+      }
+    ],
+    "paraphrase": [
+      "Rosa, who coordinates the garden, has to review the list and correct errors by herself instead of asking a programmer."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "seedling/d-csv-roster/what/eng": {
+    "source": "cb6f4699cb60147e0fcb54dac2e5597a",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "Each sign-up is appended to volunteers.csv."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "Every sign-up gets added at the end of volunteers.csv."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "seedling/d-csv-roster/what/plain": {
+    "source": "bf4a934ec3baebcde36a5d095a978867",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "Each sign-up is added as a new row in one file."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "Each sign-up gets stored as a fresh line within a single document."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "seedling/d-day-column/reason/eng": {
+    "source": "89cb4e04e3d98f614d35d093d2269ce5",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "Rosa Delgado asked for the day of the week next to the date because people think in Tuesdays, not 5/14."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "Rosa Delgado requested the weekday beside the date, since people reason in Tuesdays rather than 5/14."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "seedling/d-day-column/reason/plain": {
+    "source": "7b10bd60750a4c2cd097ed69818362eb",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "Rosa Delgado asked for the weekday next to each date."
+      },
+      {
+        "id": "f2",
+        "text": "People think in weekdays, not dates."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "Rosa Delgado requested the weekday beside every date, since people think in weekdays rather than dates."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "seedling/d-day-column/what/eng": {
+    "source": "51f1ed116c062a8e1b4d70788d7f720a",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "A day-of-week column was added for Rosa."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "A column called day-of-week was introduced for Rosa."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "seedling/d-day-column/what/plain": {
+    "source": "ed402b84215887ea954cfafd107fbd8c",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "A column with the day of the week was added for Rosa."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "A new column that lists the weekday was put in for Rosa."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "seedling/d-email/reason/eng": {
+    "source": "bd36f4a8e7d0b88bee65ad67b33a66ec",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "The grant that paid for texting ended on December 31, 2024."
+      },
+      {
+        "id": "f2",
+        "text": "The grant will not be renewed."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "On December 31, 2024 the grant paying for texting ended, and no renewal is planned."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "seedling/d-email/reason/plain": {
+    "source": "12d921017e70cd6c26c6bbaeac2a357f",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "The grant ended on December 31, 2024."
+      },
+      {
+        "id": "f2",
+        "text": "The grant will not be renewed."
+      }
+    ],
+    "supporting": [
+      {
+        "id": "f3",
+        "text": "The grant paid for text messages."
+      }
+    ],
+    "paraphrase": [
+      "The grant which covered text messages reached its end on December 31, 2024, and it will not be renewed."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "seedling/d-email/what/eng": {
+    "source": "abfa6cbc9ac0818cb9d2eae685fdd785",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "`seedling remind` sends the reminder and swap link by email through the garden Gmail."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "`seedling remind` emails the reminder together with the swap link using the garden Gmail."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "seedling/d-email/what/plain": {
+    "source": "ec7c8e9d3ec55986e26a5a2fee1cf187",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "Reminders go out by email from the garden's account."
+      }
+    ],
+    "supporting": [
+      {
+        "id": "f2",
+        "text": "The reminders include the hand-off link."
+      }
+    ],
+    "paraphrase": [
+      "Reminder messages leave by email through the garden's account and contain the hand-off link."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "seedling/d-go123/what/eng": {
+    "source": "25883229d96ee074035a781f11fbc62a",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "Tobias Lindqvist moved the project to Go version 1.23."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "Tobias Lindqvist shifted the project onto Go version 1.23."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "seedling/d-go123/what/plain": {
+    "source": "6209e1515a6033be08eaf176bb989c4d",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "Tobias Lindqvist moved the app to version 1.23 of Go."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "Tobias Lindqvist switched the program onto Go at version 1.23."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "seedling/d-no-accounts/reason/eng": {
+    "source": "a6a0c3befb6794466ecfccc6fda7cd75",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "Rosa Delgado said a password would be a dealbreaker for a lot of the crew."
+      }
+    ],
+    "supporting": [
+      {
+        "id": "f2",
+        "text": "People locked out would text Rosa Delgado anyway."
+      }
+    ],
+    "paraphrase": [
+      "Rosa Delgado warned that a password would prove a dealbreaker for many on the crew, and shut-out people would text her anyway."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "seedling/d-no-accounts/reason/plain": {
+    "source": "3ccdb6af420ab4d84811901f25ececf6",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "Rosa Delgado said a password would be a dealbreaker for a lot of the crew."
+      }
+    ],
+    "supporting": [
+      {
+        "id": "f2",
+        "text": "People locked out would text her anyway."
+      }
+    ],
+    "paraphrase": [
+      "Rosa Delgado said a secret word would be too much for many of the group, and anyone shut out would message her regardless."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "seedling/d-no-accounts/what/eng": {
+    "source": "ecfcc858dd42a847e336901122928c46",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "Tobias Lindqvist closed PR #7."
+      }
+    ],
+    "supporting": [
+      {
+        "id": "f2",
+        "text": "PR #7 is volunteer accounts with passwords."
+      }
+    ],
+    "paraphrase": [
+      "Tobias Lindqvist shut PR #7 on volunteer accounts with passwords."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "seedling/d-no-accounts/what/plain": {
+    "source": "dfe955b522435511af4d0296e3766a89",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "Tobias Lindqvist dropped volunteer logins with passwords."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "Tobias Lindqvist stopped requiring passwords when volunteers sign in."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "seedling/d-no-heat-texts/reason/eng": {
+    "source": "368d1a02b18ba7320ea9f9ff765aa6d0",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "People answer Rosa faster."
+      },
+      {
+        "id": "f2",
+        "text": "The grant money is saved for the reminders."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "People reply to Rosa more quickly, and the grant funds stay reserved for the reminders."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "seedling/d-no-heat-texts/reason/plain": {
+    "source": "45afe7d78ca3d8ac3bc226c34c4ba776",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "People answer Rosa faster."
+      },
+      {
+        "id": "f2",
+        "text": "The grant money is saved for the reminders."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "People reply to Rosa more quickly, while grant funds stay reserved for the reminders."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "seedling/d-no-heat-texts/what/eng": {
+    "source": "bb1fbe8bfc6e50c211a3ae5219a5f360",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "The app will not text the whole crew at once when it is hot."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "The app will not message the entire crew simultaneously when it is hot."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "seedling/d-no-heat-texts/what/plain": {
+    "source": "21536df4823bd75a97ee638845261707",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "The app will not send one text to the whole crew when it is hot."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "When heat hits, the app skips sending a single text to every person on the crew."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "seedling/d-no-repeat/reason/eng": {
+    "source": "8b2347495cf5ffcdd7f447d9ac95a5e2",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "Two of the best burned out by mid-July and never came back."
+      }
+    ],
+    "supporting": [
+      {
+        "id": "f2",
+        "text": "Last summer people worked four and five days straight."
+      }
+    ],
+    "paraphrase": [
+      "Last summer, people put in four and five days in a row, and two of the best were exhausted by mid-July and never returned."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "seedling/d-no-repeat/reason/plain": {
+    "source": "099aeb98c52090a74d3b42f94e2de404",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "Last summer people watered four and five days straight."
+      },
+      {
+        "id": "f2",
+        "text": "Two of the best burned out by mid-July."
+      }
+    ],
+    "supporting": [
+      {
+        "id": "f3",
+        "text": "Two of the best never came back."
+      }
+    ],
+    "paraphrase": [
+      "Last summer people watered for four and five days running, and two of the best grew exhausted by mid-July and never returned."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "seedling/d-no-repeat/what/eng": {
+    "source": "ae39e354fee52626c92a42d60fa77bd2",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "The scheduler skips anyone who watered the day before."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "Anyone who watered on the prior day is skipped by the scheduler."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "seedling/d-no-repeat/what/plain": {
+    "source": "090dc79b404a4779152a4075657b9022",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "Nobody is scheduled for the day after a day they watered."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "No one is booked for the day following a day they watered."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "seedling/d-no-sundays/reason/eng": {
+    "source": "c8e13da304ea3b361754a967e451ba6d",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "Pastor Ruth asked for quiet Sunday mornings for the congregation."
+      }
+    ],
+    "supporting": [
+      {
+        "id": "f2",
+        "text": "Pastor Ruth's request came when the garden signed its lease with Grace Lutheran."
+      }
+    ],
+    "paraphrase": [
+      "After the garden completed a lease alongside Grace Lutheran, Pastor Ruth requested quiet on Sunday mornings for the congregation."
+    ],
+    "review": "flagged",
+    "flags": [
+      "the cross-check says the paraphrase changes the meaning"
+    ]
+  },
+  "seedling/d-no-sundays/reason/plain": {
+    "source": "cf20b437a610c23bd115b7a24d10ecb7",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "The pastor asked for quiet Sunday mornings."
+      }
+    ],
+    "supporting": [
+      {
+        "id": "f2",
+        "text": "The garden's land is rented from the church next door."
+      }
+    ],
+    "paraphrase": [
+      "Land for the garden is leased from the neighboring church, and the pastor requested calm on Sunday mornings."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "seedling/d-no-sundays/what/eng": {
+    "source": "2a725289c279f511446aa55c768e7f45",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "There are no watering shifts on Sundays."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "Sundays include no shifts for watering."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "seedling/d-no-sundays/what/plain": {
+    "source": "5853288d1c1b40b99a503c2c3ff05444",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "Nobody is scheduled to water on Sundays."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "No one is assigned to water on Sundays."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "seedling/d-remind-5pm/what/eng": {
+    "source": "85534b499982a3f751453ef99aa8f58a",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "Tobias Lindqvist set the crontab to send reminders at 5pm."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "Tobias Lindqvist configured the crontab so reminders go out at 5pm."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "seedling/d-remind-5pm/what/plain": {
+    "source": "94d73b1a763a31058c799c37a51b7d04",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "Tobias Lindqvist set reminders to go out at 5pm."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "Tobias Lindqvist arranged for reminders to be sent at 5pm."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "seedling/d-roster-check/reason/eng": {
+    "source": "e4089b4adf28ca695bcd6e8f735dec90",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "A name that isn't in volunteers.csv would make the reminder run fail the next evening."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "Any name missing from volunteers.csv would cause the reminder run to fail on the following evening."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "seedling/d-roster-check/reason/plain": {
+    "source": "c6f92d9bac4f09ce03749ac03bc22301",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "A name missing from the volunteer list would make the next evening's reminders fail."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "A missing name on the volunteer list would cause the next evening's reminders to fail."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "seedling/d-roster-check/what/eng": {
+    "source": "0822701bfd4caad52d0c0261bc7e5d83",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "The swap page only hands a shift to someone on the roster."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "The swap page gives a shift only to a person listed on the roster."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "seedling/d-roster-check/what/plain": {
+    "source": "d50947ad1e07b26e8517fe0c768b2df1",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "A shift can only be handed to someone on the volunteer list."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "A shift may be given only to a person who appears on the volunteer list."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "seedling/d-shed-sheet/reason/eng": {
+    "source": "01b62dbad47fe30fb0475b15427125a9",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "Several longtime volunteers would rather read a paper schedule at the shed than get messages on their phones."
+      }
+    ],
+    "supporting": [
+      {
+        "id": "f2",
+        "text": "Several longtime volunteers told Rosa."
+      }
+    ],
+    "paraphrase": [
+      "Several longtime volunteers said to Rosa they prefer a paper schedule posted at the shed over getting messages on their phones."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "seedling/d-shed-sheet/reason/plain": {
+    "source": "948c50e1a13ab08fdd68eb52d79cb6ee",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "Several longtime volunteers would rather read a paper schedule at the shed than get messages on their phones."
+      }
+    ],
+    "supporting": [
+      {
+        "id": "f2",
+        "text": "Several longtime volunteers told Rosa."
+      }
+    ],
+    "paraphrase": [
+      "A number of volunteers who have helped for years told Rosa that a printed timetable at the shed beat getting alerts on their phones."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "seedling/d-shed-sheet/what/eng": {
+    "source": "ebf6df699ba93863a3367e15d09b0282",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "`seedling sheet` prints a large-print weekly schedule for the shed door."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "`seedling sheet` produces a big-type weekly timetable meant to hang on the shed door."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "seedling/d-shed-sheet/what/plain": {
+    "source": "019facae9df5b5b3d5d4df3841b116e9",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "The app prints a big-letter weekly schedule for the shed door."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "The program prints a large-letter weekly schedule to hang on the shed door."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "seedling/d-sheet-export/reason/eng": {
+    "source": "9104f130afa220ec92d8afa6565e124f",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "Rosa imports the CSV into the sign-up Google Sheet."
+      }
+    ],
+    "supporting": [
+      {
+        "id": "f2",
+        "text": "This is instead of typing the dates in by hand like last year."
+      }
+    ],
+    "paraphrase": [
+      "Rosa pulls the CSV in and places it on the sign-up Google Sheet, rather than entering each date manually as happened last year."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "seedling/d-sheet-export/reason/plain": {
+    "source": "5e5096a5dd7035bedaf01e19882bd86c",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "Rosa loads the list into the sign-up spreadsheet."
+      },
+      {
+        "id": "f2",
+        "text": "Rosa does not type the dates in by hand."
+      }
+    ],
+    "supporting": [
+      {
+        "id": "f3",
+        "text": "Last year the dates were typed in by hand."
+      }
+    ],
+    "paraphrase": [
+      "Rosa copies the roster into the sign-up spreadsheet rather than typing dates by hand the way she did last year."
+    ],
+    "review": "flagged",
+    "flags": [
+      "the cross-check says the paraphrase changes the meaning"
+    ]
+  },
+  "seedling/d-sheet-export/what/eng": {
+    "source": "e070677799c94e7db09283f8e9605e98",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "`seedling` prints every watering day as CSV."
+      },
+      {
+        "id": "f2",
+        "text": "The volunteer and notes columns are empty."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "`seedling` outputs each watering day in CSV, leaving volunteer and notes columns blank."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "seedling/d-sheet-export/what/plain": {
+    "source": "193dba2d8470e209e4857c54315389c7",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "The app prints every watering day as a spreadsheet with empty columns for volunteers and notes."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "Every watering day gets written out with blank spaces left for volunteers and for notes."
+    ],
+    "review": "flagged",
+    "flags": [
+      "the cross-check says the paraphrase changes the meaning"
+    ]
+  },
+  "seedling/d-signup-site/what/eng": {
+    "source": "f0e38860ab39a3a7d41c845b60b49f52",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "Volunteers sign up on a website."
+      },
+      {
+        "id": "f2",
+        "text": "The website replaces the shared spreadsheet."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "Volunteers register on a site which stands in for the shared spreadsheet."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "seedling/d-signup-site/what/plain": {
+    "source": "00183783f05d1bb35da704ccca6b7cb7",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "Volunteers sign up on a web page instead of the shared spreadsheet."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "Helpers now enroll through a website, not the spreadsheet shared by the group."
+    ],
+    "review": "flagged",
+    "flags": [
+      "the cross-check says the paraphrase changes the meaning"
+    ]
+  },
+  "seedling/d-stdlib/what/eng": {
+    "source": "8f9525bdf6efe81bba0635dbe5b67512",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "seedling uses no dependencies."
+      },
+      {
+        "id": "f2",
+        "text": "seedling uses only the Go standard library."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "seedling depends on nothing beyond the Go standard library."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "seedling/d-stdlib/what/plain": {
+    "source": "a8c73a4f9a4e466a553dbc19f451b3e3",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "The app uses nothing beyond the tools that come with Go."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "The program relies only on the helpers included with Go."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "seedling/d-swap-adjacent/reason/eng": {
+    "source": "070ba937460114b2b5112a5d0b0e99b0",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "The scheduler never gives anyone two days in a row."
+      }
+    ],
+    "supporting": [
+      {
+        "id": "f2",
+        "text": "The handbook says the scheduler never gives anyone two days in a row."
+      }
+    ],
+    "paraphrase": [
+      "The scheduler never assigns anyone two days back to back, and the handbook says the same."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "seedling/d-swap-adjacent/reason/plain": {
+    "source": "9928686f0a771f48d28633a92fb1e0ba",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "The schedule never gives anyone two days in a row."
+      }
+    ],
+    "supporting": [
+      {
+        "id": "f2",
+        "text": "The handbook promises that no one gets two days in a row."
+      }
+    ],
+    "paraphrase": [
+      "No one is ever given two days back to back on the schedule, and the handbook guarantees that."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "seedling/d-swap-adjacent/what/eng": {
+    "source": "53f174b301586a362365dcce9168210c",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "The swap page will not hand a shift to someone on the day before or after."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "The swap page declines to assign a shift to anyone on the previous day or the next."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "seedling/d-swap-adjacent/what/plain": {
+    "source": "a81d6981ef7d757c79baa910ba140f24",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "The hand-off page refuses someone who already waters the day before or after."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "The hand-off page turns away a person who waters the day before or the day after."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "seedling/d-swap-link/reason/eng": {
+    "source": "54922710f4defea77e840464828eff51",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "Rosa asked for a way for volunteers to trade shifts without going through her."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "Rosa requested that volunteers be able to trade shifts and not have to go through her."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "seedling/d-swap-link/reason/plain": {
+    "source": "060f93ac69f7d2ef88ef7554f5c9c6dc",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "Rosa asked for a way for volunteers to trade shifts without going through her."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "Rosa wanted volunteers to be able to swap days with each other and not involve her."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "seedling/d-swap-link/what/eng": {
+    "source": "31e81e3b42028933e2c605d5624809d9",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "Each reminder ends with a link to hand that shift to someone else."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "Every reminder closes by including a link so that assignment can go to a different person."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "seedling/d-swap-link/what/plain": {
+    "source": "0ed30edc90eccebf311322e94d203e49",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "Every reminder has a link for handing the shift to someone else."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "Each reminder includes a link so the shift can be passed to another person."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "seedling/d-texts/reason/eng": {
+    "source": "9dd6f5158d78af7603296c68f43b0067",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "Six shifts in June and July were missed because the volunteer forgot."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "Because the volunteer forgot, six shifts during June and July went uncovered."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "seedling/d-texts/reason/plain": {
+    "source": "031bc7b5b089321f2c6ace7d99b54fb4",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "Six shifts in June and July were missed because the volunteer forgot."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "Across June and July, Six shifts were missed since the volunteer forgot."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "seedling/d-texts/what/eng": {
+    "source": "2ab73d8e311e21d6adb72ff1cd8a1737",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "`seedling remind` texts tomorrow's volunteer through Twilio."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "`seedling remind` messages tomorrow's volunteer by way of Twilio."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "seedling/d-texts/what/plain": {
+    "source": "c76a987f79b6096fbcfc8e9d95dd85b2",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "The app sends tomorrow's volunteer a text message reminder."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "Tomorrow's volunteer gets a reminder by text from the app."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "seedling/days/headline/eng": {
+    "source": "595eac07e1e35f59d2fc9052c4afb72b",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "`WateringDays` returns every day of the given weeks except Sundays."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "`WateringDays` yields each day within the supplied weeks, skipping Sundays."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "seedling/days/headline/plain": {
+    "source": "bdd5799e4f9761946a8312955a86476a",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "Every day of the week but Sunday is a watering day."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "Each day other than Sunday is treated as a watering day."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "seedling/f-swap-order/card/eng": {
+    "source": "5175c5b4e4ceb55a44816ae829e7f20b",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "The swap page lists names in the order people signed up."
+      },
+      {
+        "id": "f2",
+        "text": "The v1.0.0 release notes list the swap page name order under Known issues."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "On the swap page, names show up following the sequence in which people registered.",
+      "Notes for the v1.0.0 release put this item under Known issues."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "seedling/f-swap-order/card/plain": {
+    "source": "d309ce7df0cec13b51d01ee97fba6bf1",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "The hand-off page lists names in the order people signed up."
+      }
+    ],
+    "supporting": [
+      {
+        "id": "f2",
+        "text": "The season 2 release notes still list that name order as a known problem."
+      }
+    ],
+    "paraphrase": [
+      "Names on the page for passing a shift appear in the sequence people registered.",
+      "Write-ups for season 2 still treat this as a problem people already know about."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "seedling/f-swap-two-days/card/eng": {
+    "source": "8dab416be524ba6ef685e578afd3090e",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "The swap page would hand a shift to someone who already waters the day before or after."
+      }
+    ],
+    "supporting": [
+      {
+        "id": "f2",
+        "text": "Minh Tran wrote that."
+      }
+    ],
+    "paraphrase": [
+      "Minh Tran explained that the swap page would give a shift to a person who waters either the day before or the day after."
+    ],
+    "review": "flagged",
+    "flags": [
+      "the paraphrase still breaks a rule: sentence 1 repeats the words \"page would give a shift to\" from the original"
+    ]
+  },
+  "seedling/f-swap-two-days/card/plain": {
+    "source": "55a3485d18ba1f9817e965d65753f399",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "The hand-off page would give a shift to someone already watering the day before or after."
+      }
+    ],
+    "supporting": [
+      {
+        "id": "f2",
+        "text": "Minh Tran wrote that statement."
+      }
+    ],
+    "paraphrase": [
+      "Minh Tran recorded this: the hand-off page gives a shift to a person who is already set to water on the day before or the day after."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "seedling/reminders/headline/eng": {
+    "source": "a3f2f909517062b75f03cae61213b491",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "`seedling remind` emails tomorrow's volunteer through Gmail, with a link to hand the shift to someone else."
+      }
+    ],
+    "supporting": [
+      {
+        "id": "f2",
+        "text": "A volunteer with no email on file gets no reminder."
+      },
+      {
+        "id": "f3",
+        "text": "deploy/crontab runs `seedling remind` every day at 17:00."
+      }
+    ],
+    "paraphrase": [
+      "`seedling remind` sends tomorrow's volunteer a Gmail message that contains a link for giving the shift to another person.",
+      "A volunteer lacking an email on file is not sent a reminder.",
+      "Each day at 17:00, deploy/crontab runs it."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "seedling/reminders/headline/plain": {
+    "source": "9bd7a222299359cd6acc48dea002706c",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "The app emails tomorrow's volunteer a reminder with a link to hand the shift to someone else."
+      }
+    ],
+    "supporting": [
+      {
+        "id": "f2",
+        "text": "A volunteer with no email on file gets no reminder."
+      },
+      {
+        "id": "f3",
+        "text": "The app runs every day at 5pm."
+      }
+    ],
+    "paraphrase": [
+      "The program sends the next day's helper a reminder email that has a link for passing that duty to another person.",
+      "A helper who never stored an email address receives no reminder.",
+      "This happens each day at 5pm."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "seedling/root/headline/eng": {
+    "source": "a8ff4e4d3dd58c573e8be235478a2218",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "Seedling runs the watering schedule for the Eastside Commons community garden."
+      }
+    ],
+    "supporting": [
+      {
+        "id": "f2",
+        "text": "Seedling's commands are `export`, `serve`, `remind`, and `sheet`."
+      },
+      {
+        "id": "f3",
+        "text": "`export` is for the weekly schedule."
+      },
+      {
+        "id": "f4",
+        "text": "`serve` is for the sign-up and swap pages."
+      },
+      {
+        "id": "f5",
+        "text": "`remind` is to email tomorrow's volunteer."
+      },
+      {
+        "id": "f6",
+        "text": "`sheet` is for the shed door."
+      }
+    ],
+    "paraphrase": [
+      "Seedling operates the watering schedule at Eastside Commons community garden.",
+      "Seedling's commands are `export` to produce the weekly schedule, `serve` to run sign-up pages and swap pages, `remind` to send email to tomorrow's volunteer, and `sheet` to control the shed door."
+    ],
+    "review": "flagged",
+    "flags": [
+      "the cross-check says the paraphrase changes the meaning"
+    ]
+  },
+  "seedling/root/headline/plain": {
+    "source": "5018f2cea344612459161022cc055eea",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "Seedling runs the watering schedule for the Eastside Commons community garden."
+      }
+    ],
+    "supporting": [
+      {
+        "id": "f2",
+        "text": "Seedling makes the weekly schedule."
+      },
+      {
+        "id": "f3",
+        "text": "Seedling runs the sign-up page."
+      },
+      {
+        "id": "f4",
+        "text": "Seedling runs the pages for handing off a shift."
+      },
+      {
+        "id": "f5",
+        "text": "Seedling emails tomorrow's volunteer."
+      },
+      {
+        "id": "f6",
+        "text": "Seedling prints a weekly sheet for the shed door."
+      }
+    ],
+    "paraphrase": [
+      "Seedling looks after watering times at the Eastside Commons community garden.",
+      "It creates the weekly plan, hosts sign-up and shift-passing pages, messages tomorrow's volunteer, and produces a sheet each week to post on the shed door."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "seedling/schedule/headline/eng": {
+    "source": "ea060a45f04013715683e380b285a3f8",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "`schedule.Assign` gives each day to the free volunteer with the fewest shifts so far."
+      },
+      {
+        "id": "f2",
+        "text": "Ties go to whoever comes first in the roster."
+      }
+    ],
+    "supporting": [
+      {
+        "id": "f3",
+        "text": "`schedule.Assign` skips anyone who watered the day before."
+      },
+      {
+        "id": "f4",
+        "text": "A day nobody can take stays blank."
+      }
+    ],
+    "paraphrase": [
+      "`schedule.Assign` allocates every day to the available volunteer who has taken the least shifts up to now, and when counts match it picks the person listed earlier in the roster.",
+      "People who watered the prior day are skipped, and a day no one can cover stays empty."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "seedling/schedule/headline/plain": {
+    "source": "70cebc553599c901356af2324f523cca",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "Each day goes to a free volunteer with the fewest shifts so far."
+      },
+      {
+        "id": "f2",
+        "text": "A tie goes to whoever is first on the list."
+      }
+    ],
+    "supporting": [
+      {
+        "id": "f3",
+        "text": "Nobody gets a day right after a day they watered."
+      },
+      {
+        "id": "f4",
+        "text": "A day nobody can take stays open."
+      }
+    ],
+    "paraphrase": [
+      "Each open day is given to the available volunteer who has the smallest number of shifts to date, and equals go to the person listed first.",
+      "No one is given a day just after one they have watered, and a day that no one can accept stays open."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "seedling/shed-sheet/headline/eng": {
+    "source": "2815fbf4bae68038e321541336d25f95",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "The weekly sheet is a large-print table of each day and who is watering."
+      },
+      {
+        "id": "f2",
+        "text": "A day with nobody on it reads OPEN, please call Rosa."
+      }
+    ],
+    "supporting": [
+      {
+        "id": "f3",
+        "text": "There is a column for initials when done."
+      }
+    ],
+    "paraphrase": [
+      "The weekly sheet shows a big-type grid for every day, the person watering, plus space to enter initials after completion.",
+      "When a day has no one assigned, it displays OPEN, please call Rosa."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "seedling/shed-sheet/headline/plain": {
+    "source": "5cc6bbdc2cc968efbea047698c6ecc02",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "The weekly sheet is a big-print table of each day and who is watering."
+      },
+      {
+        "id": "f2",
+        "text": "The weekly sheet has a space to initial when done."
+      }
+    ],
+    "supporting": [
+      {
+        "id": "f3",
+        "text": "A day with nobody on it tells people to call Rosa."
+      }
+    ],
+    "paraphrase": [
+      "The weekly sheet shows every date in large type, the person watering, and a blank to sign after the work is finished.",
+      "When a date lists nobody, it tells people to phone Rosa."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "seedling/signup/headline/eng": {
+    "source": "fd48e442d2ecef966751faad9245cf0f",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "`seedling serve` shows a sign-up form."
+      },
+      {
+        "id": "f2",
+        "text": "The form is for a name, phone, email, and the weekdays from Monday to Saturday someone can water."
+      }
+    ],
+    "supporting": [
+      {
+        "id": "f3",
+        "text": "Each sign-up is one row in volunteers.csv."
+      },
+      {
+        "id": "f4",
+        "text": "Rosa can open volunteers.csv in any spreadsheet program."
+      }
+    ],
+    "paraphrase": [
+      "`seedling serve` displays a form collecting a name, phone, email, plus weekdays Monday through Saturday when a person can water.",
+      "A sign-up occupies a single row of volunteers.csv, and Rosa is able to open it using any spreadsheet program."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "seedling/signup/headline/plain": {
+    "source": "bd57553b175126aaccfebf56e7330311",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "Volunteers sign up on a web page."
+      },
+      {
+        "id": "f2",
+        "text": "They give their name, phone, email, and the weekdays they can water."
+      }
+    ],
+    "supporting": [
+      {
+        "id": "f3",
+        "text": "Each sign-up is one row in a file."
+      },
+      {
+        "id": "f4",
+        "text": "Rosa can open the file in any spreadsheet program."
+      }
+    ],
+    "paraphrase": [
+      "Helpers register through an online page, giving a name, phone number, email address, and which weekdays they are able to water.",
+      "Every registration is a single line in a file that Rosa may view using any spreadsheet program."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "seedling/swap/headline/eng": {
+    "source": "0c23b06c87f578b7b11ddb5f13ddcf10",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "A swap link carries a signed token for one volunteer and one date."
+      },
+      {
+        "id": "f2",
+        "text": "The swap page hands the shift only to someone on the roster who does not water the day before or after."
+      }
+    ],
+    "supporting": [
+      {
+        "id": "f3",
+        "text": "The swap link stops working after that date."
+      }
+    ],
+    "paraphrase": [
+      "A swap link bears a signed token naming one volunteer along with one date, and it quits working once that date is over.",
+      "The swap page assigns the shift solely to someone listed on the roster who skips watering the day before and the day after."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "seedling/swap/headline/plain": {
+    "source": "fe34eaeb800c2a59034149ca21ab90b4",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "Each hand-off link works for one person and one day."
+      },
+      {
+        "id": "f2",
+        "text": "Each hand-off link stops working after that day."
+      }
+    ],
+    "supporting": [
+      {
+        "id": "f3",
+        "text": "The hand-off page only accepts someone on the volunteer list who isn't watering the day before or after."
+      }
+    ],
+    "paraphrase": [
+      "Every hand-off works for just one person on just one date, and it stops once that date has passed.",
+      "Only a person on the volunteer list is allowed, and not when that person waters the previous day or the following day."
+    ],
+    "review": "auto",
+    "flags": []
+  }
+}
