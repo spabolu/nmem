@@ -21,7 +21,7 @@ const MAX_SHOWN = 1500;
 const MAX_START = 40;
 
 /** Markdown at HEAD a topic may list as its doc. A superseded ADR is history, not a doc. */
-function writtenDocs(record: RepoRecord): readonly FileObject[] {
+export function writtenDocs(record: RepoRecord): readonly FileObject[] {
   return record.docs.filter((doc) => !doc.sentences.some((sentence) => sentence.flags.includes('superseded')));
 }
 

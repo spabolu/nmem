@@ -21,6 +21,7 @@ import type { Gated, Task } from './model.ts';
 import { isDoc } from './record.ts';
 import type { FileObject, Line, RepoRecord, Sentence } from './record.ts';
 import { collapse } from './steps.ts';
+import { writtenDocs } from './topics.ts';
 
 const PLAIN_RULE = `plain is for someone who does not read code. It names no file, function, option, flag, command, code, commit id, or number with a number sign, and none of these words: ${JARGON.join(', ')}.`;
 const MAX_SHOWN = 1500;
@@ -241,7 +242,6 @@ function gateVerdict(head: Probe | null, answer: VerdictAnswer): Gated<VerdictAn
   return { value: answer, problems };
 }
 
-/** One sentence to at most one claim, or null. */
 async function checkSentence(ctx: Context, topics: readonly Topic[], doc: FileObject, sentence: Sentence, evidence: Evidence, runnable: boolean): Promise<{ readonly claim: Claim; readonly run: Run | null } | null> {
   const listing = topics.filter((topic) => topic.docs.includes(doc.path));
   const topic: LocalId | undefined = (listing.find((item) => item.files.includes(evidence.file.path)) ?? listing[0])?.id;
@@ -289,11 +289,6 @@ async function checkSentence(ctx: Context, topics: readonly Topic[], doc: FileOb
   const brokenBy = since[first]?.id;
   if (brokenBy === undefined || first === probes.length || probes[first - 1]?.kind === 'error') return null;
   return { claim: { sentence: quote, topic, verdict, brokenBy, why: { ...why, source: { kind: 'proof', proof: formatProof({ verb: 'run', id: program.run.id }) } } }, run: program.run };
-}
-
-/** Written docs at HEAD, in path order: every doc but a superseded decision record. */
-function writtenDocs(record: RepoRecord): readonly FileObject[] {
-  return record.docs.filter((doc) => !doc.sentences.some((sentence) => sentence.flags.includes('superseded'))).sort((a, b) => (a.path < b.path ? -1 : 1));
 }
 
 export async function docClaims(record: RepoRecord, client: ModelClient, topics: readonly Topic[], note: (line: string) => void): Promise<{ readonly claims: readonly Claim[]; readonly runs: readonly Run[] }> {
