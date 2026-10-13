@@ -63,15 +63,16 @@ type ProposeAnswer = ReturnType<typeof PROPOSE_ANSWER.parse>;
 
 const PROPOSE: Task<WhyDossier, ProposeAnswer> = {
   id: 'why',
-  version: 1,
+  version: 2,
   model: OPUS,
   maxOutputTokens: 600,
   rules: `You find why something in a software project was chosen or done, only where its record states it.
 
 The subject is a decision someone made, or a finding about a change. The record follows, one sentence per [S#] handle.
 - reason: the [S#] sentence that states why the subject was chosen or done, or null when no sentence states it. A reason names a problem it solves, a goal, a constraint, or a request that prompted it. A sentence that says what was done, or how it works, is not a reason. Never infer a reason the record does not state, and never pick a sentence marked (denial) or (bot). When several sentences state it, pick the one that says it most directly. The subject's own sentence may be the reason when it states one.
-- said: when reason is a handle, the reason as one sentence per audience, at most 25 words each, saying only what that sentence says. Otherwise null.
+- said: when reason is a handle, the reason as one sentence per audience, at most 25 words each, saying only what that sentence says. Keep the sentence's own words, tense, and order. eng changes nothing an engineer can follow. plain replaces only the words a non-engineer cannot read and keeps every other word as written. Otherwise null.
 Example: subject "Moved the cache to disk". [S1] Moved the cache to disk. [S2] The small servers ran out of memory. Then reason is S2.
+Example: [S4] The nightly job hits the disk quota, so builds get killed before dawn. eng: The nightly job hits the disk quota, so builds get killed before dawn. plain: The nightly job runs out of storage space, so builds get stopped before dawn.
 
 eng is for engineers and may name code. ${PLAIN_RULE}`,
   render: (dossier) => dossier.text,
