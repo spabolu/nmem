@@ -48,12 +48,12 @@ export function AddRepo({ built }: { readonly built: readonly string[] }) {
       <div id={commandsId} aria-live="polite">
         {slug ? (
           <>
-            <p className="add-hint">
+            <p className="m-0 mb-2 text-(color:--fgColor-muted)">
               {already
                 ? `${already} is already built. Run these to read its latest history.`
                 : "Run these from the nmem checkout, then reload this page."}
             </p>
-            <pre className="add-commands">
+            <pre className="m-0 rounded-(--borderRadius-medium) border border-(color:--borderColor-default) bg-(--bgColor-muted) p-3 font-(family-name:--fontStack-monospace) text-(length:--text-codeBlock-size) [overflow-wrap:anywhere] whitespace-pre-wrap">
               {`node engine/cli.ts add ${slug}\nnode engine/cli.ts build-repo ${slug}`}
             </pre>
           </>

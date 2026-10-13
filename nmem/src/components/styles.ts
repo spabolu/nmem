@@ -47,3 +47,4 @@ export const CALLOUT =
   "mx-0 my-2 rounded-[6px] bg-(--bgColor-attention-muted) px-3 py-2";
 export const SOURCE_PRE =
   "whitespace-pre-wrap rounded-[6px] border border-(color:--borderColor-default) bg-(--bgColor-muted) p-3 [font:12px/20px_var(--fontStack-monospace)]";
+export const HINT = "text-[14px] text-(color:--fgColor-muted)";
