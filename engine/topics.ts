@@ -5,14 +5,14 @@
  */
 import { createHash } from 'node:crypto';
 import type { LocalId, Named, RecordSource, Said, Topic } from '../harness/contract.ts';
-import { JARGON } from '../fixtures/lib/plain.mjs';
+import { JARGON, plainHits } from '../fixtures/lib/plain.mjs';
 import { ModelUnavailable } from './copilot.ts';
 import type { ModelClient } from './copilot.ts';
 import { arr, ask, lengthProblems, named, nullable, obj, OPUS, plainProblems, str, words } from './model.ts';
 import type { Gated, Task } from './model.ts';
 import { isDoc, isReadme } from './record.ts';
 import type { FileObject, Line, RepoRecord, Sentence } from './record.ts';
-import { ROOT } from './steps.ts';
+import { collapse, ROOT } from './steps.ts';
 import type { Placeable, TreeSignals } from './steps.ts';
 
 const PLAIN_RULE = `plain is for someone who does not read code. It names no file, function, option, flag, command, code, commit id, or number with a number sign, and none of these words: ${JARGON.join(', ')}.`;
@@ -190,6 +190,36 @@ function gateForm(record: RepoRecord, input: FormInput, answer: FormAnswer): Gat
 
 type PageInput = { readonly text: string; readonly handles: Handles };
 
+/** A split topic's page sees only its own files, so the model cannot restate the donor page. */
+function ownPageInput(record: RepoRecord, topic: Topic): PageInput {
+  const handles = emptyHandles();
+  const out = ['This page covers only the file shown below. Say what that file does, not what another part of the repository does.'];
+  for (const path of topic.files) {
+    const file = record.files.find((item) => item.path === path);
+    if (!file) continue;
+    if (isDoc(path)) {
+      out.push('', `Doc: ${path}`);
+      showSentences(file, handles, out);
+    } else {
+      out.push('', `${isTest(path) || isTestPath(path) ? 'Tests' : 'Code'}: ${path}`);
+      showLines(file, handles, out);
+    }
+  }
+  return { text: out.join('\n'), handles };
+}
+
+function nameFromFile(file: FileObject): Named {
+  const heading = file.sentences.find((sentence) => sentence.unit === 'heading')?.text ?? '';
+  const stripped = collapse(heading).replace(/^ADR-\d+:\s*/i, '');
+  if (words(stripped) >= 2 && words(stripped) <= 5 && plainHits(stripped).length === 0) {
+    return { eng: collapse(heading).split(' ').slice(0, 5).join(' '), plain: stripped.split(' ').slice(0, 5).join(' ') };
+  }
+  const stem = stemOf(file.path).replace(/[_-]+/g, ' ').split(' ').filter((word) => word.length > 0).slice(0, 4);
+  while (stem.length < 2) stem.push('part');
+  const eng = stem.join(' ');
+  return { eng, plain: plainHits(eng).length === 0 ? eng : 'One separate part' };
+}
+
 function pageInputOf(record: RepoRecord, tree: readonly Skeleton[], topic: Skeleton): PageInput {
   const handles = emptyHandles();
   const parent = tree.find((other) => other.id === topic.parent);
@@ -238,6 +268,36 @@ eng may name code. ${PLAIN_RULE}`,
 };
 
 type Page = { readonly headline: readonly [Said, ...Said[]]; readonly example: Said | null };
+
+/** A page the model did not write, copied from this file so the donor headline is never kept. */
+function floorPage(record: RepoRecord, topic: Topic): Page | null {
+  const path = topic.files[0];
+  if (!path) return null;
+  const file = record.files.find((item) => item.path === path);
+  if (!file) return null;
+  const sentence = file.sentences.find((item) => item.unit === 'prose' && item.text.trim());
+  const line = file.lines.find((item) => item.text.trim());
+  if (!sentence && !line) return null;
+  const quote = sentence ? sentence.text : line!.text.trim();
+  const source = sentence
+    ? { kind: 'record' as const, ref: sentence.ref, quote: sentence.text }
+    : { kind: 'record' as const, ref: `${record.head.slice(0, 7)}:${path}`, quote };
+  const eng = collapse(quote).split(' ').slice(0, 45).join(' ');
+  const plain = plainHits(eng).length === 0 ? eng : 'This page covers only what its own file shows.';
+  let example: Said | null = null;
+  if (isTest(path) || isTestPath(path)) {
+    const asserted = file.lines.find((item) => item.text.trim() && /assert|expect/.test(item.text));
+    if (asserted) {
+      const text = collapse(asserted.text).split(' ').slice(0, 30).join(' ');
+      example = {
+        eng: text,
+        plain: plainHits(text).length === 0 ? text : 'A test in this file checks one case.',
+        source: { kind: 'record', ref: `${record.head.slice(0, 7)}:${path}`, quote: asserted.text.trim() },
+      };
+    }
+  }
+  return { headline: [{ eng, plain, source }], example };
+}
 
 function sourceOf(record: RepoRecord, handles: Handles, handle: string): { readonly source: RecordSource; readonly path: string } | null {
   const head7 = record.head.slice(0, 7);
@@ -309,7 +369,39 @@ export async function formTopics(record: RepoRecord, client: ModelClient, signal
     return page ? [{ ...topic, parent: parentOf(topic.parent), headline: page.headline, example: page.example }] : [];
   });
   const root = topics.find((topic) => topic.id === ROOT) ?? floorRoot;
-  return splitMixed(record, [root, ...topics.filter((topic) => topic.id !== ROOT)]);
+  const before: readonly [Topic, ...Topic[]] = [root, ...topics.filter((topic) => topic.id !== ROOT)];
+  return pagesForSplit(record, client, before, splitMixed(record, before), note);
+}
+
+/**
+ * splitMixed copies the donor page onto each file it moves. That page says what the donor does, so each moved file
+ * gets a page written from its own file, and a failed write copies that file instead of the donor.
+ */
+async function pagesForSplit(record: RepoRecord, client: ModelClient, before: readonly Topic[], split: readonly [Topic, ...Topic[]], note: (line: string) => void): Promise<readonly [Topic, ...Topic[]]> {
+  const known = new Set(before.map((topic) => topic.id));
+  const rewritten = await Promise.all(split.map(async (topic) => {
+    if (known.has(topic.id)) return topic;
+    const input = ownPageInput(record, topic);
+    const label = `page ${topic.id}`;
+    let page: Page | null = null;
+    if (input.handles.lines.size + input.handles.sentences.size > 0) {
+      try {
+        const written = await ask(client, PAGE, input, label, (answer) => gatePage(record, input, answer));
+        written.problems.forEach((line) => note(`${label} ${line}`));
+        page = written.value;
+      } catch (error) {
+        if (!(error instanceof ModelUnavailable && error.reason === 'bad-reply')) throw error;
+        note(`${label} fell back: ${error.message}`);
+      }
+    }
+    const own = page ?? floorPage(record, topic);
+    if (!own) return null;
+    const file = record.files.find((item) => item.path === topic.files[0]);
+    return { ...topic, ...(file ? { name: nameFromFile(file) } : {}), headline: own.headline, example: own.example };
+  }));
+  const kept = rewritten.filter((topic): topic is Topic => topic !== null);
+  const root = kept.find((topic) => topic.id === ROOT) ?? split[0];
+  return [root, ...kept.filter((topic) => topic.id !== ROOT)];
 }
 
 function stemOf(path: string): string {

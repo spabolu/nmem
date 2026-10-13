@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -350,4 +351,48 @@ test('topics: the tree is checked against HEAD, Start here is computed, and page
   assert.match(client.seen.find((request) => request.label === 'form topics' && request.sample === 1)?.user ?? '', /- topics\[1\]\.files: nope\.py not at HEAD$/);
   assert.match(client.seen.find((request) => request.label === 'page greeting' && request.sample === 1)?.user ?? '', /- example\.source: L1 is not a test line$/);
   assert.deepEqual(notes, []);
+});
+
+test('a split topic page is written from its own file, not the donor headline', async () => {
+  const record = ingest(toyWorkspace([{
+    title: 'Greet by name',
+    body: 'Greet people by name.',
+    files: {
+      'src/greet.py': 'def greet(name):\n    return "hi " + name\n',
+      'tests/test_other.py': 'def other():\n    return 1\nassert other() == 1\n',
+    },
+  }]));
+  const head7 = record.head.slice(0, 7);
+  const splitId = `t${createHash('sha256').update('tests/test_other.py').digest('hex').slice(0, 8)}`;
+  const client = fakeClient({
+    'classify pr#1': [{ choices: [], findings: [] }],
+    'form topics': [{
+      topics: [
+        { slug: 'toy', parent: null, name: { eng: 'Toy greeter', plain: 'Toy greeter' }, files: [], docs: ['README.md'], words: [], start: 'L1' },
+        { slug: 'greeting', parent: 'toy', name: { eng: 'Greeting', plain: 'Greeting' }, files: ['src/greet.py', 'tests/test_other.py'], docs: [], words: ['hi'], start: 'L1' },
+      ],
+    }],
+    'page root': [{ headline: [{ eng: 'Toy prints a greeting.', plain: 'Toy prints a greeting.', source: 'S1' }], example: null }],
+    'page greeting': [{ headline: [{ eng: 'greet() says hi.', plain: 'It says hi.', source: 'L2' }], example: null }],
+    [`page ${splitId}`]: [{
+      headline: [{ eng: 'other() returns 1.', plain: 'It returns one.', source: 'L2' }],
+      example: { eng: 'other() is 1.', plain: 'The check expects one.', source: 'L3' },
+    }],
+  });
+  const snapshot = JSON.parse((await assemble(record, modelSteps(record, client, []))).bytes) as Snapshot;
+  const donor = snapshot.topics.find((topic) => topic.id === 'greeting');
+  const split = snapshot.topics.find((topic) => topic.id === splitId);
+  assert.deepEqual(donor?.files, ['src/greet.py']);
+  assert.equal(donor?.headline[0]?.eng, 'greet() says hi.');
+  assert.equal(split?.name.eng, 'other part');
+  const headline = split?.headline[0]?.source;
+  const example = split?.example?.source;
+  assert.equal(split?.headline[0]?.eng, 'other() returns 1.');
+  assert.equal(headline?.kind, 'record');
+  assert.equal(headline?.kind === 'record' ? headline.quote : '', 'return 1');
+  assert.equal(headline?.kind === 'record' ? headline.ref : '', `${head7}:tests/test_other.py`);
+  assert.equal(split?.example?.eng, 'other() is 1.');
+  assert.equal(example?.kind, 'record');
+  assert.equal(example?.kind === 'record' ? example.quote : '', 'assert other() == 1');
+  assert.equal(example?.kind === 'record' ? example.ref : '', `${head7}:tests/test_other.py`);
 });
