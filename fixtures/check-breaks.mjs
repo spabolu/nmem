@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import spec from './specs/_example.mjs';
+import seedlingSpec from './specs/seedling.mjs';
 import tallySpec from './specs/tally.mjs';
 import wayfinderSpec from './specs/wayfinder.mjs';
 import { assertNoSpecLeaks, buildRepo, githubDocument, parseSpec, resolveAnswers, resolveViews, SpecError } from './lib/domain.mjs';
@@ -217,7 +218,7 @@ for (const item of cases) {
   }
 }
 
-const viewSpecs = { wayfinder: wayfinderSpec, tally: tallySpec };
+const viewSpecs = { wayfinder: wayfinderSpec, tally: tallySpec, seedling: seedlingSpec };
 const buildDir = fs.mkdtempSync(path.join(os.tmpdir(), 'nmem-views-'));
 const builds = new Map();
 
@@ -408,6 +409,14 @@ const viewCases = [
     expect: 'an example cites a test file at HEAD or a run',
     mutate(views) {
       views.topics[1].example.ev = { kind: 'file', path: 'src/bucket.ts', at: 'c-changelog-100', quote: 'if (refilled < 1) {' };
+    },
+  },
+  {
+    name: 'example citing Go code beside its _test.go file',
+    slug: 'seedling',
+    expect: 'an example cites a test file at HEAD or a run',
+    mutate(views) {
+      views.topics.find((topic) => topic.id === 'schedule').example.ev = { kind: 'file', path: 'internal/schedule/assign.go', at: 'c-cron-5pm', quote: 'func Assign(days []time.Time, roster []Volunteer) []Shift {' };
     },
   },
   {

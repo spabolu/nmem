@@ -1423,9 +1423,13 @@ const views = {
           ev: headFile('internal/schedule/assign.go', 'if last[v.Name].Equal(day.AddDate(0, 0, -1)) {'),
         },
       ],
-      example: null,
+      example: {
+        eng: 'TestAssign gives Ana Monday to Saturday and Ben Monday and Tuesday, and expects Ana, Ben, Ana, blank, Ana, blank.',
+        plain: "In the app's own check, Ana is free Monday to Saturday and Ben only Monday and Tuesday; Ana gets three days, Ben gets Tuesday, and two stay open.",
+        ev: headFile('internal/schedule/assign_test.go', 'want := []string{"Ana", "Ben", "Ana", "", "Ana", ""}'),
+      },
       words: ['schedule', 'assign', 'fewest shifts', 'tie', 'two days in a row', 'export'],
-      covers: ['how-scheduler-picks', 'who-scheduling'],
+      covers: ['how-scheduler-picks', 'who-scheduling', 'example-assign-week'],
     },
     {
       id: 'days',
@@ -1442,7 +1446,11 @@ const views = {
           ev: headFile('internal/schedule/days.go', 'if d.Weekday() == time.Sunday {'),
         },
       ],
-      example: null,
+      example: {
+        eng: 'TestWateringDays asks for two weeks from Monday, May 6, 2024, and expects 12 days with no Sunday among them.',
+        plain: "The app's own check asks for two weeks of watering days and expects 12 days, none of them a Sunday.",
+        ev: headFile('internal/schedule/days_test.go', 't.Fatalf("got %d days, want 12", len(days))'),
+      },
       words: ['Sunday', 'Sundays', 'watering days', 'Monday to Saturday'],
     },
     {
@@ -1516,8 +1524,13 @@ const views = {
           ev: headFile('cmd/seedling/swap.go', 'if nextTo(shifts, date, taker) {'),
         },
       ],
-      example: null,
+      example: {
+        eng: "TestTokenRoundTrip expects Walt's link for Thursday, August 8, 2024 to work that day, and to fail the day after or under another key.",
+        plain: "The app's own check expects Walt's link for his Thursday shift to work that Thursday and stop working on Friday.",
+        ev: headFile('internal/swap/swap_test.go', 't.Error("token still works the day after the shift")'),
+      },
       words: ['swap', 'hand off', 'link', 'token', 'trade shifts', 'sub'],
+      covers: ['example-swap-link-expiry'],
     },
   ],
   changes: {
@@ -2096,8 +2109,6 @@ const views = {
     { key: 'winter-lull', why: 'Discussions #14 and #15, where season 1 closes and season 2 planning starts, are not view objects. Between them the timeline shows only d-go123.' },
     { key: 'handbook-caught-up', why: 'v1 shows whether a doc is true today. The weeks the handbook still promised a text after PR #16 are history that no view object holds, and PR #18 shows only as a routine handbook update.' },
     { key: 'ci-caught-tie', why: 'Test runs inside a pull request are not view objects. PR #4 shows only as the decision it carries.' },
-    { key: 'example-assign-week', why: 'The example is TestAssign in internal/schedule/assign_test.go. A topic example must cite a file under a test/ or tests/ directory, and Go keeps its tests beside the code, so no topic shows it.' },
-    { key: 'example-swap-link-expiry', why: 'The example is TestTokenRoundTrip in internal/swap/swap_test.go. A topic example must cite a file under a test/ or tests/ directory, and Go keeps its tests beside the code, so no topic shows it.' },
   ],
 };
 
