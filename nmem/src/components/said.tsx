@@ -69,6 +69,15 @@ export function SaidText({
   );
 }
 
+const TONE = {
+  green: "bg-(--bgColor-success-emphasis)",
+  blue: "bg-(--bgColor-accent-emphasis)",
+  purple: "bg-(--bgColor-done-emphasis)",
+  orange: "bg-(--bgColor-severe-emphasis)",
+  red: "bg-(--bgColor-danger-emphasis)",
+  coral: "bg-(--bgColor-sponsors-emphasis)",
+} as const satisfies Record<ReturnType<typeof avatarOf>["tone"], string>;
+
 export function Avatar({
   site,
   login,
@@ -80,7 +89,10 @@ export function Avatar({
 }) {
   const avatar = avatarOf(site, login);
   return (
-    <span className={`avatar tone-${avatar.tone} s${size}`} aria-hidden="true">
+    <span
+      className={`inline-grid place-items-center rounded-[50%] font-[700] text-(color:--fgColor-onEmphasis) ${size === 32 ? "size-8 text-[12px]" : "size-5 text-[9px]"} ${TONE[avatar.tone]}`}
+      aria-hidden="true"
+    >
       {avatar.initials}
     </span>
   );

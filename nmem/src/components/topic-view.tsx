@@ -18,7 +18,7 @@ import {
 import { ancestors, dotOf, person, topicById } from "@/lib/present";
 import { ButtonLink } from "./links";
 import { Avatar, Chip, type Ctx, Prose, SaidText } from "./said";
-import { CHIP } from "./styles";
+import { CALLOUT, CHIP, LABEL, MUTED, SOURCE_PRE } from "./styles";
 import { Tree } from "./tree";
 
 export async function TopicView({
@@ -32,7 +32,8 @@ export async function TopicView({
 }) {
   const { site, repo, audience } = ctx;
   const topic = topicById(site, id);
-  if (!topic) return <p className="miss">This topic is not in the snapshot.</p>;
+  if (!topic)
+    return <p className={MUTED}>This topic is not in the snapshot.</p>;
   const page = pageOf(site.snapshot, site.facts, id);
   const rows = all
     ? decisionsFor(id, site.snapshot, site.facts)
@@ -102,7 +103,7 @@ export async function TopicView({
         ) : null}
         {page.example ? (
           <section className="example" data-example="yes" aria-label="Example">
-            <span className="lbl">Example</span>
+            <span className={LABEL}>Example</span>
             <p className="said" data-nmem>
               <SaidText ctx={ctx} line={page.example} />
             </p>
@@ -114,7 +115,7 @@ export async function TopicView({
             data-example="none"
             aria-label="Example"
           >
-            <span className="lbl">Example</span>
+            <span className={LABEL}>Example</span>
             <p>
               No example. A topic shows one only when a test or a run backs it.
             </p>
@@ -122,7 +123,7 @@ export async function TopicView({
         )}
         <section className="start" aria-labelledby="start-here">
           <h2 id="start-here">Start here</h2>
-          <blockquote className="source">{topic.start.quote}</blockquote>
+          <blockquote className={CALLOUT}>{topic.start.quote}</blockquote>
           <div className="actions">
             <ButtonLink
               href={sourceHref(repo, audience, {
@@ -289,7 +290,7 @@ async function ExampleProof({
     return <p className="hint">nmem could not run this check.</p>;
   const preview =
     result.text.length > 600 ? `${result.text.slice(0, 600)}\n…` : result.text;
-  return <pre className="source">{preview}</pre>;
+  return <pre className={SOURCE_PRE}>{preview}</pre>;
 }
 
 function DecisionRow({

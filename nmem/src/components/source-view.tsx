@@ -3,6 +3,25 @@ import type { RequestQuery, Site } from "@/lib/kernel/site";
 import { formatDay, TRUST_WORDS } from "@/lib/kernel/view";
 import { githubUrlOf, person, stamp } from "@/lib/present";
 import { Avatar, type Ctx } from "./said";
+import { CALLOUT, H1, KICKER, LABEL, MUTED, SOURCE_PRE } from "./styles";
+
+const CBOX = "grid grid-cols-[40px_1fr] gap-3";
+
+function chdClass(hit: boolean): string {
+  return `rounded-t-[6px] border border-b-0 bg-(--bgColor-muted) px-4 py-2 text-(color:--fgColor-muted) ${hit ? "border-(color:--borderColor-accent-emphasis)" : "border-(color:--borderColor-default)"}`;
+}
+
+function cbdClass(hit: boolean): string {
+  return `rounded-b-[6px] border px-4 py-3 [&_p]:mt-0 [&_p]:mb-2 [&_p:last-child]:m-0 ${hit ? "border-(color:--borderColor-accent-emphasis) shadow-[inset_0_0_0_1px_var(--borderColor-accent-emphasis)]" : "border-(color:--borderColor-default)"}`;
+}
+
+function lineClass(hit: boolean): string {
+  return `grid grid-cols-[54px_1fr] ${hit ? "bg-(--bgColor-attention-muted)" : ""}`;
+}
+
+function lineNumberClass(hit: boolean): string {
+  return `pr-3 text-right ${hit ? "text-(color:--fgColor-default) shadow-[inset_3px_0_0_var(--bgColor-nmem-emphasis)]" : "text-(color:--fgColor-muted)"}`;
+}
 
 type Comment = {
   readonly id: number;
@@ -30,14 +49,14 @@ export async function SourceView({
   if (query.proof)
     return <ProofReceipt site={site} raw={query.proof} audience={audience} />;
   if (!query.ref)
-    return <p className="miss">A receipt needs a ref or a proof.</p>;
+    return <p className={MUTED}>A receipt needs a ref or a proof.</p>;
   const parsed = parseRef(query.ref, site.identity);
-  if (!parsed) return <p className="miss">nmem could not read this source.</p>;
+  if (!parsed) return <p className={MUTED}>nmem could not read this source.</p>;
   const quote = query.quote;
   const url = githubUrlOf(site, query.ref);
   const callout = quote ? (
-    <blockquote className="callout source">
-      <span className="lbl">The page quotes</span>
+    <blockquote className={CALLOUT}>
+      <span className={LABEL}>The page quotes</span>
       {quote}
     </blockquote>
   ) : null;
@@ -69,11 +88,11 @@ export async function SourceView({
     return (
       <>
         {callout}
-        <article className="gh">
-          <p className="kicker">{parsed.path}</p>
-          <h1>{parsed.path.split("/").at(-1) ?? parsed.path}</h1>
+        <article>
+          <p className={KICKER}>{parsed.path}</p>
+          <h1 className={H1}>{parsed.path.split("/").at(-1) ?? parsed.path}</h1>
           <GithubLink url={url} />
-          <div className="blob">
+          <div className="overflow-auto rounded-[6px] border border-(color:--borderColor-default)">
             <FileLines body={body} lines={parsed.lines} quote={quote} />
           </div>
         </article>
@@ -86,16 +105,16 @@ export async function SourceView({
     return (
       <>
         {callout}
-        <article className="gh">
-          <p className="kicker">Commit</p>
-          <h1>{object?.header ?? query.ref}</h1>
-          <p className="pr-state">
+        <article>
+          <p className={KICKER}>Commit</p>
+          <h1 className={H1}>{object?.header ?? query.ref}</h1>
+          <p className="border-b border-(color:--borderColor-default) pb-3 text-(color:--fgColor-muted)">
             {facts?.author ? person(site, facts.author) : "unknown"} on{" "}
             {facts ? formatDay(facts.day) : ""}
           </p>
           <GithubLink url={url} />
-          <div className="cbox">
-            <div className="cbd">
+          <div className={CBOX}>
+            <div className={cbdClass(false)}>
               <Paragraphs text={object?.revisions.at(-1) ?? ""} quote={quote} />
             </div>
           </div>
@@ -107,7 +126,7 @@ export async function SourceView({
     return (
       <>
         {callout}
-        <p className="miss">This source is not in the workspace record.</p>
+        <p className={MUTED}>This source is not in the workspace record.</p>
         <GithubLink url={url} />
       </>
     );
@@ -115,11 +134,11 @@ export async function SourceView({
   return (
     <>
       {callout}
-      <article className="gh">
-        <h1>{object.header}</h1>
+      <article>
+        <h1 className={H1}>{object.header}</h1>
         <GithubLink url={url} />
-        <div className="cbox">
-          <div className="cbd">
+        <div className={CBOX}>
+          <div className={cbdClass(false)}>
             <Paragraphs text={object.revisions.at(-1) ?? ""} quote={quote} />
           </div>
         </div>
@@ -240,16 +259,14 @@ function CommentBox({
   readonly id?: number;
 }) {
   return (
-    <article
-      className={`cbox${marked ? " hit" : ""}`}
-      id={id === undefined ? undefined : `c${id}`}
-    >
+    <article className={CBOX} id={id === undefined ? undefined : `c${id}`}>
       <Avatar site={site} login={author} size={32} />
       <div>
-        <header className="chd">
-          <b>{author}</b> {verb} on {stamp(at)}
+        <header className={chdClass(marked)}>
+          <b className="text-(color:--fgColor-default)">{author}</b> {verb} on{" "}
+          {stamp(at)}
         </header>
-        <div className="cbd">
+        <div className={cbdClass(marked)}>
           <Paragraphs text={body} quote={quote} />
         </div>
       </div>
@@ -306,7 +323,7 @@ function Thread({
 }) {
   const { github } = site;
   const kicker = (
-    <p className="kicker">
+    <p className={KICKER}>
       {site.identity.owner} / {site.identity.name}
     </p>
   );
@@ -314,19 +331,22 @@ function Thread({
     const row = github.discussions.find((one) => one.number === parent.number);
     if (!row)
       return (
-        <p className="miss">This source is not in the workspace record.</p>
+        <p className={MUTED}>This source is not in the workspace record.</p>
       );
     return (
-      <article className="gh">
+      <article>
         {kicker}
-        <h1>
-          {row.title} <span className="num">#{row.number}</span>
+        <h1 className={H1}>
+          {row.title}{" "}
+          <span className="font-[400] text-(color:--fgColor-muted)">
+            #{row.number}
+          </span>
         </h1>
-        <p className="pr-state">
+        <p className="border-b border-(color:--borderColor-default) pb-3 text-(color:--fgColor-muted)">
           {row.author} opened this discussion on {stamp(row.at)}.
         </p>
         <GithubLink url={url} />
-        <div className="thread">
+        <div className="mt-4 grid gap-4">
           <CommentBox
             site={site}
             author={row.author}
@@ -350,19 +370,22 @@ function Thread({
     const row = github.issues.find((one) => one.number === parent.number);
     if (!row)
       return (
-        <p className="miss">This source is not in the workspace record.</p>
+        <p className={MUTED}>This source is not in the workspace record.</p>
       );
     return (
-      <article className="gh">
+      <article>
         {kicker}
-        <h1>
-          {row.title} <span className="num">#{row.number}</span>
+        <h1 className={H1}>
+          {row.title}{" "}
+          <span className="font-[400] text-(color:--fgColor-muted)">
+            #{row.number}
+          </span>
         </h1>
-        <p className="pr-state">
+        <p className="border-b border-(color:--borderColor-default) pb-3 text-(color:--fgColor-muted)">
           {row.author} opened this on {stamp(row.openedAt)}.
         </p>
         <GithubLink url={url} />
-        <div className="thread">
+        <div className="mt-4 grid gap-4">
           <CommentBox
             site={site}
             author={row.author}
@@ -384,18 +407,23 @@ function Thread({
   }
   const pull = github.pulls.find((one) => one.number === parent.number);
   if (!pull)
-    return <p className="miss">This source is not in the workspace record.</p>;
+    return <p className={MUTED}>This source is not in the workspace record.</p>;
   return (
-    <article className="gh">
+    <article>
       {kicker}
-      <h1>
-        {pull.title} <span className="num">#{pull.number}</span>
+      <h1 className={H1}>
+        {pull.title}{" "}
+        <span className="font-[400] text-(color:--fgColor-muted)">
+          #{pull.number}
+        </span>
       </h1>
-      <p className="pr-state">
+      <p className="border-b border-(color:--borderColor-default) pb-3 text-(color:--fgColor-muted)">
         {pull.mergedAt ? (
-          <span className="merged">Merged</span>
+          <span className="inline-flex rounded-[2em] bg-(--bgColor-done-emphasis) px-3 py-1 text-[14px] font-[600] text-(color:--fgColor-onEmphasis)">
+            Merged
+          </span>
         ) : (
-          <span className="open">Open</span>
+          <span>Open</span>
         )}{" "}
         {pull.author}{" "}
         {pull.mergedAt
@@ -404,7 +432,7 @@ function Thread({
         .
       </p>
       <GithubLink url={url} />
-      <div className="thread">
+      <div className="mt-4 grid gap-4">
         <CommentBox
           site={site}
           author={pull.author}
@@ -480,13 +508,15 @@ function FileLines({
           Lines {from}-{to} of {rows.length}.
         </p>
       ) : null}
-      <div className="code">
+      <div className="py-2 [font:12px/20px_var(--fontStack-monospace)]">
         {rows.slice(from - 1, to).map((row, index) => {
           const n = from + index;
           return (
-            <div key={n} className={`ln${n >= start && n <= end ? " hl" : ""}`}>
-              <span className="n">{n}</span>
-              <span className="s">
+            <div key={n} className={lineClass(n >= start && n <= end)}>
+              <span className={lineNumberClass(n >= start && n <= end)}>
+                {n}
+              </span>
+              <span className="whitespace-pre">
                 <Marked text={row} quote={quote} />
               </span>
             </div>
@@ -507,7 +537,7 @@ async function ProofReceipt({
   readonly audience: Ctx["audience"];
 }) {
   const parsed = parseProof(raw);
-  if (!parsed) return <p className="miss">nmem could not read this check.</p>;
+  if (!parsed) return <p className={MUTED}>nmem could not read this check.</p>;
   const words = TRUST_WORDS[parsed.verb][audience];
   const result = site.proof(raw) ?? {
     failed: "missing",
@@ -515,12 +545,14 @@ async function ProofReceipt({
       "The lab did not bake this check; rebuild this repo with nmem build-repo.",
   };
   return (
-    <article className="gh">
-      <h1 data-nmem>{words}</h1>
+    <article>
+      <h1 className={H1} data-nmem>
+        {words}
+      </h1>
       {"failed" in result ? (
-        <p className="miss">nmem could not run this check. {result.detail}</p>
+        <p className={MUTED}>nmem could not run this check. {result.detail}</p>
       ) : (
-        <pre className="source">{result.text}</pre>
+        <pre className={SOURCE_PRE}>{result.text}</pre>
       )}
     </article>
   );
