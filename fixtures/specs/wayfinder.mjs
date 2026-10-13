@@ -1403,7 +1403,7 @@ const views = {
     'pr#2': { topics: ['stores'] },
     'c-apikey': { topics: ['callers'] },
     'pr#4': { topics: ['stores'] },
-    'pr#5': { topics: ['counting'] },
+    'pr#5': { topics: ['counting', 'stores'] },
     'c-codeowners': routineOf(
       'c-codeowners',
       { eng: 'CODEOWNERS added', plain: 'reviewer list added' },
@@ -1732,7 +1732,7 @@ const views = {
         ev: headFile(adrs.bucket, 'Replace the fixed window with a token bucket.'),
       },
       alsoIntent: [pr(5, 'Replace the fixed window with a token bucket')],
-      topics: ['counting'],
+      topics: ['counting', 'stores'],
       carriedBy: 'pr#5',
       why: {
         reason: {
@@ -2119,6 +2119,13 @@ const views = {
         ev: { verb: 'run', id: 'two-limiters', shows: twoLimiters },
       },
     },
+    {
+      id: 'claim-adr-outage',
+      doc: adrs.memory,
+      quote: 'A store outage can no longer take the API down.',
+      topic: 'stores',
+      verdict: 'still-true',
+    },
   ],
   undone: [
     {
@@ -2250,7 +2257,7 @@ console.log(\`same key 1000 ms later, five more: \${later.map((r) => r.code).joi
       kind: 'timeline',
       topic: 'stores',
       ...lifetime,
-      counts: { decision: 10, net: 1 },
+      counts: { decision: 11, net: 1 },
       named: ['d-no-shared-db', 'd-in-process', 'd-no-switch'],
       routine: { count: 1, lines: 14 },
     },
