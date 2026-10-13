@@ -1447,7 +1447,7 @@ const views = {
         },
       ],
       example: {
-        eng: 'TestWateringDays asks for two weeks from Monday, May 6, 2024, and expects 12 days with no Sunday among them.',
+        eng: 'TestWateringDays calls `WateringDays(mon, 2)` from Monday, May 6, 2024, and expects 12 days with no Sunday among them.',
         plain: "The app's own check asks for two weeks of watering days and expects 12 days, none of them a Sunday.",
         ev: headFile('internal/schedule/days_test.go', 't.Fatalf("got %d days, want 12", len(days))'),
       },
@@ -1634,8 +1634,8 @@ const views = {
               ev: comment('issue11-minh', "They're in the order people signed up"),
             },
             {
-              eng: 'The v1.0.0 release notes list it under Known issues.',
-              plain: 'The season 2 release notes still list it as a known problem.',
+              eng: 'The v1.0.0 release notes list the sign-up order of names on the swap page under Known issues.',
+              plain: 'The season 2 release notes list the order of names on the swap page as a known problem.',
               ev: { kind: 'tag', name: 'v1.0.0', quote: 'Names on the swap page are in sign-up order, not alphabetical (#11).' },
             },
           ],
@@ -1751,8 +1751,8 @@ const views = {
     {
       id: 'd-shed-sheet',
       what: {
-        eng: '`seedling sheet` prints a large-print weekly schedule for the shed door.',
-        plain: 'The app prints a big-letter weekly schedule for the shed door.',
+        eng: '`seedling sheet` makes a large-print weekly schedule for the shed door.',
+        plain: 'The app makes a big-letter weekly schedule for the shed door.',
         ev: headFile(adr.email, '`seedling sheet` renders a large-print schedule for the week.'),
       },
       alsoIntent: [pr(16, 'New `seedling sheet -from <monday>` prints a big-type weekly schedule for the shed door.')],

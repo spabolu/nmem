@@ -1043,31 +1043,31 @@
     "flags": []
   },
   "seedling/d-shed-sheet/what/eng": {
-    "source": "ebf6df699ba93863a3367e15d09b0282",
+    "source": "b3b3475564cef4c3d42d6bbb84f6c3a0",
     "headline": [
       {
         "id": "f1",
-        "text": "`seedling sheet` prints a large-print weekly schedule for the shed door."
+        "text": "`seedling sheet` makes a large-print weekly schedule for the shed door."
       }
     ],
     "supporting": [],
     "paraphrase": [
-      "`seedling sheet` produces a big-type weekly timetable meant to hang on the shed door."
+      "`seedling sheet` builds a weekly schedule in large print to place on the shed door."
     ],
     "review": "auto",
     "flags": []
   },
   "seedling/d-shed-sheet/what/plain": {
-    "source": "019facae9df5b5b3d5d4df3841b116e9",
+    "source": "1c38b991afc394fd69512086b83ce669",
     "headline": [
       {
         "id": "f1",
-        "text": "The app prints a big-letter weekly schedule for the shed door."
+        "text": "The app makes a big-letter weekly schedule for the shed door."
       }
     ],
     "supporting": [],
     "paraphrase": [
-      "The program prints a large-letter weekly schedule to hang on the shed door."
+      "The app creates a weekly plan in large letters meant for the shed door."
     ],
     "review": "auto",
     "flags": []
@@ -1467,22 +1467,23 @@
     "flags": []
   },
   "seedling/days/example/eng": {
-    "source": "dcf9ffe462826e13d7ca0a4f431017fb",
+    "source": "e4008e3f142dd8d08aed4221b5067cb8",
     "headline": [
       {
         "id": "f1",
-        "text": "TestWateringDays asks for two weeks from Monday, May 6, 2024."
-      },
-      {
-        "id": "f2",
         "text": "TestWateringDays expects 12 days with no Sunday among them."
       }
     ],
-    "supporting": [],
-    "paraphrase": [
-      "TestWateringDays requests two weeks starting on Monday, May 6, 2024, then looks for a set of 12 days containing no Sunday."
+    "supporting": [
+      {
+        "id": "f2",
+        "text": "TestWateringDays calls `WateringDays(mon, 2)` from Monday, May 6, 2024."
+      }
     ],
-    "review": "auto",
+    "paraphrase": [
+      "Expecting 12 days and none of them a Sunday, TestWateringDays invokes `WateringDays(mon, 2)` as of Monday, May 6, 2024."
+    ],
+    "review": "owner-checked",
     "flags": []
   },
   "seedling/days/example/plain": {
@@ -1586,27 +1587,7 @@
     "flags": []
   },
   "seedling/f-swap-order/card/eng": {
-    "source": "5175c5b4e4ceb55a44816ae829e7f20b",
-    "headline": [
-      {
-        "id": "f1",
-        "text": "The swap page lists names in the order people signed up."
-      },
-      {
-        "id": "f2",
-        "text": "The v1.0.0 release notes list the swap page name order under Known issues."
-      }
-    ],
-    "supporting": [],
-    "paraphrase": [
-      "On the swap page, names show up following the sequence in which people registered.",
-      "Notes for the v1.0.0 release put this item under Known issues."
-    ],
-    "review": "auto",
-    "flags": []
-  },
-  "seedling/f-swap-order/card/plain": {
-    "source": "6474979f6cfcab253a5944a34c3b4d77",
+    "source": "c02e30097698cc66c64dd4deb1383455",
     "headline": [
       {
         "id": "f1",
@@ -1616,14 +1597,35 @@
     "supporting": [
       {
         "id": "f2",
-        "text": "The season 2 release notes still list names appearing in signup order on the swap page as a known problem."
+        "text": "The v1.0.0 release notes list the sign-up order of names on the swap page under Known issues."
       }
     ],
     "paraphrase": [
-      "Names show up on the swap page following the sequence people used when they signed up.",
-      "The notes for season 2 still call that name order a known problem."
+      "The swap page displays names following the order in which people signed up.",
+      "Under Known issues, the release notes of v1.0.0 record how the swap page orders names by sign-up."
     ],
-    "review": "auto",
+    "review": "owner-checked",
+    "flags": []
+  },
+  "seedling/f-swap-order/card/plain": {
+    "source": "6b5d4fc9c0778b9f88702710a85edcbc",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "The swap page lists names in the order people signed up."
+      }
+    ],
+    "supporting": [
+      {
+        "id": "f2",
+        "text": "The season 2 release notes list the order of names on the swap page as a known problem."
+      }
+    ],
+    "paraphrase": [
+      "On the swap page, people show up in the sequence they joined.",
+      "Season 2 release notes treat the way the swap page arranges its names as a known problem."
+    ],
+    "review": "owner-checked",
     "flags": []
   },
   "seedling/f-swap-two-days/card/eng": {
