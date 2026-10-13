@@ -1336,6 +1336,771 @@ const commandsV3 = [['export', 'make the weekly schedule as CSV'], ['serve', 'ru
 const commandsV4 = [...commandsV3, ['remind', "text tomorrow's volunteer"]];
 const commandsV5 = [...commandsV3, ['remind', "email tomorrow's volunteer"], ['sheet', 'print the weekly sheet for the shed door']];
 
+const seedlingHead = 'c-cron-5pm';
+const pr = (number, quote) => ({ kind: 'pr', number, quote });
+const comment = (id, quote) => ({ kind: 'comment', id, quote });
+const commit = (key, quote) => ({ kind: 'commit', key, quote });
+const headFile = (path, quote) => ({ kind: 'file', path, at: seedlingHead, quote });
+const listed = (at, eng, plain, shows) => ({ eng, plain, ev: { verb: 'files', at, shows } });
+const upToDate = { eng: 'Up to date', plain: 'Up to date' };
+const quiet = { count: 0, lines: 0 };
+const adr = {
+  roster: 'docs/adr/0001-keep-the-roster-in-a-csv-file.md',
+  texts: 'docs/adr/0002-text-message-reminders.md',
+  swap: 'docs/adr/0003-swap-links-not-accounts.md',
+  email: 'docs/adr/0004-email-and-printed-sheet.md',
+};
+const handbookDoc = 'docs/volunteer-handbook.md';
+const howDoc = 'docs/how-scheduling-works.md';
+
+const views = {
+  scope: 'full',
+  topics: [
+    {
+      id: 'root',
+      parent: null,
+      name: { eng: 'Watering shifts', plain: 'Watering shifts' },
+      core: [],
+      files: [],
+      start: { path: 'cmd/seedling/main.go', quote: 'const usage = `usage: seedling <command> [flags]', lines: 7 },
+      docs: ['README.md', 'docs/index.md'],
+      headline: [
+        {
+          eng: 'Seedling runs the watering schedule for the Eastside Commons community garden.',
+          plain: 'Seedling runs the watering schedule for the Eastside Commons community garden.',
+          ev: headFile('docs/index.md', 'Seedling runs the watering schedule for the Eastside Commons community garden.'),
+        },
+        {
+          eng: 'Its commands are `export` for the weekly schedule, `serve` for the sign-up and swap pages, `remind` to email tomorrow\'s volunteer, and `sheet` for the shed door.',
+          plain: "It makes the weekly schedule, runs the sign-up page and the pages for handing off a shift, emails tomorrow's volunteer, and prints a weekly sheet for the shed door.",
+          ev: headFile('cmd/seedling/main.go', "  remind   email tomorrow's volunteer"),
+        },
+      ],
+      example: null,
+      words: ['garden', 'watering', 'volunteers', 'schedule', 'shifts'],
+      covers: ['what-is-it', 'docs-map'],
+    },
+    {
+      id: 'signup',
+      parent: 'root',
+      name: { eng: 'Signing up', plain: 'Signing up' },
+      core: ['cmd/seedling/serve.go', 'templates/signup.html', 'internal/store/store.go'],
+      files: ['cmd/seedling/serve.go', 'templates/signup.html', 'internal/store/store.go', adr.roster],
+      start: { path: 'cmd/seedling/serve.go', quote: '\thttp.HandleFunc("POST /signup", func(w http.ResponseWriter, r *http.Request) {', lines: 22 },
+      docs: ['README.md', handbookDoc],
+      headline: [
+        {
+          eng: '`seedling serve` shows a sign-up form for a name, phone, email, and the weekdays from Monday to Saturday someone can water.',
+          plain: 'Volunteers sign up on a web page with their name, phone, email, and the weekdays they can water.',
+          ev: headFile('cmd/seedling/serve.go', 'Email: r.FormValue("email"),'),
+        },
+        {
+          eng: 'Each sign-up is one row in volunteers.csv, which Rosa can open in any spreadsheet program.',
+          plain: 'Each sign-up is one row in a file Rosa can open in any spreadsheet program.',
+          ev: headFile('README.md', 'Each sign-up is one row in `volunteers.csv`, which Rosa can open in any'),
+        },
+      ],
+      example: null,
+      words: ['sign up', 'sign-up form', 'roster', 'volunteers.csv', 'phone', 'email', 'weekdays'],
+    },
+    {
+      id: 'schedule',
+      parent: 'root',
+      name: { eng: 'Making the schedule', plain: 'Making the schedule' },
+      core: ['internal/schedule/assign.go', 'internal/schedule/assign_test.go', 'cmd/seedling/export.go'],
+      files: ['internal/schedule/assign.go', 'internal/schedule/assign_test.go', 'cmd/seedling/export.go', 'internal/store/shifts.go'],
+      start: { path: 'internal/schedule/assign.go', quote: 'func Assign(days []time.Time, roster []Volunteer) []Shift {', lines: 25 },
+      docs: [howDoc, handbookDoc],
+      headline: [
+        {
+          eng: '`schedule.Assign` gives each day to the free volunteer with the fewest shifts so far, and ties go to whoever comes first in the roster.',
+          plain: 'Each day goes to a free volunteer with the fewest shifts so far, and a tie goes to whoever is first on the list.',
+          ev: headFile('internal/schedule/assign.go', '// Ties go to whoever comes first in the roster.'),
+        },
+        {
+          eng: 'It skips anyone who watered the day before, and a day nobody can take stays blank.',
+          plain: 'Nobody gets a day right after a day they watered, and a day nobody can take stays open.',
+          ev: headFile('internal/schedule/assign.go', 'if last[v.Name].Equal(day.AddDate(0, 0, -1)) {'),
+        },
+      ],
+      example: null,
+      words: ['schedule', 'assign', 'fewest shifts', 'tie', 'two days in a row', 'export'],
+      covers: ['how-scheduler-picks', 'who-scheduling'],
+    },
+    {
+      id: 'days',
+      parent: 'schedule',
+      name: { eng: 'Watering days', plain: 'Which days get watered' },
+      core: ['internal/schedule/days.go', 'internal/schedule/days_test.go'],
+      files: ['internal/schedule/days.go', 'internal/schedule/days_test.go'],
+      start: { path: 'internal/schedule/days.go', quote: 'func WateringDays(from time.Time, weeks int) []time.Time {', lines: 11 },
+      docs: [howDoc],
+      headline: [
+        {
+          eng: '`WateringDays` returns every day of the given weeks except Sundays.',
+          plain: 'Every day of the week but Sunday is a watering day.',
+          ev: headFile('internal/schedule/days.go', 'if d.Weekday() == time.Sunday {'),
+        },
+      ],
+      example: null,
+      words: ['Sunday', 'Sundays', 'watering days', 'Monday to Saturday'],
+    },
+    {
+      id: 'reminders',
+      parent: 'root',
+      name: { eng: 'Reminders', plain: 'Reminders' },
+      core: ['cmd/seedling/remind.go', 'internal/notify/email.go', 'deploy/crontab'],
+      files: ['cmd/seedling/remind.go', 'internal/notify/email.go', 'deploy/crontab', adr.texts, adr.email],
+      start: { path: 'cmd/seedling/remind.go', quote: 'func remind(args []string) {', lines: 38 },
+      docs: ['README.md', handbookDoc],
+      headline: [
+        {
+          eng: "`seedling remind` emails tomorrow's volunteer through Gmail, with a link to hand the shift to someone else.",
+          plain: "The app emails tomorrow's volunteer a reminder with a link to hand the shift to someone else.",
+          ev: headFile('cmd/seedling/remind.go', 'Addr:     "smtp.gmail.com:587",'),
+        },
+        {
+          eng: 'A volunteer with no email on file gets no reminder.',
+          plain: 'A volunteer with no email on file gets no reminder.',
+          ev: headFile('cmd/seedling/remind.go', 'log.Printf("%s has no email on file, skipping", v.Name)'),
+        },
+        {
+          eng: 'deploy/crontab runs it every day at 17:00.',
+          plain: 'It runs every day at 5pm.',
+          ev: headFile('deploy/crontab', '0 17 * * * cd /srv/seedling && set -a && . ./.env && ./seedling remind >> remind.log 2>&1'),
+        },
+      ],
+      example: null,
+      words: ['remind', 'reminder', 'email', 'text message', 'Twilio', 'Gmail', 'cron', '5pm'],
+    },
+    {
+      id: 'shed-sheet',
+      parent: 'reminders',
+      name: { eng: 'Shed door sheet', plain: 'The sheet on the shed door' },
+      core: ['cmd/seedling/sheet.go', 'templates/weekly-sheet.html'],
+      files: ['cmd/seedling/sheet.go', 'templates/weekly-sheet.html'],
+      start: { path: 'cmd/seedling/sheet.go', quote: 'func sheet(args []string) {', lines: 25 },
+      docs: ['README.md'],
+      headline: [
+        {
+          eng: 'The weekly sheet is a large-print table of each day, who is watering, and a column for initials when done.',
+          plain: 'The weekly sheet is a big-print table of each day, who is watering, and a space to initial when done.',
+          ev: headFile('templates/weekly-sheet.html', '<tr><th>Day</th><th>Who is watering</th><th>Initials when done</th></tr>'),
+        },
+        {
+          eng: 'A day with nobody on it reads OPEN, please call Rosa.',
+          plain: 'A day with nobody on it tells people to call Rosa.',
+          ev: headFile('templates/weekly-sheet.html', '<td>{{if .Volunteer}}{{.Volunteer}}{{else}}OPEN, please call Rosa{{end}}</td>'),
+        },
+      ],
+      example: null,
+      words: ['sheet', 'shed', 'print', 'paper schedule', 'initials'],
+    },
+    {
+      id: 'swap',
+      parent: 'root',
+      name: { eng: 'Swapping a shift', plain: 'Handing off a shift' },
+      core: ['cmd/seedling/swap.go', 'internal/swap/swap.go', 'internal/swap/swap_test.go', 'templates/swap.html'],
+      files: ['cmd/seedling/swap.go', 'internal/swap/swap.go', 'internal/swap/swap_test.go', 'templates/swap.html', adr.swap],
+      start: { path: 'cmd/seedling/swap.go', quote: '\thttp.HandleFunc("POST /swap", func(w http.ResponseWriter, r *http.Request) {', lines: 22 },
+      docs: [howDoc, handbookDoc],
+      headline: [
+        {
+          eng: 'A swap link carries a signed token for one volunteer and one date, and it stops working after that date.',
+          plain: 'Each hand-off link works for one person and one day, and stops working after that day.',
+          ev: headFile('internal/swap/swap.go', 'if err != nil || date.Before(now.Truncate(24*time.Hour)) {'),
+        },
+        {
+          eng: 'The swap page hands the shift only to someone on the roster who does not water the day before or after.',
+          plain: "The hand-off page only accepts someone on the volunteer list who isn't watering the day before or after.",
+          ev: headFile('cmd/seedling/swap.go', 'if nextTo(shifts, date, taker) {'),
+        },
+      ],
+      example: null,
+      words: ['swap', 'hand off', 'link', 'token', 'trade shifts', 'sub'],
+    },
+  ],
+  changes: {
+    'c-init': {
+      topics: [],
+      routine: [
+        {
+          files: ['.gitignore', 'README.md', 'go.mod'],
+          name: { eng: 'project start', plain: 'project start' },
+          reason: listed('c-init', 'Only a README, go.mod, and a .gitignore, no code yet.', 'Only a front page and two setup files, no code yet.', '.gitignore (new); README.md (new); go.mod (new)'),
+        },
+      ],
+    },
+    'pr#1': { topics: ['days'] },
+    'c-weekday': { topics: [] },
+    'c-ci': {
+      topics: [],
+      routine: [
+        {
+          files: ['.github/workflows/test.yml'],
+          name: { eng: 'test workflow added', plain: 'automatic checks added' },
+          reason: listed('c-ci', 'Only a new workflow, .github/workflows/test.yml, was added.', 'Only a new setup for automatic checks was added, nothing in the app.', '.github/workflows/test.yml (new)'),
+        },
+      ],
+    },
+    'pr#2': { topics: ['signup'] },
+    'c-typo': {
+      topics: ['signup'],
+      routine: [
+        {
+          files: ['templates/signup.html'],
+          name: { eng: 'thank-you typo', plain: 'spelling fix' },
+          reason: { eng: 'One line in one file changed.', plain: 'Only one line changed.', ev: { verb: 'diff', from: 'merge-pr-2', to: 'c-typo', shows: '1 file changed, 1 insertion(+), 1 deletion(-)' } },
+        },
+      ],
+    },
+    'pr#4': { topics: ['schedule'] },
+    'c-no-repeat': { topics: ['schedule'] },
+    'pr#8': { topics: ['reminders'] },
+    'pr#10': {
+      topics: ['swap'],
+      findings: [
+        {
+          id: 'f-swap-two-days',
+          severity: 'check',
+          topics: ['swap'],
+          anchors: [
+            { kind: 'file', path: 'cmd/seedling/swap.go', at: 'c-swap-taker', quote: 'if !onRoster(roster, taker) {' },
+            commit('c-swap-adjacent', 'but the swap page would hand a shift to someone who already waters the day'),
+          ],
+          name: { eng: 'A swap can give someone two days in a row', plain: 'Handing off a shift can give someone two days in a row' },
+          says: [
+            {
+              eng: 'Minh Tran wrote that the swap page would hand a shift to someone who already waters the day before or after.',
+              plain: 'Minh Tran wrote that the hand-off page would give a shift to someone already watering the day before or after.',
+              ev: commit('c-swap-adjacent', 'but the swap page would hand a shift to someone who already waters the day'),
+            },
+          ],
+          why: { notRecorded: { ask: ['tlindqvist'] } },
+        },
+        {
+          id: 'f-swap-order',
+          severity: 'check',
+          topics: ['swap'],
+          anchors: [
+            { kind: 'file', path: 'templates/swap.html', at: 'c-swap-taker', quote: '{{range .Roster}}<option>{{.Name}}</option>' },
+            { kind: 'issue', number: 11, quote: 'Could the names go in ABC order like a phone book?' },
+          ],
+          name: { eng: 'Names on the swap page are in sign-up order', plain: 'Names on the hand-off page are in sign-up order, not ABC order' },
+          says: [
+            {
+              eng: 'The swap page lists names in the order people signed up.',
+              plain: 'The hand-off page lists names in the order people signed up.',
+              ev: comment('issue11-minh', "They're in the order people signed up"),
+            },
+            {
+              eng: 'The v1.0.0 release notes list it under Known issues.',
+              plain: 'The season 2 release notes still list it as a known problem.',
+              ev: { kind: 'tag', name: 'v1.0.0', quote: 'Names on the swap page are in sign-up order, not alphabetical (#11).' },
+            },
+          ],
+          why: { notRecorded: { ask: ['tlindqvist'] } },
+          covers: ['open-swap-names'],
+        },
+      ],
+    },
+    'pr#12': {
+      topics: [],
+      routine: [
+        {
+          files: [handbookDoc],
+          name: { eng: 'volunteer handbook', plain: 'volunteer handbook' },
+          reason: listed('merge-pr-12', 'Only a new page, docs/volunteer-handbook.md, was added.', 'Only a new handbook page was added.', 'docs/volunteer-handbook.md (new)'),
+        },
+      ],
+    },
+    'c-readme-handbook': {
+      topics: [],
+      routine: [
+        {
+          files: ['README.md'],
+          name: { eng: 'README points to the handbook', plain: 'link to the handbook' },
+          reason: listed('c-readme-handbook', 'Only README.md changed.', 'Only the front page changed.', 'README.md'),
+        },
+      ],
+    },
+    'c-codeowners': {
+      topics: [],
+      routine: [
+        {
+          files: ['.github/CODEOWNERS'],
+          name: { eng: 'CODEOWNERS added', plain: 'reviewer list added' },
+          reason: listed('c-codeowners', 'Only .github/CODEOWNERS, the list of reviewers, was added.', 'Only the list of who reviews what was added.', '.github/CODEOWNERS (new)'),
+        },
+      ],
+    },
+    'c-go123': { topics: [] },
+    'pr#16': { topics: ['reminders', 'shed-sheet'] },
+    'pr#17': {
+      topics: [],
+      routine: [
+        {
+          files: ['README.md', howDoc, 'docs/index.md'],
+          name: { eng: 'season 2 docs', plain: 'season 2 guides' },
+          reason: listed('merge-pr-17', 'Only README.md and two new pages in docs/ changed.', 'Only the front page and two new guide pages changed.', 'README.md; docs/how-scheduling-works.md (new); docs/index.md (new)'),
+        },
+      ],
+    },
+    'pr#18': {
+      topics: [],
+      routine: [
+        {
+          files: [handbookDoc],
+          name: { eng: 'handbook update', plain: 'handbook update' },
+          reason: listed('merge-pr-18', 'Only docs/volunteer-handbook.md changed.', 'Only the handbook page changed.', 'docs/volunteer-handbook.md'),
+        },
+      ],
+    },
+    'c-swap-adjacent': { topics: ['swap'] },
+    'c-cron-5pm': { topics: ['reminders'] },
+  },
+  decisions: [
+    {
+      id: 'd-remind-5pm',
+      what: {
+        eng: 'Tobias Lindqvist set the crontab to send reminders at 5pm.',
+        plain: 'Tobias Lindqvist set reminders to go out at 5pm.',
+        ev: commit('c-cron-5pm', 'crontab: remind at 5pm'),
+      },
+      topics: ['reminders'],
+      carriedBy: 'c-cron-5pm',
+      why: { notRecorded: { ask: ['tlindqvist'] } },
+      covers: ['reminder-5pm-why-gap'],
+    },
+    {
+      id: 'd-swap-adjacent',
+      what: {
+        eng: 'The swap page will not hand a shift to someone on the day before or after.',
+        plain: 'The hand-off page refuses someone who already waters the day before or after.',
+        ev: commit('c-swap-adjacent', "swap: don't hand a shift to someone on the day before or after"),
+      },
+      topics: ['swap'],
+      carriedBy: 'c-swap-adjacent',
+      why: {
+        reason: {
+          eng: 'The scheduler never gives anyone two days in a row, and the handbook says so.',
+          plain: 'The schedule never gives anyone two days in a row, and the handbook promises that.',
+          ev: commit('c-swap-adjacent', 'The scheduler never gives anyone two days in a row and the handbook says so,'),
+        },
+      },
+    },
+    {
+      id: 'd-email',
+      what: {
+        eng: '`seedling remind` sends the reminder and swap link by email through the garden Gmail.',
+        plain: "Reminders go out by email from the garden's account, with the hand-off link.",
+        ev: headFile(adr.email, '`seedling remind` sends the reminder and swap link by email from the'),
+      },
+      alsoIntent: [pr(16, "`seedling remind` now emails tomorrow's volunteer (with the swap link) through the garden Gmail.")],
+      topics: ['reminders'],
+      carriedBy: 'pr#16',
+      why: {
+        reason: {
+          eng: 'The grant that paid for texting ended on December 31, 2024 and will not be renewed.',
+          plain: 'The grant that paid for text messages ended on December 31, 2024 and will not be renewed.',
+          ev: headFile(adr.email, 'The grant ended on December 31, 2024 and will not be renewed.'),
+        },
+      },
+      covers: ['texts-dropped', 'notified-now', 'decisions-current', 'growth-arc'],
+    },
+    {
+      id: 'd-shed-sheet',
+      what: {
+        eng: '`seedling sheet` prints a large-print weekly schedule for the shed door.',
+        plain: 'The app prints a big-letter weekly schedule for the shed door.',
+        ev: headFile(adr.email, '`seedling sheet` renders a large-print schedule for the week.'),
+      },
+      alsoIntent: [pr(16, 'New `seedling sheet -from <monday>` prints a big-type weekly schedule for the shed door.')],
+      topics: ['shed-sheet'],
+      carriedBy: 'pr#16',
+      why: {
+        reason: {
+          eng: 'Several longtime volunteers told Rosa they would rather read a paper schedule at the shed than get messages on their phones.',
+          plain: 'Several longtime volunteers told Rosa they would rather read a paper schedule at the shed than get messages on their phones.',
+          ev: headFile(adr.email, 'Several longtime volunteers told Rosa they would rather read a paper'),
+        },
+      },
+      covers: ['notified-now'],
+    },
+    {
+      id: 'd-go123',
+      what: {
+        eng: 'Tobias Lindqvist moved the project to Go version 1.23.',
+        plain: 'Tobias Lindqvist moved the app to version 1.23 of Go.',
+        ev: commit('c-go123', 'go 1.23'),
+      },
+      topics: ['root'],
+      carriedBy: 'c-go123',
+      why: { notRecorded: { ask: ['tlindqvist'] } },
+      covers: ['go-123-why-gap'],
+    },
+    {
+      id: 'd-swap-link',
+      what: {
+        eng: 'Each reminder ends with a link to hand that shift to someone else.',
+        plain: 'Every reminder has a link for handing the shift to someone else.',
+        ev: headFile(adr.swap, 'Each reminder ends with a swap link.'),
+      },
+      alsoIntent: [pr(10, 'every reminder text ends with a link')],
+      topics: ['swap'],
+      carriedBy: 'pr#10',
+      why: {
+        reason: {
+          eng: 'Rosa asked for a way for volunteers to trade shifts without going through her.',
+          plain: 'Rosa asked for a way for volunteers to trade shifts without going through her.',
+          ev: pr(10, 'Rosa asked for a way for volunteers to trade shifts without going through her (discussion #5).'),
+        },
+      },
+      covers: ['swap-from-coordinator', 'decisions-current', 'growth-arc'],
+    },
+    {
+      id: 'd-roster-check',
+      what: {
+        eng: 'The swap page only hands a shift to someone on the roster.',
+        plain: 'A shift can only be handed to someone on the volunteer list.',
+        ev: commit('c-swap-taker', 'swap: only hand a shift to someone on the roster'),
+      },
+      alsoIntent: [comment('pr10-thread-tobias-taker', 'POST /swap only accepts names on the roster now')],
+      topics: ['swap'],
+      carriedBy: 'pr#10',
+      why: {
+        reason: {
+          eng: "A name that isn't in volunteers.csv would make the reminder run fail the next evening.",
+          plain: "A name missing from the volunteer list would make the next evening's reminders fail.",
+          ev: commit('c-swap-taker', "A name that isn't in volunteers.csv would make remind fail the next"),
+        },
+      },
+      covers: ['review-roster-check'],
+    },
+    {
+      id: 'd-no-heat-texts',
+      what: {
+        eng: 'The app will not text the whole crew at once when it is hot.',
+        plain: 'The app will not send one text to the whole crew when it is hot.',
+        ev: comment('issue9-rosa-2', "I'll keep texting the crew myself when it's hot"),
+      },
+      topics: ['reminders'],
+      carriedBy: null,
+      why: {
+        reason: {
+          eng: 'People answer Rosa faster, and the grant money is saved for the reminders.',
+          plain: 'People answer Rosa faster, and the grant money is saved for the reminders.',
+          ev: comment('issue9-rosa-2', 'people answer me faster anyway'),
+        },
+      },
+      covers: ['declined-heat-wave-text'],
+    },
+    {
+      id: 'd-texts',
+      what: {
+        eng: "`seedling remind` texts tomorrow's volunteer through Twilio.",
+        plain: "The app sends tomorrow's volunteer a text message reminder.",
+        ev: headFile(adr.texts, "Every evening `seedling remind` texts the next day's volunteer through"),
+      },
+      alsoIntent: [pr(8, 'It looks up tomorrow in shifts.csv and texts that volunteer through Twilio')],
+      topics: ['reminders'],
+      carriedBy: 'pr#8',
+      replacedBy: 'd-email',
+      why: {
+        reason: {
+          eng: 'Six shifts in June and July were missed because the volunteer forgot.',
+          plain: 'Six shifts in June and July were missed because the volunteer forgot.',
+          ev: headFile(adr.texts, 'Six shifts in June and July were missed because the volunteer forgot.'),
+        },
+      },
+      covers: ['texts-adopted', 'decisions-current', 'growth-arc'],
+    },
+    {
+      id: 'd-no-accounts',
+      what: {
+        eng: 'Tobias Lindqvist closed PR #7, volunteer accounts with passwords.',
+        plain: 'Tobias Lindqvist dropped volunteer logins with passwords.',
+        ev: comment('pr7-tobias', 'Closing this.'),
+      },
+      topics: ['swap'],
+      carriedBy: null,
+      why: {
+        reason: {
+          eng: 'Rosa Delgado said a password would be a dealbreaker for a lot of the crew, and people locked out would text her anyway.',
+          plain: 'Rosa Delgado said a password would be a dealbreaker for a lot of the crew, and people locked out would text her anyway.',
+          ev: comment('pr7-rosa', 'a password is going to be a dealbreaker for a lot of our crew'),
+        },
+      },
+      covers: ['accounts-closed'],
+    },
+    {
+      id: 'd-no-repeat',
+      what: {
+        eng: 'The scheduler skips anyone who watered the day before.',
+        plain: 'Nobody is scheduled for the day after a day they watered.',
+        ev: commit('c-no-repeat', 'schedule: skip anyone who watered the day before'),
+      },
+      alsoIntent: [comment('pr4-thread-minh', 'skip anyone who had the day before, and leave the day blank if nobody is left')],
+      topics: ['schedule'],
+      carriedBy: 'c-no-repeat',
+      why: {
+        reason: {
+          eng: 'Last summer people worked four and five days straight, and two of the best burned out by mid-July and never came back.',
+          plain: 'Last summer people watered four and five days straight, and two of the best burned out by mid-July and never came back.',
+          ev: comment('pr4-thread-rosa', 'two of our best people burned out by mid-July and never came back'),
+        },
+      },
+      covers: ['no-back-to-back', 'docs-back-to-back-gap'],
+    },
+    {
+      id: 'd-auto-schedule',
+      what: {
+        eng: "The weekly schedule is filled in automatically from everyone's available days.",
+        plain: 'The app now makes the weekly schedule from the days each volunteer is free.',
+        ev: pr(4, "Automatic weekly schedule from everyone's available days"),
+      },
+      topics: ['schedule'],
+      carriedBy: 'pr#4',
+      why: {
+        reason: {
+          eng: 'Rosa was building the weekly schedule by hand from volunteers.csv.',
+          plain: 'Rosa was making the weekly schedule by hand from the volunteer list.',
+          ev: pr(4, 'Right now Rosa builds the weekly schedule by hand from volunteers.csv.'),
+        },
+      },
+      covers: ['growth-arc'],
+    },
+    {
+      id: 'd-signup-site',
+      what: {
+        eng: 'Volunteers sign up on a website that replaces the shared spreadsheet.',
+        plain: 'Volunteers sign up on a web page instead of the shared spreadsheet.',
+        ev: pr(2, 'Sign-up website (replaces the shared spreadsheet)'),
+      },
+      topics: ['signup'],
+      carriedBy: 'pr#2',
+      why: { notRecorded: { ask: ['minhtran'] } },
+      covers: ['growth-arc'],
+    },
+    {
+      id: 'd-big-type',
+      what: {
+        eng: 'The sign-up page uses big fonts and big buttons on purpose.',
+        plain: 'The sign-up page uses big letters and big buttons on purpose.',
+        ev: pr(2, 'Big fonts and big buttons on purpose'),
+      },
+      topics: ['signup'],
+      carriedBy: 'pr#2',
+      why: {
+        reason: {
+          eng: 'Most of the crew will sign up on a phone.',
+          plain: 'Most of the crew will sign up on a phone.',
+          ev: pr(2, 'most of the crew will do this on a phone'),
+        },
+      },
+    },
+    {
+      id: 'd-csv-roster',
+      what: {
+        eng: 'Each sign-up is appended to volunteers.csv.',
+        plain: 'Each sign-up is added as a new row in one file.',
+        ev: headFile(adr.roster, 'The sign-up form appends one row per volunteer to `volunteers.csv`:'),
+      },
+      alsoIntent: [pr(2, 'Each sign-up is appended to volunteers.csv.')],
+      topics: ['signup'],
+      carriedBy: 'pr#2',
+      why: {
+        reason: {
+          eng: 'Rosa, the garden coordinator, needs to read the roster and fix mistakes herself without asking a developer.',
+          plain: 'Rosa, the garden coordinator, needs to read the list and fix mistakes herself without asking a programmer.',
+          ev: headFile(adr.roster, 'needs to read the roster and fix mistakes herself without asking a'),
+        },
+      },
+      covers: ['roster-csv', 'decisions-current'],
+    },
+    {
+      id: 'd-day-column',
+      what: {
+        eng: 'A day-of-week column was added for Rosa.',
+        plain: 'A column with the day of the week was added for Rosa.',
+        ev: commit('c-weekday', 'add day-of-week column (rosa)'),
+      },
+      topics: ['root'],
+      carriedBy: 'c-weekday',
+      why: {
+        reason: {
+          eng: 'Rosa Delgado asked for the day of the week next to the date, because people think in Tuesdays, not 5/14.',
+          plain: 'Rosa Delgado asked for the weekday next to each date, because people think in weekdays, not dates.',
+          ev: comment('pr1-rosa', 'People think in Tuesdays, not 5/14.'),
+        },
+      },
+    },
+    {
+      id: 'd-sheet-export',
+      what: {
+        eng: '`seedling` prints every watering day as CSV with empty volunteer and notes columns.',
+        plain: 'The app prints every watering day as a spreadsheet with empty columns for volunteers and notes.',
+        ev: pr(1, 'prints every watering day (Mon-Sat) as CSV with empty volunteer/notes columns'),
+      },
+      topics: ['root'],
+      carriedBy: 'pr#1',
+      replacedBy: 'd-auto-schedule',
+      why: {
+        reason: {
+          eng: 'Rosa imports the CSV into the sign-up Google Sheet instead of typing the dates in by hand like last year.',
+          plain: 'Rosa loads the list into the sign-up spreadsheet instead of typing the dates in by hand like last year.',
+          ev: pr(1, 'Rosa imports that into the sign-up Google Sheet instead of typing the dates in by hand like last year.'),
+        },
+      },
+      covers: ['growth-arc'],
+    },
+    {
+      id: 'd-no-sundays',
+      what: {
+        eng: 'There are no watering shifts on Sundays.',
+        plain: 'Nobody is scheduled to water on Sundays.',
+        ev: comment('disc3-minh', 'Not a mistake, Sundays are skipped on purpose.'),
+      },
+      topics: ['days'],
+      carriedBy: 'pr#1',
+      why: {
+        reason: {
+          eng: 'When the garden signed its lease with Grace Lutheran, Pastor Ruth asked for quiet Sunday mornings for the congregation.',
+          plain: "The garden's land is rented from the church next door, and the pastor asked for quiet Sunday mornings.",
+          ev: comment('disc3-rosa', 'When we signed the lease with Grace Lutheran, the one thing Pastor Ruth asked for was quiet Sunday mornings for the congregation.'),
+        },
+      },
+      covers: ['no-sundays-why', 'docs-sunday-gap'],
+    },
+    {
+      id: 'd-stdlib',
+      what: {
+        eng: 'seedling uses no dependencies, only the Go standard library.',
+        plain: 'The app uses nothing beyond the tools that come with Go.',
+        ev: pr(1, 'No deps, stdlib only.'),
+      },
+      topics: ['root'],
+      carriedBy: 'pr#1',
+      why: { notRecorded: { ask: ['minhtran'] } },
+    },
+  ],
+  claims: [
+    {
+      id: 'claim-stdlib',
+      doc: 'README.md',
+      quote: 'Standard library only.',
+      topic: 'root',
+      verdict: 'still-true',
+      covers: ['currency-stdlib-only'],
+    },
+    {
+      id: 'claim-6pm',
+      doc: 'README.md',
+      quote: 'Cron runs this at 6pm on the garden server.',
+      topic: 'reminders',
+      verdict: 'no-longer-true',
+      brokenBy: 'c-cron-5pm',
+      why: {
+        eng: 'deploy/crontab runs `seedling remind` at 17:00, which is 5pm.',
+        plain: 'The server now sends reminders at 5pm.',
+        ev: headFile('deploy/crontab', '0 17 * * * cd /srv/seedling && set -a && . ./.env && ./seedling remind >> remind.log 2>&1'),
+      },
+      covers: ['currency-reminder-6pm'],
+    },
+    {
+      id: 'claim-two-days',
+      doc: handbookDoc,
+      quote: "It spreads shifts out so nobody does more than their share, and you'll\nnever get two days in a row.",
+      topic: 'schedule',
+      verdict: 'true-since',
+      since: 'c-swap-adjacent',
+      why: {
+        eng: 'Before this change the swap page would hand a shift to someone who already waters the day before or after, and now it asks for someone else.',
+        plain: 'Before this change the hand-off page could give a shift to someone already watering the day before or after, and now it asks for someone else.',
+        ev: commit('c-swap-adjacent', 'Now it asks for someone else.'),
+      },
+      covers: ['currency-two-days-in-a-row'],
+    },
+    {
+      id: 'claim-sundays',
+      doc: howDoc,
+      quote: 'Watering days are Monday through Saturday. There are no shifts on Sundays.',
+      topic: 'days',
+      verdict: 'still-true',
+    },
+    {
+      id: 'claim-swap-rule',
+      doc: howDoc,
+      quote: "The link lets you hand your shift to anyone else on the roster who\nisn't already watering the day before or after.",
+      topic: 'swap',
+      verdict: 'still-true',
+    },
+  ],
+  undone: [],
+  runs: [],
+  screens: [
+    { kind: 'page', topic: 'root', status: upToDate },
+    { kind: 'page', topic: 'signup', status: upToDate },
+    { kind: 'page', topic: 'schedule', status: { eng: 'Up to date since commit af5ef6a, Mar 26, 2025', plain: 'Up to date since Mar 26, 2025' } },
+    { kind: 'page', topic: 'days', status: upToDate },
+    { kind: 'page', topic: 'reminders', status: { eng: 'Out of date since commit a41783c, Mar 29, 2025', plain: 'Out of date since Mar 29, 2025' } },
+    { kind: 'page', topic: 'shed-sheet', status: upToDate },
+    { kind: 'page', topic: 'swap', status: upToDate },
+    {
+      kind: 'timeline',
+      topic: 'root',
+      from: '2024-04-06',
+      to: '2025-03-29',
+      counts: { decision: 19, check: 2 },
+      named: ['d-remind-5pm', 'f-swap-two-days', 'd-swap-adjacent'],
+      routine: { count: 8, lines: 156 },
+    },
+    {
+      kind: 'timeline',
+      topic: 'reminders',
+      from: '2024-04-06',
+      to: '2025-03-29',
+      counts: { decision: 4 },
+      named: ['d-remind-5pm', 'd-email', 'd-no-heat-texts'],
+      routine: quiet,
+    },
+    {
+      kind: 'timeline',
+      topic: 'signup',
+      from: '2024-04-06',
+      to: '2025-03-29',
+      counts: { decision: 3 },
+      named: ['d-signup-site', 'd-big-type', 'd-csv-roster'],
+      routine: { count: 1, lines: 2 },
+    },
+    {
+      kind: 'timeline',
+      topic: 'root',
+      from: '2024-07-01',
+      to: '2024-08-31',
+      counts: { decision: 6, check: 2 },
+      named: ['d-swap-link', 'f-swap-two-days', 'd-roster-check'],
+      routine: quiet,
+    },
+    {
+      kind: 'timeline',
+      topic: 'root',
+      from: '2025-03-01',
+      to: '2025-03-29',
+      counts: { decision: 2 },
+      named: ['d-remind-5pm', 'd-swap-adjacent'],
+      routine: { count: 2, lines: 75 },
+    },
+  ],
+  uncovered: [
+    { key: 'winter-lull', why: 'Discussions #14 and #15, where season 1 closes and season 2 planning starts, are not view objects. Between them the timeline shows only d-go123.' },
+    { key: 'handbook-caught-up', why: 'v1 shows whether a doc is true today. The weeks the handbook still promised a text after PR #16 are history that no view object holds, and PR #18 shows only as a routine handbook update.' },
+    { key: 'ci-caught-tie', why: 'Test runs inside a pull request are not view objects. PR #4 shows only as the decision it carries.' },
+    { key: 'example-assign-week', why: 'The example is TestAssign in internal/schedule/assign_test.go. A topic example must cite a file under a test/ or tests/ directory, and Go keeps its tests beside the code, so no topic shows it.' },
+    { key: 'example-swap-link-expiry', why: 'The example is TestTokenRoundTrip in internal/swap/swap_test.go. A topic example must cite a file under a test/ or tests/ directory, and Go keeps its tests beside the code, so no topic shows it.' },
+  ],
+};
+
 /** @type {import('../schema.mjs').RepoSpec} */
 const spec = {
   slug: 'seedling',
@@ -3311,6 +4076,7 @@ After this merges I'll cancel the Twilio number.`,
       ],
     },
   ],
+  views,
 };
 
 export default spec;
