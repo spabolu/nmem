@@ -84,6 +84,30 @@ Rule. Use motion only when it serves a function, and give people control over it
 
 In nmem, the site has no decorative motion. `prefers-reduced-motion: reduce` turns off every transition and animation.
 
+## Primer audit (UI-2)
+
+Checked Oct 13, 2026 against @primer/primitives 11.10.0 (https://unpkg.com/@primer/primitives/dist/css/functional/themes/light.css and dark.css, typography.css) and the primer.style component pages below.
+
+| Area | Gap found | Fix | Source |
+| --- | --- | --- | --- |
+| Color | light `fgColor-danger` was #cf222e, Primer is #d1242f | changed | https://unpkg.com/@primer/primitives/dist/css/functional/themes/light.css |
+| Color | light `borderColor-attention-emphasis` was #d4a72c, Primer is #9a6700 | changed | same |
+| Color | `focus-outlineColor` was a copied hex, Primer points it at `borderColor-accent-emphasis` | now a var() | light.css, dark.css |
+| Shadow | one-layer `shadow-resting-small-color`, Primer ships a two-layer `shadow-resting-small` | changed, light and dark | light.css, dark.css |
+| Type | sizes 11, 13, 13.5, 18, 22, 24, 26, 28 px; Primer text styles use 12, 14, 16, 20, 32 | snapped outside the timeline board; page titles 32 (20 on phones) | https://unpkg.com/@primer/primitives/dist/css/functional/typography/typography.css |
+| Type | Primer's stack leads with Mona Sans VF | not adopted: needs a webfont download | typography.css |
+| UnderlineNav | no leading icons | vendored Octicons list-unordered and history | https://primer.style/product/components/underline-nav/, https://github.com/primer/octicons |
+| TreeView | indents 32 and 42 px, 3px active bar | 16 px steps, 4px bar | https://primer.style/product/components/tree-view/ |
+| Timeline | `.decision` row style leaked onto pins and cards, so pins drew as ovals | scoped to the decisions list | https://primer.style/product/components/timeline/ |
+| Label | chips filled with `bgColor-muted`; Primer Label is outlined, 20px | transparent fill | https://primer.style/product/components/label/ |
+| Avatar | 20 and 32 px circles fit the 16 to 32 base-4 scale | none | https://primer.style/product/components/avatar/ |
+| Button | 32px, 12px padding matches medium | none | https://github.com/primer/css/blob/main/src/buttons/button.scss |
+| Banner | freshness notes lack a leading icon | left open | https://primer.style/product/components/banner/ |
+| Blankslate | empty and 404 views lack the icon, heading, description anatomy | left open | https://primer.style/product/components/blankslate/ |
+| PageHeader, CounterLabel | not checked in depth | left open | https://primer.style/product/components/page-header/, https://primer.style/product/components/counter-label/ |
+
+Timeline board labels stay at 11 and 13 px because `web/verify.mjs` measures them for clipping.
+
 ## Rerun the checks
 
 - `node web/verify.mjs` checks the screen rules and the timeline layout.
