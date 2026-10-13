@@ -15,6 +15,7 @@ import { assemble, modelSteps } from './build.ts';
 import { dossierOf } from './classify.ts';
 import { callKey, ModelUnavailable } from './copilot.ts';
 import type { ChatRequest, ModelClient } from './copilot.ts';
+import { linkChoices } from './link.ts';
 import { ingest, segment } from './record.ts';
 import { noModel } from './steps.ts';
 
@@ -395,4 +396,21 @@ test('a split topic page is written from its own file, not the donor headline', 
   assert.equal(example?.kind, 'record');
   assert.equal(example?.kind === 'record' ? example.quote : '', 'assert other() == 1');
   assert.equal(example?.kind === 'record' ? example.ref : '', `${head7}:tests/test_other.py`);
+});
+
+test('an agreement is carried by the later change the model names, and a carried choice is left alone', async () => {
+  const record = ingest(toyWorkspace([
+    { title: 'Agree the sender pays', body: 'Agreed, the sender pays the fee.', files: { 'notes.txt': 'agreed\n' } },
+    { title: 'fee: the sender pays', body: 'The sender pays.', files: { 'src/fee.py': 'def fee():\n    return "sender"\n' } },
+  ]));
+  const sentence = record.changes.find((change) => change.id === 'pr#1')?.objects.find((object) => object.ref === 'pr#1')?.sentences.find((item) => item.text.includes('sender'));
+  assert.ok(sentence);
+  const open = { sentence, stance: 'chose' as const, what: { eng: 'The sender pays the fee.', plain: 'The sender pays the fee.' }, carriedBy: null, files: [] as readonly string[] };
+  const kept = { ...open, carriedBy: 'pr#1' as const, files: ['notes.txt'] };
+  const client = fakeClient({ link: [{ links: [{ choice: 'A1', carrier: 'C1' }] }] });
+  const linked = await linkChoices(record, client, [open, kept], () => {});
+  assert.equal(linked[0]?.carriedBy, 'pr#2');
+  assert.deepEqual(linked[0]?.files, ['src/fee.py']);
+  assert.equal(linked[1]?.carriedBy, 'pr#1');
+  assert.deepEqual(linked[1]?.files, ['notes.txt']);
 });

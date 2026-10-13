@@ -87,7 +87,11 @@ function idOf(intent: Intent): LocalId {
  */
 export async function decide(record: RepoRecord, steps: Steps, classified: readonly Choice[]): Promise<readonly { readonly decision: Decision; readonly files: readonly string[] }[]> {
   const adrs = adrChoices(record);
-  const linked = await steps.link([...revertChoices(record), ...adrs.map((item) => item.choice), ...classified]);
+  const seed = [...revertChoices(record), ...adrs.map((item) => item.choice), ...classified];
+  // The carrier sets the day and the files. The reason stays on the agreement's own record, so linking does not
+  // rephrase a reason that was already recorded.
+  const agreed = new Map(seed.map((choice) => [choice.sentence.ref, choice.carriedBy]));
+  const linked = await steps.link(seed);
   const position = new Map<ChangeId | null, number>(record.changes.map((change, i) => [change.id, i]));
   const rank = (carriedBy: ChangeId | null): number => position.get(carriedBy) ?? record.changes.length;
   const accepted = linked
@@ -101,7 +105,8 @@ export async function decide(record: RepoRecord, steps: Steps, classified: reado
     const ask = askFor(record, item.intent, item.choice.carriedBy);
     if (ask === null) return [];
     const quote: RecordSource = { kind: 'record', ref: item.intent.ref, quote: item.intent.text };
-    const why = await steps.why({ kind: 'decision', what: item.choice.what, quote, carriedBy: item.choice.carriedBy, ask });
+    const prior = agreed.get(item.intent.ref);
+    const why = await steps.why({ kind: 'decision', what: item.choice.what, quote, carriedBy: prior !== undefined ? prior : item.choice.carriedBy, ask });
     if (why.kind === 'not-recorded' && (await steps.scan(item.choice.what, [item.choice.what])).some(Boolean)) return [];
     return [{ ...item, why, adr: adrs.find((entry) => entry.choice.sentence.handle === item.intent.handle)?.adr }];
   }));

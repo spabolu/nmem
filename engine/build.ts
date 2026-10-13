@@ -5,6 +5,7 @@
 import { encodeSnapshot, parseSnapshot } from '../harness/contract.ts';
 import type { Change as Entry, ChangeId, Decision, Finding, RecordSource, Snapshot, Undone, Usage } from '../harness/contract.ts';
 import { decide, settledChoices } from './choices.ts';
+import { linkChoices } from './link.ts';
 import { classifyChange } from './classify.ts';
 import { ModelUnavailable } from './copilot.ts';
 import type { ModelClient } from './copilot.ts';
@@ -147,6 +148,14 @@ export function modelSteps(record: RepoRecord, client: ModelClient, notes: Notes
       } catch (error) {
         fallback(notes, `classify ${change.id}`, error);
         return floor.classify(change);
+      }
+    },
+    link: async (choices) => {
+      try {
+        return await linkChoices(record, client, choices, (line) => notes.push(line));
+      } catch (error) {
+        fallback(notes, 'link', error);
+        return choices;
       }
     },
     why: async (subject) => {
