@@ -181,8 +181,15 @@ function readBaked(file: string, snapshotPath: string, bytes: string): Baked {
   return baked;
 }
 
-/** A built workspace: snapshot.json, site.json, and github.json in one directory. */
-export function loadSite(workspace: string): Site {
+/** What a built workspace holds, read and checked, as plain data so a cache can keep it. */
+export type Built = {
+  readonly snapshot: Snapshot;
+  readonly baked: Baked;
+  readonly github: Github;
+};
+
+/** Reads snapshot.json, site.json, and github.json from a built workspace. Throws SnapshotRejected on any defect. */
+export function readBuilt(workspace: string): Built {
   const snapshotPath = path.resolve(workspace, "snapshot.json");
   let bytes: string;
   try {
@@ -201,31 +208,10 @@ export function loadSite(workspace: string): Site {
   const github = JSON.parse(
     fs.readFileSync(path.join(workspace, "github.json"), "utf8"),
   ) as Github;
-  const identity: RepoIdentity = {
-    owner: github.repo.owner,
-    name: github.repo.name,
-  };
-  const sourceFacts = (ref: string): SourceFacts | null =>
-    baked.sources[ref]?.facts ?? null;
-  const facts: RepoFacts = {
-    head: baked.head,
-    born: baked.born as IsoDay,
-    end: baked.end as IsoDay,
-    changes: baked.changes.map((change) => ({
-      id: change.id as ChangeId,
-      live: change.live as IsoDay,
-      before: change.before,
-      after: change.after,
-      touched: new Map(change.touched),
-      author: change.author as Login | null,
-    })),
-    people: new Map(baked.people as readonly (readonly [Login, string])[]),
-    sourceOf: (source) => sourceFacts(source.ref),
-  };
   const parsed = parseSnapshot(bytes, {
-    repo: identity,
-    head: facts.head,
-    changes: new Set(facts.changes.map((change) => change.id)),
+    repo: { owner: github.repo.owner, name: github.repo.name },
+    head: baked.head,
+    changes: new Set(baked.changes.map((change) => change.id as ChangeId)),
   });
   if (!parsed.ok) {
     throw new SnapshotRejected(
@@ -233,10 +219,30 @@ export function loadSite(workspace: string): Site {
       parsed.errors.map((error) => `${error.path}: ${error.what}`).join("\n"),
     );
   }
+  return { snapshot: parsed.snapshot, baked, github };
+}
+
+export function siteOf({ snapshot, baked, github }: Built): Site {
+  const sourceFacts = (ref: string): SourceFacts | null =>
+    baked.sources[ref]?.facts ?? null;
   return {
-    snapshot: parsed.snapshot,
-    facts,
-    identity,
+    snapshot,
+    facts: {
+      head: baked.head,
+      born: baked.born as IsoDay,
+      end: baked.end as IsoDay,
+      changes: baked.changes.map((change) => ({
+        id: change.id as ChangeId,
+        live: change.live as IsoDay,
+        before: change.before,
+        after: change.after,
+        touched: new Map(change.touched),
+        author: change.author as Login | null,
+      })),
+      people: new Map(baked.people as readonly (readonly [Login, string])[]),
+      sourceOf: (source) => sourceFacts(source.ref),
+    },
+    identity: { owner: github.repo.owner, name: github.repo.name },
     github,
     object: (ref) => baked.sources[ref]?.object ?? null,
     sourceFacts,
@@ -245,6 +251,10 @@ export function loadSite(workspace: string): Site {
       return proof ? (baked.proofs[formatProof(proof)] ?? null) : null;
     },
   };
+}
+
+export function loadSite(workspace: string): Site {
+  return siteOf(readBuilt(workspace));
 }
 
 const DAY = /^\d{4}-\d{2}-\d{2}$/;

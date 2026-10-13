@@ -2,9 +2,10 @@ import "server-only";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { cacheLife, cacheTag } from "next/cache";
 import type { RepoIdentity } from "@/lib/kernel/contract";
-import type { Site } from "@/lib/kernel/site";
-import { loadSite, rootId } from "@/lib/kernel/site";
+import type { Built, Site } from "@/lib/kernel/site";
+import { loadSite, readBuilt, rootId, siteOf } from "@/lib/kernel/site";
 import { censusOf, TEMPLATES } from "@/lib/kernel/view";
 
 /**
@@ -86,20 +87,63 @@ function findWorkspace(owner: string, repo: string): Workspace | null {
   );
 }
 
-const sites = new Map<
-  string,
-  { readonly mtimeMs: number; readonly site: Site }
->();
+/** Size and mtime of the files a site reads, taken outside the cache so a rebuild makes a new key. */
+function stampOf(workspace: Workspace): string {
+  return ["snapshot.json", "site.json"]
+    .map((name) => {
+      try {
+        const stat = fs.statSync(
+          path.join(/*turbopackIgnore: true*/ workspace.dir, name),
+        );
+        return `${stat.mtimeMs}:${stat.size}`;
+      } catch {
+        return "missing";
+      }
+    })
+    .join("/");
+}
 
-/** The parsed site for a built repo, reloaded when its snapshot changes. Null when no built workspace matches. */
-export function siteFor(owner: string, repo: string): Site | null {
+/** Errors do not keep their message through the cache in production, so a refusal comes back as data. */
+async function builtFor(
+  dir: string,
+  _stamp: string,
+): Promise<Built | { readonly refused: string }> {
+  "use cache";
+  cacheLife("max");
+  cacheTag(`repo:${dir}`);
+  try {
+    return readBuilt(dir);
+  } catch (error) {
+    return { refused: error instanceof Error ? error.message : String(error) };
+  }
+}
+
+/** The parsed site for a built repo, cached until its files change. Null when no built workspace matches. */
+export async function siteFor(
+  owner: string,
+  repo: string,
+): Promise<Site | null> {
   const workspace = findWorkspace(owner, repo);
   if (!workspace) return null;
-  const mtimeMs = fs.statSync(workspace.snapshot).mtimeMs;
-  const cached = sites.get(workspace.snapshot);
-  if (cached && cached.mtimeMs === mtimeMs) return cached.site;
+  const built = await builtFor(workspace.dir, stampOf(workspace));
+  if ("refused" in built) throw new Error(built.refused);
+  return siteOf(built);
+}
+
+const proxied = new Map<
+  string,
+  { readonly stamp: string; readonly site: Site }
+>();
+
+/** siteFor for the proxy, which runs outside a render, where "use cache" does not apply. */
+export function siteForProxy(owner: string, repo: string): Site | null {
+  const workspace = findWorkspace(owner, repo);
+  if (!workspace) return null;
+  const stamp = stampOf(workspace);
+  const known = proxied.get(workspace.dir);
+  if (known?.stamp === stamp) return known.site;
   const site = loadSite(workspace.dir);
-  sites.set(workspace.snapshot, { mtimeMs, site });
+  proxied.set(workspace.dir, { stamp, site });
   return site;
 }
 
@@ -112,35 +156,40 @@ type RepoCard = {
 };
 
 /** One row per workspace for the home page. A snapshot that fails to load still lists, with its error. */
-export function repoCards(): readonly RepoCard[] {
-  return listWorkspaces().map((workspace) => {
-    if (!workspace.built) {
-      return {
-        identity: workspace.identity,
-        built: false,
-        census: null,
-        root: null,
-        error: null,
-      };
-    }
-    try {
-      const site = siteFor(workspace.identity.owner, workspace.identity.name);
-      if (!site) throw new Error("snapshot vanished");
-      return {
-        identity: workspace.identity,
-        built: true,
-        census: TEMPLATES.census(censusOf(site.snapshot, site.facts)),
-        root: rootId(site),
-        error: null,
-      };
-    } catch (error) {
-      return {
-        identity: workspace.identity,
-        built: true,
-        census: null,
-        root: null,
-        error: error instanceof Error ? error.message : String(error),
-      };
-    }
-  });
+export async function repoCards(): Promise<readonly RepoCard[]> {
+  return Promise.all(
+    listWorkspaces().map(async (workspace) => {
+      if (!workspace.built) {
+        return {
+          identity: workspace.identity,
+          built: false,
+          census: null,
+          root: null,
+          error: null,
+        };
+      }
+      try {
+        const site = await siteFor(
+          workspace.identity.owner,
+          workspace.identity.name,
+        );
+        if (!site) throw new Error("snapshot vanished");
+        return {
+          identity: workspace.identity,
+          built: true,
+          census: TEMPLATES.census(censusOf(site.snapshot, site.facts)),
+          root: rootId(site),
+          error: null,
+        };
+      } catch (error) {
+        return {
+          identity: workspace.identity,
+          built: true,
+          census: null,
+          root: null,
+          error: error instanceof Error ? error.message : String(error),
+        };
+      }
+    }),
+  );
 }

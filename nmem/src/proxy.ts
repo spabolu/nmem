@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { readQuery } from "@/lib/kernel/site";
-import { siteFor } from "@/lib/repos";
+import { siteForProxy } from "@/lib/repos";
 
 /**
  * Pages stream, so once rendering starts the status is 200. Missing repos and topics, and queries web/site.ts refuses,
@@ -25,7 +25,7 @@ export function proxy(request: NextRequest) {
           },
         }),
     );
-  const site = siteFor(owner, repo);
+  const site = siteForProxy(owner, repo);
   if (!site)
     return refuse(404, `No built repository is called ${owner}/${repo}.`);
   const query = readQuery(request.nextUrl.searchParams);

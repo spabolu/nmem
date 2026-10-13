@@ -29,7 +29,7 @@ export default function Home() {
 
 async function RepoList() {
   await connection();
-  const cards = repoCards();
+  const cards = await repoCards();
   const built = cards.filter((card) => card.built);
   const waiting = cards.filter((card) => !card.built);
   return (

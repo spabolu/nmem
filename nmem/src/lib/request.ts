@@ -30,7 +30,10 @@ export async function openRepo(
   searchParams: Promise<RawParams>,
 ): Promise<RepoRequest> {
   const { owner, repo } = await params;
-  const site = siteFor(decodeURIComponent(owner), decodeURIComponent(repo));
+  const site = await siteFor(
+    decodeURIComponent(owner),
+    decodeURIComponent(repo),
+  );
   if (!site) notFound();
   const search = searchOf(await searchParams);
   return {
