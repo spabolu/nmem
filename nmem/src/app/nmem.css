@@ -156,37 +156,6 @@ h2 {
   color: var(--fgColor-muted);
   font-size: 14px;
 }
-article.decision:not(.tl-card) {
-  display: grid;
-  grid-template-columns: 120px minmax(0, 1fr);
-  gap: 12px;
-  padding: 12px 0;
-  border-top: 1px solid var(--borderColor-default);
-}
-article.decision:not(.tl-card) time {
-  color: var(--fgColor-muted);
-  font-size: 12px;
-}
-.what {
-  margin: 0 0 4px;
-  font-weight: 600;
-}
-.meta {
-  margin: 0;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  align-items: center;
-  color: var(--fgColor-muted);
-  font-size: 12px;
-}
-.why.gap {
-  color: var(--fgColor-attention);
-  background: var(--bgColor-attention-muted);
-  border: 1px dashed var(--borderColor-attention-emphasis);
-  border-radius: 6px;
-  padding: 1px 8px;
-}
 .ranges a.on {
   background: var(--bgColor-emphasis);
   color: var(--fgColor-onEmphasis);
@@ -194,10 +163,6 @@ article.decision:not(.tl-card) time {
 }
 .ranges a:hover {
   text-decoration: none;
-}
-.replaced {
-  font-size: 12px;
-  color: var(--fgColor-muted);
 }
 .example {
   margin-top: 16px;
@@ -641,10 +606,6 @@ mark {
   .tl-head h1,
   .landing h1 {
     font-size: 20px;
-  }
-  article.decision:not(.tl-card) {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 4px;
   }
   .routine .row {
     grid-template-columns: minmax(0, 1fr);

@@ -312,17 +312,19 @@ function DecisionRow({
     : null;
   return (
     <article
-      className="decision"
+      className="grid grid-cols-[120px_minmax(0,1fr)] gap-3 border-t border-(color:--borderColor-default) py-3 max-md:grid-cols-[minmax(0,1fr)] max-md:gap-1"
       id={decision.id}
       data-id={decision.id}
       data-day={day}
     >
-      <time dateTime={day}>{formatDay(day)}</time>
+      <time dateTime={day} className="text-[12px] text-(color:--fgColor-muted)">
+        {formatDay(day)}
+      </time>
       <div>
-        <p className="what said" data-nmem>
+        <p className="what said m-0 mb-1 font-[600]" data-nmem>
           <SaidText ctx={ctx} line={decision.what} />
         </p>
-        <p className="meta">
+        <p className="m-0 flex flex-wrap items-center gap-2 text-[12px] text-(color:--fgColor-muted)">
           {author ? (
             <>
               <Avatar site={site} login={author} />{" "}
@@ -337,7 +339,10 @@ function DecisionRow({
             </span>
           ) : (
             <>
-              <span className="why gap template" data-nmem>
+              <span
+                className="why template rounded-[6px] border border-dashed border-(color:--borderColor-attention-emphasis) bg-(--bgColor-attention-muted) px-2 py-px text-(color:--fgColor-attention)"
+                data-nmem
+              >
                 {
                   TEMPLATES.notRecorded(
                     decision.why.ask.map((login) => person(site, login)),
@@ -367,13 +372,15 @@ function DecisionRow({
           {decision.replacedBy ? (
             next ? (
               <NextLink
-                className="replaced"
+                className="text-[12px] text-(color:--fgColor-muted)!"
                 href={`${topicHref(repo, next.topics[0] ?? root, audience)}#${decision.replacedBy}`}
               >
                 Replaced {formatDay(decisionDay(next, site.facts))}
               </NextLink>
             ) : (
-              <span className="replaced">Replaced</span>
+              <span className="text-[12px] text-(color:--fgColor-muted)">
+                Replaced
+              </span>
             )
           ) : null}
         </p>
