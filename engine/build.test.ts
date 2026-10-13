@@ -16,6 +16,7 @@ import { dossierOf } from './classify.ts';
 import { callKey, ModelUnavailable } from './copilot.ts';
 import type { ChatRequest, ModelClient } from './copilot.ts';
 import { decide } from './choices.ts';
+import { docClaims } from './claims.ts';
 import { linkChoices } from './link.ts';
 import { ingest, segment } from './record.ts';
 import { noModel } from './steps.ts';
@@ -202,6 +203,7 @@ test('the classify dossier numbers sentences, marks denials, and gives handles o
 test('classify copies record text for handles, refuses a denial as intent or anchor, and re-asks once', async () => {
   const record = ingest(toyWorkspace(FAREWELL));
   const answers: Canned = {
+    'claims README.md': [{ claims: [] }],
     'classify pr#1': [
       {
         choices: [
@@ -270,7 +272,7 @@ test('a title that restates a longer body sentence is not the intent quote, and 
 test('a bad reply after the re-ask leaves the change unclassified and says so', async () => {
   const record = ingest(toyWorkspace(FAREWELL));
   const notes: string[] = [];
-  const snapshot = JSON.parse((await assemble(record, modelSteps(record, fakeClient({}), notes))).bytes) as Snapshot;
+  const snapshot = JSON.parse((await assemble(record, modelSteps(record, fakeClient({ 'claims README.md': [{ claims: [] }] }), notes))).bytes) as Snapshot;
   assert.deepEqual(snapshot.changes.filter((change) => change.id.startsWith('pr#')).map((change) => [change.id, change.findings.length]), [['pr#1', 0], ['pr#2', 0]]);
   assert.deepEqual(notes, [
     'classify pr#1 fell back: no canned answer for classify pr#1 sample 1',
@@ -286,6 +288,7 @@ test('a reason is recorded only when a second call agrees, and the scan drops a 
   ]));
   const chose = (sentence: string, eng: string) => ({ sentence, stance: 'chose', carried: 'this', restates: null, what: { eng, plain: eng }, files: [] });
   const client = fakeClient({
+    'claims README.md': [{ claims: [] }],
     'classify pr#1': [{
       choices: [chose('S2', 'One farewell line.')],
       findings: [{ severity: 'behavior', anchor: 'L1', files: [], name: { eng: 'Says bye', plain: 'Says bye' }, says: [{ eng: 'It prints bye.', plain: 'It says bye.', source: 'L1' }, { eng: 'Users wanted it.', plain: 'People wanted it.', source: 'S3' }] }],
@@ -325,6 +328,7 @@ test('topics: the tree is checked against HEAD, Start here is computed, and page
     { slug: 'greeting', parent: 'toy', name: { eng: 'Greeting', plain: 'Greeting' }, files, docs: [], words: ['hi'], start: 'L1' },
   ];
   const client = fakeClient({
+    'claims README.md': [{ claims: [] }],
     'classify pr#1': [{ choices: [{ sentence: 'S2', stance: 'chose', carried: 'this', restates: null, what: { eng: 'Greets by name.', plain: 'Greets by name.' }, files: ['src/greet.py'] }], findings: [] }],
     'why decision pr#1: Greet people by name.': [{ reason: null, said: null }],
     'scan Greet people by name.': [{ stated: [] }],
@@ -483,4 +487,32 @@ test('an option changed in a shared entry point is followed to the code that rea
   const byId = (id: string) => record.changes.find((change) => change.id === id)!;
   assert.deepEqual([...implementers(record, byId('pr#2'))], [['toy/store.py', ['def fetch(path):']]]);
   assert.deepEqual([...implementers(record, byId('pr#1'))], [['toy/store.py', ['def fetch(path):']]]);
+});
+
+test('a doc sentence is dated by running its check at every change since it was written', async () => {
+  const guide = '# Guide\n\nRequests stop after three.\n\nZero is refused.\n';
+  const record = ingest(toyWorkspace([
+    { title: 'Add the limit', body: 'Adds it.', files: { 'toy/limit.py': 'def allow(n):\n    return n <= 3\n', 'docs/guide.md': guide } },
+    { title: 'Raise the limit', body: 'Five now.', files: { 'toy/limit.py': 'def allow(n):\n    return n <= 5\n' } },
+    { title: 'Refuse zero', body: 'Zero is an error.', files: { 'toy/limit.py': 'def allow(n):\n    if n == 0:\n        raise ValueError("zero")\n    return n <= 5\n' } },
+  ]));
+  const limit = 'from toy.limit import allow\n';
+  const client = fakeClient({
+    'claims README.md': [{ claims: [] }],
+    'claims docs/guide.md': [{ claims: [{ sentence: 'S1', evidence: 'L4', runnable: 'yes' }, { sentence: 'S2', evidence: 'L3', runnable: 'yes' }] }],
+    'check docs/guide.md: Requests stop after three.': [{ program: `${limit}print("ok: 1 to 3 allowed")\nfor n in range(4, 7):\n    if allow(n):\n        print(f"no: {n} allowed")\n` }],
+    'check docs/guide.md: Zero is refused.': [{ program: `${limit}try:\n    allow(0)\n    print("no: 0 allowed")\nexcept ValueError:\n    print("ok: 0 refused")\n` }],
+    'verdict docs/guide.md: Requests stop after three.': [{ verdict: 'no-longer-true', why: { eng: 'allow(4) returns True.', plain: 'A fourth request gets through.' }, plainWhat: null }],
+    'verdict docs/guide.md: Zero is refused.': [{ verdict: 'holds', why: null, plainWhat: 'the check that turns away zero' }],
+  });
+  const topic = (id: string, parent: string | null, files: string[], docs: string[]) => ({ id, parent, name: { eng: id, plain: id }, files, words: [], start: { kind: 'record' as const, ref: 'x', quote: 'x' }, docs, headline: [{ eng: 'x', plain: 'x', source: { kind: 'record' as const, ref: 'x', quote: 'x' } }] as const, example: null });
+  const { claims, runs } = await docClaims(record, client, [topic('root', null, [], ['README.md']), topic('limits', 'root', ['toy/limit.py'], ['docs/guide.md'])], () => {});
+  assert.deepEqual(claims.map((claim) => [claim.sentence.quote, claim.topic, claim.verdict, 'brokenBy' in claim ? claim.brokenBy : 'since' in claim ? claim.since : null, claim.verdict === 'still-true' ? null : claim.why.plain]), [
+    ['Requests stop after three.', 'limits', 'no-longer-true', 'pr#2', 'A fourth request gets through.'],
+    ['Zero is refused.', 'limits', 'true-since', 'pr#3', 'The check that turns away zero was added on Jan 4, 2024, by Ana Lima.'],
+  ]);
+  const [broken, madeTrue] = claims;
+  assert.deepEqual(broken?.verdict === 'no-longer-true' ? broken.why.source : null, { kind: 'proof', proof: `run ${runs[0]?.id}` });
+  assert.deepEqual(madeTrue?.verdict === 'true-since' ? madeTrue.why.source : null, { kind: 'proof', proof: 'introduced toy/limit.py "raise ValueError(\\"zero\\")"' });
+  assert.deepEqual(runs.map((run) => [run.lang, run.rev]), [['python', record.head]]);
 });

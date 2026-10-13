@@ -5,6 +5,7 @@
 import { encodeSnapshot, parseSnapshot } from '../harness/contract.ts';
 import type { Change as Entry, ChangeId, Decision, Finding, RecordSource, Snapshot, Undone, Usage } from '../harness/contract.ts';
 import { decide, settledChoices } from './choices.ts';
+import { docClaims } from './claims.ts';
 import { linkChoices } from './link.ts';
 import { classifyChange } from './classify.ts';
 import { ModelUnavailable } from './copilot.ts';
@@ -103,15 +104,16 @@ export async function assemble(record: RepoRecord, steps: Steps, usage: () => Us
     return { ...item.decision, topics: first === undefined ? [ROOT] : [first, ...rest] };
   });
   const undone = proveUndone(record.repoDir, record.changes).map(undoneOf);
+  const claimed = await steps.claims(topics);
   const snapshot: Snapshot = {
     version: 1,
     head: record.head,
     topics,
     changes,
     decisions,
-    claims: await steps.claims(),
+    claims: claimed.claims,
     undone,
-    runs: [],
+    runs: claimed.runs,
     usage: usage(),
   };
   const bytes = encodeSnapshot(snapshot);
@@ -185,6 +187,14 @@ export function modelSteps(record: RepoRecord, client: ModelClient, notes: Notes
       } catch (error) {
         fallback(notes, 'topics', error);
         return [root];
+      }
+    },
+    claims: async (topics) => {
+      try {
+        return await docClaims(record, client, topics, (line) => notes.push(line));
+      } catch (error) {
+        fallback(notes, 'claims', error);
+        return floor.claims(topics);
       }
     },
     place: async (tree, items) => {

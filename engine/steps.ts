@@ -2,7 +2,7 @@
  * The model steps of engine.md's pipeline, as typed functions. This slice ships each step's one honest fallback, the
  * output a build writes when no model answers. A model-backed step replaces one entry of Steps and keeps its type.
  */
-import type { ChangeId, Claim, Finding, LocalId, Login, Named, RecordSource, Said, Topic, Why } from '../harness/contract.ts';
+import type { ChangeId, Claim, Finding, LocalId, Login, Named, RecordSource, Run, Said, Topic, Why } from '../harness/contract.ts';
 import { plainHits } from '../fixtures/lib/plain.mjs';
 import { isReadme } from './record.ts';
 import type { Change, RepoRecord, Sentence } from './record.ts';
@@ -53,8 +53,8 @@ export type Steps = {
   readonly why: (subject: Subject) => Promise<Why>;
   /** For a gap object: which of the sentences it shows state a reason as fact. Those never reach the snapshot. */
   readonly scan: (subject: Named, shown: readonly Named[]) => Promise<readonly boolean[]>;
-  /** Doc sentences judged not plainly true. */
-  readonly claims: () => Promise<readonly Claim[]>;
+  /** Doc sentences that can be cited as not plainly true, on a topic listing their doc, with the programs that showed it. */
+  readonly claims: (topics: readonly Topic[]) => Promise<{ readonly claims: readonly Claim[]; readonly runs: readonly Run[] }>;
   /** The tree, formed from HEAD alone, so a change to the decision list never reshuffles it. */
   readonly topics: () => Promise<readonly [Topic, ...Topic[]]>;
   /** Each item's topics among its candidates. */
@@ -122,7 +122,7 @@ export function noModel(record: RepoRecord): Steps {
     vet: async (_change, finding) => finding,
     why: async (subject) => ({ kind: 'not-recorded', ask: subject.ask, guess: null }),
     scan: async (_subject, shown) => shown.map(() => false),
-    claims: async () => [],
+    claims: async () => ({ claims: [], runs: [] }),
     topics: async () => [rootTopic(record)],
     place: async (_tree, items) => new Map(items.map((item) => [item.key, item.candidates])),
   };
