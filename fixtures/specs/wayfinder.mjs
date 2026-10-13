@@ -1568,7 +1568,34 @@ const views = {
         },
       ],
     },
-    'pr#18': { topics: ['clock'] },
+    'pr#18': {
+      topics: ['clock'],
+      findings: [
+        {
+          id: 'f-round-unused',
+          severity: 'check',
+          topics: ['clock'],
+          anchors: [
+            { kind: 'file', path: 'src/retry.ts', at: 'c-retry-round', quote: 'export function roundRetryMs(waitMs: number, nodeMajor?: number): number {' },
+            headFile('src/limit.ts', 'const retrySec = Math.ceil(decision.retryAfterMs / 1000);'),
+          ],
+          name: { eng: 'Nothing calls `roundRetryMs()`', plain: 'No reply uses the new rounding' },
+          says: [
+            {
+              eng: 'No file in src imports src/retry.ts.',
+              plain: 'No other file in the app loads the rounding code.',
+              ev: { verb: 'grep', at: head, pattern: 'retry.ts', paths: ['src'], shows: '(no matches)' },
+            },
+            {
+              eng: 'src/limit.ts turns the wait into whole seconds with `Math.ceil(decision.retryAfterMs / 1000)`.',
+              plain: 'The wait a reply gives is worked out in whole seconds.',
+              ev: headFile('src/limit.ts', 'const retrySec = Math.ceil(decision.retryAfterMs / 1000);'),
+            },
+          ],
+          why: askJon,
+        },
+      ],
+    },
     'c-changelog-100': routineOf(
       'c-changelog-100',
       { eng: '1.0.0 release notes', plain: 'release notes' },
@@ -2215,8 +2242,8 @@ console.log(\`same key 1000 ms later, five more: \${later.map((r) => r.code).joi
       kind: 'timeline',
       topic: 'root',
       ...lifetime,
-      counts: { decision: 21, behavior: 2, check: 2, net: 1 },
-      named: ['d-no-new-service', 'f-double', 'f-clock-split'],
+      counts: { decision: 21, behavior: 2, check: 3, net: 1 },
+      named: ['d-no-new-service', 'f-double', 'f-round-unused'],
       routine: { count: 7, lines: 146 },
     },
     {
@@ -2239,8 +2266,8 @@ console.log(\`same key 1000 ms later, five more: \${later.map((r) => r.code).joi
       kind: 'timeline',
       topic: 'clock',
       ...lifetime,
-      counts: { decision: 2, check: 1 },
-      named: ['d-round-retry', 'f-clock-split', 'd-clock-step'],
+      counts: { decision: 2, check: 2 },
+      named: ['d-round-retry', 'f-round-unused', 'd-clock-step'],
       routine: quiet,
     },
     {
@@ -2277,8 +2304,8 @@ console.log(\`same key 1000 ms later, five more: \${later.map((r) => r.code).joi
       topic: 'root',
       from: '2024-11-20',
       to: '2024-12-12',
-      counts: { decision: 3, check: 1 },
-      named: ['d-no-new-service', 'f-clock-split', 'd-round-retry'],
+      counts: { decision: 3, check: 2 },
+      named: ['d-no-new-service', 'f-round-unused', 'd-round-retry'],
       routine: { count: 1, lines: 10 },
     },
   ],
