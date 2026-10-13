@@ -84,15 +84,15 @@ Facts:
 
 Paraphrase: deploy/crontab executes `seedling remind` at 17:00, the same as 5pm.
 
-### 7. claim-two-days, claim-why, Engineer
+### 7. claim-adr-swap-link, claim-why, Engineer
 
-Original: The check `if nextTo(shifts, date, taker) {` went into cmd/seedling/swap.go on 2025-03-26, in a commit by Minh Tran.
+Original: cmd/seedling/remind.go writes the swap link before the closing "Thank you!" and "The garden crew" lines.
 
 Facts:
-- **headline** The check `if nextTo(shifts, date, taker) {` went into cmd/seedling/swap.go on 2025-03-26.
-- That change was in a commit by Minh Tran.
+- **headline** cmd/seedling/remind.go writes the swap link before the closing lines.
+- The closing lines are "Thank you!" and "The garden crew".
 
-Paraphrase: On 2025-03-26, Minh Tran's commit added `if nextTo(shifts, date, taker) {` to cmd/seedling/swap.go as the referenced check.
+Paraphrase: cmd/seedling/remind.go outputs the swap link ahead of the final lines "Thank you!" plus "The garden crew".
 
 ### 8. d-auto-schedule, reason, Non-engineer
 
@@ -113,16 +113,7 @@ Facts:
 
 Paraphrase: The sign-up page intentionally relies on large fonts and large buttons.
 
-### 10. d-csv-roster, what, Non-engineer
-
-Original: Each sign-up is added as a new row in one file.
-
-Facts:
-- **headline** Each sign-up is added as a new row in one file.
-
-Paraphrase: Each sign-up gets stored as a fresh line within a single document.
-
-### 11. d-day-column, what, Engineer
+### 10. d-day-column, what, Engineer
 
 Original: A day-of-week column was added for Rosa.
 
@@ -131,7 +122,7 @@ Facts:
 
 Paraphrase: A column called day-of-week was introduced for Rosa.
 
-### 12. d-go123, what, Non-engineer
+### 11. d-go123, what, Non-engineer
 
 Original: Tobias Lindqvist changed the app's Go version to 1.23.
 
@@ -140,7 +131,7 @@ Facts:
 
 Paraphrase: Tobias Lindqvist updated the app, moving it to Go 1.23.
 
-### 13. d-no-accounts, reason, Engineer
+### 12. d-no-accounts, reason, Engineer
 
 Original: Rosa Delgado said a password would be a dealbreaker for a lot of the crew, and people locked out would text her anyway.
 
@@ -150,7 +141,7 @@ Facts:
 
 Paraphrase: Rosa Delgado warned that a password would prove a dealbreaker for many on the crew, and shut-out people would text her anyway.
 
-### 14. d-no-accounts, reason, Non-engineer
+### 13. d-no-accounts, reason, Non-engineer
 
 Original: Rosa Delgado said a password would be a dealbreaker for a lot of the crew, and people locked out would text her anyway.
 
@@ -160,7 +151,7 @@ Facts:
 
 Paraphrase: Rosa Delgado said a secret word would be too much for many of the group, and anyone shut out would message her regardless.
 
-### 15. d-no-heat-texts, reason, Engineer
+### 14. d-no-heat-texts, reason, Engineer
 
 Original: People answer Rosa faster, and the grant money is saved for the reminders.
 
@@ -170,7 +161,7 @@ Facts:
 
 Paraphrase: People reply to Rosa more quickly, and the grant funds stay reserved for the reminders.
 
-### 16. d-no-heat-texts, reason, Non-engineer
+### 15. d-no-heat-texts, reason, Non-engineer
 
 Original: People answer Rosa faster, and the grant money is saved for the reminders.
 
@@ -180,7 +171,7 @@ Facts:
 
 Paraphrase: People reply to Rosa more quickly, while grant funds stay reserved for the reminders.
 
-### 17. d-no-sundays, what, Non-engineer
+### 16. d-no-sundays, what, Non-engineer
 
 Original: Nobody is scheduled to water on Sundays.
 
@@ -189,7 +180,7 @@ Facts:
 
 Paraphrase: No one is assigned to water on Sundays.
 
-### 18. d-remind-5pm, what, Non-engineer
+### 17. d-remind-5pm, what, Non-engineer
 
 Original: Tobias Lindqvist changed the reminder time to 5pm.
 
@@ -198,16 +189,7 @@ Facts:
 
 Paraphrase: Tobias Lindqvist moved the time of the reminder to 5pm.
 
-### 19. d-shed-sheet, what, Non-engineer
-
-Original: The app prints a big-letter weekly schedule for the shed door.
-
-Facts:
-- **headline** The app prints a big-letter weekly schedule for the shed door.
-
-Paraphrase: The program prints a large-letter weekly schedule to hang on the shed door.
-
-### 20. d-stdlib, what, Engineer
+### 18. d-stdlib, what, Engineer
 
 Original: seedling uses no dependencies, only the Go standard library.
 
@@ -217,7 +199,7 @@ Facts:
 
 Paraphrase: seedling depends on nothing beyond the Go standard library.
 
-### 21. d-swap-adjacent, reason, Engineer
+### 19. d-swap-adjacent, reason, Engineer
 
 Original: The scheduler never gives anyone two days in a row, and the handbook says so.
 
@@ -227,7 +209,7 @@ Facts:
 
 Paraphrase: The scheduler never assigns anyone two days back to back, and the handbook says the same.
 
-### 22. d-texts, reason, Engineer
+### 20. d-texts, reason, Engineer
 
 Original: Six shifts in June and July were missed because the volunteer forgot.
 
@@ -235,6 +217,28 @@ Facts:
 - **headline** Six shifts in June and July were missed because the volunteer forgot.
 
 Paraphrase: Because the volunteer forgot, six shifts during June and July went uncovered.
+
+### 21. days, example, Non-engineer
+
+Original: The app's own check asks for two weeks of watering days and expects 12 days, none of them a Sunday.
+
+Facts:
+- **headline** The app's own check expects 12 days.
+- **headline** None of the 12 expected days is a Sunday.
+- The app's own check asks for two weeks of watering days.
+
+Paraphrase: The app itself asks which days get water across two weeks, and it wants 12 answers that skip Sunday.
+
+### 22. schedule, example, Non-engineer
+
+Original: In the app's own check, Ana is free Monday to Saturday and Ben only Monday and Tuesday; Ana gets three days, Ben gets Tuesday, and two stay open.
+
+Facts:
+- **headline** In the app's own check, Ana gets three days, Ben gets Tuesday, and two stay open.
+- Ana is free Monday to Saturday.
+- Ben is free only Monday and Tuesday.
+
+Paraphrase: In the app's built-in check, Ana can work Monday through Saturday while Ben can work only Monday plus Tuesday; Ana receives three days, Ben receives Tuesday, and two remain open.
 
 ### 23. schedule, headline, Engineer
 

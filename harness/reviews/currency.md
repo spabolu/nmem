@@ -17,6 +17,7 @@ Every number the harness prints stays labelled UNREVIEWED until this review is s
 | 3 | docs/volunteer-handbook.md | It spreads shifts out so nobody does more than their share, and you'll never get two days in a row. | true, but only since the change named | commit af5ef6a, Mar 26, 2025, "swap: don't hand a shift to someone on the day before or after" | The check `if nextTo(shifts, date, taker) {` went into cmd/seedling/swap.go on 2025-03-26, in a commit by Minh Tran. |
 | 4 | docs/how-scheduling-works.md | Watering days are Monday through Saturday. There are no shifts on Sundays. | still true today | none | Nothing changed what it describes. |
 | 5 | docs/how-scheduling-works.md | The link lets you hand your shift to anyone else on the roster who isn't already watering the day before or after. | still true today | none | Nothing changed what it describes. |
+| 6 | docs/adr/0003-swap-links-not-accounts.md | Each reminder ends with a swap link. | no longer true since the change named | PR #16, Feb 15, 2025, "Email reminders and a printed weekly sheet (replaces texts)" | cmd/seedling/remind.go writes the swap link before the closing "Thank you!" and "The garden crew" lines. |
 
 ## tally
 

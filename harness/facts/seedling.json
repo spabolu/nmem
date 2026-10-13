@@ -36,6 +36,46 @@
       "the cross-check says the paraphrase changes the meaning"
     ]
   },
+  "seedling/claim-adr-swap-link/claim-why/eng": {
+    "source": "751227b2981e05cc669abb3272a6c288",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "cmd/seedling/remind.go writes the swap link before the closing lines."
+      }
+    ],
+    "supporting": [
+      {
+        "id": "f2",
+        "text": "The closing lines are \"Thank you!\" and \"The garden crew\"."
+      }
+    ],
+    "paraphrase": [
+      "cmd/seedling/remind.go outputs the swap link ahead of the final lines \"Thank you!\" plus \"The garden crew\"."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "seedling/claim-adr-swap-link/claim-why/plain": {
+    "source": "95f7589ad3c10d2e2a6f0fd86b906f7e",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "The reminder email ends with a thank-you from the garden crew."
+      }
+    ],
+    "supporting": [
+      {
+        "id": "f2",
+        "text": "The thank-you comes after the swap link."
+      }
+    ],
+    "paraphrase": [
+      "Thanks from the garden crew close out the reminder email, placed after the swap link."
+    ],
+    "review": "auto",
+    "flags": []
+  },
   "seedling/claim-two-days/claim-why/eng": {
     "source": "9749cef2bb095097c99aa8338a6c2f6e",
     "headline": [
@@ -1223,6 +1263,49 @@
     "review": "auto",
     "flags": []
   },
+  "seedling/days/example/eng": {
+    "source": "dcf9ffe462826e13d7ca0a4f431017fb",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "TestWateringDays asks for two weeks from Monday, May 6, 2024."
+      },
+      {
+        "id": "f2",
+        "text": "TestWateringDays expects 12 days with no Sunday among them."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "TestWateringDays requests two weeks starting on Monday, May 6, 2024, then looks for a set of 12 days containing no Sunday."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "seedling/days/example/plain": {
+    "source": "df9e1778db0826ea778299b5a891cfab",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "The app's own check expects 12 days."
+      },
+      {
+        "id": "f2",
+        "text": "None of the 12 expected days is a Sunday."
+      }
+    ],
+    "supporting": [
+      {
+        "id": "f3",
+        "text": "The app's own check asks for two weeks of watering days."
+      }
+    ],
+    "paraphrase": [
+      "The app itself asks which days get water across two weeks, and it wants 12 answers that skip Sunday."
+    ],
+    "review": "auto",
+    "flags": []
+  },
   "seedling/days/headline/eng": {
     "source": "595eac07e1e35f59d2fc9052c4afb72b",
     "headline": [
@@ -1454,6 +1537,54 @@
     "review": "auto",
     "flags": []
   },
+  "seedling/schedule/example/eng": {
+    "source": "8f03ef257a088489cf8af72458f2f122",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "TestAssign gives Ana Monday to Saturday."
+      },
+      {
+        "id": "f2",
+        "text": "TestAssign expects Ana, Ben, Ana, blank, Ana, blank."
+      }
+    ],
+    "supporting": [
+      {
+        "id": "f3",
+        "text": "TestAssign gives Ben Monday and Tuesday."
+      }
+    ],
+    "paraphrase": [
+      "TestAssign assigns Ana Monday through Saturday and Ben Monday plus Tuesday, expecting Ana then Ben then Ana then blank then Ana then blank."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "seedling/schedule/example/plain": {
+    "source": "0d02cb4c16318e16c4f8483721be183a",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "In the app's own check, Ana gets three days, Ben gets Tuesday, and two stay open."
+      }
+    ],
+    "supporting": [
+      {
+        "id": "f2",
+        "text": "Ana is free Monday to Saturday."
+      },
+      {
+        "id": "f3",
+        "text": "Ben is free only Monday and Tuesday."
+      }
+    ],
+    "paraphrase": [
+      "In the app's built-in check, Ana can work Monday through Saturday while Ben can work only Monday plus Tuesday; Ana receives three days, Ben receives Tuesday, and two remain open."
+    ],
+    "review": "auto",
+    "flags": []
+  },
   "seedling/schedule/headline/eng": {
     "source": "2a4adde7a8624a883fa5b9d64f0da27f",
     "headline": [
@@ -1612,6 +1743,49 @@
     "paraphrase": [
       "Helpers register through an online page, giving a name, phone number, email address, and which weekdays they are able to water.",
       "Every registration is a single line in a file that Rosa may view using any spreadsheet program."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "seedling/swap/example/eng": {
+    "source": "344d45a5fa24bedff22d80de23945b33",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "TestTokenRoundTrip expects Walt's link for Thursday, August 8, 2024 to work that day."
+      }
+    ],
+    "supporting": [
+      {
+        "id": "f2",
+        "text": "Walt's link for Thursday, August 8, 2024 is expected to fail the day after."
+      },
+      {
+        "id": "f3",
+        "text": "Walt's link for Thursday, August 8, 2024 is expected to fail under another key."
+      }
+    ],
+    "paraphrase": [
+      "TestTokenRoundTrip expects Walt's Thursday, August 8, 2024 link to succeed that day, yet fail on the following day or when a different key is used."
+    ],
+    "review": "auto",
+    "flags": []
+  },
+  "seedling/swap/example/plain": {
+    "source": "3f66f0bbebb0720db9c68af0fb61d849",
+    "headline": [
+      {
+        "id": "f1",
+        "text": "The app's own check expects Walt's link for his Thursday shift to work that Thursday."
+      },
+      {
+        "id": "f2",
+        "text": "Walt's link for his Thursday shift is expected to stop working on Friday."
+      }
+    ],
+    "supporting": [],
+    "paraphrase": [
+      "The app's own check looks for Walt's Thursday shift link to succeed that Thursday and quit working on Friday."
     ],
     "review": "auto",
     "flags": []
