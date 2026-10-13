@@ -2,18 +2,17 @@
  * Lays out the generated fixtures the way `nmem add` and `nmem build-repo` lay out a real repo, so the site can serve
  * them: <root>/<owner>/<repo>/ links each fixture file and holds snapshot.json and its site.json, the gold oracle web/verify.mjs serves.
  *
- *   node nmem/scripts/fixture-root.mjs [dir]    prints the root; point NMEM_REPOS at it (plus ~/.cache/nmem/repos)
+ *   node harness/app-fixtures.mjs [dir]    prints the root; point NMEM_REPOS at it (plus ~/.cache/nmem/repos)
  */
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { bakeSite } from "../../harness/bake.ts";
-import { loadGold } from "../../harness/gold.ts";
+import { bakeSite } from "./bake.ts";
+import { loadGold } from "./gold.ts";
 
 const repoRoot = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
-  "..",
   "..",
 );
 const out = path.join(repoRoot, "out");

@@ -1,22 +1,23 @@
 /**
- * Parity for the Next site: the content checks web/verify.mjs makes against web/server.ts, made against `next start`.
+ * Parity for the Next app in nmem/, kept in the lab so the app imports nothing outside nmem/. The content checks
+ * web/verify.mjs makes against web/server.ts, made against `next start`.
  * Fetches each page the way a reader would and checks the v1 screen rules against the kernel and gold for the tally
  * oracle, the null and engine snapshots, wayfinder, seedling, and p-limit when it is built. Then measures the timeline
  * layout in headless Chrome and shoots every view at 1400 light, 1400 dark, and 390 into the shots folder.
  * Owns its servers: starts each one, waits until it answers, and kills it on the way out. Needs `npm run build` first.
  *
- *   node scripts/parity.mjs [shots dir]
+ *   node harness/app-parity.mjs [shots dir]
  */
 import { spawn, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { plainHits } from "../../fixtures/lib/plain.mjs";
-import { bakeSite } from "../../harness/bake.ts";
-import { nullSnapshot } from "../../harness/corruptions.ts";
-import { loadGold } from "../../harness/gold.ts";
-import { factsOf, openFixture } from "../../harness/record.ts";
+import { plainHits } from "../fixtures/lib/plain.mjs";
+import { bakeSite } from "./bake.ts";
+import { nullSnapshot } from "./corruptions.ts";
+import { loadGold } from "./gold.ts";
+import { factsOf, openFixture } from "./record.ts";
 import {
   censusOf,
   decisionsFor,
@@ -25,11 +26,11 @@ import {
   TEMPLATES,
   TRUST_WORDS,
   timelineOf,
-} from "../../harness/view.ts";
-import { fixtureRoot } from "./fixture-root.mjs";
+} from "./view.ts";
+import { fixtureRoot } from "./app-fixtures.mjs";
 
-const app = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const root = path.resolve(app, "..");
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const app = path.join(root, "nmem");
 const workspace = path.join(root, "out", "tally");
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "nmem-parity-"));
 const shots = path.resolve(process.argv[2] ?? path.join(tmp, "shots"));
