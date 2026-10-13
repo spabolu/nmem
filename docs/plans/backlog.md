@@ -8,10 +8,13 @@ Priority: P1 blocks a usable v1 on real repos. P2 is visible to readers or skews
 
 | Pri | Item | From | Done when |
 | --- | --- | --- | --- |
-| P1 | Engine has no link step: an agreement made in a thread and carried by a later change gets no carrier, and HEAD ADRs are not searched for reasons | S2b report | tally `ca7fe65` carries the PR #12 agreement; scored in the tally climb |
-| P1 | Engine has no doc-claims step (read-doc), so every doc reads "up to date" by silence | engine.md, S2b | claims scored on tally and wayfinder; `claim/changed` above 0 |
-| P1 | Model cost on real repos: about 2.3 calls per change on Opus. Pick Opus, Sonnet, or Haiku per step by score per cost on the fixtures | owner, G report | each step's tier recorded with fixture scores that hold |
-| P2 | Stance flips on near-identical sentences (pr#21 called a decision, f01e078 a finding, varying by prompt) | S2b | two classify draws agree, or the tally rows stop flipping across cold builds |
+| P1 | HEAD ADRs are not searched for reasons: tally d-dollars (a later sentence of ADR-0003's Decision) says nobody wrote down why. Reusing the first decision's reason scored +2 then +1 paired (H1c attempt 5, H1d d4), held back only by the shared plain reason's draw | S2b, H1c, H1d | d-dollars usable in both audiences on two why draws |
+| P1 | Model cost on real repos: about 2.3 calls per change on Opus. Pick Opus, Sonnet, or Haiku per step by score per cost on the fixtures. Measured on tally (H1d): confirm-why holds on Sonnet (kept); check-claim on Sonnet lost an item, why on Sonnet tripped the gold-phrasing leak, the reason scan on Haiku let a purpose clause through. Untried: classify, write-page, vet, place, link, doc-claims, claim-verdict | owner, G report, H1d | each step's tier recorded with fixture scores that hold |
+| P1 | Wayfinder run flags a gold-phrasing leak on d-api-key, whose engine what is the commit subject verbatim ("default the limiter key to the api key") | H1d | the leak is explained (detector or engine) and a wayfinder run is valid |
+| P2 | Classify draws disagree on findings: a second tally draw added findings on pr#9, ca7fe65, and pr#12 (usable 80 to 78). pr#21 and f01e078 read as decisions on both draws. Keeping only what two draws agree on equals draw 1 on tally and costs 15 calls (H1d d5, patch in the run notes) | S2b, H1d | two classify draws agree, or the tally rows stop flipping across cold builds |
+| P2 | Doc claims: three false extras on tally (ADR-0004 "a list of entries", how-it-works omitting the date, ledger.json "next to the app"), one guarded still-true line flagged on wayfinder (ADR-0004 outage), and the repeats claim found on one of two draws. A materiality confirm call kept the false ones and dropped the real one | H1d | no claim on a gold still-true or unlisted sentence on tally and wayfinder, and the three tally claims on two draws |
+| P2 | Link falls back on wayfinder: twelve agreements overflow the 800-token reply ("finish length") | H1d | wayfinder link answers within its limit |
+| P3 | A test or ADR split onto its own topic starts at its own first line and is named from its file stem (tally "pay part"), so d-paybacks lands on the balance topic. A split-start call fixed the paybacks start but picked the wrong money line (H1d d3) | H1d | split topics start at the code they are about and carry a readable name |
 | P2 | A recorded reason attached to the wrong finding (pr#12 fallthrough got the settle reason) and confirm-why agreed | S2b | confirm-why checks the subject; tally fabricated and wrong-subject count 0 |
 | P2 | Classify skips changes whose every file is proven routine, so a docs-only change that states a choice is missed | S2b | docs-only changes with a stated choice reach classify |
 | P2 | Timeline summary says "Since Oct 21" with no year on ranges longer than a year | G report | multi-year ranges print the year; web verify asserts it |
@@ -38,6 +41,9 @@ Priority: P1 blocks a usable v1 on real repos. P2 is visible to readers or skews
 
 | Item | Commit |
 | --- | --- |
+| Doc-claims step: a check program run at every change since the sentence was written dates brokenBy and true-since (tally 70 to 80 of 176) | e4bb60d |
+| Placement follows a changed option from the entry point to the code that reads it (tally d-flag, d-round-first) | d36b9a2 |
+| confirm-why on Sonnet, held on two draws | c5f94b1 |
 | Failure census command (`harness/cli.ts census`) | c384568 |
 | Duplicate `tally/cli.py` headline chips | 351c0e0 |
 | Subagents hung on a foreground web server | bbc65b0 |
