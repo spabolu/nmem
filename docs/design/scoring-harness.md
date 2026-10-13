@@ -95,7 +95,7 @@ For each system, trial, and repo, `run` builds and audits the scrubbed workspace
 **4. Claims carry a four-way verdict, and status derives from them.** A system emits a claim for each doc sentence it judges not plainly true. The verdict is `no-longer-true` or `depends` with `brokenBy`, or `true-since` with `since`, and each carries a `why` source. A system may also emit `still-true` to guard a sentence. Verdicts match exactly, with no partial credit. `view.statusOf` derives the page line.
 
 - Any `no-longer-true` or `depends` claim makes the topic "Out of date since PR #16, Nov 19, 2024", quoting the sentence with the earliest `brokenBy`.
-- Otherwise a `true-since` claim makes it "Up to date since commit af5ef6a, Mar 26, 2025", naming the latest `since`. Seedling's handbook line "you'll never get two days in a row" is this case.
+- Otherwise a `true-since` claim makes it "Up to date since commit e7e5ff3, Nov 12, 2023", naming the latest `since`. Tally's guide line "A negative amount is refused." is this case, so the adding page reads that way.
 - No such claim means "Up to date". A topic with no docs is "Never written down".
 
 A sentence that survives only in a superseded ADR is not a claim. Its decision has `replacedBy`. Gold keeps every claim's four-way verdict, and the owner's confirmation lives in `harness/reviewed/currency.json`, which the stamp requires.
@@ -133,6 +133,7 @@ An anchor that overlaps two gold candidates equally is "too broad" and matches n
 | Summary item 3 | The scope doc wins. Name the newest decision, the newest behavior change, and the newest thing worth a look, skipping kinds absent from the range, then fill by priority and recency, at most three. |
 | Timeline end | The latest timestamp in the record, over commits and every `github.json` timestamp. For tally that is Nov 21, 2023, not HEAD's Nov 15 (measured). A system cannot move it. |
 | Tally `['root']` decisions | Repo-wide decisions appear on the root page only. A generator check rejects a root-only decision carried by a change confined to one child topic's core. |
+| A change confined to files that moved or are gone | A change sits on the topics whose files it touched. It may also sit on a topic it never touched when the spec's `livesIn` proves that the topic's code at HEAD implements what the change did. The proof is a grep at HEAD that finds it in that code, or an `introduced` needle still there, and it must name the topic's code, not its docs or tests. Its decisions and findings can then sit there too. Wayfinder `d-window-bound` is on counting this way, seedling `d-day-column` and `d-sheet-export` are on schedule, and tally `d-decimal` is on adding. |
 | The prototype reads `answer-key.json` | The port reads it once, at authoring. Systems build in a sandbox that cannot read the checkout. |
 
 ### Keep, rewrite, delete

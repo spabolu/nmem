@@ -62,7 +62,7 @@ Each topic page shows, top to bottom:
 - **Topics.** The tree, each topic's files and line ranges, and search words.
 - **Doc claims.** Each sentence in a written doc, its topic, and whether it is true at the latest commit. If false, the change that broke it. An accepted ADR is a written doc of the topics its decision covers, so its sentences about the code are doc claims, and a superseded ADR is history that makes none.
 - **Decisions.** What was decided, by whom, when, and the reason with its source, or a marker that no reason was recorded. Each decision belongs to one or more topics.
-- **Changes.** Every merged PR and direct commit, the date it went live, the topics it touched, its kind, and its line counts. A routine change carries its reason. An undone sequence is grouped.
+- **Changes.** Every merged PR and direct commit, the date it went live, its topics, its kind, and its line counts. A change's topics are the ones it touched, plus any topic whose code now does what the change did after that code moved or was replaced. A routine change carries its reason. An undone sequence is grouped.
 - **Topic pages.** Headline and example, in engineer and plain versions. "Who to ask" lives on each decision.
 - **Sources.** Kind, author, date, exact quote, and GitHub URL for every claim.
 
