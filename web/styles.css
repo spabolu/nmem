@@ -133,8 +133,8 @@ a.node .st { display: block; color: var(--fgColor-muted); font-size: 12px; }
 .headline-sources, .docs { display: flex; flex-wrap: wrap; gap: 8px; }
 h2 { font-size: 16px; margin: 24px 0 8px; }
 .hint, .tl-sub, .today-line { color: var(--fgColor-muted); font-size: 13px; }
-.decision { display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: 12px; padding: 12px 0; border-top: 1px solid var(--borderColor-default); }
-.decision time { color: var(--fgColor-muted); font-size: 13px; }
+article.decision { display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: 12px; padding: 12px 0; border-top: 1px solid var(--borderColor-default); }
+article.decision time { color: var(--fgColor-muted); font-size: 13px; }
 .what { margin: 0 0 4px; font-weight: 600; }
 .meta { margin: 0; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; color: var(--fgColor-muted); font-size: 13px; }
 .avatar { display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; color: var(--fgColor-onEmphasis); font-size: 9px; font-weight: 700; }
@@ -260,7 +260,7 @@ a:focus-visible, button:focus-visible, input:focus-visible, [tabindex]:focus-vis
   .page.split { grid-template-columns: minmax(0, 1fr); gap: 24px; }
   .page.split > .tree { order: 2; }
   .headline { font-size: 18px; }
-  .decision { grid-template-columns: minmax(0, 1fr); gap: 4px; }
+  article.decision { grid-template-columns: minmax(0, 1fr); gap: 4px; }
   .routine .row { grid-template-columns: minmax(0, 1fr); gap: 4px; }
   .ranges input[type="date"] { flex: 1; }
   .board { padding: 8px 12px 12px; }
