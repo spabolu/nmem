@@ -244,9 +244,9 @@ test('classify copies record text for handles, refuses a denial as intent or anc
   const notes: string[] = [];
   const snapshot = JSON.parse((await assemble(record, modelSteps(record, client, notes))).bytes) as Snapshot;
   assert.deepEqual(client.seen.filter((request) => request.label.startsWith('classify')).map((request) => [request.label, request.sample, request.system.split('\n')[0]]), [
-    ['classify pr#1', 0, 'nmem classify v4'],
-    ['classify pr#2', 0, 'nmem classify v4'],
-    ['classify pr#1', 1, 'nmem classify v4'],
+    ['classify pr#1', 0, 'nmem classify v5'],
+    ['classify pr#2', 0, 'nmem classify v5'],
+    ['classify pr#1', 1, 'nmem classify v5'],
   ]);
   assert.match(client.seen[2]?.user ?? '', /- choices\[1\]: S3 is marked \(denial\) or \(bot\), so it is never chose\n- findings\[0\]\.anchor: S3 is a denial sentence, which can never be an anchor$/);
   assert.deepEqual(notes, ['topics fell back: no canned answer for form topics sample 1']);
@@ -283,6 +283,54 @@ test('a title that restates a longer body sentence is not the intent quote, and 
   const snapshot = JSON.parse((await assemble(record, modelSteps(record, client, []))).bytes) as Snapshot;
   assert.deepEqual(snapshot.decisions.map((decision) => decision.what.source.quote), ['Use one farewell line.']);
   assert.deepEqual(snapshot.changes.flatMap((change) => change.findings), []);
+});
+
+test('a sentence that details a stated choice folds into it: one decision quoting the choice, and no finding on the detail', async () => {
+  const record = ingest(toyWorkspace([
+    { title: 'Add a farewell', body: 'Use one farewell line. It prints once, after the last greeting, in lower case.', files: { 'farewell.txt': 'bye\n' } },
+    { title: 'Tidy the greeting', body: 'Moves the greeting to stdout.', files: { 'greet.txt': 'hello\n' } },
+  ]));
+  const client = fakeClient({
+    'classify pr#1': [{
+      choices: [
+        { sentence: 'S2', stance: 'chose', carried: 'this', restates: null, details: null, what: { eng: 'One farewell line.', plain: 'One farewell line.' }, files: ['farewell.txt'] },
+        { sentence: 'S3', stance: 'chose', carried: 'this', restates: null, details: 'S2', what: { eng: 'It prints once.', plain: 'It prints once.' }, files: ['farewell.txt'] },
+      ],
+      findings: [{ severity: 'behavior', anchor: 'S3', files: [], name: { eng: 'Prints in lower case', plain: 'Prints in lower case' }, says: [{ eng: 'It prints in lower case.', plain: 'It prints in lower case.', source: 'L1' }] }],
+    }],
+    'classify pr#2': [{ choices: [], findings: [] }],
+    'why decision pr#1: One farewell line.': [{ reason: null, said: null }],
+    'scan One farewell line.': [{ stated: [] }],
+    'why decision pr#1: It prints once.': [{ reason: null, said: null }],
+    'scan It prints once.': [{ stated: [] }],
+  });
+  const snapshot = JSON.parse((await assemble(record, modelSteps(record, client, []))).bytes) as Snapshot;
+  assert.deepEqual(snapshot.decisions.map((decision) => [decision.carriedBy, decision.what.eng, decision.what.source.quote]), [['pr#1', 'One farewell line.', 'Use one farewell line.']]);
+  assert.deepEqual(snapshot.changes.flatMap((change) => change.findings), []);
+});
+
+test('a sentence that restates a detail of a choice already recorded folds into that choice too', async () => {
+  const record = ingest(toyWorkspace([
+    { title: 'Add a farewell', body: 'Adds a farewell line.', files: { 'farewell.txt': 'bye\n' } },
+    { title: 'Revert the farewell', body: 'Reverts #1. Bring back the quiet exit. The quiet exit is back.', files: { 'farewell.txt': null } },
+  ]));
+  const client = fakeClient({
+    'classify pr#1': [{ choices: [], findings: [] }],
+    'classify pr#2': [{
+      choices: [
+        { sentence: 'S2', stance: 'chose', carried: 'this', restates: 'C1', details: null, what: null, files: [] },
+        { sentence: 'S3', stance: 'chose', carried: 'this', restates: null, details: 'C1', what: { eng: 'Bring back the quiet exit.', plain: 'Bring back the quiet exit.' }, files: ['farewell.txt'] },
+        { sentence: 'S4', stance: 'chose', carried: 'this', restates: 'S3', details: null, what: { eng: 'The quiet exit is back.', plain: 'The quiet exit is back.' }, files: ['farewell.txt'] },
+      ],
+      findings: [],
+    }],
+    'why decision pr#2: Reverted PR #1.': [{ reason: null, said: null }],
+    'scan Reverted PR #1.': [{ stated: [] }],
+    'why decision pr#2: The quiet exit is back.': [{ reason: null, said: null }],
+    'scan The quiet exit is back.': [{ stated: [] }],
+  });
+  const snapshot = JSON.parse((await assemble(record, modelSteps(record, client, []))).bytes) as Snapshot;
+  assert.deepEqual(snapshot.decisions.map((decision) => [decision.carriedBy, decision.what.source.quote]), [['pr#2', 'Reverts #1.']]);
 });
 
 test('a bad reply after the re-ask leaves the change unclassified and says so', async () => {

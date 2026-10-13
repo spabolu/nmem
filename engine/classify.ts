@@ -92,6 +92,7 @@ const ANSWER = obj({
       stance: lit('chose', 'describes', 'denies'),
       carried: lit('this', 'later', 'none'),
       restates: nullable(str),
+      details: nullable(str),
       what: nullable(named),
       files: arr(str),
     }),
@@ -111,7 +112,7 @@ type Answer = ReturnType<typeof ANSWER.parse>;
 
 const CLASSIFY: Task<Dossier, Answer> = {
   id: 'classify',
-  version: 4,
+  version: 5,
   model: OPUS,
   maxOutputTokens: 4000,
   rules: `You classify one change to a software repository for a read-only history of the project. Its readers are engineers and people who do not read code.
@@ -126,9 +127,10 @@ List every sentence that could read as a choice, each with one stance:
 For each chose sentence give:
 - carried: "this" when this change puts the choice into effect, "later" when it was agreed here and a later change does it, "none" when nothing gets built, such as a decision not to do something.
 - restates: the [C#], or the earlier [S#] listed as chose, that this sentence repeats, else null. A title and a body sentence that state the same choice are one choice. List the body sentence as chose, and the title as restates. Each choice is listed once, at the sentence that states it.
+- details: the [C#], or the [S#] listed as chose, whose choice this sentence spells out, else null. A sentence that says how a stated choice works, such as its rule, order, tie-break, format, timing, or limit, is part of that choice and not a choice of its own. In "Reports now go out weekly. They are sent on Monday at 9am, oldest first." the second sentence details the first. A sentence that could be decided without the other, such as a second option or another feature, is its own choice with details null.
 - what: what was decided, one sentence per audience, at most 20 words each. Use only words from the quoted sentence, in the same order. Do not add a fact the sentence does not state.
 - files: the touched files the choice is about.
-For a describes or denies sentence set carried to "this", restates and what to null, and files to [].
+For a describes or denies sentence set carried to "this", restates, details, and what to null, and files to [].
 A sentence marked (denial) or (bot) is never chose.
 
 FINDINGS
@@ -206,18 +208,21 @@ function gateClassify(record: RepoRecord, change: Change, dossier: Dossier, answ
       return [];
     }
     if (raw.restates !== null && dossier.targets.get(raw.restates) === undefined) problems.push(`${where}.restates: ${raw.restates} is not a [C#] or [S#] handle`);
+    if (raw.details !== null && dossier.targets.get(raw.details) === undefined) problems.push(`${where}.details: ${raw.details} is not a [C#] or [S#] handle`);
     return [{ raw, where, sentence: target.sentence }];
   });
   const byHandle = new Map(chose.map((item) => [item.raw.sentence, item]));
-  // A title does not overlap the body sentence that states the same choice. The quote is the longest pull-request
-  // sentence in the cluster, else the longest sentence.
+  const partOf = (item: (typeof chose)[number] | undefined): string | null => item?.raw.restates ?? item?.raw.details ?? null;
+  // A title does not overlap the body sentence that states the same choice, and a detail is never the choice's quote.
+  // The quote is the longest pull-request sentence among those that state the choice, else the longest sentence.
   const rootOf = (handle: string): string => {
     const seen = new Set<string>();
     let at = handle;
     while (!seen.has(at)) {
       seen.add(at);
-      const next = byHandle.get(at)?.raw.restates;
-      if (!next || next.startsWith('C') || !byHandle.has(next)) return at;
+      const next = partOf(byHandle.get(at));
+      if (next?.startsWith('C')) return next;
+      if (!next || !byHandle.has(next)) return at;
       at = next;
     }
     return handle;
@@ -225,21 +230,23 @@ function gateClassify(record: RepoRecord, change: Change, dossier: Dossier, answ
   const quoted = new Set<string>();
   const clusters = new Map<string, typeof chose>();
   for (const item of chose) {
-    if (item.raw.restates?.startsWith('C')) {
+    const root = rootOf(item.raw.sentence);
+    if (root.startsWith('C')) {
       quoted.add(item.sentence.handle);
       continue;
     }
-    const root = rootOf(item.raw.sentence);
     const cluster = clusters.get(root) ?? [];
     cluster.push(item);
     clusters.set(root, cluster);
   }
   const choices: Choice[] = [];
   for (const cluster of clusters.values()) {
-    const stated = cluster.find((item) => item.raw.restates === null) ?? cluster[0];
+    const stated = cluster.find((item) => partOf(item) === null) ?? cluster[0];
     if (!stated) continue;
-    const inPull = cluster.filter((item) => /^pr#\d+$/.test(item.sentence.ref));
-    const pool = inPull.length > 0 ? inPull : cluster;
+    const states = cluster.filter((item) => item.raw.details === null);
+    const said = states.length > 0 ? states : cluster;
+    const inPull = said.filter((item) => /^pr#\d+$/.test(item.sentence.ref));
+    const pool = inPull.length > 0 ? inPull : said;
     const sentence = [...pool].sort((a, b) => b.sentence.text.length - a.sentence.text.length || (a.raw.sentence < b.raw.sentence ? -1 : 1))[0]?.sentence ?? stated.sentence;
     for (const item of cluster) quoted.add(item.sentence.handle);
     choices.push({
