@@ -98,6 +98,6 @@ test('tally census matches the gold tree', () => {
   const record = openFixture(path.join(root, 'out', 'tally'));
   const gold = loadGold(path.join(root, 'out'), 'tally' as never);
   const census = censusOf(gold.oracle, factsOf(record));
-  assert.deepEqual(census, { topics: 6, neverWritten: 1, outOfDate: 0, upToDate: 5 });
-  assert.equal(TEMPLATES.census(census).eng, '1 of 6 topics was never written down. No topic is out of date.');
+  assert.deepEqual(census, { topics: 6, neverWritten: 1, outOfDate: 1, upToDate: 4 });
+  assert.equal(TEMPLATES.census(census).eng, '1 of 6 topics was never written down. 1 of 6 topics is out of date.');
 });

@@ -960,6 +960,7 @@ const ownCheck = {
 };
 const quiet = { count: 0, lines: 0 };
 const upToDate = { eng: 'Up to date', plain: 'Up to date' };
+const outOfDate23 = { eng: 'Out of date since PR #23, Nov 8, 2023', plain: 'Out of date since Nov 8, 2023' };
 const adr = {
   one: 'docs/adr/0001-record-architecture-decisions.md',
   sqlite: 'docs/adr/0002-store-the-ledger-in-sqlite.md',
@@ -982,13 +983,13 @@ const views = {
       docs: ['README.md', 'docs/index.md'],
       headline: [
         {
-          eng: 'tally splits shared household bills between roommates and prints the fewest payments that settle everyone up.',
+          eng: 'tally splits shared household expenses between roommates and says who should pay whom.',
           plain: 'tally splits shared household bills between roommates and says who should pay whom.',
-          ev: headFile('README.md', 'tally splits shared household expenses between roommates and prints the\nsmallest set of payments that settles everyone up.'),
+          ev: headFile('docs/index.md', 'tally is a small command-line app that splits shared household expenses\nbetween roommates and says who should pay whom.'),
         },
         {
           eng: '`tally add` saves a bill, `balances_for()` works out the balances from the saved bills, and `minimal_transfers()` turns the balances into payments.',
-          plain: 'Each bill is saved, the balances are worked out from all saved bills, and the balances become the fewest payments.',
+          plain: 'Each bill is saved, the balances are worked out from all saved bills, and the balances are turned into payments.',
           ev: headFile('tally/cli.py', 'balances = balances_for(rows)'),
         },
       ],
@@ -1057,14 +1058,14 @@ const views = {
       docs: [guide],
       headline: [
         {
-          eng: '`minimal_transfers()` has the person who owes most pay the person owed most, and repeats until everyone is at zero.',
-          plain: 'The app has the person who owes the most pay the person owed the most, and repeats until everyone is even.',
-          ev: headFile('tally/settle.py', 'pay = min(debtors[i][1], creditors[j][1])'),
+          eng: '`minimal_transfers()` sorts the people who owe and the people owed from the largest amount down, ties by name.',
+          plain: 'The app lines up the people who owe and the people owed from the biggest amount down, ties by name.',
+          ev: headFile('tally/settle.py', 'key=lambda item: (-item[1], item[0]),'),
         },
         {
-          eng: 'Ties go by name.',
-          plain: 'Ties go by name.',
-          ev: headFile('tally/settle.py', 'key=lambda item: (-item[1], item[0]),'),
+          eng: 'It then pays down both lists in that one order, never re-sorting, until everyone is at zero.',
+          plain: 'It then pays down both lines in that order, without reordering them, until everyone is even.',
+          ev: headFile('tally/settle.py', 'pay = min(debtors[i][1], creditors[j][1])'),
         },
       ],
       example: {
@@ -1221,7 +1222,29 @@ const views = {
     },
     'pr#6': { topics: ['paybacks'] },
     'pr#9': { topics: ['storage'] },
-    'pr#12': { topics: ['settling', 'money'] },
+    'pr#12': {
+      topics: ['settling', 'money'],
+      findings: [
+        {
+          id: 'f-not-fewest',
+          severity: 'check',
+          topics: ['settling'],
+          anchors: [
+            { kind: 'file', path: 'tally/settle.py', at: 'c-settle', quote: 'pay = min(debtors[i][1], creditors[j][1])' },
+            pr(12, '`tally settle` prints the fewest payments that clear the household.'),
+          ],
+          name: { eng: 'Settle can print more payments than needed', plain: 'Settling up can ask for more payments than needed' },
+          says: [
+            {
+              eng: 'For five people owing 6, 4 and 4 and owed 8 and 6, settle prints 4 payments where 3 would settle everyone.',
+              plain: 'With five people, the app can ask for 4 payments where 3 would settle everyone.',
+              ev: { verb: 'run', id: 'settle-five', shows: 'settle prints 4 payments: ana pays dee 6; ben pays dee 2; ben pays eli 2; cal pays eli 4\nfewest possible: 3' },
+            },
+          ],
+          why: askLena,
+        },
+      ],
+    },
     'c-remainder': { topics: ['leftover'] },
     'c-dollars': { topics: ['money'] },
     'pr#17': {
@@ -1693,6 +1716,19 @@ const views = {
       covers: ['how-settle'],
     },
     {
+      id: 'claim-repeats',
+      doc: guide,
+      quote: 'It repeats that until everyone is at zero.',
+      topic: 'settling',
+      verdict: 'depends',
+      brokenBy: 'pr#23',
+      why: {
+        eng: 'On every four-person ledger tried, settle prints the same payments as re-matching the largest debt and credit each time, but for five people owing 6, 4 and 4 it prints different ones.',
+        plain: 'In every four-person case tried, the app gives the same payments as matching the biggest amounts again after each payment, but with five people it gives different ones.',
+        ev: { verb: 'run', id: 'settle-five', shows: 'settle prints other payments than re-matching the largest each time: 0' },
+      },
+    },
+    {
       id: 'claim-payback',
       doc: guide,
       quote: 'The payback just says money moved.',
@@ -1706,6 +1742,19 @@ const views = {
       topic: 'storage',
       verdict: 'still-true',
       covers: ['storage-now'],
+    },
+    {
+      id: 'claim-fewest',
+      doc: 'README.md',
+      quote: 'tally splits shared household expenses between roommates and prints the\nsmallest set of payments that settles everyone up.',
+      topic: 'root',
+      verdict: 'depends',
+      brokenBy: 'pr#23',
+      why: {
+        eng: 'On every four-person ledger tried, settle prints the fewest payments, but for five people owing 6, 4 and 4 it prints 4 where 3 would do.',
+        plain: 'In every four-person case tried, the app asks for the fewest payments, but with five people it can ask for 4 where 3 would do.',
+        ev: { verb: 'run', id: 'settle-five', shows: 'settle prints more payments than needed: 0' },
+      },
     },
   ],
   undone: [
@@ -1723,6 +1772,72 @@ const views = {
     },
   ],
   runs: [
+    {
+      id: 'settle-five',
+      at: tallyHead,
+      lang: 'python',
+      source: `import itertools
+
+from tally.settle import minimal_transfers
+
+
+def fewest(balances):
+    amounts = [cents for cents in balances.values() if cents]
+    best = {0: 0}
+    for mask in range(1, 1 << len(amounts)):
+        low = mask & -mask
+        best[mask] = max(
+            (1 + best[mask ^ part] for part in range(1, mask + 1)
+             if part & mask == part and part & low
+             and sum(a for i, a in enumerate(amounts) if part >> i & 1) == 0),
+            default=0,
+        )
+    return len(amounts) - best[(1 << len(amounts)) - 1]
+
+
+def rematch(balances):
+    owes = {name: -cents for name, cents in balances.items() if cents < 0}
+    owed = {name: cents for name, cents in balances.items() if cents > 0}
+    transfers = []
+    while owes and owed:
+        src = min(owes, key=lambda name: (-owes[name], name))
+        dst = min(owed, key=lambda name: (-owed[name], name))
+        pay = min(owes[src], owed[dst])
+        transfers.append((src, dst, pay))
+        for side, name in ((owes, src), (owed, dst)):
+            side[name] -= pay
+            if side[name] == 0:
+                del side[name]
+    return transfers
+
+
+def line(transfers):
+    return "; ".join("%s pays %s %d" % row for row in transfers)
+
+
+names = ["ana", "ben", "cal", "dee"]
+ledgers = more = other = 0
+for amounts in itertools.product(range(-6, 7), repeat=3):
+    last = -sum(amounts)
+    if not -6 <= last <= 6 or not any(amounts + (last,)):
+        continue
+    balances = dict(zip(names, amounts + (last,)))
+    transfers = minimal_transfers(balances)
+    ledgers += 1
+    more += len(transfers) > fewest(balances)
+    other += sorted(transfers) != sorted(rematch(balances))
+print("four people, amounts -6 to 6: %d ledgers" % ledgers)
+print("settle prints more payments than needed: %d" % more)
+print("settle prints other payments than re-matching the largest each time: %d" % other)
+
+balances = {"ana": -6, "ben": -4, "cal": -4, "dee": 8, "eli": 6}
+transfers = minimal_transfers(balances)
+print("five people: ana owes 6, ben owes 4, cal owes 4, dee is owed 8, eli is owed 6")
+print("settle prints %d payments: %s" % (len(transfers), line(transfers)))
+print("fewest possible: %d" % fewest(balances))
+print("re-matching the largest each time: %s" % line(rematch(balances)))
+`,
+    },
     {
       id: 'negative-at-pr4',
       at: 'merge-pr-4',
@@ -1761,7 +1876,7 @@ print("new name --ledger: exit %d, file written: %s" % attempt("--ledger", "new.
     },
   ],
   screens: [
-    { kind: 'page', topic: 'root', status: upToDate },
+    { kind: 'page', topic: 'root', status: outOfDate23 },
     { kind: 'page', topic: 'leftover', status: { eng: 'Never written down', plain: 'Never written down' } },
     {
       kind: 'timeline',
@@ -1792,7 +1907,7 @@ print("new name --ledger: exit %d, file written: %s" % attempt("--ledger", "new.
       notes: { 'pr#22': 'undoes-earlier' },
       routine: quiet,
     },
-    { kind: 'page', topic: 'settling', status: upToDate },
+    { kind: 'page', topic: 'settling', status: outOfDate23 },
     { kind: 'page', topic: 'paybacks', status: upToDate },
     { kind: 'page', topic: 'storage', status: upToDate },
     { kind: 'page', topic: 'money', status: upToDate },
@@ -1801,8 +1916,8 @@ print("new name --ledger: exit %d, file written: %s" % attempt("--ledger", "new.
       topic: 'root',
       from: '2023-02-11',
       to: '2023-11-21',
-      counts: { decision: 19, behavior: 3, check: 1, net: 1 },
-      named: ['d-note', 'f-old-flag', 'f-negative-dropped'],
+      counts: { decision: 19, behavior: 3, check: 2, net: 1 },
+      named: ['d-note', 'f-old-flag', 'f-not-fewest'],
       routine: { count: 5, lines: 91 },
     },
     {

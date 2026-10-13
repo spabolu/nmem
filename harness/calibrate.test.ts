@@ -52,6 +52,7 @@ test('with a judge that agrees with everything, only the checks a real judge mus
     'corruptions: confident-guess usable finding/gap',
     'corruptions: reason-in-prose -> gap-honesty',
     'corruptions: reason-in-prose -> supported',
+    'corruptions: reason-in-prose usable finding/gap',
     'corruptions: swap-reasons -> reason',
     'corruptions: swap-reasons usable decision/reason',
     'corruptions: retarget-cites -> supported',
@@ -59,15 +60,16 @@ test('with a judge that agrees with everything, only the checks a real judge mus
     'corruptions: retarget-cites usable finding/gap',
     'corruptions: retarget-cites usable topic/page',
     'corruptions: swap-prose -> prose',
+    'corruptions: swap-prose usable claim/changed',
     'corruptions: swap-prose usable finding/gap',
     'corruptions: swap-prose usable topic/page',
   ]);
   const passed = (what: string): string | undefined => result.checks.find((check) => check.what === what)?.value;
-  assert.equal(passed('fabricate-reason -> gap-honesty'), '1.00 to 0.00 over 16 of 16 touched (drop at least 0.4)');
-  assert.equal(passed('misroute -> facts'), '1.00 to 0.00 over 48 of 48 touched (drop at least 0.4)');
-  assert.equal(passed('jargon-plain -> jargon'), '1.00 to 0.00 over 33 of 33 touched (drop at least 0.4)');
-  assert.equal(passed('alt-anchor usable'), 'moves 0.00 over 48, 14 of them changed (at most 0.02)');
-  assert.equal(passed('oracle recall'), '33 of 33 objects (1.00, at least 0.95)');
+  assert.equal(passed('fabricate-reason -> gap-honesty'), '1.00 to 0.00 over 18 of 18 touched (drop at least 0.4)');
+  assert.equal(passed('misroute -> facts'), '1.00 to 0.00 over 54 of 54 touched (drop at least 0.4)');
+  assert.equal(passed('jargon-plain -> jargon'), '1.00 to 0.00 over 36 of 36 touched (drop at least 0.4)');
+  assert.equal(passed('alt-anchor usable'), 'moves 0.00 over 50, 16 of them changed (at most 0.02)');
+  assert.equal(passed('oracle recall'), '36 of 36 objects (1.00, at least 0.95)');
 });
 
 test('a paraphrase that repeats gold, runs long, or uses jargon gets each problem named', () => {

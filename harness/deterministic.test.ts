@@ -84,11 +84,11 @@ test('null is usable on at most 0.05 of every row except claim/holds', async () 
   assert.deepEqual(got, [
     ['change/notable', { yes: 0, n: 30 }],
     ['change/routine', { yes: 0, n: 10 }],
-    ['claim/changed', { yes: 0, n: 2 }],
+    ['claim/changed', { yes: 0, n: 6 }],
     ['claim/holds', { yes: 8, n: 8 }],
     ['decision/gap', { yes: 0, n: 6 }],
     ['decision/reason', { yes: 0, n: 32 }],
-    ['finding/gap', { yes: 0, n: 10 }],
+    ['finding/gap', { yes: 0, n: 12 }],
     ['screen/page', { yes: 0, n: 14 }],
     ['screen/timeline', { yes: 0, n: 42 }],
     ['topic/page', { yes: 0, n: 14 }],
@@ -149,12 +149,12 @@ test('render of tally root whole life matches the gold hand-computed screen', ()
   const text = renderTimeline(goldFile.oracle, facts, { topic: 'root', from: facts.born, to: facts.end }, 'eng', nameOf);
   assert.equal(text, [
     'Timeline root 2023-02-11..2023-11-21',
-    'Since Feb 11: 19 decisions, 3 behavior changes, 1 thing to check and 1 that came and went with no net change.',
-    'counts: decision 19, behavior 3, check 1, net 1',
-    'named: d-note, f-old-flag, f-negative-dropped',
+    'Since Feb 11: 19 decisions, 3 behavior changes, 2 things to check and 1 that came and went with no net change.',
+    'counts: decision 19, behavior 3, check 2, net 1',
+    'named: d-note, f-old-flag, f-not-fewest',
     'routine: 5 changes, 91 lines',
     'up: 19 cards, +0 more',
-    'down: 5 cards, +0 more',
+    'down: 6 cards, +0 more',
   ].join('\n'));
 });
 
@@ -206,10 +206,14 @@ test('marking a true-since claim still-true scores that claim 0', async () => {
     'claim-negative plain 0',
     'claim-ties eng 1',
     'claim-ties plain 1',
+    'claim-repeats eng 1',
+    'claim-repeats plain 1',
     'claim-payback eng 1',
     'claim-payback plain 1',
     'claim-json-readme eng 1',
     'claim-json-readme plain 1',
+    'claim-fewest eng 1',
+    'claim-fewest plain 1',
   ]);
 });
 
