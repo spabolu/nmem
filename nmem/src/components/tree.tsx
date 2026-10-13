@@ -1,10 +1,10 @@
 import Form from "next/form";
 import NextLink from "next/link";
 import { repoPath, topicHref } from "@/lib/hrefs";
+import type { LocalId } from "@/lib/kernel/contract";
+import { rootId } from "@/lib/kernel/site";
+import { censusOf, statusOf, TEMPLATES } from "@/lib/kernel/view";
 import { depthOf, dotOf, topicById } from "@/lib/present";
-import type { LocalId } from "../../../harness/contract.ts";
-import { censusOf, statusOf, TEMPLATES } from "../../../harness/view.ts";
-import { rootId } from "../../../web/site.ts";
 import type { Ctx } from "./said";
 
 /** The topic tree beside every topic and search page, in snapshot order, depth first. */

@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import { BadQuery } from "@/components/bad-query";
 import { RepoFrame } from "@/components/repo-frame";
 import { TopicView } from "@/components/topic-view";
+import { rootId } from "@/lib/kernel/site";
 import { openRepo } from "@/lib/request";
-import { rootId } from "../../../../../web/site.ts";
 
 export async function generateMetadata({
   params,

@@ -5,9 +5,9 @@ import {
   topicsHref,
   withAudience,
 } from "@/lib/hrefs";
+import { rootId } from "@/lib/kernel/site";
+import type { Audience } from "@/lib/kernel/view";
 import type { RepoRequest } from "@/lib/request";
-import type { Audience } from "../../../harness/view.ts";
-import { rootId } from "../../../web/site.ts";
 import { RepoBar } from "./repo-bar";
 
 type View = "topics" | "timeline" | "source" | "other";

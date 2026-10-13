@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
+import { readQuery } from "@/lib/kernel/site";
 import { siteFor } from "@/lib/repos";
-import { readQuery } from "../../web/site.ts";
 
 /**
  * Pages stream, so once rendering starts the status is 200. Missing repos and topics, and queries web/site.ts refuses,

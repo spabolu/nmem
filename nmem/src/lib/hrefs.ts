@@ -1,4 +1,4 @@
-import type { Audience, IsoDay } from "../../../harness/view.ts";
+import type { Audience, IsoDay } from "@/lib/kernel/view";
 
 /** The URL space. Every link the site prints comes from here, so the paths change in one place. */
 export type RepoRef = { readonly owner: string; readonly name: string };

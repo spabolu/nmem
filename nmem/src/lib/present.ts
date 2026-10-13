@@ -1,5 +1,4 @@
 import "server-only";
-import { plainHits } from "../../../fixtures/lib/plain.mjs";
 import type {
   ChangeId,
   LocalId,
@@ -7,21 +6,22 @@ import type {
   RecordRef,
   Source,
   Topic,
-} from "../../../harness/contract.ts";
-import { parseProof, parseRef } from "../../../harness/contract.ts";
-import type {
-  Audience,
-  Card,
-  IsoDay,
-  Item,
-  Status,
-} from "../../../harness/view.ts";
-import { formatDay, labelChange, TRUST_WORDS } from "../../../harness/view.ts";
-import type { Site } from "../../../web/site.ts";
+} from "@/lib/kernel/contract";
+import { parseProof, parseRef } from "@/lib/kernel/contract";
+import { plainHits } from "@/lib/kernel/plain";
+import type { Site } from "@/lib/kernel/site";
+import type { Audience, Card, IsoDay, Item, Status } from "@/lib/kernel/view";
+import {
+  cardDay,
+  formatDay,
+  labelChange,
+  MONTHS,
+  TRUST_WORDS,
+} from "@/lib/kernel/view";
 
 /**
  * Words and positions the pages print that the kernel does not compute: source labels, card names, avatar initials,
- * and the timeline board geometry. Ported from web/render.ts, which keeps its own copy until web/ is deleted.
+ * and the timeline board geometry. Ported from web/render.ts.
  */
 
 export function person(site: Site, login: string): string {
@@ -100,6 +100,7 @@ export function dotOf(status: Status): "none" | "stale" | "ok" {
 
 function quotedLine(
   site: Site,
+  raw: string,
   ref: RecordRef & { kind: "file" },
   quote: string | undefined,
 ): string {
@@ -108,7 +109,7 @@ function quotedLine(
       ? `line ${ref.lines.start}`
       : `lines ${ref.lines.start}-${ref.lines.start + ref.lines.count - 1}`;
   }
-  const text = site.record.resolve(ref)?.revisions.at(-1) ?? "";
+  const text = site.object(raw)?.revisions.at(-1) ?? "";
   const first = (quote ?? "").split("\n")[0] ?? "";
   const index = first
     ? text.split("\n").findIndex((line) => line.includes(first))
@@ -123,7 +124,7 @@ function sourceLabel(
   quote?: string,
 ): string {
   const parsed = parseRef(ref, site.identity);
-  const facts = site.record.sourceFacts({ kind: "record", ref, quote: "x" });
+  const facts = site.sourceFacts(ref);
   const name = facts?.author ? person(site, facts.author) : null;
   const day = facts ? formatDay(facts.day) : "";
   const plain = audience === "plain";
@@ -148,7 +149,7 @@ function sourceLabel(
     case "file":
       return plain
         ? "the file"
-        : `${parsed.path} ${quotedLine(site, parsed, quote)}`.trim();
+        : `${parsed.path} ${quotedLine(site, ref, parsed, quote)}`.trim();
     case "tag":
       return plain ? "a release note" : `tag ${parsed.name}`;
     default:
@@ -184,9 +185,7 @@ export function chipOf(
 
 export function githubUrlOf(site: Site, ref: string): string | null {
   if (!ref) return null;
-  return (
-    site.record.sourceFacts({ kind: "record", ref, quote: "x" })?.url ?? null
-  );
+  return site.sourceFacts(ref)?.url ?? null;
 }
 
 export function isBareCommit(text: string): boolean {
@@ -202,13 +201,12 @@ function recordTitle(site: Site, id: string): string {
   if (pull) {
     const number = Number(pull[1]);
     return firstLine(
-      site.record.github.pulls.find((row) => row.number === number)?.title ??
-        "",
+      site.github.pulls.find((row) => row.number === number)?.title ?? "",
     );
   }
   const parsed = parseRef(id, site.identity);
   if (!parsed || parsed.kind !== "commit") return "";
-  return firstLine(site.record.resolve(parsed)?.revisions[0] ?? "");
+  return firstLine(site.object(id)?.revisions[0] ?? "");
 }
 
 export function namedChange(
@@ -306,12 +304,6 @@ export function pct(day: string, from: string, to: string): number {
   return BOARD.inset + at * (100 - 2 * BOARD.inset);
 }
 
-function cardDay(card: Card): IsoDay {
-  if (card.kind === "decision") return card.row.day;
-  if (card.kind === "net") return card.to;
-  return card.day;
-}
-
 export function cardId(card: Card): string {
   if (card.kind === "decision") return card.row.decision.id;
   if (card.kind === "net") return `undone:${card.changes[0] ?? ""}`;
@@ -354,21 +346,6 @@ export function packRow(
   }
   return { slots, lanes: Math.max(1, laneRight.length) };
 }
-
-const MONTHS = [
-  "Jan",
-  "Feb",
-  "Mar",
-  "Apr",
-  "May",
-  "Jun",
-  "Jul",
-  "Aug",
-  "Sep",
-  "Oct",
-  "Nov",
-  "Dec",
-] as const;
 
 type Tick = {
   readonly label: string;

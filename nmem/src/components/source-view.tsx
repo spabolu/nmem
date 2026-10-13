@@ -1,8 +1,7 @@
+import { parseProof, parseRef } from "@/lib/kernel/contract";
+import type { RequestQuery, Site } from "@/lib/kernel/site";
+import { formatDay, TRUST_WORDS } from "@/lib/kernel/view";
 import { githubUrlOf, person, stamp } from "@/lib/present";
-import { parseProof, parseRef } from "../../../harness/contract.ts";
-import { resolveProof } from "../../../harness/record.ts";
-import { formatDay, TRUST_WORDS } from "../../../harness/view.ts";
-import type { RequestQuery, Site } from "../../../web/site.ts";
 import { Avatar, type Ctx } from "./said";
 
 type Comment = {
@@ -66,7 +65,7 @@ export async function SourceView({
     if (parent) return thread(parent, parsed.id);
   }
   if (parsed.kind === "file") {
-    const body = site.record.resolve(parsed)?.revisions[0] ?? "";
+    const body = site.object(query.ref)?.revisions[0] ?? "";
     return (
       <>
         {callout}
@@ -81,13 +80,9 @@ export async function SourceView({
       </>
     );
   }
-  const object = site.record.resolve(parsed);
+  const object = site.object(query.ref);
   if (parsed.kind === "commit") {
-    const facts = site.record.sourceFacts({
-      kind: "record",
-      ref: query.ref,
-      quote: "x",
-    });
+    const facts = site.sourceFacts(query.ref);
     return (
       <>
         {callout}
@@ -151,7 +146,7 @@ function hasId(comments: readonly Comment[], id: number): boolean {
 }
 
 function parentOf(site: Site, id: number): Parent | null {
-  const { github } = site.record;
+  const { github } = site;
   for (const row of github.discussions)
     if (hasId(row.comments, id))
       return { kind: "discussion", number: row.number };
@@ -309,7 +304,7 @@ function Thread({
   readonly focus: number | null;
   readonly url: string | null;
 }) {
-  const { github } = site.record;
+  const { github } = site;
   const kicker = (
     <p className="kicker">
       {site.identity.owner} / {site.identity.name}
@@ -514,11 +509,11 @@ async function ProofReceipt({
   const parsed = parseProof(raw);
   if (!parsed) return <p className="miss">nmem could not read this check.</p>;
   const words = TRUST_WORDS[parsed.verb][audience];
-  const result = await resolveProof(
-    parsed,
-    site.record.workspace,
-    site.snapshot.runs,
-  );
+  const result = site.proof(raw) ?? {
+    failed: "missing",
+    detail:
+      "The lab did not bake this check; rebuild this repo with nmem build-repo.",
+  };
   return (
     <article className="gh">
       <h1 data-nmem>{words}</h1>

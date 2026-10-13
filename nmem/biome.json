@@ -35,5 +35,20 @@
         "organizeImports": "on"
       }
     }
-  }
+  },
+  "overrides": [
+    {
+      "includes": ["src/lib/kernel/**"],
+      "linter": {
+        "rules": {
+          "complexity": {
+            "noCommaOperator": "off"
+          },
+          "suspicious": {
+            "useIterableCallbackReturn": "off"
+          }
+        }
+      }
+    }
+  ]
 }

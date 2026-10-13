@@ -2,6 +2,24 @@ import { Button } from "@primer/react";
 import Form from "next/form";
 import NextLink from "next/link";
 import { repoPath, showParam, timelineHref, topicHref } from "@/lib/hrefs";
+import type { ChangeId, LocalId, Said } from "@/lib/kernel/contract";
+import type { RequestQuery } from "@/lib/kernel/site";
+import { rootId } from "@/lib/kernel/site";
+import type {
+  Card,
+  IsoDay,
+  ItemKind,
+  Timeline,
+  UndoneNote,
+} from "@/lib/kernel/view";
+import {
+  formatDay,
+  kindOf,
+  PRIORITY,
+  presets,
+  TEMPLATES,
+  timelineOf,
+} from "@/lib/kernel/view";
 import {
   BOARD,
   cardId,
@@ -17,24 +35,6 @@ import {
   shortWhen,
   ticksOf,
 } from "@/lib/present";
-import type { ChangeId, LocalId, Said } from "../../../harness/contract.ts";
-import type {
-  Card,
-  IsoDay,
-  ItemKind,
-  Timeline,
-  UndoneNote,
-} from "../../../harness/view.ts";
-import {
-  formatDay,
-  kindOf,
-  PRIORITY,
-  presets,
-  TEMPLATES,
-  timelineOf,
-} from "../../../harness/view.ts";
-import type { RequestQuery } from "../../../web/site.ts";
-import { rootId } from "../../../web/site.ts";
 import { Chip, type Ctx, Prose, SaidText, WhyText } from "./said";
 
 type Range = {

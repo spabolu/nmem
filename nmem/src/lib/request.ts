@@ -1,7 +1,7 @@
 import "server-only";
 import { notFound } from "next/navigation";
-import type { RequestQuery, Site } from "../../../web/site.ts";
-import { readQuery } from "../../../web/site.ts";
+import type { RequestQuery, Site } from "@/lib/kernel/site";
+import { readQuery } from "@/lib/kernel/site";
 import type { RepoRef } from "./hrefs";
 import { siteFor } from "./repos";
 
@@ -17,7 +17,7 @@ function searchOf(raw: RawParams): URLSearchParams {
   return params;
 }
 
-/** One request against one repo: the loaded site, its URL identity, and the query web/site.ts parsed. */
+/** One request against one repo: the loaded site, its URL identity, and the query the kernel parsed. */
 export type RepoRequest = {
   readonly site: Site;
   readonly repo: RepoRef;

@@ -42,5 +42,7 @@ export async function fixtureRoot(
 
 if (import.meta.main)
   console.log(
-    await fixtureRoot(process.argv[2] ? path.resolve(process.argv[2]) : undefined),
+    await fixtureRoot(
+      process.argv[2] ? path.resolve(process.argv[2]) : undefined,
+    ),
   );

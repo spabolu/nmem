@@ -1,15 +1,10 @@
 import NextLink from "next/link";
 import { sourceHref, timelineHref, topicHref } from "@/lib/hrefs";
-import { ancestors, dotOf, person, topicById } from "@/lib/present";
-import type {
-  Decision,
-  LocalId,
-  Said,
-  Source,
-} from "../../../harness/contract.ts";
-import { parseProof } from "../../../harness/contract.ts";
-import { resolveProof } from "../../../harness/record.ts";
-import type { Status, TopicPage } from "../../../harness/view.ts";
+import type { Decision, LocalId, Said, Source } from "@/lib/kernel/contract";
+import { parseProof } from "@/lib/kernel/contract";
+import type { Site } from "@/lib/kernel/site";
+import { rootId } from "@/lib/kernel/site";
+import type { Status, TopicPage } from "@/lib/kernel/view";
 import {
   censusOf,
   deciderOf,
@@ -19,9 +14,8 @@ import {
   pageOf,
   statusOf,
   TEMPLATES,
-} from "../../../harness/view.ts";
-import type { Site } from "../../../web/site.ts";
-import { rootId } from "../../../web/site.ts";
+} from "@/lib/kernel/view";
+import { ancestors, dotOf, person, topicById } from "@/lib/present";
 import { ButtonLink } from "./links";
 import { Avatar, Chip, type Ctx, Prose, SaidText } from "./said";
 import { Tree } from "./tree";
@@ -284,11 +278,11 @@ async function ExampleProof({
   if (source.kind !== "proof") return null;
   const parsed = parseProof(source.proof);
   if (!parsed) return <p className="hint">nmem could not read this check.</p>;
-  const result = await resolveProof(
-    parsed,
-    site.record.workspace,
-    site.snapshot.runs,
-  );
+  const result = site.proof(source.proof) ?? {
+    failed: "missing",
+    detail:
+      "The lab did not bake this check; rebuild this repo with nmem build-repo.",
+  };
   if ("failed" in result)
     return <p className="hint">nmem could not run this check.</p>;
   const preview =

@@ -276,7 +276,7 @@ export type RangeView = Pick<Timeline, 'range' | 'counts' | 'named' | 'routine'>
   readonly cards: readonly Card[];
 };
 
-function cardDay(card: Card): IsoDay {
+export function cardDay(card: Card): IsoDay {
   if (card.kind === 'decision') return card.row.day;
   if (card.kind === 'net') return card.to;
   return card.day;
@@ -410,7 +410,7 @@ export const TRUST_WORDS = {
   run: { eng: 'we ran it', plain: 'we tried it' },
 } as const satisfies Record<ProofVerb, Named>;
 
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'] as const;
+export const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'] as const;
 
 /** "Nov 19, 2024" */
 export function formatDay(day: IsoDay): string {

@@ -2,10 +2,10 @@ import "server-only";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import type { RepoIdentity } from "../../../harness/contract.ts";
-import { censusOf, TEMPLATES } from "../../../harness/view.ts";
-import type { Site } from "../../../web/site.ts";
-import { loadSite, rootId } from "../../../web/site.ts";
+import type { RepoIdentity } from "@/lib/kernel/contract";
+import type { Site } from "@/lib/kernel/site";
+import { loadSite, rootId } from "@/lib/kernel/site";
+import { censusOf, TEMPLATES } from "@/lib/kernel/view";
 
 /**
  * Where built repos live. `nmem add` mirrors each repo into <root>/<owner>/<repo>/ and `nmem build-repo` writes
@@ -98,7 +98,7 @@ export function siteFor(owner: string, repo: string): Site | null {
   const mtimeMs = fs.statSync(workspace.snapshot).mtimeMs;
   const cached = sites.get(workspace.snapshot);
   if (cached && cached.mtimeMs === mtimeMs) return cached.site;
-  const site = loadSite(workspace.dir, workspace.snapshot);
+  const site = loadSite(workspace.dir);
   sites.set(workspace.snapshot, { mtimeMs, site });
   return site;
 }

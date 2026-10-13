@@ -1,10 +1,10 @@
 import NextLink from "next/link";
 import { type RepoRef, sourceHref } from "@/lib/hrefs";
+import type { Said, Source, Why } from "@/lib/kernel/contract";
+import type { Site } from "@/lib/kernel/site";
+import type { Audience } from "@/lib/kernel/view";
+import { TEMPLATES } from "@/lib/kernel/view";
 import { avatarOf, chipOf, person } from "@/lib/present";
-import type { Said, Source, Why } from "../../../harness/contract.ts";
-import type { Audience } from "../../../harness/view.ts";
-import { TEMPLATES } from "../../../harness/view.ts";
-import type { Site } from "../../../web/site.ts";
 
 /** Engineer text marks code with backticks. Plain text never shows code, so it prints as written. */
 export function Prose({

@@ -3,9 +3,9 @@ import { notFound } from "next/navigation";
 import { BadQuery } from "@/components/bad-query";
 import { RepoFrame } from "@/components/repo-frame";
 import { TimelineView } from "@/components/timeline-view";
+import { rootId } from "@/lib/kernel/site";
 import { topicById } from "@/lib/present";
 import { openRepo } from "@/lib/request";
-import { rootId } from "../../../../../../web/site.ts";
 
 type Props = PageProps<"/[owner]/[repo]/timeline">;
 
