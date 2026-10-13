@@ -1972,15 +1972,15 @@ const views = {
       what: {
         eng: 'There are no watering shifts on Sundays.',
         plain: 'Nobody is scheduled to water on Sundays.',
-        ev: comment('disc3-minh', 'Not a mistake, Sundays are skipped on purpose.'),
+        ev: comment('disc3-rosa', 'so we just said no Sunday shifts at all.'),
       },
       topics: ['days'],
       carriedBy: 'pr#1',
       why: {
         reason: {
-          eng: 'When the garden signed its lease with Grace Lutheran, Pastor Ruth asked for quiet Sunday mornings for the congregation.',
-          plain: "The garden's land is rented from the church next door, and the pastor asked for quiet Sunday mornings.",
-          ev: comment('disc3-rosa', 'When we signed the lease with Grace Lutheran, the one thing Pastor Ruth asked for was quiet Sunday mornings for the congregation.'),
+          eng: "Pastor Ruth asked for quiet Sunday mornings when the garden leased its lot from Grace Lutheran, and Rosa didn't want to police a Sunday-afternoons-only rule.",
+          plain: "The church next door, which rents the garden its land, asked for quiet Sunday mornings, and Rosa didn't want to police an afternoons-only rule.",
+          ev: comment('disc3-rosa', "We could have done 'Sunday afternoons only' but I didn't want to be the one policing that"),
         },
       },
       covers: ['no-sundays-why', 'docs-sunday-gap'],
