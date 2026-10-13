@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import localFont from "next/font/local";
 import { Theme } from "@/components/theme";
 import "./globals.css";
+import "./nmem.css";
 
 const mona = localFont({
   src: "./fonts/mona-sans.woff2",

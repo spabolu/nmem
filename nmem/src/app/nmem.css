@@ -1,0 +1,49 @@
+.hint {
+  color: var(--fgColor-muted);
+}
+.miss {
+  color: var(--fgColor-muted);
+}
+.panel {
+  border: var(--borderWidth-thin) solid var(--borderColor-default);
+  border-radius: var(--borderRadius-large);
+  background: var(--bgColor-default);
+}
+.home-title {
+  font: var(--text-display-shorthand);
+}
+.home-lede {
+  font: var(--text-title-shorthand-medium);
+  font-weight: var(--base-text-weight-normal);
+  color: var(--fgColor-muted);
+  max-width: 640px;
+  margin: 0;
+}
+.section-title {
+  font: var(--text-title-shorthand-small);
+  margin: 0 0 12px;
+}
+.repo-name {
+  font: var(--text-title-shorthand-medium);
+}
+.cmd,
+.add-commands {
+  font-family: var(--fontStack-monospace);
+  font-size: var(--text-codeBlock-size);
+}
+.cmd {
+  color: var(--fgColor-muted);
+}
+.add-hint {
+  margin: 0 0 8px;
+  color: var(--fgColor-muted);
+}
+.add-commands {
+  margin: 0;
+  padding: 12px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  background: var(--bgColor-muted);
+  border: var(--borderWidth-thin) solid var(--borderColor-default);
+  border-radius: var(--borderRadius-medium);
+}
