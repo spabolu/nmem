@@ -1582,9 +1582,9 @@ const views = {
           name: { eng: 'Nothing calls `roundRetryMs()`', plain: 'No reply uses the new rounding' },
           says: [
             {
-              eng: 'No file in src imports src/retry.ts.',
-              plain: 'No other file in the app loads the rounding code.',
-              ev: { verb: 'grep', at: head, pattern: 'retry.ts', paths: ['src'], shows: '(no matches)' },
+              eng: 'Nothing in src outside src/retry.ts uses `roundRetryMs()`, and the package does not export it.',
+              plain: 'Nothing else in the app uses the rounding, and the package does not offer it to other teams.',
+              ev: { verb: 'run', id: 'rounding-unused', shows: 'files in src besides retry.ts that use roundRetryMs: none' },
             },
             {
               eng: 'src/limit.ts turns the wait into whole seconds with `Math.ceil(decision.retryAfterMs / 1000)`.',
@@ -1648,7 +1648,7 @@ const views = {
       id: 'd-store-interface',
       what: {
         eng: 'Storage moves behind a Store interface.',
-        plain: 'Keeping counts was split out behind a fixed shape that any store can follow.',
+        plain: 'Storage was moved behind a fixed shape that any store can follow.',
         ev: pr(2, 'Extract a store interface'),
       },
       alsoIntent: [commit('c-store', 'extract a Store interface and an in-memory adapter')],
@@ -2207,6 +2207,20 @@ const later = await five();
 console.log(\`limit 2, refillWindowMs 1000, five requests with no time passing: \${first.map((r) => r.code).join(' ')}\`);
 console.log(\`first reply: RateLimit-Limit \${first[0].headers['RateLimit-Limit']}, RateLimit-Remaining \${first[0].headers['RateLimit-Remaining']}\`);
 console.log(\`same key 1000 ms later, five more: \${later.map((r) => r.code).join(' ')}\`);
+`,
+    },
+    {
+      id: 'rounding-unused',
+      at: head,
+      lang: 'node',
+      source: `import fs from 'node:fs';
+import * as wayfinder from './src/index.ts';
+
+const users = fs
+  .readdirSync('src', { recursive: true })
+  .filter((file) => file.endsWith('.ts') && file !== 'retry.ts' && fs.readFileSync(\`src/\${file}\`, 'utf8').includes('roundRetryMs'));
+console.log(\`the package exports roundRetryMs: \${'roundRetryMs' in wayfinder ? 'yes' : 'no'}\`);
+console.log(\`files in src besides retry.ts that use roundRetryMs: \${users.length > 0 ? users.join(' ') : 'none'}\`);
 `,
     },
   ],
