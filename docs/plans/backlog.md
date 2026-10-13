@@ -23,7 +23,7 @@ Priority: P1 blocks a usable v1 on real repos. P2 is visible to readers or skews
 | P2 | Classify skips changes whose every file is proven routine, so a docs-only change that states a choice is missed | S2b | docs-only changes with a stated choice reach classify |
 | P2 | Cards reading "nmem could not classify this change" on real repos. The site now names the change from the pull request title or commit subject and prints the count. The engine still leaves the change with no finding and no routine partition | G report, W2 | count reported per build; under 2% on p-limit. p-limit is 15 of 84 changes |
 | P2 | Fresh judge draws can flip borderline gold sentences | S2a, root | every gold sentence passes a cold calibration twice in a row |
-| P2 | Go is not installed, so seedling behavior claims are traced by reading code, not run | RS | owner installs Go (`brew install go`); seedling checks rerun with `go test` |
+| P2 | Seedling behavior claims were traced by reading code; Go 1.27.2 is now installed (owner, 2026-10-13) and `go test ./...` passes at HEAD | RS | each traced seedling claim backed by a Go run proof the generator checks |
 | P3 | Two wayfinder answer-key entries still say "new key" (left to keep public output byte-identical) | RW | answer-key wording matches gold at the next deliberate fixture regeneration |
 | P3 | seedling swap check and write lock separately; a concurrent race is not counted as a setup. If races should count, hold one lock in the fixture (changes the last two SHAs) | RS | decided with Go installed and a run |
 | P3 | Harness builds run unsandboxed and are labelled UNBLINDED | S1b | sandbox in place; label gone |
