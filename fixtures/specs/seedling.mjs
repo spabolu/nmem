@@ -1458,9 +1458,9 @@ const views = {
       parent: 'root',
       name: { eng: 'Reminders', plain: 'Reminders' },
       core: ['cmd/seedling/remind.go', 'internal/notify/email.go', 'deploy/crontab'],
-      files: ['cmd/seedling/remind.go', 'internal/notify/email.go', 'deploy/crontab', adr.texts, adr.email],
+      files: ['cmd/seedling/remind.go', 'internal/notify/email.go', 'deploy/crontab', adr.texts, adr.swap, adr.email],
       start: { path: 'cmd/seedling/remind.go', quote: 'func remind(args []string) {', lines: 38 },
-      docs: ['README.md', handbookDoc, adr.email],
+      docs: ['README.md', handbookDoc, adr.swap, adr.email],
       headline: [
         {
           eng: "`seedling remind` emails tomorrow's volunteer through Gmail, with a link to hand the shift to someone else.",
@@ -1571,7 +1571,7 @@ const views = {
     'c-no-repeat': { topics: ['schedule'] },
     'pr#8': { topics: ['reminders'] },
     'pr#10': {
-      topics: ['swap'],
+      topics: ['swap', 'reminders'],
       findings: [
         {
           id: 'f-swap-two-days',
@@ -1755,12 +1755,12 @@ const views = {
     {
       id: 'd-swap-link',
       what: {
-        eng: 'Each reminder ends with a link to hand that shift to someone else.',
+        eng: 'Each reminder carries a link to hand that shift to someone else.',
         plain: 'Every reminder has a link for handing the shift to someone else.',
         ev: headFile(adr.swap, 'Each reminder ends with a swap link.'),
       },
       alsoIntent: [pr(10, 'every reminder text ends with a link')],
-      topics: ['swap'],
+      topics: ['swap', 'reminders'],
       carriedBy: 'pr#10',
       why: {
         reason: {
@@ -2086,8 +2086,8 @@ const views = {
       topic: 'reminders',
       from: '2024-04-06',
       to: '2025-03-29',
-      counts: { decision: 4 },
-      named: ['d-remind-5pm', 'd-email', 'd-no-heat-texts'],
+      counts: { decision: 5 },
+      named: ['d-remind-5pm', 'd-email', 'd-swap-link'],
       routine: quiet,
     },
     {
