@@ -439,6 +439,13 @@ function shortDay(day: IsoDay): string {
   return `${MONTHS[Number(day.slice(5, 7)) - 1] ?? '?'} ${Number(day.slice(8, 10))}`;
 }
 
+/** "Oct 21" inside a year. "Oct 21, 2016" when the range runs longer than 365 days, so "Since Oct 21" is not two decades. */
+function summaryWhen(range: Range): string {
+  const days = dayNumber(range.to) - dayNumber(range.from);
+  const when = shortDay(range.from);
+  return days > 365 ? `${when}, ${range.from.slice(0, 4)}` : when;
+}
+
 function countPhrase(kind: ItemKind, n: number): string {
   if (kind === 'behavior') return `${n} behavior change${n === 1 ? '' : 's'}`;
   if (kind === 'check') return `${n} thing${n === 1 ? '' : 's'} to check`;
@@ -474,10 +481,10 @@ export const TEMPLATES = {
         return { eng: `Out of date since ${labelChange(status.since)}, ${formatDay(status.day)}`, plain: `Out of date since ${formatDay(status.day)}` };
     }
   },
-  /** "Since Nov 18: 2 behavior changes and 2 things to check." */
+  /** "Since Nov 18: 2 behavior changes and 2 things to check." Longer than a year: "Since Oct 21, 2016: ...". */
   summary: (range: Range, counts: Readonly<Partial<Record<ItemKind, number>>>): Named => {
     const parts = PRIORITY.filter((kind) => (counts[kind] ?? 0) > 0).map((kind) => countPhrase(kind, counts[kind] ?? 0));
-    const line = `Since ${shortDay(range.from)}: ${parts.length === 0 ? 'nothing that matters' : joinAnd(parts)}.`;
+    const line = `Since ${summaryWhen(range)}: ${parts.length === 0 ? 'nothing that matters' : joinAnd(parts)}.`;
     return { eng: line, plain: line };
   },
   /**

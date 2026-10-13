@@ -75,6 +75,16 @@ test('formatDay and labelChange are the sentences the status line already uses',
   assert.equal(labelChange('f01e078' as ChangeId), 'commit f01e078');
 });
 
+test('a summary names the year only when the range is longer than a year', () => {
+  const counts = { decision: 2, behavior: 1 };
+  const summary = (from: string, to: string) => TEMPLATES.summary({ topic: 'root', from: day(from), to: day(to) }, counts).eng;
+  assert.equal(summary('2023-02-11', '2023-11-21'), 'Since Feb 11: 2 decisions and 1 behavior change.');
+  assert.equal(summary('2023-01-01', '2024-01-01'), 'Since Jan 1: 2 decisions and 1 behavior change.');
+  assert.equal(summary('2024-01-01', '2025-01-01'), 'Since Jan 1, 2024: 2 decisions and 1 behavior change.');
+  assert.equal(summary('2016-10-21', '2026-09-19'), 'Since Oct 21, 2016: 2 decisions and 1 behavior change.');
+  assert.equal(TEMPLATES.summary({ topic: 'root', from: day('2016-10-21'), to: day('2026-09-19') }, counts).plain, 'Since Oct 21, 2016: 2 decisions and 1 behavior change.');
+});
+
 test('census counts children only, and up-to-date-since counts as up to date', () => {
   const census = censusOf(snapshot([broken]), facts());
   assert.deepEqual(census, { topics: 3, neverWritten: 1, outOfDate: 1, upToDate: 1 });
