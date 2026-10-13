@@ -1202,8 +1202,8 @@ const views = {
         },
       ],
       example: {
-        eng: 'A new key with limit 2 that sends five requests at once gets four through, and the fifth gets a 429.',
-        plain: 'A new caller allowed 2 requests that sends five at once gets four through, and the fifth is blocked.',
+        eng: 'A new key with limit 2 that sends five requests one after another, with no time passing, gets four through, and the fifth gets a 429.',
+        plain: 'A new caller allowed 2 requests that sends five one after another, with no time passing, gets four through, and the fifth is blocked.',
         ev: headFile('test/limit.test.ts', q.burstAssert),
       },
       words: ['limit', 'requests', 'rate limiter', 'API key', '429'],
@@ -1230,8 +1230,8 @@ const views = {
         },
       ],
       example: {
-        eng: 'test/limit.test.ts sends five requests from a new key at limit 2 in the same instant, and expects four 200s, then a 429.',
-        plain: "The app's own check sends five requests in the same instant from a new caller allowed 2, and expects four through, then a block.",
+        eng: 'test/limit.test.ts sends five requests from a new key at limit 2, one after another with the clock held still, and expects four 200s, then a 429.',
+        plain: "The app's own check sends five requests one after another, with no time passing, from a new caller allowed 2, and expects four through, then a block.",
         ev: headFile('test/limit.test.ts', q.burstAssert),
       },
       words: ['bucket', 'permit', 'balance', 'refill', 'twice', 'reject'],
@@ -1314,7 +1314,7 @@ const views = {
       ],
       example: {
         eng: 'Two limiters with separate stores count the same key on their own: at limit 2, each lets it through 4 times.',
-        plain: 'Two copies of the service count the same caller separately: at an allowance of 2, each lets it through 4 times.',
+        plain: 'Two limiters that each keep their own counts track the same caller separately: set to allow 2, each lets it through 4 times.',
         ev: { verb: 'run', id: 'two-limiters', shows: 'limiter 2: 200 200 200 200 429' },
       },
       words: ['store', 'memory', 'process', 'shared database', 'Redis', 'accuracy'],
@@ -1368,7 +1368,7 @@ const views = {
         },
         {
           eng: '`createLimiter()` records each decision when the caller passes metrics in.',
-          plain: 'Each decision is counted when the app using the limiter asks for counts.',
+          plain: 'If the app using the limiter turns counting on, every request is counted as let through or blocked.',
           ev: headFile('src/limit.ts', 'options.metrics?.record(decision.allowed);'),
         },
         {
@@ -1616,7 +1616,7 @@ const views = {
       id: 'd-store-interface',
       what: {
         eng: 'Storage moves behind a Store interface.',
-        plain: 'Storage became its own separate step.',
+        plain: 'Keeping counts was split out behind a fixed shape that any store can follow.',
         ev: pr(2, 'Extract a store interface'),
       },
       alsoIntent: [commit('c-store', 'extract a Store interface and an in-memory adapter')],
@@ -1705,7 +1705,7 @@ const views = {
       why: {
         reason: {
           eng: 'A client could send the full limit on both sides of a window boundary, and the polling partner did that every minute.',
-          plain: 'A customer could use its full allowance on both sides of each block of time, and one partner did that every minute.',
+          plain: 'A customer could use its full allowance just before and just after one block of time gave way to the next, and one partner did that every minute.',
           ev: pr(5, 'A client can send the full limit on both sides of a window boundary. The polling partner does that every minute.'),
         },
       },
@@ -1960,7 +1960,7 @@ const views = {
       brokenBy: 'pr#16',
       why: {
         eng: 'Two limiters with their own stores, each at limit 2, let one key through 8 times, four times the limit.',
-        plain: 'Two copies of the service, each allowing 2, let one caller through 8 times, four times the allowance.',
+        plain: 'Two limiters that each keep their own counts, each set to allow 2, let one caller through 8 times, four times the allowance.',
         ev: { verb: 'run', id: 'two-limiters', shows: twoLimiters },
       },
     },
@@ -1972,8 +1972,8 @@ const views = {
       verdict: 'no-longer-true',
       brokenBy: 'pr#16',
       why: {
-        eng: 'Run against two limiters at limit 2, one key got 8 requests through.',
-        plain: 'Tried against two copies of the service allowing 2 each, one caller got 8 requests through.',
+        eng: 'Run against two limiters at limit 2, one key got 8 requests through, four times the limit.',
+        plain: 'Tried against two limiters that each keep their own counts, each set to allow 2, one caller got 8 requests through, four times the allowance.',
         ev: { verb: 'run', id: 'two-limiters', shows: twoLimiters },
       },
     },
@@ -2047,7 +2047,7 @@ const views = {
       brokenBy: 'pr#16',
       why: {
         eng: 'In a run of two limiters at limit 2, each limiter allowed one key 4 requests, so the key got 8.',
-        plain: 'Tried with two copies allowing 2 each, each copy let one caller in 4 times.',
+        plain: 'Tried with two limiters that each keep their own counts, each set to allow 2, each let one caller in 4 times.',
         ev: { verb: 'run', id: 'two-limiters', shows: twoLimiters },
       },
     },
