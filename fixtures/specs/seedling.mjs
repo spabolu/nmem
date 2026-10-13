@@ -1892,7 +1892,13 @@ const views = {
       },
       topics: ['signup'],
       carriedBy: 'pr#2',
-      why: { notRecorded: { ask: ['minhtran'] } },
+      why: {
+        reason: {
+          eng: 'Rosa Delgado said the old Google Form was impossible for some of the volunteers.',
+          plain: 'Rosa Delgado said the old sign-up form was impossible for some of the volunteers.',
+          ev: comment('pr2-rosa', 'The old Google Form was impossible for some of our folks.'),
+        },
+      },
       covers: ['growth-arc'],
     },
     {
