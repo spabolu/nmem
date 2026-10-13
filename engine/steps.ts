@@ -47,6 +47,8 @@ export type Steps = {
   readonly classify: (change: Change) => Promise<Classification>;
   /** Joins thread agreements to the change that carried them. */
   readonly link: (choices: readonly Choice[]) => Promise<readonly Choice[]>;
+  /** Whether a finding stands: false when its own record shows someone handled it or nobody using the program can reach it. */
+  readonly vet: (change: Change, finding: Finding) => Promise<boolean>;
   /** A recorded reason that a second call agrees states why, else not recorded with the subject's ask. */
   readonly why: (subject: Subject) => Promise<Why>;
   /** For a gap object: which of the sentences it shows state a reason as fact. Those never reach the snapshot. */
@@ -117,6 +119,7 @@ export function noModel(record: RepoRecord): Steps {
   return {
     classify: async () => ({ choices: [], findings: [] }),
     link: async (choices) => choices,
+    vet: async () => true,
     why: async (subject) => ({ kind: 'not-recorded', ask: subject.ask, guess: null }),
     scan: async (_subject, shown) => shown.map(() => false),
     claims: async () => [],

@@ -214,6 +214,7 @@ test('classify copies record text for handles, refuses a denial as intent or anc
         findings: [{ severity: 'check', anchor: 'L1', files: [], name: { eng: 'farewell.txt says bye', plain: 'The goodbye is short' }, says: [{ eng: 'The PR says nothing changes.', plain: 'The team said nothing changes.', source: 'S3' }] }],
       },
     ],
+    'vet pr#1: farewell.txt says bye': [{ verdict: 'stands' }],
     'classify pr#2': [{ choices: [{ sentence: 'S2', stance: 'describes', carried: 'this', restates: null, what: null, files: [] }], findings: [] }],
     'why finding pr#1: farewell.txt says bye': [{ reason: null, said: null }],
     'scan farewell.txt says bye': [{ stated: [] }],
@@ -293,6 +294,7 @@ test('a reason is recorded only when a second call agrees, and the scan drops a 
     'confirm decision pr#1: One farewell line.': [{ verdict: 'states-why' }],
     'why finding pr#1: Says bye': [{ reason: 'S4', said: { eng: 'Nothing changes.', plain: 'Nothing changes.' } }, { reason: null, said: null }],
     'scan Says bye': [{ stated: ['5'] }],
+    'vet pr#1: Says bye': [{ verdict: 'stands' }],
     'why decision pr#2: Moves the greeting to stdout.': [{ reason: 'S2', said: { eng: 'It moves the greeting.', plain: 'It moves the greeting.' } }],
     'confirm decision pr#2: Moves the greeting to stdout.': [{ verdict: 'does-not' }],
     'scan Moves the greeting to stdout.': [{ stated: [] }],
@@ -428,4 +430,21 @@ test('a later sentence of an ADR decision is its own decision when a later chang
     ['Amounts are stored as cents.', 'pr#1', 'Amounts are stored as cents (ADR-0001).', ['docs/adr/0001-amounts-are-cents.md']],
     ['Totals are shown in dollars.', 'pr#2', 'Totals are shown in dollars (ADR-0001).', ['docs/adr/0001-amounts-are-cents.md']],
   ]);
+});
+
+test('a finding its own record shows someone handled is dropped before any reason is sought', async () => {
+  const record = ingest(toyWorkspace(FAREWELL));
+  const client = fakeClient({
+    'classify pr#1': [{
+      choices: [{ sentence: 'S2', stance: 'chose', carried: 'this', restates: null, what: { eng: 'One farewell line.', plain: 'The app says goodbye once.' }, files: ['farewell.txt'] }],
+      findings: [{ severity: 'behavior', anchor: 'L1', files: [], name: { eng: 'Old greeting files stay', plain: 'Old greetings stay' }, says: [{ eng: 'It prints bye.', plain: 'It says bye.', source: 'L1' }] }],
+    }],
+    'vet pr#1: Old greeting files stay': [{ verdict: 'handled' }],
+    'why finding pr#1: Old greeting files stay': [{ reason: null, said: null }],
+    'scan Old greeting files stay': [{ stated: [] }],
+  });
+  const notes: string[] = [];
+  const snapshot = JSON.parse((await assemble(record, modelSteps(record, client, notes))).bytes) as Snapshot;
+  assert.deepEqual(snapshot.changes.find((change) => change.id === 'pr#1')?.findings, []);
+  assert.deepEqual(client.seen.filter((request) => /^(vet|why finding|scan Old)/.test(request.label)).map((request) => request.label), ['vet pr#1: Old greeting files stay']);
 });

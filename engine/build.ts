@@ -12,10 +12,11 @@ import type { ModelClient } from './copilot.ts';
 import { describeRoutine, proveRoutine, proveUndone } from './proofs.ts';
 import type { UndoneProof } from './proofs.ts';
 import { ingest } from './record.ts';
-import type { RepoRecord } from './record.ts';
+import type { Change, RepoRecord } from './record.ts';
 import { collapse, noModel, ROOT } from './steps.ts';
 import type { Placeable, Steps } from './steps.ts';
 import { formTopics, overlapping, placeItems } from './topics.ts';
+import { vetFinding } from './vet.ts';
 import { scanReasons, whyOf } from './why.ts';
 
 function label(id: ChangeId): string {
@@ -54,12 +55,14 @@ function checkQuotes(snapshot: Snapshot, record: RepoRecord): void {
 export type Built = { readonly bytes: string; readonly summary: string };
 
 /**
- * A finding's reason through the why step. A gap's name and card points go through the scan: a flagged name drops the
- * finding, a flagged point drops the point, and a finding with no point left is dropped.
+ * A finding that vet does not keep is dropped. Otherwise its reason goes through the why step, and a gap's name and
+ * card points go through the scan: a flagged name drops the finding, a flagged point drops the point, and a finding with
+ * no point left is dropped.
  */
-async function settleFinding(steps: Steps, finding: Finding, carriedBy: ChangeId): Promise<Finding | null> {
+async function settleFinding(steps: Steps, finding: Finding, change: Change): Promise<Finding | null> {
+  if (!(await steps.vet(change, finding))) return null;
   if (finding.why.kind !== 'not-recorded') return finding;
-  const why = await steps.why({ kind: 'finding', what: finding.name, quote: finding.anchor, carriedBy, ask: finding.why.ask });
+  const why = await steps.why({ kind: 'finding', what: finding.name, quote: finding.anchor, carriedBy: change.id, ask: finding.why.ask });
   if (why.kind === 'recorded') return { ...finding, why };
   const [named, ...points] = await steps.scan(finding.name, [finding.name, ...finding.says]);
   const [first, ...rest] = finding.says.filter((_, i) => !points[i]);
@@ -69,7 +72,7 @@ async function settleFinding(steps: Steps, finding: Finding, carriedBy: ChangeId
 export async function assemble(record: RepoRecord, steps: Steps, usage: () => Usage | null = () => null): Promise<Built> {
   const classified = await Promise.all(record.changes.map((change) => steps.classify(change)));
   const found = await Promise.all(record.changes.map(async (change, i) => {
-    const items = await Promise.all((classified[i]?.findings ?? []).map(async (item) => ({ finding: await settleFinding(steps, item.finding, change.id), files: item.files })));
+    const items = await Promise.all((classified[i]?.findings ?? []).map(async (item) => ({ finding: await settleFinding(steps, item.finding, change), files: item.files })));
     return items.flatMap((item) => (item.finding === null ? [] : [{ finding: item.finding, files: item.files }]));
   }));
   const decided = await decide(record, steps, classified.flatMap((item) => item.choices));
@@ -124,7 +127,7 @@ function fallback(notes: Notes, label: string, error: unknown): void {
 
 /**
  * The model steps that are on, over the no-model floor. A bad reply after the re-ask takes the step's fallback and is
- * noted: classify leaves the change unclassified, why leaves the reason not recorded, and scan treats every sentence as
+ * noted: classify leaves the change unclassified, vet keeps the finding, why leaves the reason not recorded, and scan treats every sentence as
  * stating a reason, so an unscanned gap object is never written. Auth and provider failures throw, so a scored run
  * fails rather than writing a partial snapshot.
  */
@@ -150,6 +153,14 @@ export function modelSteps(record: RepoRecord, client: ModelClient, notes: Notes
       } catch (error) {
         fallback(notes, 'link', error);
         return choices;
+      }
+    },
+    vet: async (change, finding) => {
+      try {
+        return await vetFinding(record, client, change, finding);
+      } catch (error) {
+        fallback(notes, `vet ${change.id}`, error);
+        return true;
       }
     },
     why: async (subject) => {
