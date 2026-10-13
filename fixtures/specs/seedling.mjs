@@ -1387,7 +1387,7 @@ const views = {
       core: ['cmd/seedling/serve.go', 'templates/signup.html', 'internal/store/store.go'],
       files: ['cmd/seedling/serve.go', 'templates/signup.html', 'internal/store/store.go', adr.roster],
       start: { path: 'cmd/seedling/serve.go', quote: '\thttp.HandleFunc("POST /signup", func(w http.ResponseWriter, r *http.Request) {', lines: 22 },
-      docs: ['README.md', handbookDoc],
+      docs: ['README.md', handbookDoc, adr.roster],
       headline: [
         {
           eng: '`seedling serve` shows a sign-up form that asks for a name, phone, email, and weekdays from Monday to Saturday.',
@@ -1460,7 +1460,7 @@ const views = {
       core: ['cmd/seedling/remind.go', 'internal/notify/email.go', 'deploy/crontab'],
       files: ['cmd/seedling/remind.go', 'internal/notify/email.go', 'deploy/crontab', adr.texts, adr.email],
       start: { path: 'cmd/seedling/remind.go', quote: 'func remind(args []string) {', lines: 38 },
-      docs: ['README.md', handbookDoc],
+      docs: ['README.md', handbookDoc, adr.email],
       headline: [
         {
           eng: "`seedling remind` emails tomorrow's volunteer through Gmail, with a link to hand the shift to someone else.",
@@ -1488,7 +1488,7 @@ const views = {
       core: ['cmd/seedling/sheet.go', 'templates/weekly-sheet.html'],
       files: ['cmd/seedling/sheet.go', 'templates/weekly-sheet.html'],
       start: { path: 'cmd/seedling/sheet.go', quote: 'func sheet(args []string) {', lines: 25 },
-      docs: ['README.md'],
+      docs: ['README.md', adr.email],
       headline: [
         {
           eng: 'The weekly sheet is a large-print table of each day, who is watering, and a column for initials when done.',
@@ -1511,7 +1511,7 @@ const views = {
       core: ['cmd/seedling/swap.go', 'internal/swap/swap.go', 'internal/swap/swap_test.go', 'templates/swap.html'],
       files: ['cmd/seedling/swap.go', 'internal/swap/swap.go', 'internal/swap/swap_test.go', 'templates/swap.html', adr.swap],
       start: { path: 'cmd/seedling/swap.go', quote: '\thttp.HandleFunc("POST /swap", func(w http.ResponseWriter, r *http.Request) {', lines: 22 },
-      docs: [howDoc, handbookDoc],
+      docs: [howDoc, handbookDoc, adr.swap],
       headline: [
         {
           eng: 'A swap link is signed for one volunteer and one date, and stops working after that date.',
@@ -2048,6 +2048,19 @@ const views = {
       topic: 'swap',
       verdict: 'still-true',
     },
+    {
+      id: 'claim-adr-swap-link',
+      doc: adr.swap,
+      quote: 'Each reminder ends with a swap link.',
+      topic: 'swap',
+      verdict: 'no-longer-true',
+      brokenBy: 'pr#16',
+      why: {
+        eng: 'cmd/seedling/remind.go writes the swap link before the closing "Thank you!" and "The garden crew" lines.',
+        plain: 'The reminder email ends with a thank-you from the garden crew, after the swap link.',
+        ev: headFile('cmd/seedling/remind.go', '"Can\'t make it? Hand your shift to someone else here:\\n%s\\n\\nThank you!\\nThe garden crew\\n",'),
+      },
+    },
   ],
   undone: [],
   runs: [],
@@ -2058,7 +2071,7 @@ const views = {
     { kind: 'page', topic: 'days', status: upToDate },
     { kind: 'page', topic: 'reminders', status: { eng: 'Out of date since commit a41783c, Mar 29, 2025', plain: 'Out of date since Mar 29, 2025' } },
     { kind: 'page', topic: 'shed-sheet', status: upToDate },
-    { kind: 'page', topic: 'swap', status: upToDate },
+    { kind: 'page', topic: 'swap', status: { eng: 'Out of date since PR #16, Feb 15, 2025', plain: 'Out of date since Feb 15, 2025' } },
     {
       kind: 'timeline',
       topic: 'root',
