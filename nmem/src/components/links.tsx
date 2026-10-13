@@ -1,6 +1,6 @@
 "use client";
 
-import { Button, Link } from "@primer/react";
+import { Button, Link, LinkButton } from "@primer/react";
 import NextLink from "next/link";
 import type { ComponentProps } from "react";
 
@@ -43,8 +43,8 @@ export function ButtonLink({
     );
   }
   return (
-    <Button as={NextLink} href={href} size={size} variant={variant}>
+    <LinkButton as={NextLink} href={href} size={size} variant={variant}>
       {children}
-    </Button>
+    </LinkButton>
   );
 }

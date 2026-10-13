@@ -149,9 +149,10 @@ export function TimelineView({
       <Form className="ranges" action={`${repoPath(repo)}/timeline`}>
         <input type="hidden" name="audience" value={audience} />
         <input type="hidden" name="topic" value={topic} />
-        <label>
+        <label htmlFor="range-from">
           From{" "}
           <input
+            id="range-from"
             type="date"
             name="from"
             defaultValue={from}
@@ -159,9 +160,10 @@ export function TimelineView({
             max={site.facts.end}
           />
         </label>
-        <label>
+        <label htmlFor="range-to">
           to{" "}
           <input
+            id="range-to"
             type="date"
             name="to"
             defaultValue={to}
