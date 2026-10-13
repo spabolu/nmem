@@ -1143,23 +1143,44 @@ const indexV5 = indexV4.replace(
   '- [Headers](concepts/headers.md): what a blocked response tells the caller.\n- [Clock](concepts/clock.md): the step used to round a wait.\n',
 );
 
-/** @type {import('../schema.mjs').RepoSpec} */
 const head = 'c-changelog-100';
 const headFile = (path, quote) => ({ kind: 'file', path, at: head, quote });
 const assistFile = (path, quote) => ({ kind: 'file', path, at: 'c-assist', quote });
-const pr16 = (quote) => ({ kind: 'pr', number: 16, quote });
+const pr = (number, quote) => ({ kind: 'pr', number, quote });
+const pr16 = (quote) => pr(16, quote);
+const comment = (id, quote) => ({ kind: 'comment', id, quote });
+const commit = (key, quote) => ({ kind: 'commit', key, quote });
 const askJon = { notRecorded: { ask: ['jon-okonkwo'] } };
+const askMira = { notRecorded: { ask: ['mira-chen'] } };
 const restyled = (path, eng, plain, shows) => ({
   files: [path],
   name: { eng: `restyle of ${path}`, plain: 'formatting' },
   reason: { eng, plain, ev: { verb: 'restyle', from: 'merge-pr-15', to: 'merge-pr-16', path, shows } },
 });
+const listed = (at, eng, plain, shows) => ({ eng, plain, ev: { verb: 'files', at, shows } });
+const routineOf = (at, name, eng, plain, shows, files) => ({ topics: [], routine: [{ files, name, reason: listed(at, eng, plain, shows) }] });
+const quiet = { count: 0, lines: 0 };
+const upToDate = { eng: 'Up to date', plain: 'Up to date' };
 const pr16Day = { eng: 'Out of date since PR #16, Nov 19, 2024', plain: 'Out of date since Nov 19, 2024' };
+const adrs = {
+  window: 'docs/adr/0001-in-process-fixed-window.md',
+  redis: 'docs/adr/0002-shared-redis.md',
+  bucket: 'docs/adr/0003-token-bucket.md',
+  memory: 'docs/adr/0004-in-process-store.md',
+};
+const guide = {
+  limits: 'docs/concepts/limits.md',
+  stores: 'docs/concepts/stores.md',
+  headers: 'docs/concepts/headers.md',
+  clock: 'docs/concepts/clock.md',
+};
+const lifetime = { from: '2024-03-06', to: '2024-12-12' };
+const twoLimiters = 'two limiters with their own stores: 8 allowed';
 
-// The PR #16 slice of wayfinder's view truth: the change, its findings and routine parts, the rename decision, and
-// the two doc sentences it broke. Slice 3 of docs/plans/v1-build.md completes it.
+// Wayfinder's whole view truth: every change classified, the topic tree, the decisions, the doc claims, the fail-open
+// bracket, and screens computed by hand from the record.
 const views = {
-  scope: 'slice',
+  scope: 'full',
   topics: [
     {
       id: 'root',
@@ -1175,26 +1196,38 @@ const views = {
           plain: "Wayfinder limits how many requests each caller can send to Northwind's public service.",
           ev: headFile('README.md', q.lead),
         },
+        {
+          eng: 'The package is published so other teams can use the same limiter.',
+          plain: 'It is shared so other teams can use the same limiter.',
+          ev: headFile('README.md', q.published),
+        },
       ],
       example: {
         eng: 'A new key with limit 2 that sends five requests at once gets four through, and the fifth gets a 429.',
         plain: 'A new caller allowed 2 requests that sends five at once gets four through, and the fifth is blocked.',
         ev: headFile('test/limit.test.ts', q.burstAssert),
       },
+      words: ['limit', 'requests', 'rate limiter', 'API key', '429'],
+      covers: ['what-is-it', 'docs-map', 'example-new-key'],
     },
     {
       id: 'counting',
       parent: 'root',
       name: { eng: 'Counting', plain: 'Counting' },
       core: ['src/bucket.ts', 'test/bucket.test.ts', 'test/limit.test.ts'],
-      files: ['src/bucket.ts', 'test/bucket.test.ts', 'test/limit.test.ts', 'src/limit.ts', 'docs/concepts/limits.md', 'docs/adr/0003-token-bucket.md'],
+      files: ['src/bucket.ts', 'test/bucket.test.ts', 'test/limit.test.ts', 'src/limit.ts', guide.limits, adrs.bucket],
       start: { path: 'src/bucket.ts', quote: 'export function take(', lines: 27 },
-      docs: ['docs/concepts/limits.md'],
+      docs: [guide.limits],
       headline: [
         {
-          eng: 'Each key has a bucket of permits that refills over time, and a request below one permit is rejected with 429.',
+          eng: 'Each key has a bucket of permits that refills over time, and a request is rejected when less than one permit is left.',
           plain: 'Each caller has an allowance that refills over time, and a request is blocked when less than one is left.',
-          ev: headFile('src/bucket.ts', 'if (refilled < 1) {'),
+          ev: headFile('src/bucket.ts', q.refilledIf),
+        },
+        {
+          eng: 'A new key is allowed up to twice the configured limit.',
+          plain: 'A new caller can send up to twice its allowance.',
+          ev: headFile('test/limit.test.ts', "test('a new key is allowed up to twice the configured limit', async () => {"),
         },
       ],
       example: {
@@ -1202,20 +1235,27 @@ const views = {
         plain: "The app's own check sends five requests at once from a new caller allowed 2, and expects four through, then a block.",
         ev: headFile('test/limit.test.ts', q.burstAssert),
       },
+      words: ['bucket', 'permit', 'balance', 'refill', 'twice', 'reject'],
+      covers: ['how-reject', 'example-new-key'],
     },
     {
       id: 'replies',
       parent: 'root',
       name: { eng: 'Replies to callers', plain: 'Replies to callers' },
-      core: ['src/headers.ts', 'test/headers.test.ts', 'docs/concepts/headers.md'],
-      files: ['src/headers.ts', 'test/headers.test.ts', 'docs/concepts/headers.md', 'src/limit.ts'],
+      core: ['src/headers.ts', 'test/headers.test.ts', guide.headers],
+      files: ['src/headers.ts', 'test/headers.test.ts', guide.headers, 'src/limit.ts'],
       start: { path: 'src/headers.ts', quote: 'export function rateLimitHeaders(', lines: 13 },
-      docs: ['docs/concepts/headers.md'],
+      docs: [guide.headers],
       headline: [
         {
-          eng: 'Each response tells the caller its limit and what is left, and a blocked one also says when to retry.',
-          plain: 'Each reply tells the caller its allowance and what is left, and a blocked reply also says when to try again.',
+          eng: '`rateLimitHeaders()` sets RateLimit-Limit, RateLimit-Remaining as a whole number, RateLimit-Reset, and Retry-After when there is a wait.',
+          plain: 'A reply gives the allowance, how many are left as a whole number, when it resets, and how long to wait when there is a wait.',
           ev: headFile('src/headers.ts', 'if (retryAfterSec > 0) headers["Retry-After"] = String(retryAfterSec);'),
+        },
+        {
+          eng: 'Every response gets them, except that an allowed one loses RateLimit-Reset.',
+          plain: 'Every reply carries them, except that a reply letting the request through leaves out the reset time.',
+          ev: headFile('src/limit.ts', 'for (const [name, value] of Object.entries(extra)) res.setHeader(name, value);'),
         },
       ],
       example: {
@@ -1223,9 +1263,225 @@ const views = {
         plain: 'With nothing left and 3 seconds to wait, a reply says 0 are left and to try again in 3 seconds.',
         ev: headFile('test/headers.test.ts', "assert.equal(empty['Retry-After'], '3');"),
       },
+      words: ['headers', 'Retry-After', 'RateLimit-Reset', 'wait', 'reply', 'blocked'],
+      covers: ['headers-how'],
+    },
+    {
+      id: 'callers',
+      parent: 'root',
+      name: { eng: 'Who is calling', plain: 'Who is calling' },
+      core: ['src/key.ts', 'test/key.test.ts'],
+      files: ['src/key.ts', 'test/key.test.ts', 'src/limit.ts'],
+      start: { path: 'src/key.ts', quote: 'export function apiKey(req: Incoming): string {', lines: 5 },
+      docs: ['README.md'],
+      headline: [
+        {
+          eng: '`apiKey()` names each caller by its x-api-key header, else its bearer token, else anonymous.',
+          plain: 'Each caller is known by the key its app sends, and a caller with no key is called anonymous.',
+          ev: headFile('src/key.ts', 'const raw = header(req, "x-api-key") ?? header(req, "authorization");'),
+        },
+        {
+          eng: '`createLimiter()` uses `apiKey()` unless the caller passes its own key function.',
+          plain: 'The limiter uses that rule unless the app using it supplies another.',
+          ev: headFile('src/limit.ts', 'const keyFn = options.key ?? apiKey;'),
+        },
+      ],
+      example: {
+        eng: 'test/key.test.ts expects `apiKey()` to name a request with no key anonymous.',
+        plain: "The app's own check expects a request with no key to be called anonymous.",
+        ev: headFile('test/key.test.ts', "assert.equal(apiKey({ headers: {} }), 'anonymous');"),
+      },
+      words: ['key', 'API key', 'caller', 'x-api-key', 'bearer', 'anonymous', 'IP'],
+    },
+    {
+      id: 'stores',
+      parent: 'counting',
+      name: { eng: 'Where counts are kept', plain: 'Where counts are kept' },
+      core: ['src/store.ts', guide.stores],
+      files: ['src/store.ts', guide.stores, adrs.redis, adrs.memory, 'README.md', 'src/limit.ts'],
+      start: { path: 'src/store.ts', quote: 'export function createMemoryStore(): BucketStore {', lines: 13 },
+      docs: [guide.stores, 'README.md'],
+      headline: [
+        {
+          eng: 'Buckets stay in each API process, and there is no shared database to set up.',
+          plain: 'Counts stay inside each copy of the service, and there is no shared database to set up.',
+          ev: headFile(guide.stores, `Buckets stay in each API process. ${q.noSharedDb}`),
+        },
+        {
+          eng: "`createMemoryStore()` keeps each key's balance and timestamp in a Map inside the process.",
+          plain: "Each caller's balance and the time of its last request are kept in memory.",
+          ev: headFile('src/store.ts', 'const rows = new Map<string, BucketState>();'),
+        },
+      ],
+      example: {
+        eng: 'Two limiters with separate stores count the same key on their own: at limit 2, each lets it through 4 times.',
+        plain: 'Two copies of the service count the same caller separately: at an allowance of 2, each lets it through 4 times.',
+        ev: { verb: 'run', id: 'two-limiters', shows: 'limiter 2: 200 200 200 200 429' },
+      },
+      words: ['store', 'memory', 'process', 'shared database', 'Redis', 'accuracy'],
+      covers: ['store-now'],
+    },
+    {
+      id: 'clock',
+      parent: 'replies',
+      name: { eng: 'Clock step and wait rounding', plain: 'Rounding wait times' },
+      core: ['src/clock.ts', 'src/retry.ts', 'test/clock.test.ts', 'test/retry.test.ts', guide.clock],
+      files: ['src/clock.ts', 'src/retry.ts', 'test/clock.test.ts', 'test/retry.test.ts', guide.clock],
+      start: { path: 'src/clock.ts', quote: "export function clockStepMs(nodeMajor = Number(process.versions.node.split('.')[0])): number {", lines: 3 },
+      docs: [guide.clock],
+      headline: [
+        {
+          eng: '`roundRetryMs()` rounds a wait up to a multiple of the clock step.',
+          plain: 'A wait is rounded up to a whole number of clock steps.',
+          ev: headFile('src/retry.ts', 'return Math.ceil(waitMs / step) * step;'),
+        },
+        {
+          eng: '`clockStepMs()` makes the step 1 ms on Node 20 and later, and 10 ms on older Node.',
+          plain: 'The step is 1 thousandth of a second on newer systems and 10 thousandths on older ones.',
+          ev: headFile('src/clock.ts', q.clockBranch),
+        },
+        {
+          eng: 'No other file in src names `roundRetryMs()`, so nothing calls it yet.',
+          plain: 'Nothing in the app uses the rounding yet.',
+          ev: { verb: 'grep', at: head, pattern: 'roundRetryMs', paths: ['src'], shows: 'src/retry.ts' },
+        },
+      ],
+      example: {
+        eng: 'test/retry.test.ts expects a 25 ms wait to round up to 30 on Node 18.',
+        plain: "The app's own check expects a wait of 25 thousandths of a second to become 30 on an older system.",
+        ev: headFile('test/retry.test.ts', 'assert.equal(roundRetryMs(25, 18), 30);'),
+      },
+      words: ['clock', 'step', 'round', 'wait', 'retry', 'Node 18'],
+    },
+    {
+      id: 'metrics',
+      parent: 'root',
+      name: { eng: 'Allow and block counts', plain: 'Counts of allowed and blocked requests' },
+      core: ['src/metrics.ts'],
+      files: ['src/metrics.ts', 'src/limit.ts'],
+      start: { path: 'src/metrics.ts', quote: 'export function createMetrics(): Metrics {', lines: 18 },
+      docs: [],
+      headline: [
+        {
+          eng: 'From the code: `createMetrics()` counts allowed and rejected requests in memory.',
+          plain: 'From the code: the service counts allowed and blocked requests in its own memory.',
+          ev: headFile('src/metrics.ts', q.createMetricsFn),
+        },
+        {
+          eng: '`createLimiter()` records each decision when the caller passes metrics in.',
+          plain: 'Each decision is counted when the app using the limiter asks for counts.',
+          ev: headFile('src/limit.ts', 'options.metrics?.record(decision.allowed);'),
+        },
+        {
+          eng: 'Neither the README nor any guide names `createMetrics()`.',
+          plain: 'No guide mentions these counts.',
+          ev: { verb: 'grep', at: head, pattern: 'createMetrics', paths: ['README.md', 'docs'], shows: '(no matches)' },
+        },
+      ],
+      example: null,
+      words: ['metrics', 'counts', 'allowed', 'rejected', 'blocked', 'alert'],
     },
   ],
   changes: {
+    'c-init': routineOf(
+      'c-init',
+      { eng: 'project start', plain: 'project start' },
+      'Only setup files and a README, no code yet.',
+      'Only setup files and a front page, no code yet.',
+      '.github/workflows/test.yml (new); .gitignore (new); README.md (new); package.json (new); tsconfig.json (new)',
+      ['.github/workflows/test.yml', '.gitignore', 'README.md', 'package.json', 'tsconfig.json'],
+    ),
+    'pr#1': { topics: ['counting', 'stores'] },
+    'c-fix-bound': {
+      topics: [],
+      findings: [
+        {
+          id: 'f-off-by-one',
+          severity: 'behavior',
+          topics: [],
+          anchors: [
+            { kind: 'file', path: 'src/window.ts', at: 'c-fix-bound', quote: q.boundFix },
+            commit('c-fix-bound', 'fix window off-by-one'),
+          ],
+          name: { eng: 'A limit of 2 stops letting a third request through', plain: 'An allowance of 2 no longer lets a third request through' },
+          says: [
+            {
+              eng: 'test/window.test.ts now expects a limit of 2 to allow two requests, then block the next two.',
+              plain: "The app's own check now expects two requests through at an allowance of 2, then two blocked.",
+              ev: { kind: 'file', path: 'test/window.test.ts', at: 'c-fix-bound', quote: 'assert.deepEqual(hits, [true, true, false, false]);' },
+            },
+            {
+              eng: 'Before the fix, the same test expected a third request through.',
+              plain: "Before the fix, the app's own check expected a third request through.",
+              ev: { kind: 'file', path: 'test/window.test.ts', at: 'c-window', quote: 'assert.deepEqual(hits, [true, true, true, false]);' },
+            },
+          ],
+          why: {
+            reason: {
+              eng: 'Jon Okonkwo pointed out in review that count <= limit lets one extra request through once the count reaches the limit.',
+              plain: 'Jon Okonkwo pointed out in review that one extra request got through once the limit was reached.',
+              ev: comment('pr1-thread-jon', 'count <= limit lets one extra request through once count has reached the limit.'),
+            },
+          },
+        },
+      ],
+    },
+    'c-changelog-010': routineOf(
+      'c-changelog-010',
+      { eng: '0.1.0 release notes', plain: 'release notes' },
+      'Release notes, the version number, and the TypeScript dev tool raised from ^5.3.3 to ^5.4.2.',
+      'Release notes, the version number, and a newer version of a tool the team builds with.',
+      'CHANGELOG.md (new); package.json: version 0.0.0 -> 0.1.0, devDependencies.typescript ^5.3.3 -> ^5.4.2',
+      ['CHANGELOG.md', 'package.json'],
+    ),
+    'pr#2': { topics: ['stores'] },
+    'c-apikey': { topics: ['callers'] },
+    'pr#4': { topics: ['stores'] },
+    'pr#5': { topics: ['counting'] },
+    'c-codeowners': routineOf(
+      'c-codeowners',
+      { eng: 'CODEOWNERS added', plain: 'reviewer list added' },
+      'Only .github/CODEOWNERS, the list of reviewers, was added.',
+      'Only the list of who reviews what was added.',
+      '.github/CODEOWNERS (new)',
+      ['.github/CODEOWNERS'],
+    ),
+    'c-changelog-030': routineOf(
+      'c-changelog-030',
+      { eng: '0.3.0 release notes', plain: 'release notes' },
+      'Only the release notes and the version number changed.',
+      'Only the release notes and the version number changed.',
+      'CHANGELOG.md; package.json: version 0.1.0 -> 0.3.0',
+      ['CHANGELOG.md', 'package.json'],
+    ),
+    'c-fail-open': { topics: ['stores'] },
+    'c-revert-fail-open': { topics: ['stores'] },
+    'pr#11': { topics: ['stores'] },
+    'pr#13': { topics: ['replies', 'metrics'] },
+    'c-changelog-090': routineOf(
+      'c-changelog-090',
+      { eng: '0.9.0 release notes', plain: 'release notes' },
+      'Release notes, the version number, and a new package-lock.json.',
+      'Release notes, the version number, and a new list of exact tool versions.',
+      'CHANGELOG.md; package-lock.json (new); package.json: version 0.3.0 -> 0.9.0',
+      ['CHANGELOG.md', 'package-lock.json', 'package.json'],
+    ),
+    'pr#15': {
+      topics: ['stores'],
+      routine: [
+        {
+          files: ['README.md', guide.stores, 'docs/index.md'],
+          name: { eng: 'Redis setup notes removed', plain: 'old setup notes removed' },
+          reason: listed(
+            'merge-pr-15',
+            'Only README.md and two guides changed, no code.',
+            'Only the front page and two guides changed.',
+            'README.md; docs/concepts/stores.md; docs/index.md',
+          ),
+        },
+      ],
+      covers: ['docs-caught-up'],
+    },
     'pr#16': {
       topics: ['counting', 'replies'],
       findings: [
@@ -1275,11 +1531,11 @@ const views = {
           severity: 'check',
           topics: ['replies'],
           anchors: [assistFile('src/limit.ts', q.omitReset), { kind: 'issue', number: 20, quote: 'Allowed responses are missing RateLimit-Reset' }],
-          name: { eng: 'Allowed responses lose RateLimit-Reset', plain: 'Allowed requests no longer say when the allowance refills' },
+          name: { eng: 'Allowed responses lose RateLimit-Reset', plain: 'Allowed requests no longer say when the allowance resets' },
           says: [
             {
               eng: 'Issue #20 reports the missing header on allowed responses.',
-              plain: 'Someone on the team noticed the refill time was missing.',
+              plain: 'Priya Nair reported that replies to allowed requests are missing the reset time.',
               ev: { kind: 'issue', number: 20, quote: 'Allowed responses are missing RateLimit-Reset' },
             },
           ],
@@ -1310,9 +1566,295 @@ const views = {
         restyled('src/key.ts', 'Only quote marks changed.', 'Only the punctuation changed.', 'only quote marks changed'),
         restyled('src/metrics.ts', 'Only spacing and trailing commas changed.', 'Only spacing and punctuation changed.', 'only spacing and trailing commas changed'),
       ],
+      covers: ['assist-skip'],
     },
+    'pr#17': {
+      topics: ['clock'],
+      findings: [
+        {
+          id: 'f-clock-split',
+          severity: 'check',
+          topics: ['clock'],
+          anchors: [
+            { kind: 'file', path: 'src/clock.ts', at: 'c-clock', quote: q.clockBranch },
+            { kind: 'file', path: 'test/clock.test.ts', at: 'c-clock', quote: "test('Node 18 uses a 10 ms clock step', () => {" },
+          ],
+          name: { eng: 'Node 18 gets a 10 ms clock step, not 1 ms', plain: 'Older systems use a step ten times longer than the guide says' },
+          says: [
+            {
+              eng: 'test/clock.test.ts expects a 10 ms step on Node 18.',
+              plain: "The app's own check expects a step of 10 thousandths of a second on an older system.",
+              ev: headFile('test/clock.test.ts', 'assert.equal(clockStepMs(18), 10);'),
+            },
+            {
+              eng: 'docs/concepts/clock.md says the clock step is 1 ms and names no Node version.',
+              plain: 'The guide says the step is 1 thousandth of a second and names no exception.',
+              ev: headFile(guide.clock, q.clockClaim),
+            },
+          ],
+          why: askJon,
+          covers: ['why-clock-gap'],
+        },
+      ],
+    },
+    'pr#18': { topics: ['clock'] },
+    'c-changelog-100': routineOf(
+      'c-changelog-100',
+      { eng: '1.0.0 release notes', plain: 'release notes' },
+      'Only the release notes and the version numbers changed.',
+      'Only the release notes and the version numbers changed.',
+      'CHANGELOG.md; package-lock.json: version 0.9.0 -> 1.0.0, packages."".version 0.9.0 -> 1.0.0; package.json: version 0.9.0 -> 1.0.0',
+      ['CHANGELOG.md', 'package-lock.json', 'package.json'],
+    ),
   },
   decisions: [
+    {
+      id: 'd-fixed-window',
+      what: {
+        eng: 'Count requests in a fixed window inside one process.',
+        plain: 'Requests are counted in fixed blocks of time inside one copy of the service.',
+        ev: headFile(adrs.window, 'Ship a fixed-window counter in process memory.'),
+      },
+      alsoIntent: [pr(1, 'One process, client IP, wall-clock window.')],
+      topics: ['counting', 'stores'],
+      carriedBy: 'pr#1',
+      replacedBy: 'd-redis',
+      why: {
+        reason: {
+          eng: 'The public API ran as one Node process, and a shared database was more moving parts than the partner launch could carry.',
+          plain: 'The public service ran as a single copy, and a shared database was more than the partner launch could carry.',
+          ev: headFile(adrs.window, 'The public API runs as one Node process. A shared database is more moving parts than the partner launch can carry.'),
+        },
+      },
+      covers: ['growth-arc', 'adrs-current'],
+    },
+    {
+      id: 'd-store-interface',
+      what: {
+        eng: 'Counts are read and written through a Store interface.',
+        plain: 'Reading and saving counts became a separate step.',
+        ev: pr(2, 'Extract a store interface'),
+      },
+      alsoIntent: [commit('c-store', 'extract a Store interface and an in-memory adapter')],
+      topics: ['stores'],
+      carriedBy: 'pr#2',
+      why: askJon,
+    },
+    {
+      id: 'd-api-key',
+      what: {
+        eng: "The limiter's default key becomes the API key.",
+        plain: 'By default, each caller is counted by its own key.',
+        ev: commit('c-apikey', q.msgApikey),
+      },
+      alsoIntent: [comment('pr2-thread-mira', q.followUp)],
+      topics: ['callers'],
+      carriedBy: 'c-apikey',
+      why: {
+        reason: {
+          eng: "Harbor and Co.'s whole office shares one egress IP, so forty people were counted as one client and cut off.",
+          plain: "One customer's whole office shares one internet address, so forty people were counted as one caller and blocked.",
+          ev: comment('pr2-thread-sam', `Their ${q.markerEgress}, so forty people got counted as one client and we cut them off before standup.`),
+        },
+      },
+      covers: ['api-key-why', 'docs-api-key-gap'],
+    },
+    {
+      id: 'd-per-route',
+      what: {
+        eng: 'No per-route limits; raise the one limit on the API key if checkout needs more room.',
+        plain: "No separate limits for each part of the service; if checkout needs more room, the customer's one limit goes up.",
+        ev: comment('disc3-mira', 'I am not putting per-route numbers back in the config.'),
+      },
+      topics: ['counting'],
+      carriedBy: null,
+      why: {
+        reason: {
+          eng: 'Last November the checkout override sat at zero for nine days and the limit was off, and nobody noticed until a partner scraped them.',
+          plain: 'A special limit on the checkout page once sat at zero for nine days, which turned the limit off, and nobody noticed until a partner scraped the site.',
+          ev: comment('disc3-mira', `Last November the ${q.markerCheckout} and the limit was off. Nobody noticed until a partner scraped us.`),
+        },
+      },
+      covers: ['no-per-route', 'docs-no-per-route'],
+    },
+    {
+      id: 'd-redis',
+      what: {
+        eng: 'Production shares one counter through a Redis store (ADR-0002).',
+        plain: 'Every copy of the service shares one count, kept in a shared database.',
+        ev: headFile(adrs.redis, q.useRedis),
+      },
+      alsoIntent: [pr(4, 'createRedisStore shares the counter.')],
+      topics: ['stores'],
+      carriedBy: 'pr#4',
+      replacedBy: 'd-in-process',
+      why: {
+        reason: {
+          eng: 'They were about to run a second API process, and an in-process counter would grant each process its own full limit.',
+          plain: 'A second copy of the service was coming, and counting inside each copy would give each one its own full limit.',
+          ev: headFile(adrs.redis, 'We are about to run a second API process. An in-process counter would grant each process its own full limit.'),
+        },
+      },
+      covers: ['redis-adopted', 'adrs-current', 'growth-arc'],
+    },
+    {
+      id: 'd-bucket',
+      what: {
+        eng: 'A token bucket replaces the fixed window (ADR-0003).',
+        plain: 'An allowance that refills over time replaces fixed blocks of time.',
+        ev: headFile(adrs.bucket, 'Replace the fixed window with a token bucket.'),
+      },
+      alsoIntent: [pr(5, 'Replace the fixed window with a token bucket')],
+      topics: ['counting'],
+      carriedBy: 'pr#5',
+      why: {
+        reason: {
+          eng: 'A client could send the full limit on both sides of a window boundary, and the polling partner did that every minute.',
+          plain: 'A customer could use its full allowance on both sides of each block of time, and one partner did that every minute.',
+          ev: pr(5, 'A client can send the full limit on both sides of a window boundary. The polling partner does that every minute.'),
+        },
+      },
+      covers: ['who-algorithm', 'how-reject', 'adrs-current', 'growth-arc'],
+    },
+    {
+      id: 'd-cluster',
+      what: {
+        eng: 'Jon Okonkwo closed PR #6, the Redis Cluster adapter.',
+        plain: 'Jon Okonkwo dropped the change that added a second way to reach the shared database.',
+        ev: comment('pr6-jon', q.notPaying),
+      },
+      topics: ['stores'],
+      carriedBy: null,
+      why: {
+        reason: {
+          eng: 'Priya Nair said they run one Redis on a small VM, and Cluster is another bill and another thing that fails at 3am.',
+          plain: 'Priya Nair said they run one small shared database, and a bigger setup is another bill and another thing that fails at 3am.',
+          ev: comment('pr6-thread-priya', `We run one Redis on a small VM. ${q.clusterBill}`),
+        },
+      },
+      covers: ['cluster-closed'],
+    },
+    {
+      id: 'd-fail-open',
+      what: {
+        eng: 'When Redis errors, let the request through rather than sending a 429.',
+        plain: 'When the shared database fails, let requests through instead of blocking them.',
+        ev: commit('c-fail-open', "don't 429 the world if redis blips"),
+      },
+      topics: ['stores'],
+      carriedBy: 'c-fail-open',
+      replacedBy: 'd-revert-fail-open',
+      why: {
+        reason: {
+          eng: 'So a Redis blip would not send a 429 to every caller.',
+          plain: 'So a hiccup in the shared database would not block every caller.',
+          ev: commit('c-fail-open', "don't 429 the world if redis blips"),
+        },
+      },
+      covers: ['redis-dropped'],
+    },
+    {
+      id: 'd-revert-fail-open',
+      what: {
+        eng: 'Reverted "don\'t 429 the world if redis blips", so a Redis error sends a 429 again.',
+        plain: 'Undid the change that stopped blocking callers when the shared database fails.',
+        ev: commit('c-revert-fail-open', 'Revert "don\'t 429 the world if redis blips"'),
+      },
+      topics: ['stores'],
+      carriedBy: 'c-revert-fail-open',
+      why: askMira,
+      covers: ['redis-dropped'],
+    },
+    {
+      id: 'd-in-process',
+      what: {
+        eng: "Delete the Redis adapter and keep buckets in each process's memory (ADR-0004).",
+        plain: 'The shared database was dropped, and each copy of the service keeps its own counts.',
+        ev: headFile(adrs.memory, 'Delete the Redis adapter. Buckets live in process memory again.'),
+      },
+      alsoIntent: [pr(11, `${q.deletesRedis} createMemoryStore is the only store.`)],
+      topics: ['stores'],
+      carriedBy: 'pr#11',
+      why: {
+        reason: {
+          eng: 'Redis was unreachable for 11 minutes, the limiter failed closed, and the public API returned 429 for every customer.',
+          plain: 'The shared database was unreachable for 11 minutes, and the public service blocked every customer.',
+          ev: { kind: 'discussion', number: 10, quote: `${q.elevenDisc} The limiter failed closed and the public API returned 429 for every customer.` },
+        },
+      },
+      covers: ['redis-dropped', 'store-now', 'adrs-current', 'growth-arc'],
+    },
+    {
+      id: 'd-no-switch',
+      what: {
+        eng: 'Delete the Redis adapter outright, with no switch to turn it back on.',
+        plain: 'Remove the shared database code completely, with no switch to bring it back.',
+        ev: comment('pr9-thread-mira', 'I almost asked to keep the adapter behind a flag. Do not.'),
+      },
+      alsoIntent: [comment('pr9-rv-mira', 'Do not leave a switch.')],
+      topics: ['stores'],
+      carriedBy: 'pr#11',
+      why: {
+        reason: {
+          eng: 'Someone would turn it back on during an incident.',
+          plain: 'Someone would switch it back on in the middle of an outage.',
+          ev: comment('pr9-thread-mira', 'Someone will turn it back on during an incident.'),
+        },
+      },
+    },
+    {
+      id: 'd-no-shared-db',
+      what: {
+        eng: 'The shared database stays off, and no bigger one is bought to get exact counts back.',
+        plain: 'The shared database stays off, and no bigger one will be bought to get exact counts back.',
+        ev: comment('cmt-buyback-mira', 'We are not buying a bigger one to get exact counts back.'),
+      },
+      topics: ['stores'],
+      carriedBy: null,
+      why: {
+        reason: {
+          eng: 'That database is how the site blocked everyone in August.',
+          plain: 'That database is how the site blocked everyone in August.',
+          ev: comment('cmt-buyback-mira', 'That database is how the site blocked everyone in August.'),
+        },
+      },
+      covers: ['declined-shared-database'],
+    },
+    {
+      id: 'd-retry-headers',
+      what: {
+        eng: 'Responses carry Retry-After and the RateLimit headers.',
+        plain: 'Replies tell callers their allowance, what is left, when it resets, and how long to wait.',
+        ev: pr(13, 'rateLimitHeaders sets Retry-After, RateLimit-Limit, RateLimit-Remaining, and RateLimit-Reset.'),
+      },
+      topics: ['replies'],
+      carriedBy: 'pr#13',
+      why: {
+        reason: {
+          eng: 'Sam Ellison said Brightline retried the moment it was blocked, which made the block last longer.',
+          plain: 'Sam Ellison said one customer tried again the moment it was blocked, which made the block last longer.',
+          ev: { kind: 'discussion', number: 7, quote: "Brightline's engineer told me they retry the moment they get blocked. That makes the block last longer." },
+        },
+      },
+      covers: ['pm-headers', 'growth-arc'],
+    },
+    {
+      id: 'd-metrics',
+      what: {
+        eng: '`createMetrics()` records allowed and rejected requests.',
+        plain: 'The service counts allowed and blocked requests.',
+        ev: pr(13, 'createMetrics records allowed and rejected so Priya can alert.'),
+      },
+      topics: ['metrics'],
+      carriedBy: 'pr#13',
+      why: {
+        reason: {
+          eng: 'Priya Nair asked for a reject counter, since she only saw 429s in the access log, and that is not an alert.',
+          plain: 'Priya Nair asked for a count of blocked requests, since she only saw them in a log, and that warns nobody.',
+          ev: comment('disc7-priya', `${q.rejectCounter} Right now I only see 429s in the access log, and that is not an alert.`),
+        },
+      },
+    },
     {
       id: 'd-rename',
       what: { eng: 'Renamed the windowMs option to refillWindowMs.', plain: 'The refill setting got a new name.', ev: pr16('Renamed windowMs to refillWindowMs.') },
@@ -1320,37 +1862,163 @@ const views = {
       carriedBy: 'pr#16',
       why: askJon,
     },
+    {
+      id: 'd-round-retry',
+      what: {
+        eng: 'Round retry waits to the clock step.',
+        plain: 'Wait times are rounded to a fixed step.',
+        ev: pr(18, 'Round retry waits to the clock step'),
+      },
+      alsoIntent: [commit('c-retry-round', 'round retry waits to the clock step')],
+      topics: ['clock'],
+      carriedBy: 'pr#18',
+      why: askJon,
+    },
+    {
+      id: 'd-no-new-service',
+      what: {
+        eng: 'Do not add a new service for reject alerts.',
+        plain: 'No new service just to warn about blocked requests.',
+        ev: comment('cmt-alert-mira', 'Do not add a new service for this.'),
+      },
+      topics: ['metrics'],
+      carriedBy: null,
+      why: {
+        reason: {
+          eng: 'A counter they can scrape is enough, and it can wait.',
+          plain: 'A count the team can read from outside is enough, and it can wait.',
+          ev: comment('cmt-alert-mira', 'A counter we can scrape is enough, and it can wait.'),
+        },
+      },
+      covers: ['alert-still-open'],
+    },
   ],
   claims: [
     {
       id: 'claim-balance-cap',
-      doc: 'docs/concepts/limits.md',
+      doc: guide.limits,
       quote: q.balanceCap,
       topic: 'counting',
       verdict: 'no-longer-true',
       brokenBy: 'pr#16',
       why: {
-        eng: 'Since PR #16 a new key starts with twice the limit.',
-        plain: 'New callers now start with twice their allowance.',
+        eng: 'src/limit.ts has used `options.limit * 2` since 2024-11-19, when Jon Okonkwo added it.',
+        plain: 'Since Nov 19, 2024, the app doubles the configured limit.',
         ev: { verb: 'introduced', path: 'src/limit.ts', needle: q.burstCall, shows: 'on 2024-11-19 by Jon Okonkwo' },
       },
     },
     {
       id: 'claim-allowed-headers',
-      doc: 'docs/concepts/headers.md',
+      doc: guide.headers,
       quote: q.allowedSame,
       topic: 'replies',
       verdict: 'no-longer-true',
       brokenBy: 'pr#16',
       why: {
-        eng: 'Allowed responses drop RateLimit-Reset.',
-        plain: 'Replies that let a request through no longer say when the allowance refills.',
+        eng: '`createLimiter()` deletes RateLimit-Reset from the headers when the request is allowed.',
+        plain: 'A reply that lets the request through has its reset time removed.',
         ev: headFile('src/limit.ts', q.omitReset),
       },
       covers: ['currency-allowed-headers'],
     },
+    {
+      id: 'claim-clock-step',
+      doc: guide.clock,
+      quote: q.clockClaim,
+      topic: 'clock',
+      verdict: 'depends',
+      brokenBy: 'pr#17',
+      why: {
+        eng: 'On Node versions before 20, `clockStepMs()` returns 10, not 1.',
+        plain: 'On older systems the step is 10 thousandths of a second, not 1.',
+        ev: headFile('src/clock.ts', q.clockBranch),
+      },
+      covers: ['currency-clock-step'],
+    },
+    {
+      id: 'claim-clock-caller',
+      doc: guide.clock,
+      quote: 'A caller rounds a wait up to a multiple of that step.',
+      topic: 'clock',
+      verdict: 'true-since',
+      since: 'pr#18',
+      why: {
+        eng: 'The rounding in src/retry.ts was first added on 2024-11-21, in a commit by Jon Okonkwo.',
+        plain: 'The app first rounded a wait to that step on Nov 21, 2024, in a change by Jon Okonkwo.',
+        ev: { verb: 'introduced', path: 'src/retry.ts', needle: 'Math.ceil(waitMs / step) * step', shows: 'on 2024-11-21 by Jon Okonkwo' },
+      },
+    },
+    {
+      id: 'claim-no-shared-db',
+      doc: guide.stores,
+      quote: q.noSharedDb,
+      topic: 'stores',
+      verdict: 'still-true',
+      covers: ['currency-no-shared-db'],
+    },
+    {
+      id: 'claim-exceed-guide',
+      doc: guide.stores,
+      quote: q.exceedProcs,
+      topic: 'stores',
+      verdict: 'no-longer-true',
+      brokenBy: 'pr#16',
+      why: {
+        eng: 'Two limiters with their own stores, each at limit 2, let one key through 8 times, four times the limit.',
+        plain: 'Two copies of the service, each allowing 2, let one caller through 8 times, four times the allowance.',
+        ev: { verb: 'run', id: 'two-limiters', shows: twoLimiters },
+      },
+    },
+    {
+      id: 'claim-exceed-readme',
+      doc: 'README.md',
+      quote: q.exceedProcs,
+      topic: 'stores',
+      verdict: 'no-longer-true',
+      brokenBy: 'pr#16',
+      why: {
+        eng: 'Run against two limiters at limit 2, one key got 8 requests through.',
+        plain: 'Tried against two copies of the service allowing 2 each, one caller got 8 requests through.',
+        ev: { verb: 'run', id: 'two-limiters', shows: twoLimiters },
+      },
+    },
+    {
+      id: 'claim-per-route',
+      doc: guide.limits,
+      quote: q.noRoute,
+      topic: 'counting',
+      verdict: 'still-true',
+    },
+    {
+      id: 'claim-below-one',
+      doc: guide.limits,
+      quote: q.below1,
+      topic: 'counting',
+      verdict: 'still-true',
+      covers: ['how-reject'],
+    },
+    {
+      id: 'claim-default-key',
+      doc: 'README.md',
+      quote: q.defaultKey,
+      topic: 'callers',
+      verdict: 'still-true',
+    },
   ],
-  undone: [],
+  undone: [
+    {
+      changes: ['c-fail-open', 'c-revert-fail-open'],
+      name: { eng: 'Fail-open on Redis errors', plain: 'Letting requests through when the shared database failed' },
+      says: [
+        {
+          eng: 'Before the change and after its revert, the code is the same.',
+          plain: 'Once it was undone, nothing was different from before.',
+          ev: { verb: 'diff', from: 'c-changelog-030', to: 'c-revert-fail-open', shows: '(no differences)' },
+        },
+      ],
+      covers: ['redis-dropped'],
+    },
+  ],
   runs: [
     {
       id: 'old-option-name',
@@ -1368,6 +2036,30 @@ for (let i = 0; i < 10; i += 1) {
 console.log(\`windowMs 1000, limit 2, 10 requests: \${seen.join(' ')}\`);
 `,
     },
+    {
+      id: 'two-limiters',
+      at: head,
+      lang: 'node',
+      source: `import { createLimiter } from './src/limit.ts';
+
+const send = async (limit) => {
+  const seen = [];
+  for (let i = 0; i < 5; i += 1) {
+    const res = { statusCode: 200, setHeader() {}, end() {} };
+    await limit({ headers: { 'x-api-key': 'partner-live' } }, res, () => {});
+    seen.push(res.statusCode);
+  }
+  return seen;
+};
+
+const first = await send(createLimiter({ limit: 2, refillWindowMs: 1000, now: () => 5000 }));
+const second = await send(createLimiter({ limit: 2, refillWindowMs: 1000, now: () => 5000 }));
+const allowed = [...first, ...second].filter((code) => code === 200).length;
+console.log(\`limiter 1: \${first.join(' ')}\`);
+console.log(\`limiter 2: \${second.join(' ')}\`);
+console.log(\`limit 2, one key, two limiters with their own stores: \${allowed} allowed\`);
+`,
+    },
   ],
   screens: [
     { kind: 'page', topic: 'counting', status: pr16Day },
@@ -1379,7 +2071,7 @@ console.log(\`windowMs 1000, limit 2, 10 requests: \${seen.join(' ')}\`);
       to: '2024-11-19',
       counts: { decision: 1, behavior: 2, check: 1 },
       named: ['d-rename', 'f-double', 'f-reset'],
-      routine: { count: 0, lines: 0 },
+      routine: quiet,
     },
     {
       kind: 'timeline',
@@ -1388,7 +2080,7 @@ console.log(\`windowMs 1000, limit 2, 10 requests: \${seen.join(' ')}\`);
       to: '2024-11-19',
       counts: { decision: 1, behavior: 2 },
       named: ['d-rename', 'f-double', 'f-rename'],
-      routine: { count: 0, lines: 0 },
+      routine: quiet,
     },
     {
       kind: 'timeline',
@@ -1397,11 +2089,92 @@ console.log(\`windowMs 1000, limit 2, 10 requests: \${seen.join(' ')}\`);
       to: '2024-11-19',
       counts: { check: 1 },
       named: ['f-reset'],
-      routine: { count: 0, lines: 0 },
+      routine: quiet,
     },
+    { kind: 'page', topic: 'root', status: upToDate },
+    { kind: 'page', topic: 'callers', status: upToDate },
+    { kind: 'page', topic: 'stores', status: pr16Day },
+    { kind: 'page', topic: 'clock', status: { eng: 'Out of date since PR #17, Nov 22, 2024', plain: 'Out of date since Nov 22, 2024' } },
+    { kind: 'page', topic: 'metrics', status: { eng: 'Never written down', plain: 'Never written down' } },
+    {
+      kind: 'timeline',
+      topic: 'root',
+      ...lifetime,
+      counts: { decision: 17, behavior: 3, check: 2, net: 1 },
+      named: ['d-no-new-service', 'f-double', 'f-clock-split'],
+      routine: { count: 7, lines: 146 },
+    },
+    {
+      kind: 'timeline',
+      topic: 'stores',
+      ...lifetime,
+      counts: { decision: 9, net: 1 },
+      named: ['d-no-shared-db', 'd-in-process', 'd-no-switch'],
+      routine: { count: 1, lines: 14 },
+    },
+    {
+      kind: 'timeline',
+      topic: 'counting',
+      ...lifetime,
+      counts: { decision: 4, behavior: 2 },
+      named: ['d-rename', 'f-double', 'd-bucket'],
+      routine: quiet,
+    },
+    {
+      kind: 'timeline',
+      topic: 'clock',
+      ...lifetime,
+      counts: { decision: 1, check: 1 },
+      named: ['d-round-retry', 'f-clock-split'],
+      routine: quiet,
+    },
+    {
+      kind: 'timeline',
+      topic: 'root',
+      from: '2024-07-01',
+      to: '2024-08-31',
+      counts: { decision: 2, net: 1 },
+      named: ['d-revert-fail-open', 'd-fail-open', 'undone:c-fail-open'],
+      routine: quiet,
+    },
+    {
+      kind: 'timeline',
+      topic: 'root',
+      from: '2024-07-22',
+      to: '2024-07-22',
+      counts: { decision: 1 },
+      named: ['d-fail-open'],
+      notes: { 'c-fail-open': 'part-of-later-undo' },
+      routine: quiet,
+    },
+    {
+      kind: 'timeline',
+      topic: 'root',
+      from: '2024-07-23',
+      to: '2024-09-30',
+      counts: { decision: 4 },
+      named: ['d-no-shared-db', 'd-in-process', 'd-no-switch'],
+      notes: { 'c-revert-fail-open': 'undoes-earlier' },
+      routine: quiet,
+    },
+    {
+      kind: 'timeline',
+      topic: 'root',
+      from: '2024-11-20',
+      to: '2024-12-12',
+      counts: { decision: 2, check: 1 },
+      named: ['d-no-new-service', 'f-clock-split', 'd-round-retry'],
+      routine: { count: 1, lines: 10 },
+    },
+  ],
+  uncovered: [
+    { key: 'stack-retry-round', why: 'v1 shows PRs #17 and #18 as two changes live the same day. That #18 had to land second is in its body, which no view field quotes.' },
+    { key: 'customer-outage-report', why: 'd-in-process cites the reason discussion #10 gives. The customer report in issue #8, which PR #11 closes, is not a view field.' },
+    { key: 'ci-caught-remaining', why: 'Test runs inside a pull request are not view objects. PR #13 shows only as the two decisions it carries.' },
   ],
 };
 
+/** @type {import('../schema.mjs').RepoSpec} */
 const spec = {
   slug: 'wayfinder',
   name: 'Wayfinder',
