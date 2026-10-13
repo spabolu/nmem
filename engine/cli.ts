@@ -8,9 +8,11 @@
  *   nmem auth copilot
  *
  * add mirrors a GitHub repo into ~/.cache/nmem/repos/<owner>/<repo>. build-repo writes snapshot.json there, plus the
- * site.json the app reads in place of git and proof runs (harness/bake.ts), and serve
- * opens the site for it on localhost. Exit codes: 0 ok, 1 the command failed, 2 bad usage.
+ * site.json the app reads in place of git and proof runs (harness/bake.ts). serve checks both, then runs the built app
+ * in nmem/ (`npm start`) over that repos root, on port 3000 unless --port says otherwise.
+ * Exit codes: 0 ok, 1 the command failed, 2 bad usage.
  */
+import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -54,7 +56,7 @@ export function parseArgs(argv: readonly string[]): Command {
   const positional: string[] = [];
   let store: string | null = null;
   let model = true;
-  let port = 4173;
+  let port = 3000;
   for (let i = 0; i < rest.length; i += 1) {
     const arg = rest[i] ?? '';
     if (arg === '--no-model' && command !== 'serve') model = false;
@@ -113,14 +115,23 @@ export async function main(argv: readonly string[]): Promise<number> {
     }
   }
   if (command.kind === 'serve') {
-    const snapshot = path.join(command.workspace, 'snapshot.json');
-    if (!fs.existsSync(snapshot)) {
-      console.error(`no snapshot at ${snapshot}; run \`node engine/cli.ts build-repo\` first`);
+    for (const name of ['snapshot.json', 'site.json']) {
+      if (!fs.existsSync(path.join(command.workspace, name))) {
+        console.error(`no ${name} in ${command.workspace}; run \`node engine/cli.ts build-repo\` first`);
+        return 1;
+      }
+    }
+    const app = path.join(import.meta.dirname, '..', 'nmem');
+    if (!fs.existsSync(path.join(app, '.next', 'BUILD_ID'))) {
+      console.error(`the app in ${app} is not built; run \`npm ci && npm run build\` there first`);
       return 1;
     }
-    const { serve } = await import('../web/server.ts');
-    serve({ workspace: command.workspace, snapshot, port: command.port });
-    return 0;
+    const child = spawn('npm', ['start', '--', '-p', String(command.port)], {
+      cwd: app,
+      stdio: 'inherit',
+      env: { ...process.env, NMEM_REPOS: path.dirname(path.dirname(command.workspace)) },
+    });
+    return new Promise((resolve) => child.on('exit', (code) => resolve(code ?? 1)));
   }
   let client: ModelClient | null = null;
   if (command.model) {
