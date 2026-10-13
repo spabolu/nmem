@@ -27,6 +27,8 @@ Priority: P1 blocks a usable v1 on real repos. P2 is visible to readers or skews
 | P3 | `facts.mjs` takes 25 s for 736 changes and every server start pays it | G report | facts cached by HEAD and github.json hash; second start under 2 s |
 | P3 | Topic forming sees only 1,500 lines of code | G report | large repos form topics from areas, then per-area calls |
 | P3 | GitHub returns at most 250 commits per PR | G report | PRs over 250 commits fall back to git for their commit list |
+| P3 | tally `answer-key.json` how-settle is exact only for four people or fewer (left unchanged to keep public output byte-identical) | R report | the entry matches the measured settle behavior |
+| P3 | A decision whose intent is a commit by an author with no login (tally c-dollars, "Lena P") has no derivable decider | R report | decider falls back to a mapped identity or the item is scored as a known limit |
 | Post-v1 | nmem drafts doc fixes as PRs a person reviews | scope decision | added to `docs/design/v1-user-facing.md` as the step after v1 |
 
 ## Done
@@ -39,3 +41,6 @@ Priority: P1 blocks a usable v1 on real repos. P2 is visible to readers or skews
 | Engine copied gold wording for undone groups | 2a2dee1 |
 | Worktree removal deleted paid-for caches | f1f69a5 |
 | Shared judge pins file could lose an update | d13a76b |
+| Judge limit too short for fact extraction batches (raised to 10 minutes) | 92f3314 |
+| Tally answer key reconciled against two model reviews, reviews signed | 7eb533d |
+| Public GitHub repos: add, build-repo, serve | 5ef75ec |
