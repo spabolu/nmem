@@ -93,17 +93,14 @@ test('on wayfinder, with a judge that agrees with everything, only the checks a 
     'corruptions: reason-in-prose -> supported',
     'corruptions: swap-reasons -> reason',
     'corruptions: swap-reasons usable decision/reason',
-    'corruptions: swap-reasons usable finding/reason',
     'corruptions: retarget-cites -> supported',
     'corruptions: retarget-cites usable claim/changed',
     'corruptions: retarget-cites usable decision/reason',
     'corruptions: retarget-cites usable finding/gap',
-    'corruptions: retarget-cites usable finding/reason',
     'corruptions: retarget-cites usable topic/page',
     'corruptions: swap-prose -> prose',
     'corruptions: swap-prose usable claim/changed',
     'corruptions: swap-prose usable finding/gap',
-    'corruptions: swap-prose usable finding/reason',
     'corruptions: swap-prose usable topic/page',
   ]);
 });

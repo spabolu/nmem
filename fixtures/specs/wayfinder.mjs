@@ -53,7 +53,6 @@ const q = {
   pkgName: '"name": "@northwind-labs/wayfinder"',
   changelog010: '## 0.1.0 - 2024-03-20',
   staleGuides: 'The guides still describe Redis setup.',
-  boundFix: 'const allowed = count < limit;',
   followUp: 'Follow-up will switch the default.',
   markerEgress: 'whole office shares one egress IP',
   markerCheckout: 'checkout override sat at zero for nine days',
@@ -1392,35 +1391,7 @@ const views = {
       ['.github/workflows/test.yml', '.gitignore', 'README.md', 'package.json', 'tsconfig.json'],
     ),
     'pr#1': { topics: ['counting', 'stores'] },
-    'c-fix-bound': {
-      topics: [],
-      findings: [
-        {
-          id: 'f-off-by-one',
-          severity: 'behavior',
-          topics: [],
-          anchors: [
-            { kind: 'file', path: 'src/window.ts', at: 'c-fix-bound', quote: q.boundFix },
-            commit('c-fix-bound', 'fix window off-by-one'),
-          ],
-          name: { eng: 'A limit of 2 stops letting a third request through', plain: 'An allowance of 2 no longer lets a third request through' },
-          says: [
-            {
-              eng: '`hitWindow()` allows a request only while the count is below the limit.',
-              plain: 'The counting code lets a request through only while the count is under the limit.',
-              ev: { kind: 'file', path: 'src/window.ts', at: 'c-fix-bound', quote: q.boundFix },
-            },
-          ],
-          why: {
-            reason: {
-              eng: 'Jon Okonkwo pointed out in review that count <= limit lets one extra request through once the count reaches the limit.',
-              plain: 'Jon Okonkwo pointed out in review that one extra request got through once the limit was reached.',
-              ev: comment('pr1-thread-jon', 'count <= limit lets one extra request through once count has reached the limit.'),
-            },
-          },
-        },
-      ],
-    },
+    'c-fix-bound': { topics: [] },
     'c-changelog-010': routineOf(
       'c-changelog-010',
       { eng: '0.1.0 release notes', plain: 'release notes' },
@@ -1624,6 +1595,24 @@ const views = {
       covers: ['growth-arc', 'adrs-current'],
     },
     {
+      id: 'd-window-bound',
+      what: {
+        eng: 'Fix the off-by-one in the window.',
+        plain: 'A counting mistake in the window was fixed.',
+        ev: commit('c-fix-bound', 'fix window off-by-one'),
+      },
+      topics: ['root'],
+      carriedBy: 'c-fix-bound',
+      replacedBy: 'd-bucket',
+      why: {
+        reason: {
+          eng: 'Jon Okonkwo pointed out in review that count <= limit lets one extra request through once the count reaches the limit.',
+          plain: 'Jon Okonkwo pointed out in review that one extra request got through once the limit was reached.',
+          ev: comment('pr1-thread-jon', 'count <= limit lets one extra request through once count has reached the limit.'),
+        },
+      },
+    },
+    {
       id: 'd-store-interface',
       what: {
         eng: 'Storage moves behind a Store interface.',
@@ -1690,6 +1679,18 @@ const views = {
         },
       },
       covers: ['redis-adopted', 'adrs-current', 'growth-arc'],
+    },
+    {
+      id: 'd-fail-closed',
+      what: {
+        eng: 'When the store throws, the limiter fails closed and returns 429.',
+        plain: 'If the store of counts fails, requests are blocked instead of let through.',
+        ev: headFile(adrs.redis, 'If the store throws, the limiter still returns 429.'),
+      },
+      alsoIntent: [pr(4, 'If Redis throws, the limiter still returns 429.'), comment('pr4-thread-jon', 'Fail closed, not fail open.')],
+      topics: ['stores'],
+      carriedBy: 'pr#4',
+      why: askJon,
     },
     {
       id: 'd-bucket',
@@ -1863,7 +1864,7 @@ const views = {
         plain: 'Wait times are rounded to a fixed step.',
         ev: pr(18, 'Round retry waits to the clock step'),
       },
-      alsoIntent: [commit('c-retry-round', 'round retry waits to the clock step')],
+      alsoIntent: [commit('c-retry-round', 'round retry waits to the clock step'), pr(17, 'Add clockStepMs so a later change can round waits to a step.')],
       topics: ['clock'],
       carriedBy: 'pr#18',
       why: askJon,
@@ -2094,7 +2095,7 @@ console.log(\`limit 2, one key, two limiters with their own stores: \${allowed} 
       kind: 'timeline',
       topic: 'root',
       ...lifetime,
-      counts: { decision: 17, behavior: 3, check: 2, net: 1 },
+      counts: { decision: 19, behavior: 2, check: 2, net: 1 },
       named: ['d-no-new-service', 'f-double', 'f-clock-split'],
       routine: { count: 7, lines: 146 },
     },
@@ -2102,7 +2103,7 @@ console.log(\`limit 2, one key, two limiters with their own stores: \${allowed} 
       kind: 'timeline',
       topic: 'stores',
       ...lifetime,
-      counts: { decision: 9, net: 1 },
+      counts: { decision: 10, net: 1 },
       named: ['d-no-shared-db', 'd-in-process', 'd-no-switch'],
       routine: { count: 1, lines: 14 },
     },
