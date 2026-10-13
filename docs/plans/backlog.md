@@ -20,6 +20,8 @@ Priority: P1 blocks a usable v1 on real repos. P2 is visible to readers or skews
 | P2 | Cards reading "nmem could not classify this change" on real repos | G report | count reported per build; under 2% on p-limit |
 | P2 | Short ranges: cards crowd the right edge, the end tick label clips ("Nov 202"), card dates truncate | S1d, G | screenshots of the tally --round range and p-limit life show no clipping |
 | P2 | Fresh judge draws can flip borderline gold sentences | S2a, root | every gold sentence passes a cold calibration twice in a row |
+| P1 | Test files recognized only for Python, so Go (and other) repos get no topic examples | S4 report | one shared test-file definition used by generator, harness, engine; seedling topics show Go-backed examples |
+| P2 | Calibration fails when a repo has no object a corruption needs (seedling has no undone group) | S4 report | such a corruption is n/a per repo and still required across the pooled repos |
 | P3 | Card text ellipsizes on the axis | S1d | full text reachable on hover or expand |
 | P3 | Harness builds run unsandboxed and are labelled UNBLINDED | S1b | sandbox in place; label gone |
 | P3 | Change ids use 7 hex characters; at about 10k commits two collide and `facts.mjs` throws | G report | ids lengthen on collision; test with a forced collision |
