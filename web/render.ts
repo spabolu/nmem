@@ -60,6 +60,13 @@ export async function htmlFor(site: Site, url: URL): Promise<{ readonly status: 
   return document(site, url, audience, 'receipt', 200, await receiptBody(site, query));
 }
 
+
+// Octicons, MIT License, Copyright (c) GitHub Inc. https://github.com/primer/octicons
+const OCTICON = {
+  listUnordered: '<svg class="octicon" width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M5.75 2.5h8.5a.75.75 0 0 1 0 1.5h-8.5a.75.75 0 0 1 0-1.5Zm0 5h8.5a.75.75 0 0 1 0 1.5h-8.5a.75.75 0 0 1 0-1.5Zm0 5h8.5a.75.75 0 0 1 0 1.5h-8.5a.75.75 0 0 1 0-1.5ZM2 14a1 1 0 1 1 0-2 1 1 0 0 1 0 2Zm1-6a1 1 0 1 1-2 0 1 1 0 0 1 2 0ZM2 4a1 1 0 1 1 0-2 1 1 0 0 1 0 2Z"/></svg>',
+  history: '<svg class="octicon" width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="m.427 1.927 1.215 1.215a8.002 8.002 0 1 1-1.6 5.685.75.75 0 1 1 1.493-.154 6.5 6.5 0 1 0 1.18-4.458l1.358 1.358A.25.25 0 0 1 3.896 6H.25A.25.25 0 0 1 0 5.75V2.104a.25.25 0 0 1 .427-.177ZM7.75 4a.75.75 0 0 1 .75.75v2.992l2.028.812a.75.75 0 0 1-.557 1.392l-2.5-1A.751.751 0 0 1 7 8.25v-3.5A.75.75 0 0 1 7.75 4Z"/></svg>',
+};
+
 function esc(value: string): string {
   return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
@@ -242,8 +249,8 @@ function document(site: Site, url: URL, audience: Audience, view: string, status
   <a class="brand" href="${esc(topicHref(site, root, audience))}">nmem</a>
   <span class="crumb"><span class="repo">${esc(site.identity.owner)}</span> <span class="sep">/</span> <b>${esc(site.identity.name)}</b></span>
   <nav>
-    <a class="${topicsOn.trim()}"${topicsOn ? ' aria-current="page"' : ''} href="${esc(topicHref(site, root, audience))}">Topics</a>
-    <a class="${timelineOn.trim()}"${timelineOn ? ' aria-current="page"' : ''} href="${esc(life)}">Timeline</a>
+    <a class="${topicsOn.trim()}"${topicsOn ? ' aria-current="page"' : ''} href="${esc(topicHref(site, root, audience))}">${OCTICON.listUnordered}Topics</a>
+    <a class="${timelineOn.trim()}"${timelineOn ? ' aria-current="page"' : ''} href="${esc(life)}">${OCTICON.history}Timeline</a>
   </nav>
   <span class="spacer"></span>
   <span class="readas">Reading as</span>
@@ -272,7 +279,7 @@ function landingBody(site: Site, audience: Audience): string {
       <li class="panel">
         <a class="repo-name" href="${esc(topicHref(site, root, audience))}">${esc(name)}</a>
         <p class="census" data-nmem>${esc(TEMPLATES.census(census)[audience])}</p>
-        <p class="actions"><a class="btn" href="${esc(topicHref(site, root, audience))}">Topics</a><a class="btn" href="${esc(timelineHref(site, root, site.facts.born, site.facts.end, audience))}">Timeline</a></p>
+        <p class="actions"><a class="btn" href="${esc(topicHref(site, root, audience))}">${OCTICON.listUnordered}Topics</a><a class="btn" href="${esc(timelineHref(site, root, site.facts.born, site.facts.end, audience))}">Timeline</a></p>
       </li>
     </ul>
   </section>`;

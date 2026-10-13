@@ -82,6 +82,7 @@ q, .source { quotes: none; }
 .sep { color: var(--fgColor-muted); margin: 0 4px; }
 nav { display: flex; gap: 8px; }
 nav a { display: inline-flex; align-items: center; padding: 0 8px; color: var(--fgColor-default); font-weight: 400; border-bottom: 2px solid transparent; }
+nav a .octicon { margin-right: 8px; fill: var(--fgColor-muted); }
 nav a.on { font-weight: 600; border-bottom-color: var(--underlineNav-borderColor-active); }
 nav a:hover { text-decoration: none; border-bottom-color: var(--borderColor-default); }
 nav a.on:hover { border-bottom-color: var(--underlineNav-borderColor-active); }
