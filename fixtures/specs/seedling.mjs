@@ -1567,7 +1567,34 @@ const views = {
         },
       ],
     },
-    'pr#4': { topics: ['schedule'] },
+    'pr#4': {
+      topics: ['schedule'],
+      findings: [
+        {
+          id: 'f-notes-dropped',
+          severity: 'check',
+          topics: ['schedule'],
+          anchors: [
+            { kind: 'file', path: 'cmd/seedling/export.go', at: 'c-export-assign', quote: 'w.Write([]string{"date", "day", "volunteer"})' },
+            { kind: 'file', path: 'cmd/seedling/export.go', at: 'c-serve', quote: 'w.Write([]string{"date", "day", "volunteer", "notes"})' },
+          ],
+          name: { eng: 'The export dropped its notes column', plain: 'The schedule file lost its notes column' },
+          says: [
+            {
+              eng: 'cmd/seedling/export.go wrote a header of date, day, volunteer, and notes.',
+              plain: 'The sheet the app printed had a column for notes.',
+              ev: { kind: 'file', path: 'cmd/seedling/export.go', at: 'c-serve', quote: 'w.Write([]string{"date", "day", "volunteer", "notes"})' },
+            },
+            {
+              eng: 'cmd/seedling/export.go now writes date, day, and volunteer, with no notes column.',
+              plain: 'The schedule file now has no column for notes.',
+              ev: headFile('cmd/seedling/export.go', 'w.Write([]string{"date", "day", "volunteer"})'),
+            },
+          ],
+          why: { notRecorded: { ask: ['minhtran'] } },
+        },
+      ],
+    },
     'c-no-repeat': { topics: ['schedule'] },
     'pr#8': { topics: ['reminders'] },
     'pr#10': {
@@ -2111,7 +2138,7 @@ const views = {
       topic: 'root',
       from: '2024-04-06',
       to: '2025-03-29',
-      counts: { decision: 21, check: 2 },
+      counts: { decision: 21, check: 3 },
       named: ['d-remind-5pm', 'f-swap-two-days', 'd-swap-adjacent'],
       routine: { count: 8, lines: 156 },
     },

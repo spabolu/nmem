@@ -135,7 +135,6 @@ test('on seedling, which has no undone group, with a judge that agrees with ever
     'corruptions: confident-guess usable finding/gap',
     'corruptions: reason-in-prose -> gap-honesty',
     'corruptions: reason-in-prose -> supported',
-    'corruptions: reason-in-prose usable finding/gap',
     'corruptions: swap-reasons -> reason',
     'corruptions: swap-reasons usable decision/reason',
     'corruptions: retarget-cites -> supported',
