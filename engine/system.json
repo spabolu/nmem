@@ -1,7 +1,7 @@
 {
   "name": "nmem",
   "build": ["node", "cli.ts", "build"],
-  "models": ["claude-opus-5.5"],
+  "models": ["claude-opus-5.5", "claude-sonnet-5.5"],
   "passEnv": ["GITHUB_COPILOT_TOKEN"],
   "buildSec": 1800
 }

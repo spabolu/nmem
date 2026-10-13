@@ -9,7 +9,7 @@
 import type { Named, RecordSource, Why } from '../harness/contract.ts';
 import { JARGON } from '../fixtures/lib/plain.mjs';
 import type { ModelClient } from './copilot.ts';
-import { arr, ask, lengthProblems, lit, named, nullable, obj, OPUS, plainProblems, str } from './model.ts';
+import { arr, ask, lengthProblems, lit, named, nullable, obj, OPUS, plainProblems, SONNET, str } from './model.ts';
 import type { Gated, Task } from './model.ts';
 import type { RecordObject, RepoRecord, Sentence } from './record.ts';
 import type { Subject } from './steps.ts';
@@ -84,7 +84,7 @@ const CONFIRM_ANSWER = obj({ verdict: lit('states-why', 'does-not') });
 const CONFIRM: Task<ConfirmInput, ReturnType<typeof CONFIRM_ANSWER.parse>> = {
   id: 'confirm-why',
   version: 3,
-  model: OPUS,
+  model: SONNET,
   maxOutputTokens: 1500,
   rules: `Answer only by calling the answer tool, with no other text.
 

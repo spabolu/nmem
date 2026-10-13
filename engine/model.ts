@@ -11,9 +11,10 @@ import { plainHits } from '../fixtures/lib/plain.mjs';
 import type { ChatRequest, JsonSchema, ModelClient, ModelId, Totals } from './copilot.ts';
 import { modelId, ModelUnavailable } from './copilot.ts';
 
-/** Every judgment step runs on Opus. system.json lists exactly MODELS. */
+/** Each task names its tier. system.json lists exactly MODELS. */
 export const OPUS = modelId('claude-opus-5.5');
-export const MODELS: readonly ModelId[] = [OPUS];
+export const SONNET = modelId('claude-sonnet-5.5');
+export const MODELS: readonly ModelId[] = [OPUS, SONNET];
 
 class ShapeError extends Error {}
 
