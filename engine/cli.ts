@@ -3,13 +3,15 @@
  *
  *   nmem add <owner>/<repo> | <github url>
  *   nmem build-repo <owner>/<repo> [--store <dir>] [--no-model]
+ *   nmem bake <owner>/<repo>
  *   nmem serve <owner>/<repo> [--port N]
  *   nmem build <workspace> <out.json> [--store <dir>] [--no-model]
  *   nmem auth copilot
  *
  * add mirrors a GitHub repo into ~/.cache/nmem/repos/<owner>/<repo>. build-repo writes snapshot.json there, plus the
  * site.json the app reads in place of git and proof runs (harness/bake.ts). serve checks both, then runs the built app
- * in nmem/ (`npm start`) over that repos root, on port 3000 unless --port says otherwise.
+ * in nmem/ (`npm start`) over that repos root, on port 3000 unless --port says otherwise. bake rewrites site.json
+ * for the snapshot already there, with no model calls.
  * Exit codes: 0 ok, 1 the command failed, 2 bad usage.
  */
 import { spawn } from 'node:child_process';
@@ -27,12 +29,14 @@ import { limited, MODELS } from './model.ts';
 export type Command =
   | { readonly kind: 'build'; readonly workspace: string; readonly out: string; readonly store: string | null; readonly model: boolean; readonly site: boolean }
   | { readonly kind: 'add'; readonly repo: string }
+  | { readonly kind: 'bake'; readonly workspace: string }
   | { readonly kind: 'serve'; readonly workspace: string; readonly port: number }
   | { readonly kind: 'auth-copilot' };
 
 const USAGE = [
   'usage: nmem add <owner>/<repo>',
   '       nmem build-repo <owner>/<repo> [--store <dir>] [--no-model]',
+  '       nmem bake <owner>/<repo>',
   '       nmem serve <owner>/<repo> [--port N]',
   '       nmem build <workspace> <out.json> [--store <dir>] [--no-model]',
   '       nmem auth copilot',
@@ -52,6 +56,7 @@ export function parseArgs(argv: readonly string[]): Command {
   const [command, ...rest] = argv;
   if (command === 'auth' && rest.length === 1 && rest[0] === 'copilot') return { kind: 'auth-copilot' };
   if (command === 'add' && rest.length === 1 && rest[0] !== undefined) return { kind: 'add', repo: rest[0] };
+  if (command === 'bake' && rest.length === 1 && rest[0] !== undefined) return { kind: 'bake', workspace: addedWorkspace(rest[0]) };
   if (command !== 'build' && command !== 'build-repo' && command !== 'serve') throw new Error(USAGE);
   const positional: string[] = [];
   let store: string | null = null;
@@ -108,6 +113,21 @@ export async function main(argv: readonly string[]): Promise<number> {
       say(`GitHub token from ${auth.from}`);
       const summary = await add(command.repo, { remote: graphqlRemote(openGraphql({ auth, say }), say), say });
       console.log(summaryLine(summary));
+      return 0;
+    } catch (error) {
+      console.error((error as Error).message);
+      return 1;
+    }
+  }
+  if (command.kind === 'bake') {
+    const snapshot = path.join(command.workspace, 'snapshot.json');
+    if (!fs.existsSync(snapshot)) {
+      console.error(`no snapshot.json in ${command.workspace}; run \`node engine/cli.ts build-repo\` first`);
+      return 1;
+    }
+    try {
+      const baked = await bakeSite(command.workspace, snapshot);
+      console.log(`wrote ${path.join(command.workspace, 'site.json')} for snapshot ${baked.snapshotSha256.slice(0, 12)}`);
       return 0;
     } catch (error) {
       console.error((error as Error).message);
