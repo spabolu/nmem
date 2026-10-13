@@ -3,6 +3,7 @@
  * on more than one topic, and Start here, headline sources, and the example are lines or sentences at HEAD that the
  * model names by handle. Code computes every range and checks every path, so a bad pick is refused, never repaired.
  */
+import { createHash } from 'node:crypto';
 import type { LocalId, Named, RecordSource, Said, Topic } from '../harness/contract.ts';
 import { JARGON } from '../fixtures/lib/plain.mjs';
 import { ModelUnavailable } from './copilot.ts';
@@ -308,7 +309,57 @@ export async function formTopics(record: RepoRecord, client: ModelClient, signal
     return page ? [{ ...topic, parent: parentOf(topic.parent), headline: page.headline, example: page.example }] : [];
   });
   const root = topics.find((topic) => topic.id === ROOT) ?? floorRoot;
-  return [root, ...topics.filter((topic) => topic.id !== ROOT)];
+  return splitMixed(record, [root, ...topics.filter((topic) => topic.id !== ROOT)]);
+}
+
+function stemOf(path: string): string {
+  const base = path.split('/').pop()?.replace(/\.[^.]+$/, '') ?? path;
+  return base.replace(/^test_/, '').replace(/_test$/, '');
+}
+
+function isTestPath(path: string): boolean {
+  return /(?:^|\/)test_/.test(path) || /_test\./.test(path);
+}
+
+/**
+ * A test that does not check this topic's code, or a decision record that does not name this topic's code, is its own
+ * topic. Otherwise alignment never sees that file as a core, and the screens for it stay missed.
+ */
+export function splitMixed(record: RepoRecord, topics: readonly [Topic, ...Topic[]]): readonly [Topic, ...Topic[]] {
+  const root = topics[0];
+  const rest = topics.slice(1).map((topic) => ({ ...topic, files: [...topic.files], docs: [...topic.docs] }));
+  const added: Topic[] = [];
+  for (const topic of rest) {
+    const code = topic.files.filter((file) => !isTestPath(file) && !file.includes('/adr/'));
+    const stems = new Set(code.map(stemOf).filter((stem) => stem.length > 2));
+    const move = topic.files.filter((file) => {
+      if (isTestPath(file)) return !stems.has(stemOf(file));
+      if (file.includes('/adr/')) return ![...stems].some((stem) => file.toLowerCase().includes(stem));
+      return false;
+    });
+    for (const file of move) {
+      topic.files = topic.files.filter((item) => item !== file);
+      if (file.endsWith('.md')) topic.docs = topic.docs.filter((item) => item !== file);
+      const id = `t${createHash('sha256').update(file).digest('hex').slice(0, 8)}`;
+      if (added.some((item) => item.id === id) || rest.some((item) => item.id === id)) continue;
+      const owned = record.files.find((item) => item.path === file) ?? record.docs.find((item) => item.path === file);
+      const line = owned?.lines.find((item) => item.text.trim());
+      const start = line
+        ? { kind: 'record' as const, ref: `${record.head.slice(0, 7)}:${file}#L${line.number}-L${line.number}`, quote: line.text }
+        : topic.start;
+      added.push({
+        ...topic,
+        id,
+        parent: topic.parent,
+        files: [file],
+        docs: file.endsWith('.md') ? [file] : [],
+        words: [stemOf(file)].filter((word) => word.length > 0),
+        start,
+        example: null,
+      });
+    }
+  }
+  return [root, ...rest, ...added];
 }
 
 /** Topics whose files hold any of these paths: the candidates an item may be placed on. */
