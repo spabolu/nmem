@@ -296,7 +296,9 @@ function rowOf(decision: Decision, facts: RepoFacts): DecisionRow {
  * card, and its members' findings are not counted. A cut bracket shows its inside members as their own cards with an
  * UndoneNote, and a member that carries a decision puts the note on that decision's card. Routine changes never get a
  * card. A notable change's routine parts are card lines (skippable), never rows in the routine strip. A notable change
- * shows on a child topic with the findings that name that topic.
+ * shows on a child topic with the findings that name that topic. When it has findings and none name the topic, it shows
+ * there only through the decision cards it carries, so a decision change that also hides a finding elsewhere does not
+ * leave an empty card.
  *
  * The summary pick follows the scope doc. It names the newest decision, the newest behavior change, and the newest
  * thing worth a look, skipping kinds absent from the range. It fills the remaining slots by PRIORITY, then newest, up
@@ -340,6 +342,7 @@ export function rangeOf(snapshot: Snapshot, facts: RepoFacts, range: Range): Ran
     if (kind === 'routine' || kind === 'decision') continue;
     const entry = entries.get(change.id);
     const own = (entry?.findings ?? []).flatMap((finding, index) => (whole || finding.topics.includes(range.topic) ? [{ finding, index }] : []));
+    if (own.length === 0 && (entry?.findings.length ?? 0) > 0) continue;
     const severity = mostSerious(own.map((x) => x.finding.severity)) ?? (kind === 'unclassified' ? 'check' : kind);
     if (own.length > 0) for (const { finding, index } of own) items.push({ kind: finding.severity, ref: `${change.id}/${index}`, day: change.live });
     else items.push({ kind: severity, ref: change.id, day: change.live });

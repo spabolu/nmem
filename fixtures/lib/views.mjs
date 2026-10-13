@@ -428,8 +428,8 @@ function linkViews(views, ctx) {
     }));
     if (change.findings.length > 0) {
       change.topics.forEach((t, k) => {
-        if (!change.findings.some((f) => f.topics.includes(t))) {
-          ctx.fail(`${change.path}.topics[${k}]`, `${t} holds none of the change's findings, so that topic's timeline would show the change with nothing to say`);
+        if (!change.findings.some((f) => f.topics.includes(t)) && !views.decisions.some((d) => d.carriedBy === change.key && d.topics.includes(t))) {
+          ctx.fail(`${change.path}.topics[${k}]`, `${t} holds none of the change's findings and no decision it carries, so that topic's timeline would not show the change`);
         }
       });
     }

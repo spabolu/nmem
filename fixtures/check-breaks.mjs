@@ -526,6 +526,14 @@ const viewCases = [
       views.topics.find((t) => t.id === 'adding').core.push('tally/cli.py');
     },
   },
+  {
+    name: 'change topic that holds none of its findings and no decision it carries',
+    slug: 'tally',
+    expect: "storage holds none of the change's findings and no decision it carries",
+    mutate(views) {
+      views.changes['c-fix-tests'].topics.push('storage');
+    },
+  },
 ];
 
 // Owner decision 2026-10-10: depends reads "Out of date since", the same line as no-longer-true.
