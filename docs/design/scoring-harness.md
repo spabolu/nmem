@@ -128,7 +128,7 @@ An anchor that overlaps two gold candidates equally is "too broad" and matches n
 | --- | --- |
 | Currency verdicts against v1 status | Claims keep four verdicts and match exactly. Status derives from them. depends and no-longer-true read "Out of date since", true-since reads "Up to date since". A sentence false on a supported configuration misleads its reader, so `clock.md` is out of date since PR #17. |
 | Per-topic against per-sentence | Systems emit sentences. Status per topic is derived. Gold lists every sentence that is not plainly true, plus still-true sentences worth guarding. |
-| Tally has no stale page | Tally's SQLite sentence survives at HEAD only in superseded ADR-0002. A superseded ADR makes no claim, so `currency-sqlite-stale` is covered by decision `d-sqlite` (replaced by `d-json`) and no tally page is stale. |
+| Tally's SQLite sentence | It survives at HEAD only in superseded ADR-0002. A superseded ADR makes no claim, so `currency-sqlite-stale` is covered by decision `d-sqlite` (replaced by `d-json`) and makes no page stale. Tally's root and settling pages are stale for another reason: PR #23 wrote two settle-up sentences that hold only for households of four or fewer (run `settle-five`). |
 | Gap wiring | Every key gap entry is covered by exactly one not-recorded object, a generator check. Gold is a superset. `d-rename` is a gap with no key entry, and `truth` is optional. |
 | Summary item 3 | The scope doc wins. Name the newest decision, the newest behavior change, and the newest thing worth a look, skipping kinds absent from the range, then fill by priority and recency, at most three. |
 | Timeline end | The latest timestamp in the record, over commits and every `github.json` timestamp. For tally that is Nov 21, 2023, not HEAD's Nov 15 (measured). A system cannot move it. |
@@ -190,21 +190,21 @@ What this shows:
 
 Gold:
 
-- `pr#20`, live Oct 24, 2023 (merge b2dcc6b). Its check finding says `--round` is not stored on the row.
-- `pr#21`, Oct 27 (c32b032). Its behavior finding says extra cents go to the earliest names.
+- `pr#20`, live Oct 24, 2023 (merge b2dcc6b). It carries decision `d-round-flag` (default payer, "so a command with no flag still matches the notebook"), and its check finding says `--round` is not stored on the row, a cost the PR never weighs.
+- `pr#21`, Oct 27 (c32b032). It carries decision `d-round-first`, the stated default change, with no recorded reason.
 - `pr#22`, Nov 1 (3d17009). Carries decision `d-round-revert`, intent "Reverts #20 and #21.", recorded reason "The flag is not stored on the row, so the new default changed older bills too." The decider, owenbriggs, derives from the PR's author.
 - Undone group `{pr#20, pr#21, pr#22}`. The kernel's proof is `diff 49d209b..3d17009`, which gives "(no differences)" (measured, empty shortstat).
 - The timeline ends Nov 21, 2023, the latest `github.json` timestamp, not HEAD's Nov 15 (measured).
 - Hand-computed screens in the spec, which the generator checks against `view.rangeOf(gold)`, the part of `timelineOf` a screen asserts:
-  - root from Oct 22 to Nov 1 counts decision 1 and net 1, naming `d-round-revert` and the bracket;
-  - Oct 25 to 30 counts behavior 1, `pr#21` with "Part of a change later undone.";
+  - root from Oct 22 to Nov 1 counts decision 3 and net 1, naming `d-round-revert`, `d-round-first`, and `d-round-flag`;
+  - Oct 25 to 30 counts decision 1, `d-round-first` with "Part of a change later undone.";
   - Oct 30 to Nov 5 counts decision 1, with "Undoes a change that started before this range."
 
 | item | good | misses pr#20 ("default kept the same split") | no undo detection |
 | --- | --- | --- | --- |
 | `undone/net` | members equal, and the kernel verifies net zero | `{pr#21, pr#22}`. The kernel runs `diff b2dcc6b..3d17009`, which reports 2 files changed, 8 insertions, 13 deletions (measured). That is not net zero, so the group is dropped and the item missed | missed |
 | `decision/reason d-round-revert` | intent overlaps gold's, reason supported | same | `pr#22` called a behavior change, "rounding changed back", with no decision. Missed, and `change/notable pr#22` has kind behavior, not decision, so facts 0 |
-| `screen/timeline` whole life | one net card and one decision card | three separate cards, facts 0 | four cards, facts 0 |
+| `screen/timeline` whole life | one net card and the three decision cards it carries | three separate cards, facts 0 | four cards, facts 0 |
 
 A system that names the bracket "the `--round` experiment" loses nothing. Brackets align by members, and the `relabel` invariant proves it in calibration. The typed version is [`harness/examples/tally-round.ts`](../../harness/examples/tally-round.ts).
 

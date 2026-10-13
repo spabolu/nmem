@@ -2,7 +2,7 @@
  * A good system's snapshot entries for tally's add-then-undo: PR #20 adds --round (merge b2dcc6b, Oct 24, 2023),
  * PR #21 flips its default (c32b032, Oct 27), PR #22 reverts both (3d17009, Nov 1). Checked against the contract by
  * `tsc`. The kernel verifies net zero itself with `diff 49d209b..3d17009`, the parent of the first merge to the last.
- * PR #22 has no findings and carries the decision, so kindOf says decision.
+ * Each PR states its choice, so each carries a decision. PR #20 also has a finding for the cost it never weighs.
  */
 import { login } from '../contract.ts';
 import type { Change, Decision, Undone } from '../contract.ts';
@@ -31,29 +31,42 @@ export const changes: readonly Change[] = [
     ],
     routine: [],
   },
-  {
-    id: 'pr#21',
-    topics: ['splitting'],
-    findings: [
-      {
-        severity: 'behavior',
-        topics: ['splitting'],
-        anchor: { kind: 'record', ref: 'pr#21', quote: 'Changes the default of --round from payer to first.' },
-        name: { eng: 'Extra cents go to the earliest names', plain: 'Leftover cents now go to the first people listed' },
-        says: [
-          {
-            eng: 'Commands without --round stop flooring the split.',
-            plain: 'Bills split without the setting now hand out the spare cents differently.',
-            source: { kind: 'record', ref: 'pr#21', quote: 'A command that omits the flag now hands extra cents to the earliest names instead of flooring.' },
-          },
-        ],
-        why: { kind: 'not-recorded', ask: [owen], guess: null },
-      },
-    ],
-    routine: [],
-  },
+  { id: 'pr#21', topics: ['splitting'], findings: [], routine: [] },
   { id: 'pr#22', topics: ['splitting'], findings: [], routine: [] },
 ];
+
+export const flag: Decision = {
+  id: 'round-flag',
+  what: {
+    eng: 'Added --round with payer, the floor split, as its default.',
+    plain: 'Added a rounding setting that splits bills the old way unless told otherwise.',
+    source: { kind: 'record', ref: 'pr#20', quote: 'Adds --round so a bill can split two ways.' },
+  },
+  topics: ['splitting'],
+  carriedBy: 'pr#20',
+  replacedBy: 'revert-round',
+  why: {
+    kind: 'recorded',
+    reason: {
+      eng: 'A command with no flag still matches the notebook.',
+      plain: 'Bills entered without the setting still match the notebook.',
+      source: { kind: 'record', ref: 'pr#20', quote: 'Default is payer, so a command with no flag still matches the notebook.' },
+    },
+  },
+};
+
+export const first: Decision = {
+  id: 'round-first',
+  what: {
+    eng: 'Made first the default for --round.',
+    plain: 'Leftover cents now go to the first people listed by default.',
+    source: { kind: 'record', ref: 'pr#21', quote: 'Changes the default of --round from payer to first.' },
+  },
+  topics: ['splitting'],
+  carriedBy: 'pr#21',
+  replacedBy: 'revert-round',
+  why: { kind: 'not-recorded', ask: [owen], guess: null },
+};
 
 export const decision: Decision = {
   id: 'revert-round',
