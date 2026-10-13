@@ -1556,7 +1556,7 @@ const views = {
         },
       ],
     },
-    'pr#2': { topics: ['signup'] },
+    'pr#2': { topics: ['signup', 'schedule'] },
     'c-typo': {
       topics: ['signup'],
       routine: [
@@ -1955,6 +1955,17 @@ const views = {
       covers: ['roster-csv', 'decisions-current'],
     },
     {
+      id: 'd-subcommands',
+      what: {
+        eng: '`seedling -from ...` became `seedling export -from ...`.',
+        plain: 'The command that used to take only a start date now starts with the word export.',
+        ev: pr(2, 'The old `seedling -from ...` is now `seedling export -from ...`'),
+      },
+      topics: ['schedule'],
+      carriedBy: 'pr#2',
+      why: { notRecorded: { ask: ['minhtran'] } },
+    },
+    {
       id: 'd-day-column',
       what: {
         eng: 'A day-of-week column was added for Rosa.',
@@ -2100,7 +2111,7 @@ const views = {
       topic: 'root',
       from: '2024-04-06',
       to: '2025-03-29',
-      counts: { decision: 20, check: 2 },
+      counts: { decision: 21, check: 2 },
       named: ['d-remind-5pm', 'f-swap-two-days', 'd-swap-adjacent'],
       routine: { count: 8, lines: 156 },
     },
