@@ -19,8 +19,8 @@ import { decide } from './choices.ts';
 import { docClaims } from './claims.ts';
 import { linkChoices } from './link.ts';
 import { ingest, segment } from './record.ts';
-import { noModel } from './steps.ts';
-import { implementers } from './topics.ts';
+import { noModel, rootTopic } from './steps.ts';
+import { implementers, splitMixed } from './topics.ts';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const tally = path.join(root, 'out', 'tally');
@@ -404,6 +404,17 @@ test('a split topic page is written from its own file, not the donor headline', 
   assert.equal(example?.kind, 'record');
   assert.equal(example?.kind === 'record' ? example.quote : '', 'assert other() == 1');
   assert.equal(example?.kind === 'record' ? example.ref : '', `${head7}:tests/test_other.py`);
+});
+
+test('a test named for the code it checks stays on that code\'s topic under any language\'s naming', () => {
+  const record = ingest(toyWorkspace([{
+    title: 'Add limits',
+    body: 'Add limits.',
+    files: { 'src/limit.ts': 'export const limit = 1;\n', 'test/limit.test.ts': 'limit\n', 'spec/limit_spec.rb': 'limit\n', 'tests/test_limit.py': 'limit\n', 'test/other.spec.ts': 'other\n' },
+  }]));
+  const root = rootTopic(record);
+  const limits = { ...root, id: 'limits', parent: 'root', files: ['src/limit.ts', 'test/limit.test.ts', 'spec/limit_spec.rb', 'tests/test_limit.py', 'test/other.spec.ts'], docs: [] };
+  assert.deepEqual(splitMixed(record, [root, limits]).map((topic) => topic.files), [[], ['src/limit.ts', 'test/limit.test.ts', 'spec/limit_spec.rb', 'tests/test_limit.py'], ['test/other.spec.ts']]);
 });
 
 test('an agreement is carried by the later change the model names, and a carried choice is left alone', async () => {

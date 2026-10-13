@@ -401,7 +401,7 @@ async function pagesForSplit(record: RepoRecord, client: ModelClient, before: re
 
 function stemOf(path: string): string {
   const base = path.split('/').pop()?.replace(/\.[^.]+$/, '') ?? path;
-  return base.replace(/^test_/, '').replace(/_test$/, '');
+  return base.replace(/^test_/, '').replace(/[._](?:test|spec)$/, '');
 }
 
 
