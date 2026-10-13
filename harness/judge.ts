@@ -543,19 +543,24 @@ function pinsFile(cacheDir: string): string {
   return path.join(cacheDir, 'judge', 'pins.json');
 }
 
-function readPins(cacheDir: string): Record<string, string> {
-  const file = pinsFile(cacheDir);
-  if (!fs.existsSync(file)) return {};
-  return JSON.parse(fs.readFileSync(file, 'utf8')) as Record<string, string>;
+/** One file per model, so two runs pinning different models never overwrite each other's pin. */
+function pinFile(cacheDir: string, model: string): string {
+  return path.join(cacheDir, 'judge', 'pins', `${model}.json`);
+}
+
+function readPin(cacheDir: string, model: string): string | null {
+  const file = pinFile(cacheDir, model);
+  if (fs.existsSync(file)) return (JSON.parse(fs.readFileSync(file, 'utf8')) as { version: string }).version;
+  const legacy = pinsFile(cacheDir);
+  return fs.existsSync(legacy) ? ((JSON.parse(fs.readFileSync(legacy, 'utf8')) as Record<string, string>)[model] ?? null) : null;
 }
 
 function writePin(cacheDir: string, model: string, version: string): void {
-  const pins = readPins(cacheDir);
-  if (pins[model] === version) return;
-  const file = pinsFile(cacheDir);
+  if (readPin(cacheDir, model) === version && fs.existsSync(pinFile(cacheDir, model))) return;
+  const file = pinFile(cacheDir, model);
   fs.mkdirSync(path.dirname(file), { recursive: true });
   const temp = `${file}.${randomUUID()}.tmp`;
-  fs.writeFileSync(temp, `${JSON.stringify({ ...pins, [model]: version }, null, 2)}\n`);
+  fs.writeFileSync(temp, `${JSON.stringify({ version })}\n`);
   fs.renameSync(temp, file);
 }
 
@@ -653,7 +658,7 @@ export async function openJudge(mode: JudgeMode, cacheDir: string, deps: { reado
     version = await transport.pin(mode.config.model);
     writePin(cacheDir, mode.config.model, version);
   } else {
-    version = model === null ? null : (readPins(cacheDir)[model] ?? null);
+    version = model === null ? null : readPin(cacheDir, model);
   }
   const limit = mode.kind === 'live' ? mode.config.concurrency : 1;
   const stats = { asked: 0, hits: 0, failed: 0, inputTokens: 0, outputTokens: 0 };
