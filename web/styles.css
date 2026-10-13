@@ -190,7 +190,7 @@ article.decision:not(.tl-card) time { color: var(--fgColor-muted); font-size: 12
 .axis .end.start { left: 0; }
 .axis .end:last-child { right: 0; }
 .track { position: absolute; left: 0; right: 0; top: 18px; height: 18px; background: var(--bgColor-muted); border-top: 2px solid var(--fgColor-muted); border-bottom: 2px solid var(--fgColor-muted); }
-.pin { position: absolute; top: 3px; width: 10px; height: 10px; margin-left: -5px; border-radius: 50%; border: 2px solid var(--bgColor-default); box-shadow: 0 0 0 1px var(--borderColor-default); z-index: 2; }
+.pin { position: absolute; top: calc(50% - 5px); width: 10px; height: 10px; margin-left: -5px; border-radius: 50%; border: 2px solid var(--bgColor-default); box-shadow: 0 0 0 1px var(--borderColor-default); z-index: 2; }
 .pin.decision { background: var(--fgColor-done); }
 .pin.behavior { background: var(--fgColor-danger); }
 .pin.check { background: var(--fgColor-attention); }
@@ -198,7 +198,7 @@ article.decision:not(.tl-card) time { color: var(--fgColor-muted); font-size: 12
 .tick { position: absolute; top: 22px; transform: translateX(-50%); font-size: 11px; color: var(--fgColor-muted); white-space: nowrap; }
 .tick.edge-start { transform: translateX(0); }
 .tick.edge-end { transform: translateX(-100%); }
-.bracket { position: absolute; top: 7px; height: 4px; background: var(--fgColor-muted); border-radius: 2px; z-index: 1; }
+.bracket { position: absolute; top: calc(50% - 2px); height: 4px; background: var(--fgColor-muted); border-radius: 2px; z-index: 1; }
 .empty { position: absolute; left: 0; right: 0; text-align: center; color: var(--fgColor-muted); font-size: 12px; margin: 0; }
 .narrow-only { display: none; }
 .today { color: var(--fgColor-accent); font-weight: 600; }
