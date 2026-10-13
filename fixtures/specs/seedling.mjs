@@ -1544,8 +1544,14 @@ const views = {
         },
       ],
     },
-    'pr#1': { topics: ['days'] },
-    'c-weekday': { topics: [] },
+    'pr#1': {
+      topics: ['days', 'schedule'],
+      livesIn: { schedule: { verb: 'grep', at: 'head', pattern: 'csv.NewWriter(os.Stdout)', paths: ['cmd/seedling/export.go'], shows: 'cmd/seedling/export.go' } },
+    },
+    'c-weekday': {
+      topics: ['schedule'],
+      livesIn: { schedule: { verb: 'grep', at: 'head', pattern: 's.Date.Format("Monday")', paths: ['cmd/seedling/export.go'], shows: 'cmd/seedling/export.go' } },
+    },
     'c-ci': {
       topics: [],
       routine: [
@@ -1999,7 +2005,7 @@ const views = {
         plain: 'A column with the day of the week was added for Rosa.',
         ev: commit('c-weekday', 'add day-of-week column (rosa)'),
       },
-      topics: ['root'],
+      topics: ['schedule'],
       carriedBy: 'c-weekday',
       why: {
         reason: {
@@ -2016,7 +2022,7 @@ const views = {
         plain: 'The app prints every watering day as a spreadsheet with empty columns for volunteers and notes.',
         ev: pr(1, 'prints every watering day (Mon-Sat) as CSV with empty volunteer/notes columns'),
       },
-      topics: ['root'],
+      topics: ['schedule'],
       carriedBy: 'pr#1',
       replacedBy: 'd-auto-schedule',
       why: {
