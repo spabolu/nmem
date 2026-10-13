@@ -34,6 +34,7 @@ S1b and the S1c design run in parallel. S1d starts after S1b's kernel lands. Par
 
 ## Rules for the run
 
+- Every deferred item goes into `docs/plans/backlog.md` with a priority and a done-when check. Each unit's brief names the backlog items it owns, and the root moves them to Done after verifying.
 - Every unit goes to a fresh `poteto-agent` with this page, the two design docs, and the previous unit's report.
 - The root verifies each unit by running its check, not by reading the report.
 - Model calls from the engine and the judge go through the owner's Copilot Enterprise account. The engine uses one vendor family and the judge another.
