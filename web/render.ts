@@ -239,7 +239,7 @@ function document(site: Site, url: URL, audience: Audience, view: string, status
 </head>
 <body data-view="${esc(view)}" data-audience="${audience}">
 <header class="bar">
-  <a class="brand" href="${esc(topicHref(site, root, audience))}"><span class="mark" aria-hidden="true">n</span> nmem</a>
+  <a class="brand" href="${esc(topicHref(site, root, audience))}">nmem</a>
   <span class="crumb"><span class="repo">${esc(site.identity.owner)}</span> <span class="sep">/</span> <b>${esc(site.identity.name)}</b></span>
   <nav>
     <a class="${topicsOn.trim()}"${topicsOn ? ' aria-current="page"' : ''} href="${esc(topicHref(site, root, audience))}">Topics</a>
@@ -256,7 +256,6 @@ function document(site: Site, url: URL, audience: Audience, view: string, status
 <main class="page ${view === 'topic' || view === 'search' ? 'split' : 'wide'}">
 ${body}
 </main>
-<footer class="foot"><b>Read only.</b> nmem writes nothing back. Read through ${esc(formatDay(site.facts.end))}, the latest thing nmem read.</footer>
 </body>
 </html>`;
   return { status, html };
@@ -439,7 +438,7 @@ function timelineBody(site: Site, topic: LocalId, from: IsoDay, to: IsoDay, quer
     return change ? [`${change}=${card.undoneNote}`] : [];
   }).sort().join(',');
   return `<section class="tl" data-topic="${esc(topic)}" data-from="${from}" data-to="${to}" data-summary="${esc(view.summary[audience])}" data-counts="${esc(countsAttr(view.counts))}" data-named="${esc(view.named.map((item) => item.ref).join(','))}" data-routine-count="${view.routine.count}" data-routine-lines="${view.routine.lines}" data-cards="${esc(cardsAttr)}" data-notes="${esc(notesAttr)}" data-unclassified-count="${unclassifiedCount}">
-    <div class="tl-head"><span class="mark" aria-hidden="true">n</span><h1>Timeline</h1></div>
+    <div class="tl-head"><h1>Timeline</h1></div>
     <p class="tl-sub">${audience === 'plain'
       ? 'Decisions sit above the time line. Changes sit below it. Each row folds crowded cards into +N more.'
       : 'Decisions sit above the time axis. Behavior changes and things worth a look sit below it. Each row folds crowded cards into +N more.'}</p>
