@@ -103,6 +103,7 @@ export function basePath(site: Site): string {
 export type Route =
   | { readonly kind: 'topic'; readonly topic: LocalId }
   | { readonly kind: 'timeline'; readonly topic: LocalId; readonly from: IsoDay; readonly to: IsoDay }
+  | { readonly kind: 'landing' }
   | { readonly kind: 'search' }
   | { readonly kind: 'receipt' }
   | { readonly kind: 'missing'; readonly what: string }
@@ -118,6 +119,7 @@ export function routeOf(site: Site, url: URL): Route {
     return { kind: 'bad', what: 'path is not encoded as UTF-8' };
   }
   const pathName = pathname.replace(/\/+$/, '') || '/';
+  if (pathName === '/') return { kind: 'landing' };
   const prefix = basePath(site);
   if (pathName !== prefix && !pathName.startsWith(`${prefix}/`)) return { kind: 'missing', what: pathName };
   const rest = pathName.slice(prefix.length);

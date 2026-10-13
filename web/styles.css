@@ -242,6 +242,12 @@ pre.source { white-space: pre-wrap; background: var(--bgColor-muted); border: 1p
 .results li { padding: 10px 0; border-top: 1px solid var(--borderColor-default); }
 .results a { font-weight: 600; font-size: 16px; }
 .results .st { color: var(--fgColor-muted); margin-left: 8px; }
+.landing { max-width: 720px; }
+.landing h1 { font-size: 24px; font-weight: 600; margin: 0 0 8px; }
+.repos { list-style: none; margin: 16px 0 0; padding: 0; }
+.repos .panel { padding: 16px; }
+.repo-name { font-size: 20px; font-weight: 600; }
+.repos .census { padding: 8px 0 0; }
 .miss { color: var(--fgColor-muted); }
 .kicker { color: var(--fgColor-muted); margin: 0 0 4px; }
 a:focus-visible, button:focus-visible, input:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--focus-outlineColor); outline-offset: -2px; box-shadow: none; }

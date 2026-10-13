@@ -53,6 +53,7 @@ export async function htmlFor(site: Site, url: URL): Promise<{ readonly status: 
     return document(site, url, audience, 'missing', 404, `<p class="miss">Nothing at this address is in the snapshot.</p><p><a href="${esc(topicHref(site, rootId(site), audience))}">Back to the topic tree</a></p>`);
   }
   if ('error' in query) return document(site, url, audience, 'bad', 400, `<p class="miss">${esc(query.error)}</p>`);
+  if (route.kind === 'landing') return document(site, url, audience, 'landing', 200, landingBody(site, audience));
   if (route.kind === 'topic') return document(site, url, audience, 'topic', 200, await topicBody(site, route.topic, query));
   if (route.kind === 'timeline') return document(site, url, audience, 'timeline', 200, timelineBody(site, route.topic, route.from, route.to, query));
   if (route.kind === 'search') return document(site, url, audience, 'search', 200, searchBody(site, query));
@@ -252,13 +253,30 @@ function document(site: Site, url: URL, audience: Audience, view: string, status
   </span>
   <a class="btn" href="${esc(githubHome(site))}" target="_blank" rel="noreferrer">View on GitHub</a>
 </header>
-<main class="page ${view === 'timeline' || view === 'receipt' ? 'wide' : 'split'}">
+<main class="page ${view === 'topic' || view === 'search' ? 'split' : 'wide'}">
 ${body}
 </main>
 <footer class="foot"><b>Read only.</b> nmem writes nothing back. Read through ${esc(formatDay(site.facts.end))}, the latest thing nmem read.</footer>
 </body>
 </html>`;
   return { status, html };
+}
+
+function landingBody(site: Site, audience: Audience): string {
+  const root = rootId(site);
+  const census = censusOf(site.snapshot, site.facts);
+  const name = `${site.identity.owner}/${site.identity.name}`;
+  return `<section class="landing">
+    <h1>Repositories nmem has read</h1>
+    <p class="hint">Pick a repository to see its topic tree and the timeline of its decisions.</p>
+    <ul class="repos">
+      <li class="panel">
+        <a class="repo-name" href="${esc(topicHref(site, root, audience))}">${esc(name)}</a>
+        <p class="census" data-nmem>${esc(TEMPLATES.census(census)[audience])}</p>
+        <p class="actions"><a class="btn" href="${esc(topicHref(site, root, audience))}">Topics</a><a class="btn" href="${esc(timelineHref(site, root, site.facts.born, site.facts.end, audience))}">Timeline</a></p>
+      </li>
+    </ul>
+  </section>`;
 }
 
 async function topicBody(site: Site, id: LocalId, query: RequestQuery): Promise<string> {
