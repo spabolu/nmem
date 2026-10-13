@@ -17,15 +17,11 @@ Priority: P1 blocks a usable v1 on real repos. P2 is visible to readers or skews
 | P3 | A test or ADR split onto its own topic starts at its own first line and is named from its file stem (tally "pay part"), so d-paybacks lands on the balance topic. A split-start call fixed the paybacks start but picked the wrong money line (H1d d3) | H1d | split topics start at the code they are about and carry a readable name |
 | P2 | A recorded reason attached to the wrong finding (pr#12 fallthrough got the settle reason) and confirm-why agreed | S2b | confirm-why checks the subject; tally fabricated and wrong-subject count 0 |
 | P2 | Classify skips changes whose every file is proven routine, so a docs-only change that states a choice is missed | S2b | docs-only changes with a stated choice reach classify |
-| P2 | Timeline summary says "Since Oct 21" with no year on ranges longer than a year | G report | multi-year ranges print the year; web verify asserts it |
-| P2 | A summary item or card named only by a commit id ("commit 42599eb") | G report | every named item has a readable name |
-| P2 | Cards reading "nmem could not classify this change" on real repos | G report | count reported per build; under 2% on p-limit |
-| P2 | Short ranges: cards crowd the right edge, the end tick label clips ("Nov 202"), card dates truncate | S1d, G | screenshots of the tally --round range and p-limit life show no clipping |
+| P2 | Cards reading "nmem could not classify this change" on real repos. The site now names the change from the pull request title or commit subject and prints the count. The engine still leaves the change with no finding and no routine partition | G report, W2 | count reported per build; under 2% on p-limit. p-limit is 15 of 84 changes |
 | P2 | Fresh judge draws can flip borderline gold sentences | S2a, root | every gold sentence passes a cold calibration twice in a row |
 | P2 | Go is not installed, so seedling behavior claims are traced by reading code, not run | RS | owner installs Go (`brew install go`); seedling checks rerun with `go test` |
 | P3 | Two wayfinder answer-key entries still say "new key" (left to keep public output byte-identical) | RW | answer-key wording matches gold at the next deliberate fixture regeneration |
 | P3 | seedling swap check and write lock separately; a concurrent race is not counted as a setup. If races should count, hold one lock in the fixture (changes the last two SHAs) | RS | decided with Go installed and a run |
-| P3 | Card text ellipsizes on the axis | S1d | full text reachable on hover or expand |
 | P3 | Harness builds run unsandboxed and are labelled UNBLINDED | S1b | sandbox in place; label gone |
 | P3 | Change ids use 7 hex characters; at about 10k commits two collide and `facts.mjs` throws | G report | ids lengthen on collision; test with a forced collision |
 | P3 | 4 MiB snapshot limit fits about 3,200 changes | G report | limit raised or snapshot split; a 10k-change repo builds |
@@ -41,6 +37,9 @@ Priority: P1 blocks a usable v1 on real repos. P2 is visible to readers or skews
 
 | Item | Commit |
 | --- | --- |
+| Timeline summary names the year when the range is longer than a year | 54175a8 |
+| A summary item or card is named from the pull request title or commit subject, not a commit id | 1356751 |
+| Short ranges keep the end tick and card dates inside the board. Full card text opens on hover or focus | 1356751 |
 | Doc-claims step: a check program run at every change since the sentence was written dates brokenBy and true-since (tally 70 to 80 of 176) | e4bb60d |
 | Placement follows a changed option from the entry point to the code that reads it (tally d-flag, d-round-first) | d36b9a2 |
 | confirm-why on Sonnet, held on two draws | c5f94b1 |
