@@ -221,14 +221,14 @@ test('classify copies record text for handles, refuses a denial as intent or anc
   const notes: string[] = [];
   const snapshot = JSON.parse((await assemble(record, modelSteps(record, client, notes))).bytes) as Snapshot;
   assert.deepEqual(client.seen.filter((request) => request.label.startsWith('classify')).map((request) => [request.label, request.sample, request.system.split('\n')[0]]), [
-    ['classify pr#1', 0, 'nmem classify v3'],
-    ['classify pr#2', 0, 'nmem classify v3'],
-    ['classify pr#1', 1, 'nmem classify v3'],
+    ['classify pr#1', 0, 'nmem classify v4'],
+    ['classify pr#2', 0, 'nmem classify v4'],
+    ['classify pr#1', 1, 'nmem classify v4'],
   ]);
   assert.match(client.seen[2]?.user ?? '', /- choices\[1\]: S3 is marked \(denial\) or \(bot\), so it is never chose\n- findings\[0\]\.anchor: S3 is a denial sentence, which can never be an anchor$/);
   assert.deepEqual(notes, ['topics fell back: no canned answer for form topics sample 1']);
   assert.deepEqual(snapshot.decisions.map((decision) => [decision.carriedBy, decision.what]), [
-    ['pr#1', { eng: 'One farewell line.', plain: 'The app says goodbye once.', source: { kind: 'record', ref: 'pr#1', quote: 'Use one farewell line.' } }],
+    ['pr#1', { eng: 'One farewell line.', plain: 'Use one farewell line.', source: { kind: 'record', ref: 'pr#1', quote: 'Use one farewell line.' } }],
   ]);
   const commit = record.changes.find((change) => change.id === 'pr#1')?.patches[0]?.commit;
   assert.deepEqual(snapshot.changes.flatMap((change) => change.findings.map((finding) => [change.id, finding])), [
@@ -241,6 +241,25 @@ test('classify copies record text for handles, refuses a denial as intent or anc
       why: { kind: 'not-recorded', ask: ['ana'], guess: null },
     }],
   ]);
+});
+
+test('a title that restates a longer body sentence is not the intent quote, and a finding on that sentence is dropped', async () => {
+  const record = ingest(toyWorkspace(FAREWELL));
+  const client = fakeClient({
+    'classify pr#1': [{
+      choices: [
+        { sentence: 'S1', stance: 'chose', carried: 'this', restates: null, what: { eng: 'One farewell line.', plain: 'The app says goodbye once.' }, files: ['farewell.txt'] },
+        { sentence: 'S2', stance: 'chose', carried: 'this', restates: 'S1', what: null, files: [] },
+      ],
+      findings: [{ severity: 'behavior', anchor: 'S1', files: [], name: { eng: 'Says bye', plain: 'Says bye' }, says: [{ eng: 'It says bye.', plain: 'It says bye.', source: 'L1' }] }],
+    }],
+    'classify pr#2': [{ choices: [], findings: [] }],
+    'why decision pr#1: One farewell line.': [{ reason: null, said: null }],
+    'scan One farewell line.': [{ stated: [] }],
+  });
+  const snapshot = JSON.parse((await assemble(record, modelSteps(record, client, []))).bytes) as Snapshot;
+  assert.deepEqual(snapshot.decisions.map((decision) => decision.what.source.quote), ['Use one farewell line.']);
+  assert.deepEqual(snapshot.changes.flatMap((change) => change.findings), []);
 });
 
 test('a bad reply after the re-ask leaves the change unclassified and says so', async () => {
@@ -271,9 +290,9 @@ test('a reason is recorded only when a second call agrees, and the scan drops a 
     'confirm decision pr#1: One farewell line.': [{ verdict: 'states-why' }],
     'why finding pr#1: Says bye': [{ reason: 'S4', said: { eng: 'Nothing changes.', plain: 'Nothing changes.' } }, { reason: null, said: null }],
     'scan Says bye': [{ stated: ['5'] }],
-    'why decision pr#2: Greeting goes to stdout.': [{ reason: 'S2', said: { eng: 'It moves the greeting.', plain: 'It moves the greeting.' } }],
-    'confirm decision pr#2: Greeting goes to stdout.': [{ verdict: 'does-not' }],
-    'scan Greeting goes to stdout.': [{ stated: [] }],
+    'why decision pr#2: Moves the greeting to stdout.': [{ reason: 'S2', said: { eng: 'It moves the greeting.', plain: 'It moves the greeting.' } }],
+    'confirm decision pr#2: Moves the greeting to stdout.': [{ verdict: 'does-not' }],
+    'scan Moves the greeting to stdout.': [{ stated: [] }],
   });
   const notes: string[] = [];
   const snapshot = JSON.parse((await assemble(record, modelSteps(record, client, notes))).bytes) as Snapshot;
@@ -301,8 +320,8 @@ test('topics: the tree is checked against HEAD, Start here is computed, and page
   ];
   const client = fakeClient({
     'classify pr#1': [{ choices: [{ sentence: 'S2', stance: 'chose', carried: 'this', restates: null, what: { eng: 'Greets by name.', plain: 'Greets by name.' }, files: ['src/greet.py'] }], findings: [] }],
-    'why decision pr#1: Greets by name.': [{ reason: null, said: null }],
-    'scan Greets by name.': [{ stated: [] }],
+    'why decision pr#1: Greet people by name.': [{ reason: null, said: null }],
+    'scan Greet people by name.': [{ stated: [] }],
     'form topics': [{ topics: topic(['src/greet.py', 'tests/test_greet.py', 'nope.py']) }, { topics: topic(['src/greet.py', 'tests/test_greet.py']) }],
     'page root': [{ headline: [{ eng: 'Toy prints a greeting.', plain: 'Toy prints a greeting.', source: 'S2' }], example: null }],
     'page greeting': [

@@ -7,7 +7,7 @@
  * one. A description of new behavior never suppresses its finding: only a chose sentence covers what it states.
  */
 import type { Finding, Login, Named, RecordSource, Said } from '../harness/contract.ts';
-import { JARGON } from '../fixtures/lib/plain.mjs';
+import { JARGON, plainHits } from '../fixtures/lib/plain.mjs';
 import type { ModelClient } from './copilot.ts';
 import { arr, ask, lengthProblems, lit, named, nullable, obj, OPUS, plainProblems, str } from './model.ts';
 import type { Gated, Task } from './model.ts';
@@ -111,7 +111,7 @@ type Answer = ReturnType<typeof ANSWER.parse>;
 
 const CLASSIFY: Task<Dossier, Answer> = {
   id: 'classify',
-  version: 3,
+  version: 4,
   model: OPUS,
   maxOutputTokens: 4000,
   rules: `You classify one change to a software repository for a read-only history of the project. Its readers are engineers and people who do not read code.
@@ -120,22 +120,22 @@ Answer with handles only. [S#] is a sentence of the record, [L#] is a line the c
 
 CHOICES
 List every sentence that could read as a choice, each with one stance:
-- chose: the record shows a person picked this on purpose over another way, about what the software does or how it is built. A stated decision ("Use one config file per service."), a decision not to do something ("We are not adding a dark mode."), a rename ("Rename the timeout option to retryDelay."), or an agreement reached in a thread ("Agreed, the sender pays the fee.").
-- describes: the sentence reports what the change does or found, without showing that anyone weighed it ("Adds a verbose flag.", "Fix tests"). A limitation the text admits is describes ("The cache is not cleared on logout."). So is a plan about when or in which change some work happens ("I will fix that in a follow-up.", "Leaving the docs for later.").
+- chose: the record shows a person picked this on purpose, about what the software does or how it is built. A stated decision ("Use one config file per service."), a decision not to do something ("We are not adding a dark mode."), a rename ("Rename the timeout option to retryDelay."), a commit subject that states what the change puts in place ("cli: default label is none"), a scope limit ("No config file yet. One job, then it exits."), or an agreement in a thread ("Agreed, the sender pays the fee."). A sentence that says what this change puts in place is chose, even when it also describes the result ("Adds a verbose flag.", "It now prints an error and exits.").
+- describes: the sentence reports an observation or a status, and nobody is choosing what the software does ("Fix tests.", "Ran it locally.", "Closes #4."). A sentence that only says why is not the choice ("The old default still matches the notebook."). A limitation the text admits is describes ("The cache is not cleared on logout."). So is a plan about a later change ("I will fix that in a follow-up.", "Leaving the docs for later.").
 - denies: the sentence says nothing is meant to change ("No behavior change intended.", "Pure refactor.").
 For each chose sentence give:
 - carried: "this" when this change puts the choice into effect, "later" when it was agreed here and a later change does it, "none" when nothing gets built, such as a decision not to do something.
-- restates: the [C#], or the earlier [S#] listed as chose, that this sentence repeats, else null. Each choice is listed as chose once, at its first sentence.
-- what: what was decided, one sentence per audience, at most 20 words each.
+- restates: the [C#], or the earlier [S#] listed as chose, that this sentence repeats, else null. A title and a body sentence that state the same choice are one choice. List the body sentence as chose, and the title as restates. Each choice is listed once, at the sentence that states it.
+- what: what was decided, one sentence per audience, at most 20 words each. Use only words from the quoted sentence, in the same order. Do not add a fact the sentence does not state.
 - files: the touched files the choice is about.
 For a describes or denies sentence set carried to "this", restates and what to null, and files to [].
 A sentence marked (denial) or (bot) is never chose.
 
 FINDINGS
 A finding is something in this change a reader of the history would miss if they read only its choices:
-- behavior: the program now does something different for its users that no choice covers. The record says nothing about it, only describes it, or says nothing changed. Examples are a side effect, a changed default, an input now refused, or an option that stopped working.
-- check: worth a look because it seems nobody meant it or weighed it, such as a header dropped during a cleanup, or a gap the text states that nobody discussed. It does not change what users see today.
-A choice covers what it puts in place, including the commands, options, files, and defaults that carry it out, so write no finding for that. A revert covers the behavior it restores. A tradeoff people discussed and accepted belongs to the choice, so it is no finding. A doc that is now out of date is no finding, because docs are checked elsewhere. Many changes have no finding, and most changes that carry a choice have none.
+- behavior: the program now does something different for its users that no choice covers, and the record does not state it. A side effect the text never mentions. Not a default, a refusal, or a rename the record states on purpose.
+- check: worth a look because it seems nobody meant it or weighed it, such as a header dropped during a cleanup, or a cost the text mentions that nobody discussed. It does not change what users see today.
+A choice covers what it puts in place, including the commands, options, files, and defaults that carry it out, so write no finding for that, and never anchor a finding on a chose sentence. A revert covers the behavior it restores. A tradeoff people discussed and accepted belongs to the choice, so it is no finding. A doc that is now out of date is no finding, because docs are checked elsewhere. Many changes have no finding, and most changes that carry a choice have none.
 - anchor: the [S#] sentence that states it when the record has one, otherwise the [L#] line that shows it. Never a sentence marked (denial).
 - files: the touched files it is about.
 - name: what is different, at most 8 words per audience.
@@ -165,6 +165,26 @@ function askForChange(record: RepoRecord, change: Change): readonly [Login, ...L
   return person === undefined ? null : [person];
 }
 
+function wordsOf(text: string): string {
+  return text.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean).join(' ');
+}
+
+/**
+ * The page shows the record sentence, or a shortening that is a word-for-word span of it. A restatement that adds a
+ * word can copy phrasing that is not in the record, so it is not used.
+ */
+function groundedWhat(sentence: string, proposed: { readonly eng: string; readonly plain: string } | null): Named {
+  const collapsed = sentence.replace(/\s+/g, ' ').trim();
+  const capped = collapsed.split(/\s+/).slice(0, 20).join(' ');
+  const norm = wordsOf(collapsed);
+  const keep = (text: string | undefined, audience: 'eng' | 'plain'): string => {
+    if (text && wordsOf(text).length > 0 && norm.includes(wordsOf(text)) && text.split(/\s+/).length <= 20) return text;
+    if (audience === 'plain' && plainHits(capped).length > 0) return 'A choice the team wrote down.';
+    return capped;
+  };
+  return { eng: keep(proposed?.eng, 'eng'), plain: keep(proposed?.plain, 'plain') };
+}
+
 /** Handles to record text, with every refusal listed. Items with a problem are dropped, never repaired by code. */
 function gateClassify(record: RepoRecord, change: Change, dossier: Dossier, answer: Answer): Gated<Classification> {
   const problems: string[] = [];
@@ -173,29 +193,70 @@ function gateClassify(record: RepoRecord, change: Change, dossier: Dossier, answ
     if (unknown.length > 0) problems.push(`${where}.files: ${unknown.join(', ')} not touched by this change`);
     return list.filter((file) => dossier.touched.has(file));
   };
-  const choices: Choice[] = [];
-  answer.choices.forEach((raw, i) => {
+  const chose = answer.choices.flatMap((raw, i) => {
     const where = `choices[${i}]`;
     const target = dossier.targets.get(raw.sentence);
-    if (target?.kind !== 'sentence') return void problems.push(`${where}.sentence: ${raw.sentence} is not an [S#] handle`);
-    if (raw.stance !== 'chose') return;
-    const sentence = target.sentence;
-    if (sentence.flags.includes('denial') || sentence.flags.includes('bot')) return void problems.push(`${where}: ${raw.sentence} is marked (denial) or (bot), so it is never chose`);
-    if (raw.restates !== null) {
-      if (dossier.targets.get(raw.restates) === undefined) problems.push(`${where}.restates: ${raw.restates} is not a [C#] or [S#] handle`);
-      return;
+    if (raw.stance !== 'chose') return [];
+    if (target?.kind !== 'sentence') {
+      problems.push(`${where}.sentence: ${raw.sentence} is not an [S#] handle`);
+      return [];
     }
-    if (raw.what === null) return void problems.push(`${where}.what: a chose sentence needs what`);
-    const text = [...plainProblems(`${where}.what`, raw.what), ...lengthProblems(`${where}.what`, raw.what, 20)];
-    if (text.length > 0) return void problems.push(...text);
-    choices.push({ sentence, stance: 'chose', what: raw.what, carriedBy: raw.carried === 'this' ? change.id : null, files: files(where, raw.files) });
+    if (target.sentence.flags.includes('denial') || target.sentence.flags.includes('bot')) {
+      problems.push(`${where}: ${raw.sentence} is marked (denial) or (bot), so it is never chose`);
+      return [];
+    }
+    if (raw.restates !== null && dossier.targets.get(raw.restates) === undefined) problems.push(`${where}.restates: ${raw.restates} is not a [C#] or [S#] handle`);
+    return [{ raw, where, sentence: target.sentence }];
   });
+  const byHandle = new Map(chose.map((item) => [item.raw.sentence, item]));
+  // A title does not overlap the body sentence that states the same choice. The quote is the longest pull-request
+  // sentence in the cluster, else the longest sentence.
+  const rootOf = (handle: string): string => {
+    const seen = new Set<string>();
+    let at = handle;
+    while (!seen.has(at)) {
+      seen.add(at);
+      const next = byHandle.get(at)?.raw.restates;
+      if (!next || next.startsWith('C') || !byHandle.has(next)) return at;
+      at = next;
+    }
+    return handle;
+  };
+  const quoted = new Set<string>();
+  const clusters = new Map<string, typeof chose>();
+  for (const item of chose) {
+    if (item.raw.restates?.startsWith('C')) {
+      quoted.add(item.sentence.handle);
+      continue;
+    }
+    const root = rootOf(item.raw.sentence);
+    const cluster = clusters.get(root) ?? [];
+    cluster.push(item);
+    clusters.set(root, cluster);
+  }
+  const choices: Choice[] = [];
+  for (const cluster of clusters.values()) {
+    const stated = cluster.find((item) => item.raw.restates === null) ?? cluster[0];
+    if (!stated) continue;
+    const inPull = cluster.filter((item) => /^pr#\d+$/.test(item.sentence.ref));
+    const pool = inPull.length > 0 ? inPull : cluster;
+    const sentence = [...pool].sort((a, b) => b.sentence.text.length - a.sentence.text.length || (a.raw.sentence < b.raw.sentence ? -1 : 1))[0]?.sentence ?? stated.sentence;
+    for (const item of cluster) quoted.add(item.sentence.handle);
+    choices.push({
+      sentence,
+      stance: 'chose',
+      what: groundedWhat(sentence.text, stated.raw.what),
+      carriedBy: stated.raw.carried === 'this' ? change.id : null,
+      files: files(stated.where, stated.raw.files),
+    });
+  }
   const ask = askForChange(record, change);
   const findings: Found[] = [];
   answer.findings.forEach((raw, i) => {
     const where = `findings[${i}]`;
     const target = dossier.targets.get(raw.anchor);
     if (!target || target.kind === 'choice') return void problems.push(`${where}.anchor: ${raw.anchor} is not an [S#] or [L#] handle`);
+    if (target.kind === 'sentence' && quoted.has(target.sentence.handle)) return;
     if (target.kind === 'sentence' && target.sentence.flags.includes('denial')) return void problems.push(`${where}.anchor: ${raw.anchor} is a denial sentence, which can never be an anchor`);
     const anchor = sourceOf(target);
     if (anchor === null) return void problems.push(`${where}.anchor: ${raw.anchor} is a blank line`);
