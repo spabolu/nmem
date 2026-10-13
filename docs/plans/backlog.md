@@ -11,7 +11,6 @@ Priority: P1 blocks a usable v1 on real repos. P2 is visible to readers or skews
 | P1 | Engine has no link step: an agreement made in a thread and carried by a later change gets no carrier, and HEAD ADRs are not searched for reasons | S2b report | tally `ca7fe65` carries the PR #12 agreement; scored in the tally climb |
 | P1 | Engine has no doc-claims step (read-doc), so every doc reads "up to date" by silence | engine.md, S2b | claims scored on tally and wayfinder; `claim/changed` above 0 |
 | P1 | Model cost on real repos: about 2.3 calls per change on Opus. Pick Opus, Sonnet, or Haiku per step by score per cost on the fixtures | owner, G report | each step's tier recorded with fixture scores that hold |
-| P1 | Tally gold: d-round-revert `what` says "the floor split is back" and d-ties says "fewest payments", neither in its quoted source (found by the H1c census) | H1c | both `what` sentences say only what their quote says; facts refrozen; tally reviews re-signed |
 | P2 | Stance flips on near-identical sentences (pr#21 called a decision, f01e078 a finding, varying by prompt) | S2b | two classify draws agree, or the tally rows stop flipping across cold builds |
 | P2 | A recorded reason attached to the wrong finding (pr#12 fallthrough got the settle reason) and confirm-why agreed | S2b | confirm-why checks the subject; tally fabricated and wrong-subject count 0 |
 | P2 | Classify skips changes whose every file is proven routine, so a docs-only change that states a choice is missed | S2b | docs-only changes with a stated choice reach classify |
@@ -21,10 +20,8 @@ Priority: P1 blocks a usable v1 on real repos. P2 is visible to readers or skews
 | P2 | Short ranges: cards crowd the right edge, the end tick label clips ("Nov 202"), card dates truncate | S1d, G | screenshots of the tally --round range and p-limit life show no clipping |
 | P2 | Fresh judge draws can flip borderline gold sentences | S2a, root | every gold sentence passes a cold calibration twice in a row |
 | P2 | Go is not installed, so seedling behavior claims are traced by reading code, not run | RS | owner installs Go (`brew install go`); seedling checks rerun with `go test` |
-| P2 | The generator places a change on topics by the files it touched that exist at HEAD, so gold cannot put a decision on the topic whose behavior it changes (wayfinder d-window-bound, seedling d-day-column) | RW, RS | changes whose files are gone at HEAD inherit the topic of the code that replaced them |
 | P3 | Two wayfinder answer-key entries still say "new key" (left to keep public output byte-identical) | RW | answer-key wording matches gold at the next deliberate fixture regeneration |
 | P3 | seedling swap check and write lock separately; a concurrent race is not counted as a setup. If races should count, hold one lock in the fixture (changes the last two SHAs) | RS | decided with Go installed and a run |
-| P3 | `docs/design/scoring-harness.md` uses seedling's schedule page as its "Up to date since" example, but it now reads "Out of date since PR #17" | RS | example matches current gold |
 | P3 | Card text ellipsizes on the axis | S1d | full text reachable on hover or expand |
 | P3 | Harness builds run unsandboxed and are labelled UNBLINDED | S1b | sandbox in place; label gone |
 | P3 | Change ids use 7 hex characters; at about 10k commits two collide and `facts.mjs` throws | G report | ids lengthen on collision; test with a forced collision |
@@ -54,6 +51,7 @@ Priority: P1 blocks a usable v1 on real repos. P2 is visible to readers or skews
 | Wayfinder answer key reconciled against two model reviews, reviews signed, calibration final | e017e9e |
 | Calibration n/a for corruptions with no object in a repo | 82e3cab |
 | One shared test-file definition (Go, JS/TS, Ruby, Python, Java) | ecb9789 |
+| Tally d-round-revert and d-ties sentences match their quotes; `livesIn` topic placement with proof; harness doc example current | 2c06d04 |
 | Seedling answer key reconciled, reviews signed; pooled calibration final (8a7a73e0) | ebc1627 |
 | Case floors: 24 gap objects and 27 currency claims across seedling, tally, wayfinder (floors 10 and 10) | a482a34 |
 | One test-file definition (`fixtures/lib/tests.mjs`) for generator, harness, engine; seedling topics show Go-backed examples | ecb9789, c2c8bc2 |
