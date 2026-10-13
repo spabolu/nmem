@@ -7,7 +7,7 @@ import { siteFor } from "./repos";
 
 type RawParams = Record<string, string | string[] | undefined>;
 
-export function searchOf(raw: RawParams): URLSearchParams {
+function searchOf(raw: RawParams): URLSearchParams {
   const params = new URLSearchParams();
   for (const [key, value] of Object.entries(raw)) {
     for (const one of Array.isArray(value) ? value : [value]) {

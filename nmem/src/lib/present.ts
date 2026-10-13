@@ -36,7 +36,7 @@ const AVATAR_TONES = [
   "red",
   "coral",
 ] as const;
-export type AvatarTone = (typeof AVATAR_TONES)[number];
+type AvatarTone = (typeof AVATAR_TONES)[number];
 
 export function avatarOf(
   site: Site,
@@ -116,7 +116,7 @@ function quotedLine(
   return index >= 0 ? `line ${index + 1}` : "";
 }
 
-export function sourceLabel(
+function sourceLabel(
   site: Site,
   ref: string,
   audience: Audience,
@@ -306,7 +306,7 @@ export function pct(day: string, from: string, to: string): number {
   return BOARD.inset + at * (100 - 2 * BOARD.inset);
 }
 
-export function cardDay(card: Card): IsoDay {
+function cardDay(card: Card): IsoDay {
   if (card.kind === "decision") return card.row.day;
   if (card.kind === "net") return card.to;
   return card.day;
@@ -370,7 +370,7 @@ const MONTHS = [
   "Dec",
 ] as const;
 
-export type Tick = {
+type Tick = {
   readonly label: string;
   readonly at: number;
   readonly edge: "start" | "end" | null;

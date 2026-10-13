@@ -11,7 +11,7 @@ import { loadSite, rootId } from "../../../web/site.ts";
  * Where built repos live. `nmem add` mirrors each repo into <root>/<owner>/<repo>/ and `nmem build-repo` writes
  * snapshot.json beside it. NMEM_REPOS lists other roots with the same layout, separated like PATH.
  */
-export function repoRoots(): readonly string[] {
+function repoRoots(): readonly string[] {
   const listed = process.env.NMEM_REPOS?.split(path.delimiter).filter(Boolean);
   if (listed && listed.length > 0)
     return listed.map((dir) => path.resolve(dir));
@@ -21,7 +21,7 @@ export function repoRoots(): readonly string[] {
 type Identity = RepoIdentity & { readonly description?: string };
 
 /** A workspace on disk. `built` is false until build-repo has written its snapshot. */
-export type Workspace = {
+type Workspace = {
   readonly identity: Identity;
   readonly dir: string;
   readonly snapshot: string;
@@ -50,7 +50,7 @@ function readIdentity(dir: string): Identity | null {
   }
 }
 
-export function listWorkspaces(): readonly Workspace[] {
+function listWorkspaces(): readonly Workspace[] {
   const found: Workspace[] = [];
   for (const root of repoRoots()) {
     for (const ownerDir of subdirs(root)) {
@@ -103,7 +103,7 @@ export function siteFor(owner: string, repo: string): Site | null {
   return site;
 }
 
-export type RepoCard = {
+type RepoCard = {
   readonly identity: Identity;
   readonly built: boolean;
   readonly census: { readonly eng: string; readonly plain: string } | null;

@@ -49,14 +49,6 @@ export function timelineHref(
   })}`;
 }
 
-export function searchHref(
-  repo: RepoRef,
-  q: string,
-  audience: Audience,
-): string {
-  return `${repoPath(repo)}/search?${qs(audience, { q })}`;
-}
-
 export function sourceHref(
   repo: RepoRef,
   audience: Audience,

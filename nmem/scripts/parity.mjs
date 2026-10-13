@@ -1320,7 +1320,7 @@ try {
 } catch (error) {
   fail(error instanceof Error ? (error.stack ?? error.message) : String(error));
 } finally {
-  fs.rmSync(tmp, { recursive: true, force: true });
+  fs.rmSync(tmp, { recursive: true, force: true, maxRetries: 5 });
 }
 
 if (failures.length) {
