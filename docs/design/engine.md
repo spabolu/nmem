@@ -14,7 +14,7 @@ How `nmem build <workspace> <out.json>` turns a repo and its GitHub record into 
 | Step | Model | What it does |
 | --- | --- | --- |
 | ingest | no | Enumerate changes with `fixtures/lib/facts.mjs`. Cut records into sentences and lines with handles. Flag denial sentences (the generator's `/no behaviou?r change/i`), `Reverts #N` lines, bots, and superseded ADRs. |
-| prove | no | Prove routine files and add-then-undo groups with `fixtures/lib/checks.mjs`. Proven files reach the model as settled facts, never as diffs. |
+| prove | no | Prove routine files and add-then-undo groups with `fixtures/lib/checks.mjs`. A routine file is a doc, a repo setting, a bump of version or dev-tool leaves, or a new manifest or lockfile. Proven files reach the model as settled facts, never as diffs. |
 | classify | yes | Per change, list each sentence that could read as a choice with a stance (`chose`, `describes`, `denies`), plus behavior findings. A description of new behavior never suppresses its finding. A change whose every file is proven routine is not sent. |
 | vet | yes | One call per finding, with the change in view. Drop a finding when its own record shows someone handled it (did the work by hand, changed their steps), or when nothing a user does reaches it. Noticing it or calling the change fine is not handling it. A refusal the change silently removed stays as a check. |
 | link | yes | Join thread agreements, and an accepted ADR's later Decision sentences, to the change that carried them. Retrieve HEAD ADR paragraphs as context. Supersession from ADR status lines first. |

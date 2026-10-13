@@ -12,10 +12,24 @@ import type { Change } from './record.ts';
 /** One line of `files <rev>` output: "path (new)", "path", or "path: what changed". */
 type FileEntry = { readonly path: string; readonly status: 'new' | 'deleted' | 'modified' | 'other'; readonly detail: string | null };
 
+/** A detail item that sets a version: a JSON leaf or an assignment whose name says version. */
+const VERSION_ITEM = /^[\w."]*version[\w."]* \S+ -> \S+$/i;
+const DEV_TOOL_ITEM = /^devDependencies\.[\w@/.-]+ \S+ -> \S+$/;
+const MANIFESTS = ['package.json', 'tsconfig.json', 'go.mod', 'pyproject.toml', 'setup.cfg', 'Cargo.toml', 'Gemfile'];
+const LOCKFILES = ['package-lock.json', 'yarn.lock', 'pnpm-lock.yaml', 'go.sum', 'poetry.lock', 'Cargo.lock', 'Gemfile.lock'];
+
+function items(entry: FileEntry): readonly string[] {
+  return entry.status === 'modified' && entry.detail !== null ? entry.detail.split(', ') : [];
+}
+
+function fileName(entry: FileEntry): string {
+  return entry.path.split('/').pop() ?? entry.path;
+}
+
 /**
  * What a routine file is, read off the `files` output. Order is the order a part's name lists them in. A version entry
- * is a single assignment or a JSON leaf whose name says version, so "__version__ "0.3.0" -> "1.0.0"" passes and
- * "tally/cli.py: code" never does.
+ * sets only version leaves, so "__version__ "0.3.0" -> "1.0.0"" passes and "tally/cli.py: code" never does. A dev tool
+ * entry also raises devDependencies, which ship to no user. A new manifest or lockfile in a change with no code is setup.
  */
 const ROUTINE = [
   { id: 'docs', test: (entry: FileEntry) => /\.(md|markdown|rst)$/i.test(entry.path), name: { eng: 'docs', plain: 'written guides' } },
@@ -26,8 +40,18 @@ const ROUTINE = [
   },
   {
     id: 'version',
-    test: (entry: FileEntry) => entry.status === 'modified' && entry.detail !== null && /^[\w.]*version[\w.]* \S+ -> \S+$/i.test(entry.detail),
+    test: (entry: FileEntry) => items(entry).length > 0 && items(entry).every((item) => VERSION_ITEM.test(item)),
     name: { eng: 'the version string', plain: 'the version number' },
+  },
+  {
+    id: 'tools',
+    test: (entry: FileEntry) => items(entry).some((item) => DEV_TOOL_ITEM.test(item)) && items(entry).every((item) => VERSION_ITEM.test(item) || DEV_TOOL_ITEM.test(item)),
+    name: { eng: 'dev tool versions', plain: 'the versions of tools the team builds with' },
+  },
+  {
+    id: 'setup',
+    test: (entry: FileEntry) => entry.status === 'new' && [...MANIFESTS, ...LOCKFILES].includes(fileName(entry)),
+    name: { eng: 'project setup files', plain: 'project setup files' },
   },
 ] as const satisfies readonly { readonly id: string; readonly test: (entry: FileEntry) => boolean; readonly name: Named }[];
 

@@ -19,6 +19,7 @@ import { decide } from './choices.ts';
 import { docClaims } from './claims.ts';
 import { linkChoices } from './link.ts';
 import { ingest, segment } from './record.ts';
+import { describeRoutine, proveRoutine } from './proofs.ts';
 import { noModel, rootTopic } from './steps.ts';
 import { implementers, splitMixed } from './topics.ts';
 
@@ -72,6 +73,21 @@ test('the five routine tally changes are proven by a files proof on the change i
     ['pr#17', ['.github/workflows/test.yml'], ['files 41fd59c']],
     ['49d209b', ['.github/CODEOWNERS'], ['files 49d209b']],
     ['pr#23', ['README.md', 'docs/how-it-works.md', 'docs/index.md', 'tally/__init__.py'], ['files b259cec']],
+  ]);
+});
+
+test('a release that bumps versions or dev tools or adds a lockfile, and a first commit of setup files, are routine', () => {
+  const record = ingest(path.join(root, 'out', 'wayfinder'));
+  const reason = (id: string): string | null => {
+    const proof = proveRoutine(record.repoDir, record.changes.find((change) => change.id === id)!);
+    return proof ? describeRoutine(proof).reason.eng : null;
+  };
+  assert.deepEqual(['0bb1864', '08fd6c2', '3311836', 'aedc535', 'pr#16'].map(reason), [
+    'Only docs, repo settings and project setup files changed, no code.',
+    'Only docs and dev tool versions changed, no code.',
+    'Only docs, the version string and project setup files changed, no code.',
+    'Only docs and the version string changed, no code.',
+    null,
   ]);
 });
 
