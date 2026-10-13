@@ -16,14 +16,16 @@ const RUN_ID = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 const GREP_FLAGS = ['i', 'E'];
 const RUN_TIMEOUT_MS = 30_000;
 
+const GO_CACHE = path.join(os.tmpdir(), 'nmem-go-build');
+
 export const MAX_RUN_SOURCE_BYTES = 64 * 1024;
 
 /** How each run language is written to disk and started. The source runs from the root of a checkout of its rev. */
 export const RUN_LANGS = {
-  node: { file: 'nmem-run.mjs', argv: (file) => ['node', file] },
-  python: { file: 'nmem-run.py', argv: (file) => ['python3', file] },
-  go: { file: 'nmem-run.go', argv: (file) => ['go', 'run', file] },
-  sh: { file: 'nmem-run.sh', argv: (file) => ['sh', file] },
+  node: { file: 'nmem-run.mjs', tool: 'Node.js', argv: (file) => ['node', file] },
+  python: { file: 'nmem-run.py', tool: 'Python 3', argv: (file) => ['python3', file] },
+  go: { file: 'nmem-run.go', tool: 'Go', argv: (file) => ['go', 'run', file] },
+  sh: { file: 'nmem-run.sh', tool: 'sh', argv: (file) => ['sh', file] },
 };
 
 function tokenize(raw) {
@@ -194,29 +196,47 @@ function lockPackages(repoDir, rev) {
   return JSON.parse(body).packages ?? {};
 }
 
-function runEnv(dir) {
-  return { PATH: process.env.PATH ?? '', HOME: dir, TMPDIR: dir, LANG: 'C', LC_ALL: 'C', TZ: 'UTC' };
+/**
+ * Go builds share one cache, so a run does not recompile the standard library, and never download a module or a
+ * toolchain, so its output depends only on the checkout.
+ */
+function runEnv(home, tmp) {
+  return {
+    PATH: process.env.PATH ?? '',
+    HOME: home,
+    TMPDIR: tmp,
+    LANG: 'C',
+    LC_ALL: 'C',
+    TZ: 'UTC',
+    GOCACHE: GO_CACHE,
+    GOTOOLCHAIN: 'local',
+    GOPROXY: 'off',
+  };
 }
 
+// The checkout sits below the run's own temp dir because Go ignores a go.mod in the temp root.
 function runOnce(repoDir, sha, run, lang) {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'nmem-run-'));
+  const base = fs.mkdtempSync(path.join(os.tmpdir(), 'nmem-run-'));
+  const [dir, home, tmp] = ['repo', 'home', 'tmp'].map((name) => path.join(base, name));
   try {
+    for (const made of [dir, home, tmp]) fs.mkdirSync(made);
     extractTree(repoDir, sha, dir);
     fs.writeFileSync(path.join(dir, lang.file), run.source);
     const [command, ...args] = lang.argv(lang.file);
     const result = spawnSync(command, args, {
       cwd: dir,
-      env: runEnv(dir),
+      env: runEnv(home, tmp),
       encoding: 'utf8',
       timeout: RUN_TIMEOUT_MS,
       maxBuffer: 1 << 20,
     });
     if (result.error?.code === 'ETIMEDOUT') return failed('timeout', `${run.id} ran past ${RUN_TIMEOUT_MS / 1000} s`);
+    if (result.error?.code === 'ENOENT') return failed('run-error', `${lang.tool} is not installed: run ${run.id} needs ${command} on PATH`);
     if (result.error) return failed('run-error', result.error.message);
     if (result.status !== 0) return failed('run-error', `${run.id} exited ${result.status ?? result.signal}: ${result.stderr.trim()}`);
     return { stdout: result.stdout };
   } finally {
-    fs.rmSync(dir, { recursive: true, force: true });
+    fs.rmSync(base, { recursive: true, force: true });
   }
 }
 
