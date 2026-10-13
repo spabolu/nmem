@@ -980,7 +980,7 @@ const views = {
       core: [],
       files: [],
       start: { path: 'tally/cli.py', quote: 'def main(argv=None):', lines: 43 },
-      docs: ['README.md', 'docs/index.md'],
+      docs: ['README.md', 'docs/index.md', adr.one],
       headline: [
         {
           eng: 'tally splits shared household expenses between roommates and says who should pay whom.',

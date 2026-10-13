@@ -455,8 +455,9 @@ const viewCases = [
     slug: 'wayfinder',
     expect: `the kernel's status line is {"eng":"Up to date since PR #16, Nov 19, 2024","plain":"Up to date since Nov 19, 2024"}`,
     mutate(views) {
-      const { brokenBy, ...claim } = views.claims[0];
-      views.claims[0] = { ...claim, verdict: 'true-since', since: brokenBy };
+      const index = views.claims.findIndex((claim) => claim.id === 'claim-allowed-headers');
+      const { brokenBy, ...claim } = views.claims[index];
+      views.claims[index] = { ...claim, verdict: 'true-since', since: brokenBy };
     },
   },
   {

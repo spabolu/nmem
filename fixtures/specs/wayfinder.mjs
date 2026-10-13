@@ -1216,7 +1216,7 @@ const views = {
       core: ['src/bucket.ts', 'test/bucket.test.ts', 'test/limit.test.ts'],
       files: ['src/bucket.ts', 'test/bucket.test.ts', 'test/limit.test.ts', 'src/limit.ts', guide.limits, adrs.bucket],
       start: { path: 'src/bucket.ts', quote: 'export function take(', lines: 27 },
-      docs: [guide.limits],
+      docs: [guide.limits, adrs.bucket],
       headline: [
         {
           eng: 'A bucket of permits refills over time, and a request is rejected when less than one permit is left.',
@@ -1299,7 +1299,7 @@ const views = {
       core: ['src/store.ts', guide.stores],
       files: ['src/store.ts', guide.stores, adrs.redis, adrs.memory, 'README.md', 'src/limit.ts'],
       start: { path: 'src/store.ts', quote: 'export function createMemoryStore(): BucketStore {', lines: 13 },
-      docs: [guide.stores, 'README.md'],
+      docs: [guide.stores, 'README.md', adrs.memory],
       headline: [
         {
           eng: 'Buckets stay in each API process, and there is no shared database to set up.',
@@ -1999,6 +1999,58 @@ const views = {
       topic: 'callers',
       verdict: 'still-true',
     },
+    {
+      id: 'claim-adr-cap',
+      doc: adrs.bucket,
+      quote: 'take() in src/bucket.ts refills tokens for elapsed time, caps them at the limit, and rejects the request when the refilled count is below 1.',
+      topic: 'counting',
+      verdict: 'no-longer-true',
+      brokenBy: 'pr#16',
+      why: {
+        eng: 'src/limit.ts calls `take()` with `options.limit * 2`.',
+        plain: 'The app passes twice the limit into the counting step.',
+        ev: headFile('src/limit.ts', 'take(await store.read(key), now(), options.limit * 2, options.refillWindowMs)'),
+      },
+    },
+    {
+      id: 'claim-adr-stores',
+      doc: adrs.bucket,
+      quote: 'Both stores save a token balance and a timestamp instead of a counter.',
+      topic: 'counting',
+      verdict: 'no-longer-true',
+      brokenBy: 'pr#11',
+      why: {
+        eng: 'src/index.ts exports createMemoryStore and no other store.',
+        plain: 'The app offers only one place to keep counts.',
+        ev: headFile('src/index.ts', "export { createMemoryStore } from './store.ts';"),
+      },
+    },
+    {
+      id: 'claim-adr-burst',
+      doc: adrs.bucket,
+      quote: 'Bursts across a wall-clock boundary no longer get a second full limit.',
+      topic: 'counting',
+      verdict: 'no-longer-true',
+      brokenBy: 'pr#16',
+      why: {
+        eng: 'With the clock held still at limit 2, test/limit.test.ts expects four 200s and then a 429.',
+        plain: "With no time passing, the app's own check lets four requests through on an allowance of two.",
+        ev: headFile('test/limit.test.ts', q.burstAssert),
+      },
+    },
+    {
+      id: 'claim-adr-exceed',
+      doc: adrs.memory,
+      quote: 'With N processes a client can exceed the configured limit by about N times.',
+      topic: 'stores',
+      verdict: 'no-longer-true',
+      brokenBy: 'pr#16',
+      why: {
+        eng: 'In a run of two limiters at limit 2, each limiter allowed one key 4 requests, so the key got 8.',
+        plain: 'Tried with two copies allowing 2 each, each copy let one caller in 4 times.',
+        ev: { verb: 'run', id: 'two-limiters', shows: twoLimiters },
+      },
+    },
   ],
   undone: [
     {
@@ -2057,7 +2109,7 @@ console.log(\`limit 2, one key, two limiters with their own stores: \${allowed} 
     },
   ],
   screens: [
-    { kind: 'page', topic: 'counting', status: pr16Day },
+    { kind: 'page', topic: 'counting', status: { eng: 'Out of date since PR #11, Sep 9, 2024', plain: 'Out of date since Sep 9, 2024' } },
     { kind: 'page', topic: 'replies', status: pr16Day },
     {
       kind: 'timeline',
