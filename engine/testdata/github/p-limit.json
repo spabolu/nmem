@@ -1,0 +1,1342 @@
+{
+ "meta": {
+  "name": "p-limit",
+  "owner": {
+   "login": "sindresorhus"
+  },
+  "description": "Run multiple promise-returning & async functions with limited concurrency",
+  "defaultBranchRef": {
+   "name": "main"
+  },
+  "hasDiscussionsEnabled": false
+ },
+ "tags": [
+  {
+   "name": "v1.0.0",
+   "target": {
+    "__typename": "Tag",
+    "oid": "d92356c4b3e1c96fb1e2fd296178af2a974b239b",
+    "message": "1.0.0\n",
+    "tagger": {
+     "date": "2016-10-21T14:59:39+07:00",
+     "name": "Sindre Sorhus",
+     "user": {
+      "login": "sindresorhus",
+      "name": "Sindre Sorhus"
+     }
+    },
+    "target": {
+     "__typename": "Commit",
+     "oid": "b364100fada683f5d43640fec2fd48b6ab4978dd",
+     "committedDate": "2016-10-21T07:59:39Z"
+    }
+   }
+  },
+  {
+   "name": "v1.1.0",
+   "target": {
+    "__typename": "Tag",
+    "oid": "b87ab9a93bb02cf4664ccbe17aa23224a1cd67dd",
+    "message": "1.1.0\n",
+    "tagger": {
+     "date": "2016-11-21T13:59:45+07:00",
+     "name": "Sindre Sorhus",
+     "user": {
+      "login": "sindresorhus",
+      "name": "Sindre Sorhus"
+     }
+    },
+    "target": {
+     "__typename": "Commit",
+     "oid": "276b0aeef73ac9fe0b80622d8261a2bbe4f9f74c",
+     "committedDate": "2016-11-21T06:59:45Z"
+    }
+   }
+  }
+ ],
+ "releases": [
+  {
+   "tagName": "v2.1.0",
+   "name": "",
+   "description": "- Add `activeCount` and `pendingCount` properties to the limited function (#9)  2a5d6db",
+   "createdAt": "2018-12-25T14:15:38Z",
+   "author": {
+    "login": "sindresorhus",
+    "name": "Sindre Sorhus"
+   }
+  }
+ ],
+ "pulls": {
+  "9": {
+   "id": "MDExOlB1bGxSZXF1ZXN0MjE5NDAyMjc4",
+   "number": 9,
+   "title": "Add `activeCount` and `pendingCount` properties to the limited function",
+   "body": "In many cases you would want to know how many tasks are in the queue, for example to avoid adding too many tasks and cause memory overflow (i.e. DDOS).\r\nI know that this could be implemented with p-queue instead, but sometimes you only need this specific feature without the overhead of the whole p-queue package.\r\n\r\nI even added tests 😀 ",
+   "createdAt": "2018-10-01T14:44:13Z",
+   "updatedAt": "2018-12-25T14:12:19Z",
+   "state": "MERGED",
+   "mergedAt": "2018-12-25T14:12:19Z",
+   "closedAt": "2018-12-25T14:12:19Z",
+   "headRefName": "master",
+   "baseRefName": "master",
+   "headRefOid": "1e76b814c609a2cc5e4d013d8e28ccf4ea606e2d",
+   "author": {
+    "__typename": "User",
+    "login": "ozomer",
+    "name": "Oren Zomer"
+   },
+   "mergedBy": {
+    "__typename": "User",
+    "login": "sindresorhus",
+    "name": "Sindre Sorhus"
+   },
+   "mergeCommit": {
+    "oid": "2a5d6db14d6089579a33cc70f8b9fa26c263b58a"
+   },
+   "labels": {
+    "nodes": []
+   },
+   "assignees": {
+    "nodes": []
+   },
+   "reviewRequests": {
+    "nodes": []
+   },
+   "closingIssuesReferences": {
+    "nodes": []
+   },
+   "timelineItems": {
+    "nodes": [
+     {
+      "__typename": "ClosedEvent",
+      "createdAt": "2018-12-25T14:12:19Z",
+      "actor": {
+       "__typename": "User",
+       "login": "sindresorhus",
+       "name": "Sindre Sorhus"
+      }
+     }
+    ]
+   },
+   "commits": {
+    "nodes": [
+     {
+      "commit": {
+       "oid": "05e756fcb403f355e9b5121e99408c08e3d320ed",
+       "message": "api to get activeCount and pendingCount",
+       "authoredDate": "2018-10-01T14:29:41Z",
+       "committedDate": "2018-10-01T14:29:41Z",
+       "author": {
+        "name": "Oren Zomer",
+        "email": "oren@awearsolutions.com",
+        "user": null
+       },
+       "committer": {
+        "name": "Oren Zomer",
+        "email": "oren@awearsolutions.com"
+       }
+      }
+     },
+     {
+      "commit": {
+       "oid": "a41826e32cff12bbe25d9c7f2cf682505089e804",
+       "message": "using tabs instead of spaces",
+       "authoredDate": "2018-10-01T14:42:57Z",
+       "committedDate": "2018-10-01T14:42:57Z",
+       "author": {
+        "name": "Oren Zomer",
+        "email": "oren@awearsolutions.com",
+        "user": null
+       },
+       "committer": {
+        "name": "Oren Zomer",
+        "email": "oren@awearsolutions.com"
+       }
+      }
+     },
+     {
+      "commit": {
+       "oid": "5f4a0fe36784d3ac0102059d0fc0fd64913d99c8",
+       "message": "tabs instead of spaces",
+       "authoredDate": "2018-10-01T14:50:44Z",
+       "committedDate": "2018-10-01T14:50:44Z",
+       "author": {
+        "name": "Oren Zomer",
+        "email": "oren@awearsolutions.com",
+        "user": null
+       },
+       "committer": {
+        "name": "Oren Zomer",
+        "email": "oren@awearsolutions.com"
+       }
+      }
+     },
+     {
+      "commit": {
+       "oid": "516c9ae66233dd5ac05cd2e2668f9ab5242ec5a9",
+       "message": "matching lint rules",
+       "authoredDate": "2018-10-01T14:51:56Z",
+       "committedDate": "2018-10-01T14:51:56Z",
+       "author": {
+        "name": "Oren Zomer",
+        "email": "oren@awearsolutions.com",
+        "user": null
+       },
+       "committer": {
+        "name": "Oren Zomer",
+        "email": "oren@awearsolutions.com"
+       }
+      }
+     },
+     {
+      "commit": {
+       "oid": "f81afe37fcb5c9a811acabed263e1a7d64ca9588",
+       "message": "xo - space indentation",
+       "authoredDate": "2018-10-01T18:15:01Z",
+       "committedDate": "2018-10-01T18:15:01Z",
+       "author": {
+        "name": "Oren Zomer",
+        "email": "oren@awearsolutions.com",
+        "user": null
+       },
+       "committer": {
+        "name": "Oren Zomer",
+        "email": "oren@awearsolutions.com"
+       }
+      }
+     },
+     {
+      "commit": {
+       "oid": "3621a19476631c652cc41331de1680860119b9d4",
+       "message": "woops",
+       "authoredDate": "2018-10-01T18:18:10Z",
+       "committedDate": "2018-10-01T18:18:10Z",
+       "author": {
+        "name": "Oren Zomer",
+        "email": "oren@awearsolutions.com",
+        "user": null
+       },
+       "committer": {
+        "name": "Oren Zomer",
+        "email": "oren@awearsolutions.com"
+       }
+      }
+     },
+     {
+      "commit": {
+       "oid": "a1ac165b4faa6b0395695837e2d7e88d7cbac1d7",
+       "message": "Update package.json",
+       "authoredDate": "2018-12-22T22:14:11Z",
+       "committedDate": "2018-12-22T22:14:11Z",
+       "author": {
+        "name": "Sindre Sorhus",
+        "email": "sindresorhus@gmail.com",
+        "user": {
+         "login": "sindresorhus",
+         "name": "Sindre Sorhus"
+        }
+       },
+       "committer": {
+        "name": "GitHub",
+        "email": "noreply@github.com"
+       }
+      }
+     },
+     {
+      "commit": {
+       "oid": "d72f0efeb122c1ac435d22527920a94d31f85b24",
+       "message": "README for activeCount and pendingCount",
+       "authoredDate": "2018-12-22T23:20:02Z",
+       "committedDate": "2018-12-22T23:20:02Z",
+       "author": {
+        "name": "Oren Zomer",
+        "email": "oren@awearsolutions.com",
+        "user": null
+       },
+       "committer": {
+        "name": "Oren Zomer",
+        "email": "oren@awearsolutions.com"
+       }
+      }
+     },
+     {
+      "commit": {
+       "oid": "d9ff4bb257edd5453b6e799752cdda6cba31a32b",
+       "message": "using readable properties for activeCount and pendingCount functions",
+       "authoredDate": "2018-12-22T23:32:00Z",
+       "committedDate": "2018-12-22T23:32:00Z",
+       "author": {
+        "name": "Oren Zomer",
+        "email": "oren@awearsolutions.com",
+        "user": null
+       },
+       "committer": {
+        "name": "Oren Zomer",
+        "email": "oren@awearsolutions.com"
+       }
+      }
+     },
+     {
+      "commit": {
+       "oid": "0ced88435d3662f9cc1ba2dd77a9e6ae0ba484b8",
+       "message": "Merge branch 'master' into master",
+       "authoredDate": "2018-12-23T01:51:13Z",
+       "committedDate": "2018-12-23T01:51:13Z",
+       "author": {
+        "name": "Sindre Sorhus",
+        "email": "sindresorhus@gmail.com",
+        "user": {
+         "login": "sindresorhus",
+         "name": "Sindre Sorhus"
+        }
+       },
+       "committer": {
+        "name": "GitHub",
+        "email": "noreply@github.com"
+       }
+      }
+     },
+     {
+      "commit": {
+       "oid": "1e76b814c609a2cc5e4d013d8e28ccf4ea606e2d",
+       "message": "Update test.js",
+       "authoredDate": "2018-12-23T01:52:13Z",
+       "committedDate": "2018-12-23T01:52:13Z",
+       "author": {
+        "name": "Sindre Sorhus",
+        "email": "sindresorhus@gmail.com",
+        "user": {
+         "login": "sindresorhus",
+         "name": "Sindre Sorhus"
+        }
+       },
+       "committer": {
+        "name": "GitHub",
+        "email": "noreply@github.com"
+       }
+      }
+     }
+    ]
+   },
+   "comments": {
+    "nodes": [
+     {
+      "id": "MDEyOklzc3VlQ29tbWVudDQ0OTYwMDg2NA==",
+      "fullDatabaseId": "449600864",
+      "author": {
+       "__typename": "User",
+       "login": "sindresorhus",
+       "name": "Sindre Sorhus"
+      },
+      "body": "Can you document them in the readme?",
+      "createdAt": "2018-12-22T22:17:14Z",
+      "updatedAt": "2018-12-22T22:17:14Z",
+      "lastEditedAt": null
+     }
+    ]
+   },
+   "reviews": {
+    "nodes": [
+     {
+      "id": "MDE3OlB1bGxSZXF1ZXN0UmV2aWV3MTg3NjA0MjEy",
+      "fullDatabaseId": "187604212",
+      "author": {
+       "__typename": "User",
+       "login": "sindresorhus",
+       "name": "Sindre Sorhus"
+      },
+      "state": "CHANGES_REQUESTED",
+      "body": "",
+      "submittedAt": "2018-12-22T22:16:52Z",
+      "commit": {
+       "oid": "a1ac165b4faa6b0395695837e2d7e88d7cbac1d7"
+      }
+     },
+     {
+      "id": "MDE3OlB1bGxSZXF1ZXN0UmV2aWV3MTg3NjA1NTg0",
+      "fullDatabaseId": "187605584",
+      "author": {
+       "__typename": "User",
+       "login": "ozomer",
+       "name": "Oren Zomer"
+      },
+      "state": "COMMENTED",
+      "body": "",
+      "submittedAt": "2018-12-22T23:40:03Z",
+      "commit": {
+       "oid": "d9ff4bb257edd5453b6e799752cdda6cba31a32b"
+      }
+     },
+     {
+      "id": "MDE3OlB1bGxSZXF1ZXN0UmV2aWV3MTg3Nzk0NTky",
+      "fullDatabaseId": "187794592",
+      "author": {
+       "__typename": "User",
+       "login": "sindresorhus",
+       "name": "Sindre Sorhus"
+      },
+      "state": "APPROVED",
+      "body": "",
+      "submittedAt": "2018-12-25T14:12:09Z",
+      "commit": {
+       "oid": "1e76b814c609a2cc5e4d013d8e28ccf4ea606e2d"
+      }
+     }
+    ]
+   },
+   "reviewThreads": {
+    "nodes": [
+     {
+      "id": "MDIzOlB1bGxSZXF1ZXN0UmV2aWV3VGhyZWFkMTQ4MDM2MDE2OnYy",
+      "isResolved": true,
+      "path": "index.js",
+      "line": null,
+      "originalLine": 40,
+      "comments": {
+       "nodes": [
+        {
+         "id": "MDI0OlB1bGxSZXF1ZXN0UmV2aWV3Q29tbWVudDI0Mzc0NzUyMw==",
+         "fullDatabaseId": "243747523",
+         "author": {
+          "__typename": "User",
+          "login": "sindresorhus",
+          "name": "Sindre Sorhus"
+         },
+         "body": "Would be better to make these property getters using `Object.defineProperty()` instead of methods.",
+         "createdAt": "2018-12-22T22:15:43Z",
+         "updatedAt": "2018-12-23T01:52:14Z",
+         "lastEditedAt": null,
+         "pullRequestReview": {
+          "fullDatabaseId": "187604212"
+         }
+        },
+        {
+         "id": "MDI0OlB1bGxSZXF1ZXN0UmV2aWV3Q29tbWVudDI0Mzc0OTEyMg==",
+         "fullDatabaseId": "243749122",
+         "author": {
+          "__typename": "User",
+          "login": "ozomer",
+          "name": "Oren Zomer"
+         },
+         "body": "Done. For the README file, my native language is not english but I believe that I explained it well.",
+         "createdAt": "2018-12-22T23:40:03Z",
+         "updatedAt": "2018-12-23T01:52:14Z",
+         "lastEditedAt": null,
+         "pullRequestReview": {
+          "fullDatabaseId": "187605584"
+         }
+        }
+       ]
+      }
+     }
+    ]
+   }
+  },
+  "20": {
+   "id": "MDExOlB1bGxSZXF1ZXN0MzY1NDE5Mjk1",
+   "number": 20,
+   "title": "Add support for clearing the queue",
+   "body": "Closes #18\r\n\r\nIssue had been sitting for a little bit, so I decided to try my hand at it. Sorry in advance for any glaring mistakes!",
+   "createdAt": "2020-01-21T17:16:41Z",
+   "updatedAt": "2020-04-05T15:37:34Z",
+   "state": "MERGED",
+   "mergedAt": "2020-04-05T15:37:34Z",
+   "closedAt": "2020-04-05T15:37:34Z",
+   "headRefName": "clear-queue",
+   "baseRefName": "master",
+   "headRefOid": "5b8dec447097d895f49e669a52eb9c46b0ca5f8f",
+   "author": {
+    "__typename": "User",
+    "login": "callmehiphop",
+    "name": "Dave"
+   },
+   "mergedBy": {
+    "__typename": "User",
+    "login": "sindresorhus",
+    "name": "Sindre Sorhus"
+   },
+   "mergeCommit": {
+    "oid": "d91b3267b83860a4e1697db7bc29d5b22fe71aee"
+   },
+   "labels": {
+    "nodes": []
+   },
+   "assignees": {
+    "nodes": []
+   },
+   "reviewRequests": {
+    "nodes": []
+   },
+   "closingIssuesReferences": {
+    "nodes": [
+     {
+      "number": 18,
+      "repository": {
+       "nameWithOwner": "sindresorhus/p-limit"
+      }
+     }
+    ]
+   },
+   "timelineItems": {
+    "nodes": [
+     {
+      "__typename": "ClosedEvent",
+      "createdAt": "2020-04-05T15:37:34Z",
+      "actor": {
+       "__typename": "User",
+       "login": "sindresorhus",
+       "name": "Sindre Sorhus"
+      }
+     }
+    ]
+   },
+   "commits": {
+    "nodes": [
+     {
+      "commit": {
+       "oid": "6d0d176739bd44e1cefdc5c027c58e32041b2196",
+       "message": "Add support for clearing queue",
+       "authoredDate": "2020-01-21T17:10:22Z",
+       "committedDate": "2020-01-21T17:10:22Z",
+       "author": {
+        "name": "Dave Gramlich",
+        "email": "callmehiphop@gmail.com",
+        "user": {
+         "login": "callmehiphop",
+         "name": "Dave"
+        }
+       },
+       "committer": {
+        "name": "Dave Gramlich",
+        "email": "callmehiphop@gmail.com"
+       }
+      }
+     },
+     {
+      "commit": {
+       "oid": "ce867aea5c4e09194e86520244a1244229a8f60f",
+       "message": "Update index.d.ts",
+       "authoredDate": "2020-01-25T12:25:49Z",
+       "committedDate": "2020-01-25T12:25:49Z",
+       "author": {
+        "name": "Sindre Sorhus",
+        "email": "sindresorhus@gmail.com",
+        "user": {
+         "login": "sindresorhus",
+         "name": "Sindre Sorhus"
+        }
+       },
+       "committer": {
+        "name": "GitHub",
+        "email": "noreply@github.com"
+       }
+      }
+     },
+     {
+      "commit": {
+       "oid": "f81901a16dab8f8dddf541ccd376c5561c00f099",
+       "message": "Talk about use cases for clearing queue",
+       "authoredDate": "2020-02-27T02:32:12Z",
+       "committedDate": "2020-02-27T02:32:27Z",
+       "author": {
+        "name": "Dave Gramlich",
+        "email": "callmehiphop@gmail.com",
+        "user": {
+         "login": "callmehiphop",
+         "name": "Dave"
+        }
+       },
+       "committer": {
+        "name": "Dave Gramlich",
+        "email": "callmehiphop@gmail.com"
+       }
+      }
+     },
+     {
+      "commit": {
+       "oid": "e8c5bfbf5a52502d025ac2b655a336a91c479ab3",
+       "message": "Update readme.md",
+       "authoredDate": "2020-03-07T05:51:28Z",
+       "committedDate": "2020-03-07T05:51:28Z",
+       "author": {
+        "name": "Sindre Sorhus",
+        "email": "sindresorhus@gmail.com",
+        "user": {
+         "login": "sindresorhus",
+         "name": "Sindre Sorhus"
+        }
+       },
+       "committer": {
+        "name": "GitHub",
+        "email": "noreply@github.com"
+       }
+      }
+     },
+     {
+      "commit": {
+       "oid": "73d117213e0af6f28a4597f4faccbc340270adbc",
+       "message": "Update readme.md",
+       "authoredDate": "2020-03-07T05:52:17Z",
+       "committedDate": "2020-03-07T05:52:17Z",
+       "author": {
+        "name": "Sindre Sorhus",
+        "email": "sindresorhus@gmail.com",
+        "user": {
+         "login": "sindresorhus",
+         "name": "Sindre Sorhus"
+        }
+       },
+       "committer": {
+        "name": "GitHub",
+        "email": "noreply@github.com"
+       }
+      }
+     },
+     {
+      "commit": {
+       "oid": "5b8dec447097d895f49e669a52eb9c46b0ca5f8f",
+       "message": "add clear queue docs to ts file",
+       "authoredDate": "2020-03-09T20:24:11Z",
+       "committedDate": "2020-03-09T20:24:11Z",
+       "author": {
+        "name": "Dave Gramlich",
+        "email": "callmehiphop@gmail.com",
+        "user": {
+         "login": "callmehiphop",
+         "name": "Dave"
+        }
+       },
+       "committer": {
+        "name": "Dave Gramlich",
+        "email": "callmehiphop@gmail.com"
+       }
+      }
+     }
+    ]
+   },
+   "comments": {
+    "nodes": [
+     {
+      "id": "MDEyOklzc3VlQ29tbWVudDU4OTk5NTIzNQ==",
+      "fullDatabaseId": "589995235",
+      "author": {
+       "__typename": "User",
+       "login": "sindresorhus",
+       "name": "Sindre Sorhus"
+      },
+      "body": "Bump :)",
+      "createdAt": "2020-02-22T20:28:45Z",
+      "updatedAt": "2020-02-22T20:28:45Z",
+      "lastEditedAt": null
+     },
+     {
+      "id": "MDEyOklzc3VlQ29tbWVudDU5MTY1Mjg5OA==",
+      "fullDatabaseId": "591652898",
+      "author": {
+       "__typename": "User",
+       "login": "shirshak55",
+       "name": "Shirshak"
+      },
+      "body": "hmm do clearing queue means settings current queue length to 0 sufficient only? ",
+      "createdAt": "2020-02-26T21:27:49Z",
+      "updatedAt": "2020-02-26T21:27:49Z",
+      "lastEditedAt": null
+     },
+     {
+      "id": "MDEyOklzc3VlQ29tbWVudDU5MTc0ODU0Nw==",
+      "fullDatabaseId": "591748547",
+      "author": {
+       "__typename": "User",
+       "login": "callmehiphop",
+       "name": "Dave"
+      },
+      "body": "@shirshak55 it's a personal preference for emptying arrays, allows us to re-use the same array without increasing the time complexity (I think). ",
+      "createdAt": "2020-02-27T02:36:37Z",
+      "updatedAt": "2020-02-27T02:36:37Z",
+      "lastEditedAt": null
+     },
+     {
+      "id": "MDEyOklzc3VlQ29tbWVudDU5MTc4MTA3OQ==",
+      "fullDatabaseId": "591781079",
+      "author": {
+       "__typename": "User",
+       "login": "shirshak55",
+       "name": "Shirshak"
+      },
+      "body": "@callmehiphop yea I think it is correct and best option here. Was just worried like lets say there are 2 promise  and are running and we reset the queue but those promises would still be running and user may think pending count is 0 meaning javascript is doing nothing (But in reality its still running those promises.) . Yea I don't think there is easy way to cancel running promise :(",
+      "createdAt": "2020-02-27T04:57:12Z",
+      "updatedAt": "2020-02-27T04:57:42Z",
+      "lastEditedAt": "2020-02-27T04:57:42Z",
+      "userContentEdits": {
+       "nodes": [
+        {
+         "editedAt": "2020-02-27T04:57:42Z",
+         "deletedAt": null,
+         "diff": "@callmehiphop yea I think it is correct and best option here. Was just worried like lets say there are 2 promise  and are running and we reset the queue but those promises would still be running and user may think pending count is 0 meaning javascript is doing nothing (But in reality its still running those promises.) . Yea I don't think there is easy way to cancel running promise :("
+        },
+        {
+         "editedAt": "2020-02-27T04:57:12Z",
+         "deletedAt": null,
+         "diff": "@callmehiphop yea I think it is correct and best option here. Was just worried like lets say there are 2 promise and we reset the queue but those promises would still be running and user may think pending count is 0 meaning javascript is doing nothing (But in reality its still running those promises.) . Yea I don't think there is easy way to cancel running promise :("
+        }
+       ]
+      }
+     },
+     {
+      "id": "MDEyOklzc3VlQ29tbWVudDU5MTgyMDQ5OQ==",
+      "fullDatabaseId": "591820499",
+      "author": {
+       "__typename": "User",
+       "login": "callmehiphop",
+       "name": "Dave"
+      },
+      "body": "@shirshak55 oh! That isn't really what the scope of this PR covers. This only clears the queue of functions waiting to be called, once they're executed there is no stopping them. You might be able to do something clever using a [cancelable promise](https://github.com/sindresorhus/p-cancelable) though.",
+      "createdAt": "2020-02-27T07:17:35Z",
+      "updatedAt": "2020-02-27T07:17:35Z",
+      "lastEditedAt": null
+     },
+     {
+      "id": "MDEyOklzc3VlQ29tbWVudDU5NjA1MDc0NQ==",
+      "fullDatabaseId": "596050745",
+      "author": {
+       "__typename": "User",
+       "login": "sindresorhus",
+       "name": "Sindre Sorhus"
+      },
+      "body": "The TS file should be in sync with the readme documentation-wise.",
+      "createdAt": "2020-03-07T05:52:52Z",
+      "updatedAt": "2020-03-07T05:52:52Z",
+      "lastEditedAt": null
+     },
+     {
+      "id": "MDEyOklzc3VlQ29tbWVudDU5Njc2MTY1OA==",
+      "fullDatabaseId": "596761658",
+      "author": {
+       "__typename": "User",
+       "login": "callmehiphop",
+       "name": "Dave"
+      },
+      "body": "@sindresorhus ah right, sorry about that! I think we should be good to go now 🤞 ",
+      "createdAt": "2020-03-09T20:25:51Z",
+      "updatedAt": "2020-03-09T20:25:51Z",
+      "lastEditedAt": null
+     }
+    ]
+   },
+   "reviews": {
+    "nodes": [
+     {
+      "id": "MDE3OlB1bGxSZXF1ZXN0UmV2aWV3MzQ4MzIzNzgy",
+      "fullDatabaseId": "348323782",
+      "author": {
+       "__typename": "User",
+       "login": "sindresorhus",
+       "name": "Sindre Sorhus"
+      },
+      "state": "COMMENTED",
+      "body": "",
+      "submittedAt": "2020-01-25T12:27:49Z",
+      "commit": {
+       "oid": "ce867aea5c4e09194e86520244a1244229a8f60f"
+      }
+     },
+     {
+      "id": "MDE3OlB1bGxSZXF1ZXN0UmV2aWV3MzY1Mzc5NDUx",
+      "fullDatabaseId": "365379451",
+      "author": {
+       "__typename": "User",
+       "login": "callmehiphop",
+       "name": "Dave"
+      },
+      "state": "COMMENTED",
+      "body": "",
+      "submittedAt": "2020-02-27T02:33:40Z",
+      "commit": {
+       "oid": "f81901a16dab8f8dddf541ccd376c5561c00f099"
+      }
+     }
+    ]
+   },
+   "reviewThreads": {
+    "nodes": [
+     {
+      "id": "MDIzOlB1bGxSZXF1ZXN0UmV2aWV3VGhyZWFkMjI5MjkwNDQ4OnYy",
+      "isResolved": true,
+      "path": "readme.md",
+      "line": null,
+      "originalLine": 71,
+      "comments": {
+       "nodes": [
+        {
+         "id": "MDI0OlB1bGxSZXF1ZXN0UmV2aWV3Q29tbWVudDM3MDkzMDk4Ng==",
+         "fullDatabaseId": "370930986",
+         "author": {
+          "__typename": "User",
+          "login": "sindresorhus",
+          "name": "Sindre Sorhus"
+         },
+         "body": "Could you also mention one or more use-cases for this? For example, the use-case mentioned in the issue. It's good to mention use-cases as it's not always immediately clear to a user whether they would need something or not.",
+         "createdAt": "2020-01-25T12:27:49Z",
+         "updatedAt": "2020-03-09T20:24:24Z",
+         "lastEditedAt": null,
+         "pullRequestReview": {
+          "fullDatabaseId": "348323782"
+         }
+        },
+        {
+         "id": "MDI0OlB1bGxSZXF1ZXN0UmV2aWV3Q29tbWVudDM4NDg4Mjg0Mg==",
+         "fullDatabaseId": "384882842",
+         "author": {
+          "__typename": "User",
+          "login": "callmehiphop",
+          "name": "Dave"
+         },
+         "body": "Sorry for the delay, I've added a couple use cases where I think this would be useful (1 of which is the aforementioned case from the FR). PTAL!",
+         "createdAt": "2020-02-27T02:33:39Z",
+         "updatedAt": "2020-03-09T20:24:24Z",
+         "lastEditedAt": null,
+         "pullRequestReview": {
+          "fullDatabaseId": "365379451"
+         }
+        }
+       ]
+      }
+     }
+    ]
+   }
+  },
+  "90": {
+   "id": "PR_kwDOBEOnvM6SVBuK",
+   "number": 90,
+   "title": "Convenience Promise.all() function",
+   "body": "I believe this is a better alternative to the api suggested in #74 \r\n\r\n",
+   "createdAt": "2025-04-12T00:05:19Z",
+   "updatedAt": "2025-08-14T15:35:11Z",
+   "state": "CLOSED",
+   "mergedAt": null,
+   "closedAt": "2025-08-14T15:35:11Z",
+   "headRefName": "mapFunction",
+   "baseRefName": "main",
+   "headRefOid": "e6a0d6a2a12eaa5d0b7179e25e4a56cff1d01b67",
+   "author": {
+    "__typename": "User",
+    "login": "jdmarshall",
+    "name": "Jason Marshall"
+   },
+   "mergedBy": null,
+   "mergeCommit": null,
+   "labels": {
+    "nodes": []
+   },
+   "assignees": {
+    "nodes": []
+   },
+   "reviewRequests": {
+    "nodes": []
+   },
+   "closingIssuesReferences": {
+    "nodes": []
+   },
+   "timelineItems": {
+    "nodes": [
+     {
+      "__typename": "ClosedEvent",
+      "createdAt": "2025-08-14T15:35:11Z",
+      "actor": {
+       "__typename": "User",
+       "login": "sindresorhus",
+       "name": "Sindre Sorhus"
+      }
+     }
+    ]
+   },
+   "commits": {
+    "nodes": [
+     {
+      "commit": {
+       "oid": "52a542a111899da9f441bac516449831ecaeb6fd",
+       "message": "Convenience function to avoid Promise.all boilerplate\nwhen dealing with arrays of inputs to p-limit",
+       "authoredDate": "2025-04-12T00:03:20Z",
+       "committedDate": "2025-05-06T00:23:46Z",
+       "author": {
+        "name": "Jason",
+        "email": "jdmarshall@users.noreply.github.com",
+        "user": {
+         "login": "jdmarshall",
+         "name": "Jason Marshall"
+        }
+       },
+       "committer": {
+        "name": "Jason",
+        "email": "jdmarshall@users.noreply.github.com"
+       }
+      }
+     },
+     {
+      "commit": {
+       "oid": "e6a0d6a2a12eaa5d0b7179e25e4a56cff1d01b67",
+       "message": "PR recommendations.",
+       "authoredDate": "2025-05-05T23:18:07Z",
+       "committedDate": "2025-05-07T21:42:15Z",
+       "author": {
+        "name": "Jason",
+        "email": "jdmarshall@users.noreply.github.com",
+        "user": {
+         "login": "jdmarshall",
+         "name": "Jason Marshall"
+        }
+       },
+       "committer": {
+        "name": "Jason",
+        "email": "jdmarshall@users.noreply.github.com"
+       }
+      }
+     }
+    ]
+   },
+   "comments": {
+    "nodes": [
+     {
+      "id": "IC_kwDOBEOnvM6pW4Bd",
+      "fullDatabaseId": "2841346141",
+      "author": {
+       "__typename": "User",
+       "login": "sindresorhus",
+       "name": "Sindre Sorhus"
+      },
+      "body": "Makes sense 👍\r\n\r\nYou also need to update https://github.com/sindresorhus/p-limit/blob/main/index.d.ts",
+      "createdAt": "2025-04-30T09:21:29Z",
+      "updatedAt": "2025-04-30T09:21:29Z",
+      "lastEditedAt": null
+     }
+    ]
+   },
+   "reviews": {
+    "nodes": [
+     {
+      "id": "PRR_kwDOBEOnvM6nRfkh",
+      "fullDatabaseId": "2806380833",
+      "author": {
+       "__typename": "User",
+       "login": "sindresorhus",
+       "name": "Sindre Sorhus"
+      },
+      "state": "CHANGES_REQUESTED",
+      "body": "",
+      "submittedAt": "2025-04-30T09:24:23Z",
+      "commit": {
+       "oid": "08f89b725cbc70917f4afa97190a387fd1315f4c"
+      }
+     },
+     {
+      "id": "PRR_kwDOBEOnvM6njaDy",
+      "fullDatabaseId": "2811076850",
+      "author": {
+       "__typename": "User",
+       "login": "jdmarshall",
+       "name": "Jason Marshall"
+      },
+      "state": "COMMENTED",
+      "body": "",
+      "submittedAt": "2025-05-02T02:46:43Z",
+      "commit": {
+       "oid": "08f89b725cbc70917f4afa97190a387fd1315f4c"
+      }
+     },
+     {
+      "id": "PRR_kwDOBEOnvM6n6iCG",
+      "fullDatabaseId": "2817138822",
+      "author": {
+       "__typename": "User",
+       "login": "sindresorhus",
+       "name": "Sindre Sorhus"
+      },
+      "state": "COMMENTED",
+      "body": "",
+      "submittedAt": "2025-05-06T07:19:15Z",
+      "commit": {
+       "oid": "06e915b469aadadc78d7bf24c1ddd1b150055f54"
+      }
+     },
+     {
+      "id": "PRR_kwDOBEOnvM6n6iFM",
+      "fullDatabaseId": "2817139020",
+      "author": {
+       "__typename": "User",
+       "login": "sindresorhus",
+       "name": "Sindre Sorhus"
+      },
+      "state": "COMMENTED",
+      "body": "",
+      "submittedAt": "2025-05-06T07:19:21Z",
+      "commit": {
+       "oid": "06e915b469aadadc78d7bf24c1ddd1b150055f54"
+      }
+     },
+     {
+      "id": "PRR_kwDOBEOnvM6n6iVN",
+      "fullDatabaseId": "2817140045",
+      "author": {
+       "__typename": "User",
+       "login": "sindresorhus",
+       "name": "Sindre Sorhus"
+      },
+      "state": "COMMENTED",
+      "body": "",
+      "submittedAt": "2025-05-06T07:19:42Z",
+      "commit": {
+       "oid": "06e915b469aadadc78d7bf24c1ddd1b150055f54"
+      }
+     },
+     {
+      "id": "PRR_kwDOBEOnvM6n6iaY",
+      "fullDatabaseId": "2817140376",
+      "author": {
+       "__typename": "User",
+       "login": "sindresorhus",
+       "name": "Sindre Sorhus"
+      },
+      "state": "COMMENTED",
+      "body": "",
+      "submittedAt": "2025-05-06T07:19:51Z",
+      "commit": {
+       "oid": "06e915b469aadadc78d7bf24c1ddd1b150055f54"
+      }
+     }
+    ]
+   },
+   "reviewThreads": {
+    "nodes": [
+     {
+      "id": "PRRT_kwDOBEOnvM5PFUY0",
+      "isResolved": false,
+      "path": "readme.md",
+      "line": null,
+      "originalLine": 60,
+      "comments": {
+       "nodes": [
+        {
+         "id": "PRRC_kwDOBEOnvM57RxVH",
+         "fullDatabaseId": "2068256071",
+         "author": {
+          "__typename": "User",
+          "login": "sindresorhus",
+          "name": "Sindre Sorhus"
+         },
+         "body": "Not sure we need the `...args`. People can just pass it to the `fn`.",
+         "createdAt": "2025-04-30T09:22:44Z",
+         "updatedAt": "2025-04-30T09:24:23Z",
+         "lastEditedAt": null,
+         "pullRequestReview": {
+          "fullDatabaseId": "2806380833"
+         }
+        },
+        {
+         "id": "PRRC_kwDOBEOnvM57cWg1",
+         "fullDatabaseId": "2071029813",
+         "author": {
+          "__typename": "User",
+          "login": "jdmarshall",
+          "name": "Jason Marshall"
+         },
+         "body": "That's usually what I do, but I assumed you'd want consistency with the main function which does take args.\r\n\r\nMaybe for a map function it makes more sense to truncate the parameters.",
+         "createdAt": "2025-05-02T02:46:43Z",
+         "updatedAt": "2025-05-02T02:46:43Z",
+         "lastEditedAt": null,
+         "pullRequestReview": {
+          "fullDatabaseId": "2811076850"
+         }
+        }
+       ]
+      }
+     },
+     {
+      "id": "PRRT_kwDOBEOnvM5PFUeh",
+      "isResolved": false,
+      "path": "readme.md",
+      "line": 66,
+      "originalLine": 66,
+      "comments": {
+       "nodes": [
+        {
+         "id": "PRRC_kwDOBEOnvM57RxdM",
+         "fullDatabaseId": "2068256588",
+         "author": {
+          "__typename": "User",
+          "login": "sindresorhus",
+          "name": "Sindre Sorhus"
+         },
+         "body": "Would be good to mention `p-map` here for people that needs more features.",
+         "createdAt": "2025-04-30T09:23:01Z",
+         "updatedAt": "2025-04-30T09:24:23Z",
+         "lastEditedAt": null,
+         "pullRequestReview": {
+          "fullDatabaseId": "2806380833"
+         }
+        }
+       ]
+      }
+     },
+     {
+      "id": "PRRT_kwDOBEOnvM5PFUk9",
+      "isResolved": false,
+      "path": "readme.md",
+      "line": null,
+      "originalLine": 62,
+      "comments": {
+       "nodes": [
+        {
+         "id": "PRRC_kwDOBEOnvM57RxnH",
+         "fullDatabaseId": "2068257223",
+         "author": {
+          "__typename": "User",
+          "login": "sindresorhus",
+          "name": "Sindre Sorhus"
+         },
+         "body": "```suggestion\r\nReturns a promise equivalent to `Promise.all(list.map(item => limit(fn, item, ...args)))`\r\n```",
+         "createdAt": "2025-04-30T09:23:20Z",
+         "updatedAt": "2025-04-30T09:24:23Z",
+         "lastEditedAt": null,
+         "pullRequestReview": {
+          "fullDatabaseId": "2806380833"
+         }
+        }
+       ]
+      }
+     },
+     {
+      "id": "PRRT_kwDOBEOnvM5PFUte",
+      "isResolved": false,
+      "path": "readme.md",
+      "line": 61,
+      "originalLine": 61,
+      "comments": {
+       "nodes": [
+        {
+         "id": "PRRC_kwDOBEOnvM57Rxzi",
+         "fullDatabaseId": "2068258018",
+         "author": {
+          "__typename": "User",
+          "login": "sindresorhus",
+          "name": "Sindre Sorhus"
+         },
+         "body": "The first sentence should describe what it does/achieve.",
+         "createdAt": "2025-04-30T09:23:37Z",
+         "updatedAt": "2025-04-30T09:24:23Z",
+         "lastEditedAt": null,
+         "pullRequestReview": {
+          "fullDatabaseId": "2806380833"
+         }
+        }
+       ]
+      }
+     },
+     {
+      "id": "PRRT_kwDOBEOnvM5PFU_l",
+      "isResolved": false,
+      "path": "test.js",
+      "line": null,
+      "originalLine": 163,
+      "comments": {
+       "nodes": [
+        {
+         "id": "PRRC_kwDOBEOnvM57RyO8",
+         "fullDatabaseId": "2068259772",
+         "author": {
+          "__typename": "User",
+          "login": "sindresorhus",
+          "name": "Sindre Sorhus"
+         },
+         "body": "```suggestion\r\n\tconst results = await limit.map(inputs, (index, number) => index + number, 1);\r\n```",
+         "createdAt": "2025-04-30T09:24:18Z",
+         "updatedAt": "2025-04-30T09:24:23Z",
+         "lastEditedAt": null,
+         "pullRequestReview": {
+          "fullDatabaseId": "2806380833"
+         }
+        }
+       ]
+      }
+     },
+     {
+      "id": "PRRT_kwDOBEOnvM5PWnmk",
+      "isResolved": false,
+      "path": "readme.md",
+      "line": null,
+      "originalLine": 134,
+      "comments": {
+       "nodes": [
+        {
+         "id": "PRRC_kwDOBEOnvM57q_Zs",
+         "fullDatabaseId": "2074867308",
+         "author": {
+          "__typename": "User",
+          "login": "sindresorhus",
+          "name": "Sindre Sorhus"
+         },
+         "body": "Wrong URL and wrong place. This is not where I asked for it to be mentioned.",
+         "createdAt": "2025-05-06T07:19:15Z",
+         "updatedAt": "2025-05-06T07:19:15Z",
+         "lastEditedAt": null,
+         "pullRequestReview": {
+          "fullDatabaseId": "2817138822"
+         }
+        }
+       ]
+      }
+     },
+     {
+      "id": "PRRT_kwDOBEOnvM5PWnov",
+      "isResolved": false,
+      "path": "test.js",
+      "line": 243,
+      "originalLine": 243,
+      "comments": {
+       "nodes": [
+        {
+         "id": "PRRC_kwDOBEOnvM57q_ci",
+         "fullDatabaseId": "2074867490",
+         "author": {
+          "__typename": "User",
+          "login": "sindresorhus",
+          "name": "Sindre Sorhus"
+         },
+         "body": "^",
+         "createdAt": "2025-05-06T07:19:21Z",
+         "updatedAt": "2025-05-06T07:19:21Z",
+         "lastEditedAt": null,
+         "pullRequestReview": {
+          "fullDatabaseId": "2817139020"
+         }
+        }
+       ]
+      }
+     },
+     {
+      "id": "PRRT_kwDOBEOnvM5PWnt9",
+      "isResolved": false,
+      "path": "index.d.ts",
+      "line": 30,
+      "originalLine": 30,
+      "comments": {
+       "nodes": [
+        {
+         "id": "PRRC_kwDOBEOnvM57q_j5",
+         "fullDatabaseId": "2074867961",
+         "author": {
+          "__typename": "User",
+          "login": "sindresorhus",
+          "name": "Sindre Sorhus"
+         },
+         "body": "Indentation.",
+         "createdAt": "2025-05-06T07:19:42Z",
+         "updatedAt": "2025-05-06T07:19:42Z",
+         "lastEditedAt": null,
+         "pullRequestReview": {
+          "fullDatabaseId": "2817140045"
+         }
+        }
+       ]
+      }
+     },
+     {
+      "id": "PRRT_kwDOBEOnvM5PWnwr",
+      "isResolved": false,
+      "path": "index.d.ts",
+      "line": 28,
+      "originalLine": 28,
+      "comments": {
+       "nodes": [
+        {
+         "id": "PRRC_kwDOBEOnvM57q_ng",
+         "fullDatabaseId": "2074868192",
+         "author": {
+          "__typename": "User",
+          "login": "sindresorhus",
+          "name": "Sindre Sorhus"
+         },
+         "body": "Does not match parameter name.",
+         "createdAt": "2025-05-06T07:19:51Z",
+         "updatedAt": "2025-05-06T07:19:51Z",
+         "lastEditedAt": null,
+         "pullRequestReview": {
+          "fullDatabaseId": "2817140376"
+         }
+        }
+       ]
+      }
+     }
+    ]
+   }
+  }
+ },
+ "issues": {
+  "18": {
+   "id": "MDU6SXNzdWU1NDQwNjgwMjQ=",
+   "number": 18,
+   "title": "Feature request: Ability to clear the queue",
+   "body": "I'm not sure if this is a feature you'd want here, happy to open a PR if so.\r\n\r\nIn addition to being able to read the values for `activeCount` and `pendingCount`, I would like also to be  able to clear the queue.\r\n\r\nThe driving use case is that I would like to only run with the latest arguments if there are pending calls.  E.g. I have a function that performs an expensive API based validation, and I only care about the current state of things, not the intermediary state.\r\n\r\nIs this a feature that you believe should live here?  Thanks in advance.",
+   "createdAt": "2019-12-31T02:25:44Z",
+   "updatedAt": "2020-04-05T15:37:34Z",
+   "state": "CLOSED",
+   "stateReason": "COMPLETED",
+   "closedAt": "2020-04-05T15:37:34Z",
+   "author": {
+    "__typename": "User",
+    "login": "cbwk",
+    "name": "Will Klancnik"
+   },
+   "labels": {
+    "nodes": [
+     {
+      "name": "enhancement"
+     },
+     {
+      "name": "help wanted"
+     }
+    ]
+   },
+   "assignees": {
+    "nodes": []
+   },
+   "timelineItems": {
+    "nodes": [
+     {
+      "__typename": "ClosedEvent",
+      "createdAt": "2020-04-05T15:37:34Z",
+      "actor": {
+       "__typename": "User",
+       "login": "sindresorhus",
+       "name": "Sindre Sorhus"
+      },
+      "closer": {
+       "__typename": "PullRequest",
+       "number": 20,
+       "repository": {
+        "nameWithOwner": "sindresorhus/p-limit"
+       }
+      }
+     }
+    ]
+   },
+   "comments": {
+    "nodes": [
+     {
+      "id": "MDEyOklzc3VlQ29tbWVudDU3MDA4OTkwMw==",
+      "fullDatabaseId": "570089903",
+      "author": {
+       "__typename": "User",
+       "login": "sindresorhus",
+       "name": "Sindre Sorhus"
+      },
+      "body": "Sure, sounds useful for when you need more control. PR welcome. Make sure to document some example use-cases.",
+      "createdAt": "2020-01-01T22:46:35Z",
+      "updatedAt": "2020-01-01T22:46:35Z",
+      "lastEditedAt": null
+     }
+    ]
+   }
+  }
+ },
+ "discussions": {}
+}
