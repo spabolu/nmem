@@ -198,6 +198,7 @@ article.decision time { color: var(--fgColor-muted); font-size: 12px; }
 .tick.edge-end { transform: translateX(-100%); }
 .bracket { position: absolute; top: 7px; height: 4px; background: var(--fgColor-muted); border-radius: 2px; z-index: 1; }
 .empty { position: absolute; left: 0; right: 0; text-align: center; color: var(--fgColor-muted); font-size: 12px; margin: 0; }
+.narrow-only { display: none; }
 .today { color: var(--fgColor-accent); font-weight: 600; }
 .routine { border: 1px solid var(--borderColor-default); border-radius: 8px; margin: 0 0 16px; }
 .routine > p { margin: 0; padding: 12px 16px 0; }
@@ -266,7 +267,9 @@ a:focus-visible, button:focus-visible, input:focus-visible, [tabindex]:focus-vis
   .ranges input[type="date"] { flex: 1; }
   .board { padding: 8px 12px 12px; }
   .canvas { height: auto !important; display: flex; flex-direction: column; gap: 8px; }
-  .axis, .fewer, .empty { display: none; }
+  .axis, .fewer, .empty, .wide-only { display: none; }
+  .narrow-only { display: inline; }
+  .tl-card .cluster { order: 1; }
   .tl-card.placed { position: static; width: auto; max-width: none; max-height: none; overflow: visible; }
   .tl-card.placed .point ~ .point, .tl-card.placed .c, .tl-card.placed .note { display: block; }
   .tl-card.placed .t, .tl-card.placed .point { display: block; -webkit-line-clamp: unset; overflow: visible; }

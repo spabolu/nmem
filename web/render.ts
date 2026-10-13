@@ -440,8 +440,8 @@ function timelineBody(site: Site, topic: LocalId, from: IsoDay, to: IsoDay, quer
   return `<section class="tl" data-topic="${esc(topic)}" data-from="${from}" data-to="${to}" data-summary="${esc(view.summary[audience])}" data-counts="${esc(countsAttr(view.counts))}" data-named="${esc(view.named.map((item) => item.ref).join(','))}" data-routine-count="${view.routine.count}" data-routine-lines="${view.routine.lines}" data-cards="${esc(cardsAttr)}" data-notes="${esc(notesAttr)}" data-unclassified-count="${unclassifiedCount}">
     <div class="tl-head"><h1>Timeline</h1></div>
     <p class="tl-sub">${audience === 'plain'
-      ? 'Decisions sit above the time line. Changes sit below it. Each row folds crowded cards into +N more.'
-      : 'Decisions sit above the time axis. Behavior changes and things worth a look sit below it. Each row folds crowded cards into +N more.'}</p>
+      ? '<span class="wide-only">Decisions sit above the time line. Changes sit below it. Each row folds crowded cards into +N more.</span><span class="narrow-only">Decisions come first, then changes. Each card folds similar ones into +N more.</span>'
+      : '<span class="wide-only">Decisions sit above the time axis. Behavior changes and things worth a look sit below it. Each row folds crowded cards into +N more.</span><span class="narrow-only">Decisions come first, then behavior changes and things worth a look. Each card folds similar ones into +N more.</span>'}</p>
     <form class="ranges" method="get" action="${esc(`${sitePath(site)}/timeline`)}">
       <input type="hidden" name="audience" value="${audience}">
       <input type="hidden" name="topic" value="${esc(topic)}">
