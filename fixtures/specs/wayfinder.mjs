@@ -1856,6 +1856,24 @@ const views = {
       },
     },
     {
+      id: 'd-whole-remaining',
+      what: {
+        eng: 'Clamp RateLimit-Remaining to a non-negative integer.',
+        plain: 'The number of requests left that a reply shows is made a whole number, never below zero.',
+        ev: commit('c-headers-fix', 'clamp RateLimit-Remaining to a non-negative integer'),
+      },
+      topics: ['replies'],
+      carriedBy: 'pr#13',
+      why: {
+        reason: {
+          eng: 'The first push failed test (18) and test (20), which expected RateLimit-Remaining 1 and got 1.7.',
+          plain: 'The automatic checks failed on the first try: they expected 1 left and got 1.7.',
+          ev: comment('pr13-jon-ci', `failed on the first push. ${q.ciGot}`),
+        },
+      },
+      covers: ['ci-caught-remaining'],
+    },
+    {
       id: 'd-rename',
       what: { eng: 'Renamed the windowMs option to refillWindowMs.', plain: 'The refill setting got a new name.', ev: pr16('Renamed windowMs to refillWindowMs.') },
       topics: ['counting'],
@@ -1869,10 +1887,28 @@ const views = {
         plain: 'Wait times are rounded to a fixed step.',
         ev: pr(18, 'Round retry waits to the clock step'),
       },
-      alsoIntent: [commit('c-retry-round', 'round retry waits to the clock step'), pr(17, 'Add clockStepMs so a later change can round waits to a step.')],
+      alsoIntent: [commit('c-retry-round', 'round retry waits to the clock step')],
       topics: ['clock'],
       carriedBy: 'pr#18',
       why: askJon,
+    },
+    {
+      id: 'd-clock-step',
+      what: {
+        eng: 'Add a clock step helper.',
+        plain: 'A helper that gives the clock step was added.',
+        ev: pr(17, 'Add clockStepMs so a later change can round waits to a step.'),
+      },
+      alsoIntent: [commit('c-clock', 'add a clock step helper')],
+      topics: ['clock'],
+      carriedBy: 'pr#17',
+      why: {
+        reason: {
+          eng: 'So a later change could round waits to a step.',
+          plain: 'So a later change could round wait times to that step.',
+          ev: pr(17, 'Add clockStepMs so a later change can round waits to a step.'),
+        },
+      },
     },
     {
       id: 'd-no-new-service',
@@ -2179,7 +2215,7 @@ console.log(\`same key 1000 ms later, five more: \${later.map((r) => r.code).joi
       kind: 'timeline',
       topic: 'root',
       ...lifetime,
-      counts: { decision: 19, behavior: 2, check: 2, net: 1 },
+      counts: { decision: 21, behavior: 2, check: 2, net: 1 },
       named: ['d-no-new-service', 'f-double', 'f-clock-split'],
       routine: { count: 7, lines: 146 },
     },
@@ -2203,8 +2239,8 @@ console.log(\`same key 1000 ms later, five more: \${later.map((r) => r.code).joi
       kind: 'timeline',
       topic: 'clock',
       ...lifetime,
-      counts: { decision: 1, check: 1 },
-      named: ['d-round-retry', 'f-clock-split'],
+      counts: { decision: 2, check: 1 },
+      named: ['d-round-retry', 'f-clock-split', 'd-clock-step'],
       routine: quiet,
     },
     {
@@ -2241,7 +2277,7 @@ console.log(\`same key 1000 ms later, five more: \${later.map((r) => r.code).joi
       topic: 'root',
       from: '2024-11-20',
       to: '2024-12-12',
-      counts: { decision: 2, check: 1 },
+      counts: { decision: 3, check: 1 },
       named: ['d-no-new-service', 'f-clock-split', 'd-round-retry'],
       routine: { count: 1, lines: 10 },
     },
@@ -2249,7 +2285,6 @@ console.log(\`same key 1000 ms later, five more: \${later.map((r) => r.code).joi
   uncovered: [
     { key: 'stack-retry-round', why: 'v1 shows PRs #17 and #18 as two changes live the same day. That #18 had to land second is in its body, which no view field quotes.' },
     { key: 'customer-outage-report', why: 'd-in-process cites the reason discussion #10 gives. The customer report in issue #8, which PR #11 closes, is not a view field.' },
-    { key: 'ci-caught-remaining', why: 'Test runs inside a pull request are not view objects. PR #13 shows only as the two decisions it carries.' },
   ],
 };
 
