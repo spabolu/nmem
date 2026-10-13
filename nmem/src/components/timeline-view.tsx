@@ -409,6 +409,7 @@ function Board({
                 <span
                   key={cardId(card)}
                   className="bracket"
+                  data-bracket="net"
                   style={{
                     left: `${pct(card.from, from, to).toFixed(2)}%`,
                     width: `${Math.max(2, pct(card.to, from, to) - pct(card.from, from, to)).toFixed(2)}%`,

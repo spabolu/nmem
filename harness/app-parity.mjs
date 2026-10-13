@@ -211,8 +211,8 @@ function screenRules(html, audience, label) {
   const sentences = attr(html, "data-sentences");
   if (sentences) {
     const chips =
-      (html.match(/class="headline-sources"[\s\S]*?<\/p>/) ?? [""])[0].match(
-        /class="chip receipt"/g,
+      (html.match(/data-sources="headline"[\s\S]*?<\/p>/) ?? [""])[0].match(
+        /data-chip="receipt"/g,
       ) ?? [];
     check(
       chips.length === Number(sentences),
@@ -372,7 +372,7 @@ async function checkTimeline(
   if ((kernel.counts.net ?? 0) > 0)
     check(
       page.html.includes("no net change") &&
-        page.html.includes('class="bracket"'),
+        page.html.includes('data-bracket="net"'),
       `${label} drops the no-net-change bracket`,
     );
   if ((kernel.counts.decision ?? 0) > 8)

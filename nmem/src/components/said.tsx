@@ -44,6 +44,7 @@ export function Chip({
   return (
     <NextLink
       className="chip receipt"
+      data-chip="receipt"
       href={sourceHref(ctx.repo, ctx.audience, chip.target)}
     >
       {chip.label}

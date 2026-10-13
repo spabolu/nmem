@@ -72,7 +72,7 @@ export async function TopicView({
         >
           <Prose text={headline} audience={audience} />
         </p>
-        <p className="headline-sources">
+        <p className="headline-sources" data-sources="headline">
           {page.headline.map((line, index) => (
             // biome-ignore lint/suspicious/noArrayIndexKey: headline order is fixed
             <Chip key={index} ctx={ctx} source={line.source} />
@@ -193,6 +193,7 @@ function StatusBox({
           <NextLink
             key={path}
             className="chip receipt"
+            data-chip="receipt"
             href={sourceHref(repo, audience, {
               ref: `${site.facts.head}:${path}`,
             })}
