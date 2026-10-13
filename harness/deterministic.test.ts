@@ -9,7 +9,7 @@ import type { ChangeId, Snapshot } from './contract.ts';
 import { nullSnapshot } from './corruptions.ts';
 import { groupOf, loadGold } from './gold.ts';
 import { METRICS } from './metrics.ts';
-import { factsOf, openFixture } from './record.ts';
+import { factsOf, grams, openFixture } from './record.ts';
 import { parseManifest, run, scoreSnapshot } from './run.ts';
 import { renderTimeline } from './view.ts';
 
@@ -317,4 +317,11 @@ test('running the tally oracle twice leaves the run directory unchanged', async 
   assert.equal(again, id);
   assert.equal(treeBytes(path.join(runsDir, again)), before);
   fs.rmSync(runsDir, { recursive: true, force: true });
+});
+
+test('the leak corpus holds words that follow a line break in a thread and files as older revisions had them', () => {
+  const holds = (slug: string, text: string): boolean => [...grams(text)].every((gram) => openFixture(path.join(outDir, slug)).corpusGrams().has(gram));
+  assert.equal(holds('tally', 'Dropbox copied ledger.db while tally'), true);
+  assert.equal(holds('seedling', 'Rosa asked for a way for'), true);
+  assert.equal(holds('seedling', 'CSV with empty volunteer and notes'), true);
 });

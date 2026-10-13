@@ -308,6 +308,30 @@ function oneLine(text: string): string {
   return text.split('\n')[0] ?? '';
 }
 
+/** Every string in the GitHub record, read as text. JSON escapes would glue a line break's n onto the next word. */
+function stringsOf(value: unknown, out: string[] = []): string[] {
+  if (typeof value === 'string') out.push(value);
+  else if (Array.isArray(value)) for (const item of value) stringsOf(item, out);
+  else if (value && typeof value === 'object') for (const item of Object.values(value)) stringsOf(item, out);
+  return out;
+}
+
+/** Every file at every revision a ref reaches, since a system can read any of them. */
+function blobTexts(repoDir: string): string[] {
+  const listed = git(repoDir, ['rev-list', '--all', '--objects']).stdout.split('\n').map((line) => line.split(' ')[0]).filter(Boolean);
+  const typed = git(repoDir, ['cat-file', '--batch-check=%(objecttype) %(objectname)'], { input: `${listed.join('\n')}\n` }).stdout;
+  const blobs = typed.split('\n').filter((line) => line.startsWith('blob ')).map((line) => line.slice(5));
+  const bytes = spawnSync('git', ['cat-file', '--batch'], { cwd: repoDir, input: `${blobs.join('\n')}\n`, maxBuffer: 1 << 30 }).stdout;
+  const texts: string[] = [];
+  for (let at = 0; at < bytes.length; ) {
+    const eol = bytes.indexOf(0x0a, at);
+    const size = Number(bytes.subarray(at, eol).toString('utf8').split(' ')[2]);
+    texts.push(bytes.subarray(eol + 1, eol + 1 + size).toString('utf8'));
+    at = eol + 1 + size + 1;
+  }
+  return texts;
+}
+
 export function openRecord(ws: Workspace): RepoRecord {
   const repoDir = path.join(ws.dir, 'repo');
   const github = readGithub(path.join(ws.dir, 'github.json'));
@@ -440,12 +464,7 @@ export function openRecord(ws: Workspace): RepoRecord {
       if (gramsCache) return gramsCache;
       const texts: string[] = [];
       for (const line of git(repoDir, ['log', '--all', '--format=%B%x1e']).stdout.split('\x1e')) texts.push(line);
-      const head = git(repoDir, ['ls-tree', '-r', '--name-only', 'HEAD']).stdout.split('\n').filter(Boolean);
-      for (const file of head) {
-        const body = show('HEAD', file);
-        if (body !== null) texts.push(body);
-      }
-      texts.push(JSON.stringify(github));
+      texts.push(...blobTexts(repoDir), ...stringsOf(github));
       const found = new Set<Gram>();
       for (const text of texts) for (const gram of grams(text)) found.add(gram);
       gramsCache = found;
