@@ -190,6 +190,8 @@ const ITEM = /^(\s*(?:[-*+]|\d+[.)])\s+)/;
 const HEADING = /^(\s*#{1,6}\s+)/;
 const FENCE = /^\s*(```|~~~)/;
 const CODE_LINE = /^( {4}|\t)/;
+/** The line under a Markdown setext or reStructuredText title. */
+const UNDERLINE = /^\s*([=\-~^])\1{2,}\s*$/;
 const SENTENCE_END = /[.!?](?=\s+\S)/g;
 const ABBREVIATION = /(?:^|\s)(?:e\.g|i\.e|etc|vs|cf|Mr|Ms|Dr|No)\.$/i;
 
@@ -244,6 +246,12 @@ export function segment(source: string): readonly Span[] {
     }
     if (fenced || line.trim() === '' || (block === null && CODE_LINE.test(line))) {
       flush();
+      continue;
+    }
+    const title = block?.unit === 'prose' && UNDERLINE.test(line) ? trimmed(source, block.start, block.end, 'heading') : null;
+    if (title) {
+      spans.push(title);
+      block = null;
       continue;
     }
     const heading = HEADING.exec(line);
@@ -383,6 +391,16 @@ function patchesOf(repoDir: string, sha: string, author: Login | null, add: (obj
   return patches;
 }
 
+/** The repo's front page. Many repos write it in plain text or reStructuredText rather than Markdown. */
+export function isReadme(file: string): boolean {
+  return /^readme(\.(md|markdown|rst|txt))?$/i.test(file);
+}
+
+/** Written docs: Markdown anywhere, and the README in whatever format it is written. */
+export function isDoc(file: string): boolean {
+  return /\.(md|markdown)$/i.test(file) || isReadme(file);
+}
+
 export function ingest(workspace: string): RepoRecord {
   const repoDir = path.join(workspace, 'repo');
   const raw: unknown = JSON.parse(fs.readFileSync(path.join(workspace, 'github.json'), 'utf8'));
@@ -452,11 +470,11 @@ export function ingest(workspace: string): RepoRecord {
   const adrs: Adr[] = [];
   const atHead = lines(git(repoDir, ['ls-tree', '-r', '--name-only', facts.head]).stdout);
   const files: FileObject[] = [];
-  for (const file of atHead.filter((name) => !/\.(md|markdown)$/i.test(name))) {
+  for (const file of atHead.filter((name) => !isDoc(name))) {
     const body = (showFile(repoDir, facts.head, file) as string | null) ?? '';
     if (!body.includes('\0')) files.push(add(fileObject(`${head7}:${file}`, file, null, body)));
   }
-  for (const file of atHead.filter((name) => /\.(md|markdown)$/i.test(name))) {
+  for (const file of atHead.filter(isDoc)) {
     const body = (showFile(repoDir, facts.head, file) as string | null) ?? '';
     const added = lines(git(repoDir, ['log', '--reverse', '--diff-filter=A', '--format=%H%x09%an', facts.head, '--', file]).stdout)[0] ?? '';
     const [sha = '', name = ''] = added.split('\t');

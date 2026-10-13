@@ -9,6 +9,7 @@ import { ModelUnavailable } from './copilot.ts';
 import type { ModelClient } from './copilot.ts';
 import { arr, ask, lengthProblems, named, nullable, obj, OPUS, plainProblems, str, words } from './model.ts';
 import type { Gated, Task } from './model.ts';
+import { isDoc, isReadme } from './record.ts';
 import type { FileObject, Line, RepoRecord, Sentence } from './record.ts';
 import { ROOT } from './steps.ts';
 import type { Placeable, TreeSignals } from './steps.ts';
@@ -80,7 +81,7 @@ function formInputOf(record: RepoRecord, signals: TreeSignals): FormInput {
   const handles = emptyHandles();
   const out = ['Files at HEAD. Only lines with a handle can be Start here.'];
   let shown = 0;
-  for (const file of record.files.filter((item) => !/\.(md|markdown)$/i.test(item.path))) {
+  for (const file of record.files.filter((item) => !isDoc(item.path))) {
     const tag = isTest(file.path) ? ', a test' : '';
     if (file.path.startsWith('.') || shown + file.lines.length > MAX_SHOWN) {
       out.push(`${file.path} (${file.lines.length} lines${tag}, not shown)`);
@@ -193,9 +194,9 @@ function pageInputOf(record: RepoRecord, tree: readonly Skeleton[], topic: Skele
   const parent = tree.find((other) => other.id === topic.parent);
   const out = [`Topic: ${topic.name.eng}${parent ? `, part of ${parent.name.eng}` : ', the whole repository'}.`];
   const startPath = topic.start.ref.replace(/^[^:]+:/, '').replace(/#.*$/, '');
-  const code = record.files.filter((file) => (topic.files.includes(file.path) || file.path === startPath) && !/\.(md|markdown)$/i.test(file.path) && !isTest(file.path));
+  const code = record.files.filter((file) => (topic.files.includes(file.path) || file.path === startPath) && !isDoc(file.path) && !isTest(file.path));
   const tests = record.files.filter((file) => isTest(file.path) && (topic.files.includes(file.path) || topic.parent === null || !topic.files.some(isTest)));
-  const docs = record.docs.filter((doc) => topic.docs.includes(doc.path) || (topic.parent === null && /^readme\.(md|markdown)$/i.test(doc.path)));
+  const docs = record.docs.filter((doc) => topic.docs.includes(doc.path) || (topic.parent === null && isReadme(doc.path)));
   let shown = 0;
   for (const [title, files] of [['Code', code], ['Tests', tests]] as const) {
     for (const file of files) {

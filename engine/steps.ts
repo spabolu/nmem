@@ -4,6 +4,7 @@
  */
 import type { ChangeId, Claim, Finding, LocalId, Login, Named, RecordSource, Said, Topic, Why } from '../harness/contract.ts';
 import { plainHits } from '../fixtures/lib/plain.mjs';
+import { isReadme } from './record.ts';
 import type { Change, RepoRecord, Sentence } from './record.ts';
 
 /** How a sentence reads: someone chose this, it describes what the change does, or it denies changing behavior. */
@@ -88,7 +89,7 @@ export function askFor(record: RepoRecord, intent: Sentence, carriedBy: ChangeId
  * run backs one.
  */
 export function rootTopic(record: RepoRecord): Topic {
-  const readme = record.docs.find((doc) => /^readme\.(md|markdown)$/i.test(doc.path));
+  const readme = record.docs.find((doc) => isReadme(doc.path));
   if (!readme) throw new Error('no README at HEAD, and the root-only topic tree is written from it');
   const prose = readme.sentences.filter((sentence) => sentence.unit === 'prose' && collapse(sentence.text).split(' ').length <= 45);
   const sentence = prose.find((item) => plainHits(item.text).length === 0) ?? prose[0];
