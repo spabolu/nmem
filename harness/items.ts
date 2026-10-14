@@ -735,14 +735,13 @@ function step(change: ChangeId, entries: readonly Entry[], files: Map<string, Tr
     a.into.regions.set(idOf(a.region), g.live);
   };
   const open = <T extends { taken: boolean }>(list: readonly T[]): T[] => list.filter((x) => !x.taken);
-  const deletedFiles = new Set(deleted);
   const holders = new Map<string, number>();
   for (const id of [...gone.map((g) => idOf(g.live.region)), ...appeared.map((a) => idOf(a.region))]) holders.set(id, (holders.get(id) ?? 0) + 1);
   const sameId = (g: Gone, a: Appeared): number | null => {
     const id = idOf(a.region);
     if (idOf(g.live.region) !== id && !(g.live.region.kind === a.region.kind && g.live.region.name === a.region.name)) return null;
     const score = dice(tokensOfRegion(g.live.region), tokensOfRegion(a.region));
-    return score >= MOVE_MIN || (deletedFiles.has(g.path) && holders.get(id) === 2) ? score : null;
+    return score >= MOVE_MIN || holders.get(id) === 2 ? score : null;
   };
   for (const [g, a] of bestPairs(gone, appeared, sameId)) take(g, a);
   const swaps = referenceSwaps([...news.values()].flatMap((next) => (next.source === null ? [] : [[olds.get(next.source)?.text ?? null, next.text] as const])));
