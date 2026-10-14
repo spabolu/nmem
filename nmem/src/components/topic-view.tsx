@@ -1,16 +1,23 @@
 import NextLink from "next/link";
 import { sourceHref, timelineHref, topicHref } from "@/lib/hrefs";
-import type { Decision, LocalId, Said, Source } from "@/lib/kernel/contract";
+import type {
+  Claim,
+  Decision,
+  LocalId,
+  Said,
+  Source,
+} from "@/lib/kernel/contract";
 import { parseProof } from "@/lib/kernel/contract";
 import type { Site } from "@/lib/kernel/site";
 import { rootId } from "@/lib/kernel/site";
-import type { Status, TopicPage } from "@/lib/kernel/view";
+import type { Audience, RepoFacts, Status, TopicPage } from "@/lib/kernel/view";
 import {
   censusOf,
   deciderOf,
   decisionDay,
   decisionsFor,
   formatDay,
+  labelChange,
   pageOf,
   statusOf,
   TEMPLATES,
@@ -164,7 +171,7 @@ export async function TopicView({
           </nav>
         ) : null}
         <h1 className={H1}>{topic.name[audience]}</h1>
-        <StatusBox ctx={ctx} id={id} page={page} docs={topic.docs} />
+        <StatusBox all={all} ctx={ctx} docs={topic.docs} id={id} page={page} />
         <p
           className="my-2 max-w-[760px] text-[20px] leading-[1.6] font-[600] max-md:text-[16px]"
           data-headline
@@ -263,16 +270,96 @@ function brokenSource(site: Site, topic: LocalId, status: Status): Said | null {
   return claim && "why" in claim ? claim.why : null;
 }
 
+function changeDay(facts: RepoFacts, id: string): string {
+  const live = facts.changes.find((change) => change.id === id)?.live;
+  return live ? formatDay(live) : "";
+}
+
+function verdictLine(
+  claim: Claim,
+  audience: Audience,
+  facts: RepoFacts,
+): string {
+  switch (claim.verdict) {
+    case "still-true":
+      return "Still true";
+    case "no-longer-true":
+      return "No longer true";
+    case "depends":
+      return "Not always true";
+    case "true-since": {
+      const day = changeDay(facts, claim.since);
+      if (audience === "plain")
+        return day ? `True since ${day}` : "True since a later change";
+      return `True since ${labelChange(claim.since)}${day ? `, ${day}` : ""}`;
+    }
+  }
+}
+
+function DocClaims({
+  ctx,
+  id,
+  all,
+}: {
+  readonly ctx: Ctx;
+  readonly id: LocalId;
+  readonly all: boolean;
+}) {
+  const { site, repo, audience } = ctx;
+  const claims = site.snapshot.claims.filter((claim) => claim.topic === id);
+  if (claims.length === 0) return null;
+  if (!all) {
+    return (
+      <p className="mt-2 mb-0">
+        <NextLink href={topicHref(repo, id, audience, true)}>
+          Show all ({claims.length})
+        </NextLink>
+      </p>
+    );
+  }
+  return (
+    <div className="mt-2">
+      <ul className="m-0 list-none p-0">
+        {claims.map((claim) => (
+          <li
+            key={`${claim.sentence.path}:${claim.sentence.quote}`}
+            className="border-t border-(color:--borderColor-muted) py-2"
+          >
+            <p className="m-0 font-[600]" data-nmem>
+              {verdictLine(claim, audience, site.facts)}
+            </p>
+            <q className="mt-1 mb-0 block break-words">
+              {claim.sentence.quote}
+            </q>
+            {"why" in claim ? (
+              <p className="said mt-1 mb-0 break-words" data-nmem>
+                <SaidText ctx={ctx} line={claim.why} />
+              </p>
+            ) : null}
+          </li>
+        ))}
+      </ul>
+      <p className="mt-2 mb-0">
+        <NextLink href={topicHref(repo, id, audience)}>
+          Show the status only
+        </NextLink>
+      </p>
+    </div>
+  );
+}
+
 function StatusBox({
   ctx,
   id,
   page,
   docs,
+  all,
 }: {
   readonly ctx: Ctx;
   readonly id: LocalId;
   readonly page: TopicPage;
   readonly docs: readonly string[];
+  readonly all: boolean;
 }) {
   const { site, repo, audience } = ctx;
   const status = page.status;
@@ -346,6 +433,7 @@ function StatusBox({
             <span data-nmem>{page.statusLine[audience]}</span>
           </p>
           {docChips}
+          <DocClaims all={all} ctx={ctx} id={id} />
         </div>
       </div>
     );
@@ -359,14 +447,15 @@ function StatusBox({
           {page.statusLine[audience]}
         </p>
         {docChips}
-        {status.kind === "out-of-date-since" ? (
-          <q className="mt-1 mb-0">{status.sentence.quote}</q>
+        {status.kind === "out-of-date-since" && !all ? (
+          <q className="mt-1 mb-0 break-words">{status.sentence.quote}</q>
         ) : null}
-        {broken ? (
+        {broken && !all ? (
           <p className="said mt-1 mb-0" data-nmem>
             <SaidText ctx={ctx} line={broken} />
           </p>
         ) : null}
+        <DocClaims all={all} ctx={ctx} id={id} />
       </div>
     </div>
   );
