@@ -7,7 +7,7 @@ import type { Change as Entry, ChangeId, Decision, Finding, RecordSource, Snapsh
 import { decide, settledChoices } from './choices.ts';
 import { docClaims } from './claims.ts';
 import { linkChoices } from './link.ts';
-import { classifyChange } from './classify.ts';
+import { anchorShowsName, classifyChange } from './classify.ts';
 import { ModelUnavailable } from './copilot.ts';
 import type { ModelClient } from './copilot.ts';
 import { describeRoutine, proveRoutine, proveUndone } from './proofs.ts';
@@ -95,7 +95,8 @@ export async function assemble(record: RepoRecord, steps: Steps, usage: () => Us
     return {
       id: change.id,
       topics: overlapping(topics, [...change.touched.keys()]),
-      findings: (found[i] ?? []).map((item, j) => ({ ...item.finding, topics: placed.get(`finding ${i + 1}.${j + 1}`) ?? [] })),
+      // Place keys findings by position. Dropping one before that call redraws every topic.
+      findings: (found[i] ?? []).flatMap((item, j) => (anchorShowsName(item.finding) ? [{ ...item.finding, topics: placed.get(`finding ${i + 1}.${j + 1}`) ?? [] }] : [])),
       routine: proof && words ? [{ files: proof.files, name: words.name, reason: { ...words.reason, source: { kind: 'proof', proof: proof.proof } } }] : [],
     };
   });

@@ -172,6 +172,17 @@ function wordsOf(text: string): string {
 }
 
 /**
+ * A behavior finding is something the program now does that the record does not state, so the anchor line has to show it.
+ * A name with no content word in that line is not shown. A check may be a judgment about a line that does not spell it.
+ */
+export function anchorShowsName(finding: Finding): boolean {
+  if (finding.severity !== 'behavior') return true;
+  const quote = finding.anchor.quote.toLowerCase();
+  const words = finding.name.eng.toLowerCase().split(/[^a-z0-9]+/).filter((word) => word.length >= 4);
+  return words.some((word) => quote.includes(word));
+}
+
+/**
  * The page shows the record sentence, or a shortening that is a word-for-word span of it. A restatement that adds a
  * word can copy phrasing that is not in the record, so it is not used.
  */
