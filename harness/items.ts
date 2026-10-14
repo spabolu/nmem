@@ -380,7 +380,7 @@ const code = (rules: CodeRules) => (source: string): Region[] => {
       const owner = match.groups?.['owner'];
       const name = owner ? `${owner}.${match.groups?.['name']}` : (match.groups?.['name'] ?? '');
       out.push({ kind: declaration.kind, name, text: textOf(from, end) });
-      if (declaration.container && rules.member) out.push(...members(rules, rules.member, lines, { from: i, to: end }, name, blockEnd, statementEnd));
+      if (declaration.container) out.push(...members(rules, lines, { from: i, to: end }, name, blockEnd, statementEnd));
       i = end;
       break;
     }
@@ -405,7 +405,9 @@ const code = (rules: CodeRules) => (source: string): Region[] => {
   return out;
 };
 
-function members(rules: CodeRules, re: RegExp, lines: readonly Line[], span: Span, owner: string, blockEnd: (i: number) => number, statementEnd: (i: number) => number): Region[] {
+function members(rules: CodeRules, lines: readonly Line[], span: Span, owner: string, blockEnd: (i: number) => number, statementEnd: (i: number) => number): Region[] {
+  const re = rules.member;
+  if (!re) return [];
   const header = lines[span.from];
   const bodyFrom = statementEnd(span.from) + 1;
   const bodyIndent = lines.slice(bodyFrom, span.to + 1).find((l) => l.start && !l.blank)?.indent ?? -1;
