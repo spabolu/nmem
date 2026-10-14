@@ -87,7 +87,8 @@
 }
 .tl-card.placed .point ~ .point,
 .tl-card.placed .c,
-.tl-card.placed .note {
+.tl-card.placed .note,
+.tl-card.placed .carry {
   display: none;
 }
 .tl-card.placed .k {
@@ -123,7 +124,9 @@
 .tl-card.placed:hover .c,
 .tl-card.placed:focus-within .c,
 .tl-card.placed:hover .note,
-.tl-card.placed:focus-within .note {
+.tl-card.placed:focus-within .note,
+.tl-card.placed:hover .carry,
+.tl-card.placed:focus-within .carry {
   display: block;
 }
 .tl-card.placed:hover .t,
@@ -290,7 +293,8 @@
   }
   .tl-card.placed .point ~ .point,
   .tl-card.placed .c,
-  .tl-card.placed .note {
+  .tl-card.placed .note,
+  .tl-card.placed .carry {
     display: block;
   }
   .tl-card.placed .t,
