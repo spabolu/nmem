@@ -19,7 +19,7 @@ import { decide } from './choices.ts';
 import { docClaims } from './claims.ts';
 import { linkChoices } from './link.ts';
 import { ingest, segment } from './record.ts';
-import { declinedChoices, orphanThreads } from './threads.ts';
+import { declinedChoices, declinedThreads, orphanThreads } from './threads.ts';
 import { describeRoutine, proveRoutine } from './proofs.ts';
 import { noModel, rootTopic } from './steps.ts';
 import { implementers, splitMixed } from './topics.ts';
@@ -636,6 +636,13 @@ test('a thread no merged change carries is read, and one a merged change names i
   assert.deepEqual(roots('seedling'), ['discussion#14', 'discussion#3', 'issue#11', 'issue#13', 'issue#9', 'pr#7']);
 });
 
+test('declined sends a refusal thread and skips a duplicate and an open request', () => {
+  const roots = (slug: string) => declinedThreads(ingest(path.join(root, 'out', slug))).map((thread) => thread.root);
+  assert.deepEqual(roots('tally'), ['pr#14', 'issue#13', 'issue#24', 'discussion#7', 'discussion#15']);
+  assert.deepEqual(roots('wayfinder'), ['pr#6', 'issue#12', 'issue#19', 'discussion#3']);
+  assert.deepEqual(roots('seedling'), ['pr#7', 'issue#9', 'discussion#3']);
+});
+
 test('a closed pull request is a decision carried by nothing, and a request left open is not', async () => {
   const workspace = toyWorkspace([{ title: 'Add a note', body: 'Closes #3.', files: { 'notes.txt': 'x\n' } }]);
   const github = JSON.parse(fs.readFileSync(path.join(workspace, 'github.json'), 'utf8')) as { pulls: unknown[]; issues: unknown[] };
@@ -644,17 +651,19 @@ test('a closed pull request is a decision carried by nothing, and a request left
     title: 'Local page',
     body: 'A page.',
     author: 'ana',
+    state: 'closed',
     mergeCommitSha: null,
     commits: [],
     reviews: [],
     comments: [{ id: 50, author: 'ana', body: 'Closing this.', replies: [] }],
   });
   github.issues.push(
-    { number: 3, title: 'Already built', body: 'Do the note.', author: 'ana', comments: [{ id: 51, author: 'ana', body: 'We are not adding it.', replies: [] }] },
-    { number: 4, title: 'Remember rent', body: 'Copy a bill forward.', author: 'ana', comments: [{ id: 52, author: 'ana', body: 'Leaving this open.', replies: [] }] },
+    { number: 3, title: 'Already built', body: 'Do the note.', author: 'ana', state: 'closed', stateReason: 'completed', comments: [{ id: 51, author: 'ana', body: 'We are not adding it.', replies: [] }] },
+    { number: 4, title: 'Remember rent', body: 'Copy a bill forward.', author: 'ana', state: 'open', stateReason: null, comments: [{ id: 52, author: 'ana', body: 'Leaving this open.', replies: [] }] },
   );
   fs.writeFileSync(path.join(workspace, 'github.json'), JSON.stringify(github));
   const record = ingest(workspace);
+  assert.deepEqual(declinedThreads(record).map((thread) => thread.root), ['pr#2']);
   const labels: string[] = [];
   const choices = await declinedChoices(record, {
     async call(request) {
@@ -666,7 +675,7 @@ test('a closed pull request is a decision carried by nothing, and a request left
     },
     totals: () => ({ live: labels.length, cached: 0, usage: { inputTokens: 0, outputTokens: 0 } }),
   }, () => {});
-  assert.deepEqual([...new Set(labels)].sort(), ['declined issue#4', 'declined pr#2']);
+  assert.deepEqual([...new Set(labels)].sort(), ['declined pr#2']);
   assert.deepEqual(choices.map((choice) => [choice.carriedBy, choice.what, choice.sentence.text]), [
     [null, { eng: 'Ana Lima closed PR #2.', plain: 'Ana Lima closed the Local page.' }, 'Closing this.'],
   ]);
