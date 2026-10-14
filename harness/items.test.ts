@@ -34,7 +34,7 @@ test('main follows tally.py into tally/cli.py and keeps every edit to its body',
   assert.deepEqual(hops(main), [
     'pr#1 introduced (name)',
     'pr#3 changed (name)',
-    'pr#4 moved tally.py (text)',
+    'pr#4 moved tally.py (name)',
     'pr#6 changed (name)',
     'pr#12 changed (name)',
     'pr#20 changed (name)',
@@ -118,6 +118,18 @@ test('a type replaced by one with different fields is removed and introduced, wh
   assert.deepEqual(hopsOf(items, 'symbol', 'SMS'), ['aaaaaaa introduced (name)', 'bbbbbbb removed (name)']);
   assert.deepEqual(hopsOf(items, 'symbol', 'Email'), ['bbbbbbb introduced (name)']);
   assert.deepEqual(hopsOf(items, 'symbol', 'readRoster'), ['aaaaaaa introduced (name)', 'bbbbbbb renamed loadRoster (text)']);
+});
+
+test('a function that moves to another file is matched by text when its body came along, and by name alone when it was rewritten', () => {
+  const keep = 'func keep() {\n\tprintln("keep")\n}\n';
+  const helper = 'func helper(n int) int {\n\ttotal := 0\n\tfor i := 0; i < n; i++ {\n\t\ttotal += i * i\n\t}\n\treturn total\n}\n';
+  const parse = 'func parse(s string) []string {\n\tfields := strings.Fields(s)\n\tout := make([]string, 0, len(fields))\n\tfor _, f := range fields {\n\t\tout = append(out, strings.ToLower(f))\n\t}\n\treturn out\n}\n';
+  const items = historyOf([
+    { 'a.go': `package main\n\n${keep}\n${helper}\n${parse}` },
+    { 'a.go': `package main\n\n${keep}`, 'b.go': 'package main\n\nfunc helper(n int) int {\n\treturn n * (n - 1) * (2*n - 1) / 6\n}\n', 'c.go': `package main\n\n${parse}` },
+  ]);
+  assert.deepEqual(hopsOf(items, 'symbol', 'helper'), ['aaaaaaa introduced (name)', 'bbbbbbb moved a.go (name)']);
+  assert.deepEqual(hopsOf(items, 'symbol', 'parse'), ['aaaaaaa introduced (name)', 'bbbbbbb moved a.go (text)']);
 });
 
 test('a language with no registry row is tracked as files, and a rename keeps the file history', () => {

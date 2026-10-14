@@ -9,7 +9,8 @@ import type { ChangeId } from './contract.ts';
 export type ItemKind = 'symbol' | 'option' | 'config-key' | 'file';
 export type Hop =
   | { readonly change: ChangeId; readonly kind: 'introduced' | 'changed' | 'removed'; readonly matchedBy: 'name' }
-  | { readonly change: ChangeId; readonly kind: 'renamed' | 'moved' | 'extracted-from'; readonly from: string; readonly matchedBy: 'text' };
+  | { readonly change: ChangeId; readonly kind: 'moved'; readonly from: string; readonly matchedBy: 'name' | 'text' }
+  | { readonly change: ChangeId; readonly kind: 'renamed' | 'extracted-from'; readonly from: string; readonly matchedBy: 'text' };
 export type Item = { readonly kind: ItemKind; name: string; path: string | null; readonly formerNames: string[]; readonly hops: Hop[] };
 export type ChangeRange = { readonly id: ChangeId; readonly before: string; readonly after: string };
 
@@ -642,11 +643,11 @@ type Shrunk = { readonly name: string; readonly lost: readonly string[] };
 
 const goneOf = (live: Live, path: string): Gone => ({ live, path, size: significant(live.region.text).length, taken: false, to: null });
 
-function carry(change: ChangeId, live: Live, region: Region, from: string, to: string): void {
+function carry(change: ChangeId, live: Live, region: Region, from: string, to: string, movedBy: 'name' | 'text'): void {
   const was = live.region;
   const hop: Hop | null =
     was.name !== region.name ? { change, kind: 'renamed', from: was.name, matchedBy: 'text' }
-    : from !== to ? { change, kind: 'moved', from, matchedBy: 'text' }
+    : from !== to ? { change, kind: 'moved', from, matchedBy: movedBy }
     : was.text !== region.text ? { change, kind: 'changed', matchedBy: 'name' }
     : null;
   if (hop) live.item.hops.push(hop);
@@ -656,7 +657,7 @@ function carry(change: ChangeId, live: Live, region: Region, from: string, to: s
   live.region = region;
 }
 
-function bestPairs<G, A>(gone: readonly G[], appeared: readonly A[], score: (g: G, a: A) => number | null): Array<[G, A]> {
+function bestPairs<G, A>(gone: readonly G[], appeared: readonly A[], score: (g: G, a: A) => number | null): Array<[G, A, number]> {
   const scored: Array<[number, G, A]> = [];
   for (const g of gone) {
     for (const a of appeared) {
@@ -667,12 +668,12 @@ function bestPairs<G, A>(gone: readonly G[], appeared: readonly A[], score: (g: 
   scored.sort((x, y) => y[0] - x[0]);
   const usedG = new Set<G>();
   const usedA = new Set<A>();
-  const out: Array<[G, A]> = [];
-  for (const [, g, a] of scored) {
+  const out: Array<[G, A, number]> = [];
+  for (const [s, g, a] of scored) {
     if (usedG.has(g) || usedA.has(a)) continue;
     usedG.add(g);
     usedA.add(a);
-    out.push([g, a]);
+    out.push([g, a, s]);
   }
   return out;
 }
@@ -722,18 +723,18 @@ function step(change: ChangeId, entries: readonly Entry[], files: Map<string, Tr
       }
       const lost = without(significant(live.region.text), significant(region.text));
       if (lost.length > 0) shrunk.push({ name: live.region.name, lost });
-      carry(change, live, region, next.source, path);
+      carry(change, live, region, next.source, path, 'text');
       next.regions.set(id, live);
     }
     for (const [id, live] of before?.regions ?? []) if (!regions.has(id) && next.source !== null) gone.push(goneOf(live, next.source));
   }
   for (const [path, before] of olds) if (!continued.has(path)) for (const live of before.regions.values()) gone.push(goneOf(live, path));
 
-  const take = (g: Gone, a: Appeared): void => {
+  const take = (g: Gone, a: Appeared, movedBy: 'name' | 'text'): void => {
     g.taken = true;
     g.to = a.path;
     a.taken = true;
-    carry(change, g.live, a.region, g.path, a.path);
+    carry(change, g.live, a.region, g.path, a.path, movedBy);
     a.into.regions.set(idOf(a.region), g.live);
   };
   const open = <T extends { taken: boolean }>(list: readonly T[]): T[] => list.filter((x) => !x.taken);
@@ -745,9 +746,9 @@ function step(change: ChangeId, entries: readonly Entry[], files: Map<string, Tr
     const score = dice(tokensOfRegion(g.live.region), tokensOfRegion(a.region));
     return score >= MOVE_MIN || holders.get(id) === 2 ? score : null;
   };
-  for (const [g, a] of bestPairs(gone, appeared, sameId)) take(g, a);
+  for (const [g, a, score] of bestPairs(gone, appeared, sameId)) take(g, a, score >= MOVE_MIN ? 'text' : 'name');
   const swaps = referenceSwaps([...news.values()].flatMap((next) => (next.source === null ? [] : [[olds.get(next.source)?.text ?? null, next.text] as const])));
-  for (const [g, a] of bestPairs(open(gone), open(appeared), (g, a) => renameScore(g.live.region, a.region, swaps))) take(g, a);
+  for (const [g, a] of bestPairs(open(gone), open(appeared), (g, a) => renameScore(g.live.region, a.region, swaps))) take(g, a, 'text');
   for (const [from, to] of followItems(deleted.filter((path) => !continued.has(path)), gone, news)) {
     const next = news.get(to);
     if (next) next.source = from;
@@ -793,7 +794,7 @@ function step(change: ChangeId, entries: readonly Entry[], files: Map<string, Tr
 }
 
 /** A deleted file continues as the new file that took most of its items, so its history survives a rewrite. */
-function followItems(deleted: readonly string[], gone: readonly Gone[], news: ReadonlyMap<string, Next>): Array<[string, string]> {
+function followItems(deleted: readonly string[], gone: readonly Gone[], news: ReadonlyMap<string, Next>): Array<[string, string, number]> {
   const mass = (from: string, to?: string): number => gone.reduce((sum, g) => sum + (g.path === from && (to === undefined || g.to === to) ? g.size : 0), 0);
   return bestPairs(deleted, [...news.keys()].filter((path) => news.get(path)?.source === null), (from, to) => {
     const total = mass(from);
