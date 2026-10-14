@@ -1213,8 +1213,6 @@ export type ItemPage = {
       readonly parts: readonly Said[];
     }[];
   };
-  /** Every decision a hop carried, newest first. */
-  readonly decisions: readonly DecisionRow[];
   /** Who changed it and who decided for it, most first. */
   readonly people: readonly ItemPerson[];
 };
@@ -1428,16 +1426,6 @@ export function itemPageOf(
     summary: TEMPLATES.item(tally),
     entries: chain,
     routine: { count: routineRows.length, rows: routineRows },
-    decisions: [...decisions.values()]
-      .map((row, order) => ({ row, order }))
-      .sort((a, b) =>
-        a.row.day < b.row.day
-          ? 1
-          : a.row.day > b.row.day
-            ? -1
-            : a.order - b.order,
-      )
-      .map((x) => x.row),
     people: [...people]
       .map(([login, count]) => ({ login, ...count }))
       .sort(

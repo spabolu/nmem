@@ -14,7 +14,6 @@ import { githubUrlOf, namedChange, person, topicById } from "@/lib/present";
 import { ButtonLink } from "./links";
 import { Avatar, type Ctx, Prose, SaidText, WhyText } from "./said";
 import { CHIP, H1, HINT, KICKER, LABEL, MUTED } from "./styles";
-import { DecisionRow } from "./topic-view";
 import { Tree } from "./tree";
 
 const CARD =
@@ -86,6 +85,7 @@ function DecisionPoint({ ctx, row }: { readonly ctx: Ctx; readonly row: Row }) {
   return (
     <div
       className={`${POINT} border-l-2 border-(color:--borderColor-done-emphasis) pl-3`}
+      data-decision={decision.id}
     >
       <p className="said m-0 font-[600]" data-nmem>
         <SaidText ctx={ctx} line={decision.what} />
@@ -101,21 +101,6 @@ function DecisionPoint({ ctx, row }: { readonly ctx: Ctx; readonly row: Row }) {
           ? `Decided by ${person(ctx.site, row.decider)}`
           : "Not named in the record"}
       </p>
-    </div>
-  );
-}
-
-/** Non-engineer lists the decisions above the chain with their reasons, so a card only names the ones it carried out. */
-function Carries({ step }: { readonly step: ItemStep }) {
-  if (step.decisions.length === 0) return null;
-  return (
-    <div className={POINT} data-nmem>
-      Carries out:
-      {step.decisions.map((row) => (
-        <a key={row.decision.id} className="block" href={`#${row.decision.id}`}>
-          {row.decision.what.plain}
-        </a>
-      ))}
     </div>
   );
 }
@@ -221,13 +206,9 @@ function StepCard({
         </p>
       ) : null}
       <FindingPoints ctx={ctx} step={step} />
-      {audience === "plain" ? (
-        <Carries step={step} />
-      ) : (
-        step.decisions.map((row) => (
-          <DecisionPoint key={row.decision.id} ctx={ctx} row={row} />
-        ))
-      )}
+      {step.decisions.map((row) => (
+        <DecisionPoint key={row.decision.id} ctx={ctx} row={row} />
+      ))}
       {step.routine.map((line) => (
         <p key={line.eng} className={`${POINT} said`} data-nmem>
           <SaidText ctx={ctx} line={line} />
@@ -440,7 +421,9 @@ function Lives({ ctx, page }: { readonly ctx: Ctx; readonly page: ItemPage }) {
 
 /**
  * One item's history. Engineer reads the answer first (name, where it lives, the net sentence) and then the chain.
- * Non-engineer never sees a code name, so it leads with the decisions and the people, then the chain in plain words.
+ * Non-engineer never sees a code name, so it reads the net sentence and the people, then the chain in plain words.
+ * Each decision shows once, inside the card of the change that carried it, since that change is all that ties the
+ * decision to this item.
  */
 export function ItemView({
   ctx,
@@ -495,26 +478,7 @@ export function ItemView({
             {plain ? "See it on the timeline" : "History of this item"}
           </ButtonLink>
         </p>
-        {plain ? (
-          <>
-            <section aria-labelledby="decisions">
-              <h2 id="decisions">Decisions</h2>
-              <p className={HINT}>Newest first.</p>
-              {page.decisions.length === 0 ? (
-                <p className={HINT}>No decision touched it.</p>
-              ) : (
-                page.decisions.map((row) => (
-                  <DecisionRow
-                    key={row.decision.id}
-                    ctx={ctx}
-                    decision={row.decision}
-                  />
-                ))
-              )}
-            </section>
-            <People ctx={ctx} page={page} />
-          </>
-        ) : null}
+        {plain ? <People ctx={ctx} page={page} /> : null}
         <section aria-labelledby="history">
           <h2 id="history">How it changed</h2>
           <p className={HINT}>Newest first.</p>

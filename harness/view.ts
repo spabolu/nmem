@@ -726,8 +726,6 @@ export type ItemPage = {
   readonly entries: readonly ItemEntry[];
   /** Routine changes that only changed the item, folded into one line like the timeline's strip. Newest first. */
   readonly routine: { readonly count: number; readonly rows: readonly { readonly change: ChangeId; readonly day: IsoDay; readonly parts: readonly Said[] }[] };
-  /** Every decision a hop carried, newest first. */
-  readonly decisions: readonly DecisionRow[];
   /** Who changed it and who decided for it, most first. */
   readonly people: readonly ItemPerson[];
 };
@@ -859,7 +857,6 @@ export function itemPageOf(snapshot: Snapshot, facts: RepoFacts, id: ItemId): It
     summary: TEMPLATES.item(tally),
     entries: chain,
     routine: { count: routineRows.length, rows: routineRows },
-    decisions: [...decisions.values()].map((row, order) => ({ row, order })).sort((a, b) => (a.row.day < b.row.day ? 1 : a.row.day > b.row.day ? -1 : a.order - b.order)).map((x) => x.row),
     people: [...people].map(([login, count]) => ({ login, ...count })).sort((a, b) => b.changes + b.decisions - (a.changes + a.decisions) || a.login.localeCompare(b.login)),
   };
 }

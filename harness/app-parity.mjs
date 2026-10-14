@@ -346,6 +346,12 @@ async function checkItems(port, base, snapshot, facts, label) {
         `${where} sentence is "${attr(page.html, "data-summary")}"`,
       );
       const visible = strip(page.html);
+      const squash = (text) => text.replace(/[`\s]/g, "");
+      for (const decision of snapshot.decisions) {
+        if (!item.hops.some((hop) => hop.change === decision.carriedBy)) continue;
+        const seen = squash(visible).split(squash(decision.what[audience])).length - 1;
+        check(seen === 1, `${where} shows decision ${decision.id} ${seen} times`);
+      }
       if (audience === "plain") {
         for (const name of [item.path, item.name, ...item.formerNames]) {
           if (codeShaped(name))
