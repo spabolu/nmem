@@ -14,7 +14,7 @@ export type Item = { readonly kind: ItemKind; name: string; path: string | null;
 export type ChangeRange = { readonly id: ChangeId; readonly before: string; readonly after: string };
 
 type RegionKind = Exclude<ItemKind, 'file'>;
-type Region = { readonly kind: RegionKind; readonly key: string; readonly name: string; readonly text: string };
+type Region = { readonly kind: RegionKind; readonly name: string; readonly text: string };
 
 type Line = {
   readonly text: string;
@@ -228,7 +228,7 @@ type Declaration = {
   readonly container?: true;
   readonly group?: true;
 };
-type OptionFound = { readonly key: string; readonly name: string; readonly decl: readonly Span[]; readonly reads: RegExp | null };
+type OptionFound = { readonly name: string; readonly decl: readonly Span[]; readonly reads: RegExp | null };
 type CodeRules = {
   readonly scan: (source: string) => Line[];
   readonly block: 'indent' | 'braces';
@@ -256,7 +256,7 @@ function pythonArgparse(lines: readonly Line[], source: string, statementEnd: (i
     const name = names.find((n) => n.startsWith('--')) ?? names[0];
     if (!name) return;
     const dest = /\bdest\s*=\s*(['"])(\w+)\1/.exec(args)?.[2] ?? name.replace(/^-+/, '').replace(/-/g, '_');
-    out.push({ key: dest, name, decl: [{ from: i, to }], reads: new RegExp(`\\b(?:${ns})\\.${dest}\\b|getattr\\(\\s*(?:${ns})\\s*,\\s*['"]${dest}['"]`) });
+    out.push({ name, decl: [{ from: i, to }], reads: new RegExp(`\\b(?:${ns})\\.${dest}\\b|getattr\\(\\s*(?:${ns})\\s*,\\s*['"]${dest}['"]`) });
   });
   return out;
 }
@@ -277,7 +277,7 @@ function scriptOptions(lines: readonly Line[], source: string): OptionFound[] {
       if (!name) continue;
       let to = j;
       while ((lines[to]?.endDepth ?? 0) > 1 && to < end) to += 1;
-      out.push({ key: name, name, decl: [{ from: j, to }], reads: null });
+      out.push({ name, decl: [{ from: j, to }], reads: null });
     }
   });
   for (const typeName of typeNames) {
@@ -285,13 +285,13 @@ function scriptOptions(lines: readonly Line[], source: string): OptionFound[] {
   }
   const holder = [...holders].join('|');
   const read = (name: string): RegExp => new RegExp(`\\b(?:${holder})\\??\\.${name.replace(/\$/g, '\\$')}\\b`);
-  const declared = new Set(out.map((o) => o.key));
+  const declared = new Set(out.map((o) => o.name));
   const readOnly = new Set<string>();
   for (const match of source.matchAll(new RegExp(`\\b(?:${holder})\\??\\.([A-Za-z_$][\\w$]*)`, 'g'))) {
     const name = match[1] ?? '';
     if (!declared.has(name)) readOnly.add(name);
   }
-  return [...out.map((o) => ({ ...o, reads: read(o.key) })), ...[...readOnly].map((name) => ({ key: name, name, decl: [], reads: read(name) }))];
+  return [...out.map((o) => ({ ...o, reads: read(o.name) })), ...[...readOnly].map((name) => ({ name, decl: [], reads: read(name) }))];
 }
 
 const GO_FLAG_TYPES = 'String|Bool|Int|Int64|Uint|Uint64|Float64|Duration|Func|BoolFunc';
@@ -310,7 +310,6 @@ function goFlags(lines: readonly Line[], source: string, statementEnd: (i: numbe
     const bind = match[1] ?? '';
     const escaped = bind.replace(/\./g, '\\.');
     out.push({
-      key: bind,
       name: `${dashes}${match[2] ?? ''}`,
       decl: [{ from: i, to: statementEnd(i) }],
       reads: viaPointer ? new RegExp(`\\*${escaped}\\b`) : new RegExp(`(?<![\\w.&])${escaped}\\b`),
@@ -333,7 +332,7 @@ function jsonKeys(source: string): Region[] {
     } else if (c === '{' || c === '[') depth += 1;
     else if (c === '}' || c === ']' || (c === ',' && depth === 1)) {
       if (depth === 1 && key) {
-        out.push({ kind: 'config-key', key: key.name, name: key.name, text: source.slice(key.from, i).trimEnd() });
+        out.push({ kind: 'config-key', name: key.name, text: source.slice(key.from, i).trimEnd() });
         key = null;
       }
       if (c !== ',') depth -= 1;
@@ -345,7 +344,7 @@ function jsonKeys(source: string): Region[] {
 function goModDirectives(source: string): Region[] {
   return splitLines(source).flatMap((text) => {
     const match = /^(module|go|toolchain|godebug)\s+\S/.exec(text);
-    return match ? [{ kind: 'config-key' as const, key: match[1] ?? '', name: match[1] ?? '', text }] : [];
+    return match ? [{ kind: 'config-key' as const, name: match[1] ?? '', text }] : [];
   });
 }
 
@@ -370,7 +369,7 @@ const code = (rules: CodeRules) => (source: string): Region[] => {
           const name = entry && entry.start && entry.depth === 1 ? /^\s*([A-Za-z_]\w*)\b/.exec(entry.text)?.[1] : undefined;
           if (!name) continue;
           const to = Math.min(statementEnd(j), end - 1);
-          out.push({ kind: declaration.kind, key: name, name, text: textOf(j, to) });
+          out.push({ kind: declaration.kind, name, text: textOf(j, to) });
           j = to;
         }
         i = end;
@@ -380,7 +379,7 @@ const code = (rules: CodeRules) => (source: string): Region[] => {
       while (rules.block === 'indent' && from > 0 && /^@/.test(lines[from - 1]?.text ?? '')) from -= 1;
       const owner = match.groups?.['owner'];
       const name = owner ? `${owner}.${match.groups?.['name']}` : (match.groups?.['name'] ?? '');
-      out.push({ kind: declaration.kind, key: name, name, text: textOf(from, end) });
+      out.push({ kind: declaration.kind, name, text: textOf(from, end) });
       if (declaration.container && rules.member) out.push(...members(rules, rules.member, lines, { from: i, to: end }, name, blockEnd, statementEnd));
       i = end;
       break;
@@ -391,7 +390,7 @@ const code = (rules: CodeRules) => (source: string): Region[] => {
     const reads = option.reads;
     const used = reads ? lines.flatMap((l, k) => (!own.has(k) && reads.test(l.text) ? [k] : [])) : [];
     const keep = [...own, ...used].sort((a, b) => a - b);
-    if (keep.length > 0) out.push({ kind: 'option', key: option.key, name: option.name, text: keep.map((k) => lines[k]?.text ?? '').join('\n') });
+    if (keep.length > 0) out.push({ kind: 'option', name: option.name, text: keep.map((k) => lines[k]?.text ?? '').join('\n') });
   }
   if (rules.env) {
     const byName = new Map<string, string[]>();
@@ -401,7 +400,7 @@ const code = (rules: CodeRules) => (source: string): Region[] => {
         if (name) byName.set(name, [...(byName.get(name) ?? []), line.text]);
       }
     }
-    for (const [name, texts] of byName) out.push({ kind: 'config-key', key: name, name, text: [...new Set(texts)].join('\n') });
+    for (const [name, texts] of byName) out.push({ kind: 'config-key', name, text: [...new Set(texts)].join('\n') });
   }
   return out;
 };
@@ -420,7 +419,7 @@ function members(rules: CodeRules, re: RegExp, lines: readonly Line[], span: Spa
     let from = j;
     while (rules.block === 'indent' && from > bodyFrom && /^\s*@/.test(lines[from - 1]?.text ?? '')) from -= 1;
     const end = Math.min(blockEnd(j), span.to);
-    out.push({ kind: 'symbol', key: `${owner}.${name}`, name: `${owner}.${name}`, text: lines.slice(from, end + 1).map((l) => l.text).join('\n') });
+    out.push({ kind: 'symbol', name: `${owner}.${name}`, text: lines.slice(from, end + 1).map((l) => l.text).join('\n') });
     j = end;
   }
   return out;
@@ -491,13 +490,15 @@ const LANGUAGES: readonly Language[] = [
 const VENDORED = /(?:^|\/)(?:vendor|node_modules|third_party|Godeps|bower_components)\//;
 const GENERATED = /^\s*(?:\/\/|#|\/?\*).*(?:\bcode generated\b|@generated\b|\bdo not edit\b)/im;
 
+const idOf = (region: Region): string => `${region.kind}\u0000${region.name}`;
+
 function regionsOf(path: string, source: string | null): Map<string, Region> {
   const out = new Map<string, Region>();
   if (source === null || VENDORED.test(path) || GENERATED.test(source.slice(0, 600))) return out;
   const language = LANGUAGES.find((l) => l.files.test(path));
   if (!language) return out;
   for (const region of language.regions(source)) {
-    const id = `${region.kind}\u0000${region.key}`;
+    const id = idOf(region);
     const known = out.get(id);
     out.set(id, known ? { ...known, text: `${known.text}\n${region.text}` } : region);
   }
@@ -638,7 +639,6 @@ type Appeared = { readonly region: Region; readonly path: string; readonly into:
 type Shrunk = { readonly name: string; readonly lost: readonly string[] };
 
 const goneOf = (live: Live, path: string): Gone => ({ live, path, size: significant(live.region.text).length, taken: false, to: null });
-const idOf = (region: Region): string => `${region.kind}\u0000${region.key}`;
 
 function carry(change: ChangeId, live: Live, region: Region, from: string, to: string): void {
   const was = live.region;
@@ -739,7 +739,7 @@ function step(change: ChangeId, entries: readonly Entry[], files: Map<string, Tr
   for (const id of [...gone.map((g) => idOf(g.live.region)), ...appeared.map((a) => idOf(a.region))]) holders.set(id, (holders.get(id) ?? 0) + 1);
   const sameId = (g: Gone, a: Appeared): number | null => {
     const id = idOf(a.region);
-    if (idOf(g.live.region) !== id && !(g.live.region.kind === a.region.kind && g.live.region.name === a.region.name)) return null;
+    if (idOf(g.live.region) !== id) return null;
     const score = dice(tokensOfRegion(g.live.region), tokensOfRegion(a.region));
     return score >= MOVE_MIN || holders.get(id) === 2 ? score : null;
   };
@@ -828,7 +828,7 @@ function renameScore(was: Region, now: Region, swaps: Swaps): number | null {
   if (was.kind !== now.kind || was.name === now.name) return null;
   const from = leafOf(was.name);
   const to = leafOf(now.name);
-  const renamed = tokensOfRegion(was).map((t) => (t === from ? to : t === was.key ? now.key : /^[\w$]+$/.test(from) ? t : t.split(from).join(to)));
+  const renamed = tokensOfRegion(was).map((t) => (t === from ? to : /^[\w$]+$/.test(from) ? t : t.split(from).join(to)));
   const score = dice(renamed, tokensOfRegion(now));
   if (score >= RENAME_MIN) return score;
   if (score < RENAME_WITH_EVIDENCE_MIN) return null;
