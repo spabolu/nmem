@@ -96,6 +96,8 @@ export type RepoRecord = {
   readonly docs: readonly FileObject[];
   readonly adrs: readonly Adr[];
   readonly bots: ReadonlySet<Login>;
+  /** Display name by login, for a page that names a person the record only stores as a login. */
+  readonly names: ReadonlyMap<Login, string>;
 };
 
 type GithubComment = { readonly id: number; readonly author: string; readonly body: string; readonly replies: readonly GithubComment[] };
@@ -408,6 +410,7 @@ export function ingest(workspace: string): RepoRecord {
   const raw: unknown = JSON.parse(fs.readFileSync(path.join(workspace, 'github.json'), 'utf8'));
   const github = parseGithub(raw);
   const bots = new Set(github.users.filter((user) => user.bot).map((user) => login(user.login)));
+  const names = new Map(github.users.flatMap((user) => (user.name !== '' && user.name !== user.login ? [[login(user.login), user.name] as const] : [])));
   const byName = new Map(github.users.map((user) => [user.name, login(user.login)]));
   const bySha = new Map<string, Login | null>();
   for (const pull of github.pulls) {
@@ -493,5 +496,5 @@ export function ingest(workspace: string): RepoRecord {
     }
   }
 
-  return { repoDir, identity: github.repo, head: facts.head, changes, objects, threads, rootOf, files: files.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0)), docs, adrs, bots };
+  return { repoDir, identity: github.repo, head: facts.head, changes, objects, threads, rootOf, files: files.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0)), docs, adrs, bots, names };
 }

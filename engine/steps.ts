@@ -51,6 +51,8 @@ export type Steps = {
   readonly vet: (change: Change, finding: Finding) => Promise<Finding | null>;
   /** A recorded reason that a second call agrees states why, else not recorded with the subject's ask. */
   readonly why: (subject: Subject) => Promise<Why>;
+  /** Why for a choice no change carried. The sentence is copied, not paraphrased. */
+  readonly whyDeclined: (subject: Subject) => Promise<Why>;
   /** For a gap object: which of the sentences it shows state a reason as fact. Those never reach the snapshot. */
   readonly scan: (subject: Named, shown: readonly Named[]) => Promise<readonly boolean[]>;
   /** Doc sentences that can be cited as not plainly true, on a topic listing their doc, with the programs that showed it. */
@@ -59,6 +61,10 @@ export type Steps = {
   readonly topics: () => Promise<readonly [Topic, ...Topic[]]>;
   /** Each item's topics among its candidates. */
   readonly place: (tree: readonly Topic[], items: readonly Placeable[]) => Promise<ReadonlyMap<string, readonly LocalId[]>>;
+  /** Choices not to build something, from threads no merged change carries. Each is carried by nothing. */
+  readonly declined: () => Promise<readonly Choice[]>;
+  /** Topics for those choices. A missing pick stays on root. Not the batched place call. */
+  readonly placeDeclined: (tree: readonly Topic[], items: readonly { readonly id: LocalId; readonly what: string; readonly ref: string; readonly quote: string }[]) => Promise<ReadonlyMap<string, readonly LocalId[]>>;
 };
 
 /** The first candidate a non-engineer can read, else the fallback. */
@@ -121,9 +127,12 @@ export function noModel(record: RepoRecord): Steps {
     link: async (choices) => choices,
     vet: async (_change, finding) => finding,
     why: async (subject) => ({ kind: 'not-recorded', ask: subject.ask, guess: null }),
+    whyDeclined: async (subject) => ({ kind: 'not-recorded', ask: subject.ask, guess: null }),
     scan: async (_subject, shown) => shown.map(() => false),
     claims: async () => ({ claims: [], runs: [] }),
     topics: async () => [rootTopic(record)],
     place: async (_tree, items) => new Map(items.map((item) => [item.key, item.candidates])),
+    declined: async () => [],
+    placeDeclined: async () => new Map(),
   };
 }

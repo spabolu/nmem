@@ -19,6 +19,7 @@ import { decide } from './choices.ts';
 import { docClaims } from './claims.ts';
 import { linkChoices } from './link.ts';
 import { ingest, segment } from './record.ts';
+import { declinedChoices, orphanThreads } from './threads.ts';
 import { describeRoutine, proveRoutine } from './proofs.ts';
 import { noModel, rootTopic } from './steps.ts';
 import { implementers, splitMixed } from './topics.ts';
@@ -604,4 +605,61 @@ test('a doc sentence is dated by running its check at every change since it was 
   assert.deepEqual(broken?.verdict === 'no-longer-true' ? broken.why.source : null, { kind: 'proof', proof: `run ${runs[0]?.id}` });
   assert.deepEqual(madeTrue?.verdict === 'true-since' ? madeTrue.why.source : null, { kind: 'proof', proof: 'introduced toy/limit.py "raise ValueError(\\"zero\\")"' });
   assert.deepEqual(runs.map((run) => [run.lang, run.rev]), [['python', record.head]]);
+});
+
+test('a thread no merged change carries is read, and one a merged change names is not', () => {
+  const roots = (slug: string) => orphanThreads(ingest(path.join(root, 'out', slug))).map((thread) => thread.root).sort();
+  assert.deepEqual(roots('tally'), ['discussion#15', 'discussion#7', 'issue#11', 'issue#13', 'issue#24', 'pr#14']);
+  assert.deepEqual(roots('wayfinder'), ['discussion#3', 'issue#12', 'issue#19', 'issue#20', 'issue#9', 'pr#6']);
+  assert.deepEqual(roots('seedling'), ['discussion#14', 'discussion#3', 'issue#11', 'issue#13', 'issue#9', 'pr#7']);
+});
+
+test('a closed pull request is a decision carried by nothing, and a request left open is not', async () => {
+  const workspace = toyWorkspace([{ title: 'Add a note', body: 'Closes #3.', files: { 'notes.txt': 'x\n' } }]);
+  const github = JSON.parse(fs.readFileSync(path.join(workspace, 'github.json'), 'utf8')) as { pulls: unknown[]; issues: unknown[] };
+  github.pulls.push({
+    number: 2,
+    title: 'Local page',
+    body: 'A page.',
+    author: 'ana',
+    mergeCommitSha: null,
+    commits: [],
+    reviews: [],
+    comments: [{ id: 50, author: 'ana', body: 'Closing this.', replies: [] }],
+  });
+  github.issues.push(
+    { number: 3, title: 'Already built', body: 'Do the note.', author: 'ana', comments: [{ id: 51, author: 'ana', body: 'We are not adding it.', replies: [] }] },
+    { number: 4, title: 'Remember rent', body: 'Copy a bill forward.', author: 'ana', comments: [{ id: 52, author: 'ana', body: 'Leaving this open.', replies: [] }] },
+  );
+  fs.writeFileSync(path.join(workspace, 'github.json'), JSON.stringify(github));
+  const record = ingest(workspace);
+  const labels: string[] = [];
+  const choices = await declinedChoices(record, {
+    async call(request) {
+      labels.push(request.label);
+      const close = /\[(S\d+)\] Closing this\./.exec(request.user)?.[1] ?? null;
+      const open = /\[(S\d+)\] Leaving this open\./.exec(request.user)?.[1] ?? null;
+      const sentence = request.label.endsWith('pr#2') ? close : open;
+      return { key: callKey(request), value: { sentence }, usage: { inputTokens: 1, outputTokens: 1 }, cached: false };
+    },
+    totals: () => ({ live: labels.length, cached: 0, usage: { inputTokens: 0, outputTokens: 0 } }),
+  }, () => {});
+  assert.deepEqual([...new Set(labels)].sort(), ['declined issue#4', 'declined pr#2']);
+  assert.deepEqual(choices.map((choice) => [choice.carriedBy, choice.what, choice.sentence.text]), [
+    [null, { eng: 'Ana Lima closed PR #2.', plain: 'Ana Lima closed the Local page.' }, 'Closing this.'],
+  ]);
+  const placed: string[] = [];
+  const built = await assemble(record, {
+    ...noModel(record),
+    declined: async () => choices,
+    place: async (tree, items) => {
+      placed.push(...items.map((item) => item.key));
+      return noModel(record).place(tree, items);
+    },
+  });
+  const snapshot = JSON.parse(built.bytes) as Snapshot;
+  assert.deepEqual(placed, []);
+  assert.deepEqual(snapshot.decisions.map((decision) => [decision.carriedBy, decision.topics, decision.what.eng, decision.what.source.quote, decision.why]), [
+    [null, ['root'], 'Ana Lima closed PR #2.', 'Closing this.', { kind: 'not-recorded', ask: ['ana'], guess: null }],
+  ]);
 });

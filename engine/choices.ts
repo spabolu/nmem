@@ -141,3 +141,33 @@ export async function decide(record: RepoRecord, steps: Steps, classified: reado
     files: choice.files,
   }));
 }
+
+/**
+ * Choices from threads no change carried, already uncarried. They are not linked, so they do not shift the decision
+ * list the batched place call is cached on. A what that states a reason, with no recorded reason, is dropped.
+ */
+export async function uncarriedDecisions(record: RepoRecord, steps: Steps, choices: readonly Choice[], taken: ReadonlySet<string>): Promise<readonly Decision[]> {
+  const accepted = choices.flatMap((choice) => {
+    const intent = acceptIntent({ ...choice, carriedBy: null });
+    if (!intent) return [];
+    const id = idOf(intent);
+    return taken.has(id) ? [] : [{ choice: { ...choice, carriedBy: null, files: [] as readonly string[] }, intent, id }];
+  }).filter((item, i, all) => all.findIndex((other) => other.id === item.id) === i);
+  const settled = await Promise.all(accepted.map(async (item) => {
+    const ask = askFor(record, item.intent, null);
+    if (ask === null) return [];
+    const quote: RecordSource = { kind: 'record', ref: item.intent.ref, quote: item.intent.text };
+    const why = await steps.whyDeclined({ kind: 'decision', what: item.choice.what, quote, carriedBy: null, ask });
+    if (why.kind === 'not-recorded' && (await steps.scan(item.choice.what, [item.choice.what])).some(Boolean)) return [];
+    const decision: Decision = {
+      id: item.id,
+      what: { ...item.choice.what, source: quote },
+      topics: [ROOT],
+      carriedBy: null,
+      replacedBy: null,
+      why,
+    };
+    return [decision];
+  }));
+  return settled.flat();
+}
