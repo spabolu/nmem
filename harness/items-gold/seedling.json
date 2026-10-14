@@ -1,0 +1,147 @@
+{
+  "slug": "seedling",
+  "items": [
+    {
+      "id": "i-export",
+      "kind": "symbol",
+      "name": "export",
+      "path": "cmd/seedling/export.go",
+      "formerNames": [],
+      "hops": [
+        { "change": "pr#2", "kind": "extracted-from", "from": "main", "note": "Created in cmd/seedling/export.go from the CSV export that was the body of main(), with -from and -weeks on the export subcommand's own flag set." },
+        { "change": "pr#4", "kind": "changed", "note": "Reads the roster from a new -data flag, fills in each day's volunteer with schedule.Assign(), defaults -weeks to 1, and drops the notes column." }
+      ]
+    },
+    {
+      "id": "i-main",
+      "kind": "symbol",
+      "name": "main",
+      "path": "cmd/seedling/main.go",
+      "formerNames": [],
+      "hops": [
+        { "change": "pr#1", "kind": "introduced", "note": "Added to parse -from and -weeks and print each watering day as a CSV row with empty volunteer and notes columns." },
+        { "change": "1276099", "kind": "changed", "note": "Added a day column holding the weekday name." },
+        { "change": "pr#2", "kind": "changed", "note": "Its export code moved out to export(), and main now dispatches the export and serve subcommands and prints usage otherwise." },
+        { "change": "pr#8", "kind": "changed", "note": "Dispatches the new remind subcommand." },
+        { "change": "pr#16", "kind": "changed", "note": "Dispatches the new sheet subcommand." }
+      ]
+    },
+    {
+      "id": "i-assign",
+      "kind": "symbol",
+      "name": "Assign",
+      "path": "internal/schedule/assign.go",
+      "formerNames": [],
+      "hops": [
+        { "change": "pr#4", "kind": "introduced", "note": "Added to give each day to the available volunteer with the fewest shifts so far, ties to roster order, leaving the day blank when nobody can take it." },
+        { "change": "bc914ef", "kind": "changed", "note": "Now skips anyone who watered the day before." }
+      ]
+    },
+    {
+      "id": "i-watering-days",
+      "kind": "symbol",
+      "name": "WateringDays",
+      "path": "internal/schedule/days.go",
+      "formerNames": [],
+      "hops": [
+        { "change": "pr#1", "kind": "introduced", "note": "Added to list every day except Sunday in the given number of weeks." }
+      ]
+    },
+    {
+      "id": "i-remind",
+      "kind": "symbol",
+      "name": "remind",
+      "path": "cmd/seedling/remind.go",
+      "formerNames": [],
+      "hops": [
+        { "change": "pr#8", "kind": "introduced", "note": "Added to look up tomorrow's volunteer in shifts.csv and the roster and text them through Twilio." },
+        { "change": "pr#10", "kind": "changed", "note": "The text now ends with a signed swap link instead of a thank-you." },
+        { "change": "pr#16", "kind": "changed", "note": "Sends the reminder and swap link as a Gmail SMTP email instead of a Twilio text, and skips volunteers with no email." }
+      ]
+    },
+    {
+      "id": "i-swap-routes",
+      "kind": "symbol",
+      "name": "swapRoutes",
+      "path": "cmd/seedling/swap.go",
+      "formerNames": [],
+      "hops": [
+        { "change": "pr#10", "kind": "introduced", "note": "Added the GET and POST /swap handlers, which check the signed token, show the roster, and reassign the shift to someone on it." },
+        { "change": "af5ef6a", "kind": "changed", "note": "Refuses a taker who already waters the day before or after, through nextTo()." }
+      ]
+    },
+    {
+      "id": "i-sms",
+      "kind": "symbol",
+      "name": "SMS",
+      "path": null,
+      "formerNames": [],
+      "hops": [
+        { "change": "pr#8", "kind": "introduced", "note": "Added in internal/notify/sms.go as a Twilio REST sender with a Send(to, body) method." },
+        { "change": "pr#16", "kind": "removed", "note": "Deleted with internal/notify/sms.go when reminders moved to email." }
+      ]
+    },
+    {
+      "id": "i-weeks-flag",
+      "kind": "option",
+      "name": "-weeks",
+      "path": "cmd/seedling/export.go",
+      "formerNames": [],
+      "hops": [
+        { "change": "pr#1", "kind": "introduced", "note": "Added to main() with default 4 as the number of weeks of watering days to export." },
+        { "change": "pr#2", "kind": "moved", "from": "cmd/seedling/main.go", "note": "Moved to the export subcommand's flag set in export.go with the same default." },
+        { "change": "pr#4", "kind": "changed", "note": "Default changed from 4 to 1, the help text now says weeks to schedule, and the days now go through schedule.Assign()." }
+      ]
+    },
+    {
+      "id": "i-from-flag",
+      "kind": "option",
+      "name": "-from",
+      "path": "cmd/seedling/export.go",
+      "formerNames": [],
+      "hops": [
+        { "change": "pr#1", "kind": "introduced", "note": "Added to main() as the first day of the sheet, parsed as YYYY-MM-DD." },
+        { "change": "pr#2", "kind": "moved", "from": "cmd/seedling/main.go", "note": "Moved to the export subcommand's flag set in export.go." },
+        { "change": "pr#4", "kind": "changed", "note": "Help text changed from first day of the sheet to first day to schedule." }
+      ]
+    },
+    {
+      "id": "i-usage",
+      "kind": "config-key",
+      "name": "usage",
+      "path": "cmd/seedling/main.go",
+      "formerNames": [],
+      "hops": [
+        { "change": "pr#2", "kind": "introduced", "note": "Added as the usage text listing the export and serve commands." },
+        { "change": "pr#4", "kind": "changed", "note": "export is now described as making the weekly schedule as CSV." },
+        { "change": "pr#8", "kind": "changed", "note": "Lists the new remind command as texting tomorrow's volunteer." },
+        { "change": "pr#10", "kind": "changed", "note": "serve is now described as running the sign-up website and swap pages." },
+        { "change": "pr#16", "kind": "changed", "note": "remind is now described as emailing, and the new sheet command is listed." }
+      ]
+    },
+    {
+      "id": "i-crontab",
+      "kind": "file",
+      "name": "deploy/crontab",
+      "path": "deploy/crontab",
+      "formerNames": [],
+      "hops": [
+        { "change": "pr#8", "kind": "introduced", "note": "Added a cron line that runs seedling remind at 6pm on the garden server." },
+        { "change": "a41783c", "kind": "changed", "note": "The reminder now runs at 5pm instead of 6pm." }
+      ]
+    },
+    {
+      "id": "i-signup-html",
+      "kind": "file",
+      "name": "templates/signup.html",
+      "path": "templates/signup.html",
+      "formerNames": [],
+      "hops": [
+        { "change": "pr#2", "kind": "introduced", "note": "Added the sign-up form, whose thank-you line misspells garden as gardne." },
+        { "change": "1dcf9e5", "kind": "changed", "note": "Spelling-only fix of gardne to garden in the thank-you line." },
+        { "change": "pr#8", "kind": "changed", "note": "The phone label now asks for a cell phone for evening-before texts." },
+        { "change": "pr#16", "kind": "changed", "note": "Phone became optional and the email label says reminders come by email." }
+      ]
+    }
+  ]
+}
