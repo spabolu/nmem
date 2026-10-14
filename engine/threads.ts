@@ -69,6 +69,47 @@ function notAChoice(text: string): boolean {
 }
 
 /**
+ * A sentence that already states the refusal. "does not support" describes the code as it is, so it is not here.
+ * A closing sentence is the decision on a pull request closed without merging.
+ */
+const REFUSAL = [
+  /\b(?:we are|i am|we're|i'm) not (?:going to |gonna )?(?:add|adding|build|building|do|doing|put|putting|pay|paying|buy|buying|implement|implementing|accept|accepting|merge|merging)\b/i,
+  /\bnot (?:adding|building|paying|buying|putting|implementing|merging)\b/i,
+  /\b(?:will not|won'?t) (?:add|build|do|fix|implement|merge|accept)\b/i,
+  /\bdo not add\b/i,
+  /\bdon'?t add\b/i,
+  /\bnot planned\b/i,
+  /\bwontfix\b/i,
+  /\bwon'?t fix\b/i,
+  /\bnot something we will\b/i,
+  /\bdecided not to\b/i,
+  /\bleav(?:e|ing) it as is\b/i,
+];
+
+function statesRefusal(text: string): boolean {
+  const line = collapse(text);
+  if (notAChoice(line)) return false;
+  if (/^closing(?: this)?\b/i.test(line)) return true;
+  return REFUSAL.some((pattern) => pattern.test(line));
+}
+
+function worthAsking(record: RepoRecord, thread: OrphanThread): boolean {
+  const end = record.threadEnds.get(thread.root);
+  if (end?.kind === 'pull' && end.state !== 'closed') return false;
+  if (end?.kind === 'issue' && end.reason === 'duplicate') return false;
+  if (end?.kind === 'issue' && end.reason === 'not_planned') return true;
+  const stated = thread.objects.some((object) => object.sentences.some((sentence) => !sentence.flags.includes('bot') && !sentence.flags.includes('denial') && sentence.unit !== 'heading' && statesRefusal(sentence.text)));
+  if (end?.kind === 'pull') return stated;
+  if (thread.root.startsWith('pr#')) return end === undefined && stated;
+  return stated;
+}
+
+/** Orphan threads the declined step sends to a model, in record order. A thread with no sentence is not sent. */
+export function declinedThreads(record: RepoRecord): readonly OrphanThread[] {
+  return orphanThreads(record).filter((thread) => thread.objects.some((object) => object.sentences.length > 0) && worthAsking(record, thread));
+}
+
+/**
  * A pull request closed with nothing merged. The page has to name who closed it, and the sentence only says
  * "Closing this." The name and number come from the record. The title stays out of the engineer sentence so a title
  * word does not sit next to the number.
@@ -140,9 +181,9 @@ function gate(thread: ThreadText, answer: Answer): Gated<{ readonly sentence: Se
   return { value: { sentence, also: next }, problems: [] };
 }
 
-/** One call per orphan thread. At most one choice, carried by nothing. A thread whose reply is bad twice gives none. */
+/** One call per refusal thread. At most one choice, carried by nothing. A thread whose reply is bad twice gives none. */
 export async function declinedChoices(record: RepoRecord, client: ModelClient, note: (line: string) => void): Promise<readonly Choice[]> {
-  const threads = orphanThreads(record).map(threadOf).filter((thread) => thread.sentences.size > 0);
+  const threads = declinedThreads(record).map(threadOf);
   const found = await Promise.all(threads.map(async (thread) => {
     try {
       const gated = await ask(client, DECLINED, thread, `declined ${thread.root}`, (answer) => gate(thread, answer));

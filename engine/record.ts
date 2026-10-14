@@ -79,6 +79,12 @@ export type Change = {
   readonly patches: readonly Patch[];
 };
 
+/** How a thread ended, parsed from github.json. A missing entry means the object omitted state. */
+export type ThreadEnd =
+  | { readonly kind: 'pull'; readonly state: 'open' | 'closed' | 'merged' }
+  | { readonly kind: 'issue'; readonly state: 'open' | 'closed'; readonly reason: string | null }
+  | { readonly kind: 'discussion' };
+
 export type RepoRecord = {
   readonly repoDir: string;
   readonly identity: RepoIdentity;
@@ -88,6 +94,8 @@ export type RepoRecord = {
   readonly objects: ReadonlyMap<string, RecordObject>;
   /** Each pull request, issue, and discussion with its comments and reviews, by root ref such as pr#12 or issue#10. */
   readonly threads: ReadonlyMap<string, readonly RecordObject[]>;
+  /** Close state by root ref. Absent when the object did not say. */
+  readonly threadEnds: ReadonlyMap<string, ThreadEnd>;
   /** The root ref of the thread each object belongs to. Commit messages and files belong to none. */
   readonly rootOf: ReadonlyMap<string, string>;
   /** Every text file at HEAD, by path. */
@@ -103,16 +111,18 @@ export type RepoRecord = {
 type GithubComment = { readonly id: number; readonly author: string; readonly body: string; readonly replies: readonly GithubComment[] };
 type GithubThreaded = { readonly number: number; readonly title: string; readonly body: string; readonly author: string; readonly comments: readonly GithubComment[] };
 type GithubPull = GithubThreaded & {
+  readonly state: 'open' | 'closed' | 'merged' | null;
   readonly mergeCommitSha: string | null;
   readonly commits: readonly { readonly sha: string; readonly authorLogin: string | null }[];
   readonly reviews: readonly { readonly id: number; readonly author: string; readonly body: string; readonly threads: readonly (readonly GithubComment[])[] }[];
 };
+type GithubIssue = GithubThreaded & { readonly state: 'open' | 'closed' | null; readonly stateReason: string | null };
 type Github = {
   readonly raw: unknown;
   readonly repo: RepoIdentity;
   readonly users: readonly { readonly login: string; readonly name: string; readonly bot: boolean }[];
   readonly pulls: readonly GithubPull[];
-  readonly issues: readonly GithubThreaded[];
+  readonly issues: readonly GithubIssue[];
   readonly discussions: readonly GithubThreaded[];
 };
 
@@ -148,6 +158,18 @@ function comment(value: unknown, where: string): GithubComment {
   };
 }
 
+function pullState(value: unknown, where: string): 'open' | 'closed' | 'merged' | null {
+  if (value === undefined || value === null) return null;
+  if (value === 'open' || value === 'closed' || value === 'merged') return value;
+  fail(where, 'expected open, closed, or merged');
+}
+
+function issueState(value: unknown, where: string): 'open' | 'closed' | null {
+  if (value === undefined || value === null) return null;
+  if (value === 'open' || value === 'closed') return value;
+  fail(where, 'expected open or closed');
+}
+
 function threaded(value: unknown, where: string): GithubThreaded {
   return {
     number: int(get(value, 'number', where), `${where}.number`),
@@ -172,6 +194,7 @@ export function parseGithub(raw: unknown): Github {
       const merge = get(value, 'mergeCommitSha', where);
       return {
         ...threaded(value, where),
+        state: pullState(get(value, 'state', where), `${where}.state`),
         mergeCommitSha: merge === undefined || merge === null ? null : text(merge, `${where}.mergeCommitSha`),
         commits: list(get(value, 'commits', where), `${where}.commits`, (entry, at) => {
           const author = get(entry, 'authorLogin', at);
@@ -185,7 +208,14 @@ export function parseGithub(raw: unknown): Github {
         })),
       };
     }),
-    issues: list(get(raw, 'issues', '$'), 'issues', threaded),
+    issues: list(get(raw, 'issues', '$'), 'issues', (value, where) => {
+      const reason = get(value, 'stateReason', where);
+      return {
+        ...threaded(value, where),
+        state: issueState(get(value, 'state', where), `${where}.state`),
+        stateReason: reason === undefined || reason === null ? null : text(reason, `${where}.stateReason`).toLowerCase(),
+      };
+    }),
     discussions: list(get(raw, 'discussions', '$'), 'discussions', threaded),
   };
 }
@@ -445,6 +475,14 @@ export function ingest(workspace: string): RepoRecord {
     }
   }
   const rootOf = new Map([...threads].flatMap(([root, items]) => items.map((item) => [item.ref, root] as const)));
+  const threadEnds = new Map<string, ThreadEnd>();
+  for (const pull of github.pulls) {
+    if (pull.state !== null) threadEnds.set(`pr#${pull.number}`, { kind: 'pull', state: pull.state });
+  }
+  for (const issue of github.issues) {
+    if (issue.state !== null) threadEnds.set(`issue#${issue.number}`, { kind: 'issue', state: issue.state, reason: issue.stateReason });
+  }
+  for (const discussion of github.discussions) threadEnds.set(`discussion#${discussion.number}`, { kind: 'discussion' });
 
   const facts = factsOf(repoDir, github.raw) as {
     head: string;
@@ -496,5 +534,5 @@ export function ingest(workspace: string): RepoRecord {
     }
   }
 
-  return { repoDir, identity: github.repo, head: facts.head, changes, objects, threads, rootOf, files: files.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0)), docs, adrs, bots, names };
+  return { repoDir, identity: github.repo, head: facts.head, changes, objects, threads, threadEnds, rootOf, files: files.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0)), docs, adrs, bots, names };
 }
