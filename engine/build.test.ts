@@ -6,8 +6,8 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { parseSnapshot } from '../harness/contract.ts';
-import type { Snapshot } from '../harness/contract.ts';
+import { login, parseSnapshot } from '../harness/contract.ts';
+import type { Login, Snapshot } from '../harness/contract.ts';
 import { changeIds, factsOf, openFixture } from '../harness/record.ts';
 import { kindOf } from '../harness/view.ts';
 import { checkoutNewBranch, commitAll, git, initRepo, mergeNoFf, writeChanges } from '../fixtures/lib/git.mjs';
@@ -19,6 +19,7 @@ import { decide } from './choices.ts';
 import { docClaims } from './claims.ts';
 import { linkChoices } from './link.ts';
 import { ingest, segment } from './record.ts';
+import { declinedChoices, declinedThreads, orphanThreads } from './threads.ts';
 import { describeRoutine, proveRoutine } from './proofs.ts';
 import { noModel, rootTopic } from './steps.ts';
 import { implementers, splitMixed } from './topics.ts';
@@ -167,6 +168,28 @@ test('a denial sentence never becomes an intent, from a revert line or from clas
     ['pr#1', 'Adds a farewell line.'],
     ['pr#3', 'Moves the greeting to stdout.'],
   ]);
+});
+
+test('a finding stays only when its anchor shows a word of its name', async () => {
+  const record = ingest(toyWorkspace([
+    { title: 'Add a farewell', body: 'The farewell stays.', files: { 'farewell.txt': 'farewell stays\n' } },
+  ]));
+  const source = { kind: 'record' as const, ref: 'pr#1', quote: 'The farewell stays.' };
+  const ask: [Login, ...Login[]] = [login('ana')];
+  const why = { kind: 'not-recorded' as const, ask, guess: null };
+  const point = { eng: 'The farewell stays.', plain: 'The farewell stays.', source };
+  const built = await assemble(record, {
+    ...noModel(record),
+    classify: async (change) => ({
+      choices: [],
+      findings: change.id === 'pr#1' ? [
+        { finding: { severity: 'behavior', topics: [], anchor: source, name: { eng: 'Farewell stays put', plain: 'The farewell stays' }, says: [point], why }, files: ['farewell.txt'] },
+        { finding: { severity: 'behavior', topics: [], anchor: source, name: { eng: 'Store errors now answer', plain: 'Errors answer' }, says: [point], why }, files: ['farewell.txt'] },
+      ] : [],
+    }),
+  });
+  const snapshot = JSON.parse(built.bytes) as Snapshot;
+  assert.deepEqual(snapshot.changes.find((change) => change.id === 'pr#1')?.findings.map((finding) => finding.name.eng), ['Farewell stays put']);
 });
 
 type Canned = Readonly<Record<string, readonly unknown[]>>;
@@ -347,7 +370,7 @@ test('a bad reply after the re-ask leaves the change unclassified and says so', 
 
 test('a reason is recorded only when a second call agrees, and the scan drops a card point that states one', async () => {
   const record = ingest(toyWorkspace([
-    { title: 'Add a farewell', body: 'Use one farewell line. People asked for a goodbye. No behavior change intended.', files: { 'farewell.txt': 'bye\n' } },
+    { title: 'Add a farewell', body: 'Use one farewell line. People asked for a goodbye. No behavior change intended.', files: { 'farewell.txt': 'prints bye\n' } },
     { title: 'Tidy the greeting', body: 'Moves the greeting to stdout.', files: { 'greet.txt': 'hello\n' } },
   ]));
   const chose = (sentence: string, eng: string) => ({ sentence, stance: 'chose', carried: 'this', restates: null, what: { eng, plain: eng }, files: [] });
@@ -355,14 +378,14 @@ test('a reason is recorded only when a second call agrees, and the scan drops a 
     'claims README.md': [{ claims: [] }],
     'classify pr#1': [{
       choices: [chose('S2', 'One farewell line.')],
-      findings: [{ severity: 'behavior', anchor: 'L1', files: [], name: { eng: 'Says bye', plain: 'Says bye' }, says: [{ eng: 'It prints bye.', plain: 'It says bye.', source: 'L1' }, { eng: 'Users wanted it.', plain: 'People wanted it.', source: 'S3' }] }],
+      findings: [{ severity: 'behavior', anchor: 'L1', files: [], name: { eng: 'Prints bye', plain: 'Prints bye' }, says: [{ eng: 'It prints bye.', plain: 'It says bye.', source: 'L1' }, { eng: 'Users wanted it.', plain: 'People wanted it.', source: 'S3' }] }],
     }],
     'classify pr#2': [{ choices: [chose('S2', 'Greeting goes to stdout.')], findings: [] }],
     'why decision pr#1: One farewell line.': [{ reason: 'S3', said: { eng: 'People asked for a goodbye.', plain: 'People asked for a goodbye.' } }],
     'confirm decision pr#1: One farewell line.': [{ verdict: 'states-why' }],
-    'why finding pr#1: Says bye': [{ reason: 'S4', said: { eng: 'Nothing changes.', plain: 'Nothing changes.' } }, { reason: null, said: null }],
-    'scan Says bye': [{ stated: ['5'] }],
-    'vet pr#1: Says bye': [{ verdict: 'stands' }],
+    'why finding pr#1: Prints bye': [{ reason: 'S4', said: { eng: 'Nothing changes.', plain: 'Nothing changes.' } }, { reason: null, said: null }],
+    'scan Prints bye': [{ stated: ['5'] }],
+    'vet pr#1: Prints bye': [{ verdict: 'stands' }],
     'why decision pr#2: Moves the greeting to stdout.': [{ reason: 'S2', said: { eng: 'It moves the greeting.', plain: 'It moves the greeting.' } }],
     'confirm decision pr#2: Moves the greeting to stdout.': [{ verdict: 'does-not' }],
     'scan Moves the greeting to stdout.': [{ stated: [] }],
@@ -376,7 +399,7 @@ test('a reason is recorded only when a second call agrees, and the scan drops a 
   const finding = snapshot.changes.find((change) => change.id === 'pr#1')?.findings[0];
   assert.deepEqual([finding?.says.map((said) => said.eng), finding?.why], [['It prints bye.'], { kind: 'not-recorded', ask: ['ana'], guess: null }]);
   assert.deepEqual(notes, ['scan dropped a sentence that states a reason: Users wanted it.', 'topics fell back: no canned answer for form topics sample 1']);
-  const why = client.seen.find((request) => request.label === 'why finding pr#1: Says bye' && request.sample === 1);
+  const why = client.seen.find((request) => request.label === 'why finding pr#1: Prints bye' && request.sample === 1);
   assert.match(why?.user ?? '', /- reason: S4 is marked \(denial\) or \(bot\), so it can never be a reason$/);
 });
 
@@ -604,4 +627,131 @@ test('a doc sentence is dated by running its check at every change since it was 
   assert.deepEqual(broken?.verdict === 'no-longer-true' ? broken.why.source : null, { kind: 'proof', proof: `run ${runs[0]?.id}` });
   assert.deepEqual(madeTrue?.verdict === 'true-since' ? madeTrue.why.source : null, { kind: 'proof', proof: 'introduced toy/limit.py "raise ValueError(\\"zero\\")"' });
   assert.deepEqual(runs.map((run) => [run.lang, run.rev]), [['python', record.head]]);
+});
+
+test('a thread no merged change carries is read, and one a merged change names is not', () => {
+  const roots = (slug: string) => orphanThreads(ingest(path.join(root, 'out', slug))).map((thread) => thread.root).sort();
+  assert.deepEqual(roots('tally'), ['discussion#15', 'discussion#7', 'issue#11', 'issue#13', 'issue#24', 'pr#14']);
+  assert.deepEqual(roots('wayfinder'), ['discussion#3', 'issue#12', 'issue#19', 'issue#20', 'issue#9', 'pr#6']);
+  assert.deepEqual(roots('seedling'), ['discussion#14', 'discussion#3', 'issue#11', 'issue#13', 'issue#9', 'pr#7']);
+});
+
+test('declined sends a refusal thread and skips a duplicate and an open request', () => {
+  const roots = (slug: string) => declinedThreads(ingest(path.join(root, 'out', slug))).map((thread) => thread.root);
+  assert.deepEqual(roots('tally'), ['pr#14', 'issue#13', 'issue#24', 'discussion#7', 'discussion#15']);
+  assert.deepEqual(roots('wayfinder'), ['pr#6', 'issue#12', 'issue#19', 'discussion#3']);
+  assert.deepEqual(roots('seedling'), ['pr#7', 'issue#9', 'discussion#3']);
+});
+
+test('a refusal is the sentence shape, including a verb no fixture uses, and a question or a bot is not', () => {
+  const workspace = toyWorkspace([{ title: 'Add a note', body: 'Adds a note.', files: { 'notes.txt': 'x\n' } }]);
+  const github = JSON.parse(fs.readFileSync(path.join(workspace, 'github.json'), 'utf8')) as {
+    users: { login: string; name: string; type: string }[];
+    pulls: unknown[];
+    issues: unknown[];
+  };
+  github.users.push({ login: 'dependabot[bot]', name: 'dependabot[bot]', type: 'Bot' });
+  const closed = (number: number, body: string, comments: unknown[] = []) => ({
+    number, title: 'Request', body, author: 'ana', state: 'closed', stateReason: 'completed', comments,
+  });
+  github.pulls.push(
+    { number: 2, title: 'Vendor the fork', body: "I won't vendor that fork.", author: 'ana', state: 'closed', mergeCommitSha: null, commits: [], reviews: [], comments: [] },
+    { number: 3, title: 'Ship it', body: 'We are not shipping this.', author: 'ana', state: 'open', mergeCommitSha: null, commits: [], reviews: [], comments: [] },
+  );
+  github.issues.push(
+    closed(30, 'We are not shipping a plugin for this.'),
+    closed(2, "I'm not going to backport the old parser."),
+    closed(3, 'I am not gonna relicense the project.'),
+    closed(4, "We aren't going to fork this library."),
+    closed(5, "We won't migrate the callers."),
+    closed(6, 'The team will not expose that flag.'),
+    closed(7, 'This request is out of scope.'),
+    closed(8, 'A custom codec is not a good fit.'),
+    closed(9, 'The maintainers are closing as not interested.'),
+    closed(10, "We won't be adding telemetry."),
+    closed(11, "We'll pass on a second cache."),
+    closed(12, 'No plans to support that format.'),
+    { number: 13, title: 'Request', body: 'We are not shipping a plugin for this.', author: 'ana', state: 'open', stateReason: null, comments: [] },
+    closed(14, 'We are not shipping this?'),
+    closed(15, 'Leaving this open, we are not shipping it.'),
+    closed(16, 'Closing this as a duplicate.'),
+    closed(17, 'Please look.', [{ id: 90, author: 'dependabot[bot]', body: 'We are not shipping a plugin for this.', replies: [] }]),
+    closed(18, 'We are not shipping a plugin, and there is no behavior change.'),
+    { number: 19, title: 'We are not shipping this', body: 'Please consider it.', author: 'ana', state: 'closed', stateReason: 'completed', comments: [] },
+    closed(20, 'The parser does not support gzip.'),
+    closed(21, 'The tests pass on my machine.'),
+    { number: 22, title: 'Request', body: 'We are not shipping this.', author: 'ana', state: 'closed', stateReason: 'duplicate', comments: [] },
+    closed(23, 'Thanks.'),
+  );
+  fs.writeFileSync(path.join(workspace, 'github.json'), JSON.stringify(github));
+  const said = (thread: { objects: readonly { sentences: readonly { unit: string; text: string }[] }[] }): string =>
+    thread.objects.flatMap((object) => object.sentences.filter((sentence) => sentence.unit !== 'heading').map((sentence) => sentence.text)).join('\n');
+  assert.deepEqual(declinedThreads(ingest(workspace)).map((thread) => [thread.root, said(thread)]), [
+    ['pr#2', "I won't vendor that fork."],
+    ['issue#30', 'We are not shipping a plugin for this.'],
+    ['issue#2', "I'm not going to backport the old parser."],
+    ['issue#3', 'I am not gonna relicense the project.'],
+    ['issue#4', "We aren't going to fork this library."],
+    ['issue#5', "We won't migrate the callers."],
+    ['issue#6', 'The team will not expose that flag.'],
+    ['issue#7', 'This request is out of scope.'],
+    ['issue#8', 'A custom codec is not a good fit.'],
+    ['issue#9', 'The maintainers are closing as not interested.'],
+    ['issue#10', "We won't be adding telemetry."],
+    ['issue#11', "We'll pass on a second cache."],
+    ['issue#12', 'No plans to support that format.'],
+    ['issue#13', 'We are not shipping a plugin for this.'],
+  ]);
+});
+
+test('a closed pull request is a decision carried by nothing, and a request left open is not', async () => {
+  const workspace = toyWorkspace([{ title: 'Add a note', body: 'Closes #3.', files: { 'notes.txt': 'x\n' } }]);
+  const github = JSON.parse(fs.readFileSync(path.join(workspace, 'github.json'), 'utf8')) as { pulls: unknown[]; issues: unknown[] };
+  github.pulls.push({
+    number: 2,
+    title: 'Local page',
+    body: 'A page.',
+    author: 'ana',
+    state: 'closed',
+    mergeCommitSha: null,
+    commits: [],
+    reviews: [],
+    comments: [{ id: 50, author: 'ana', body: 'Closing this.', replies: [] }],
+  });
+  github.issues.push(
+    { number: 3, title: 'Already built', body: 'Do the note.', author: 'ana', state: 'closed', stateReason: 'completed', comments: [{ id: 51, author: 'ana', body: 'We are not adding it.', replies: [] }] },
+    { number: 4, title: 'Remember rent', body: 'Copy a bill forward.', author: 'ana', state: 'open', stateReason: null, comments: [{ id: 52, author: 'ana', body: 'Leaving this open.', replies: [] }] },
+  );
+  fs.writeFileSync(path.join(workspace, 'github.json'), JSON.stringify(github));
+  const record = ingest(workspace);
+  assert.deepEqual(declinedThreads(record).map((thread) => thread.root), ['pr#2']);
+  const labels: string[] = [];
+  const choices = await declinedChoices(record, {
+    async call(request) {
+      labels.push(request.label);
+      const close = /\[(S\d+)\] Closing this\./.exec(request.user)?.[1] ?? null;
+      const open = /\[(S\d+)\] Leaving this open\./.exec(request.user)?.[1] ?? null;
+      const sentence = request.label.endsWith('pr#2') ? close : open;
+      return { key: callKey(request), value: { sentence }, usage: { inputTokens: 1, outputTokens: 1 }, cached: false };
+    },
+    totals: () => ({ live: labels.length, cached: 0, usage: { inputTokens: 0, outputTokens: 0 } }),
+  }, () => {});
+  assert.deepEqual([...new Set(labels)].sort(), ['declined pr#2']);
+  assert.deepEqual(choices.map((choice) => [choice.carriedBy, choice.what, choice.sentence.text]), [
+    [null, { eng: 'Ana Lima closed PR #2.', plain: 'Ana Lima closed the Local page.' }, 'Closing this.'],
+  ]);
+  const placed: string[] = [];
+  const built = await assemble(record, {
+    ...noModel(record),
+    declined: async () => choices,
+    place: async (tree, items) => {
+      placed.push(...items.map((item) => item.key));
+      return noModel(record).place(tree, items);
+    },
+  });
+  const snapshot = JSON.parse(built.bytes) as Snapshot;
+  assert.deepEqual(placed, []);
+  assert.deepEqual(snapshot.decisions.map((decision) => [decision.carriedBy, decision.topics, decision.what.eng, decision.what.source.quote, decision.why]), [
+    [null, ['root'], 'Ana Lima closed PR #2.', 'Closing this.', { kind: 'not-recorded', ask: ['ana'], guess: null }],
+  ]);
 });

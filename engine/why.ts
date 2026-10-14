@@ -7,7 +7,7 @@
  * that carried it, and the pull requests, issues, and discussions those name by number.
  */
 import type { Named, RecordSource, Why } from '../harness/contract.ts';
-import { JARGON } from '../fixtures/lib/plain.mjs';
+import { JARGON, plainHits } from '../fixtures/lib/plain.mjs';
 import type { ModelClient } from './copilot.ts';
 import { arr, ask, lengthProblems, lit, named, nullable, obj, OPUS, plainProblems, SONNET, str } from './model.ts';
 import type { Gated, Task } from './model.ts';
@@ -121,6 +121,53 @@ function gatePropose(dossier: WhyDossier, answer: ProposeAnswer): Gated<Proposal
   if (answer.said === null) return { value: null, problems: ['said: a reason needs said'] };
   const problems = [...plainProblems('said', answer.said), ...lengthProblems('said', answer.said, 25)];
   return problems.length > 0 ? { value: null, problems } : { value: { sentence, said: answer.said }, problems: [] };
+}
+
+const UNCARRIED_ANSWER = obj({ reason: nullable(str) });
+
+const UNCARRIED: Task<WhyDossier, ReturnType<typeof UNCARRIED_ANSWER.parse>> = {
+  id: 'why-declined',
+  version: 1,
+  model: OPUS,
+  maxOutputTokens: 200,
+  rules: `You find why a choice not to build something was made, only where its record states it.
+
+The subject's sentence is the choice. It is not the reason. reason is a different [S#] that names the problem, the cost, or the constraint. When another person states that problem, pick their sentence, not the rest of the choice's own comment. A sentence that only says what was declined is not a reason. Never pick a sentence marked (denial) or (bot). null when no sentence states it.
+
+Answer with a handle only. Code copies the text, so never quote.`,
+  render: (dossier) => dossier.text,
+  answer: UNCARRIED_ANSWER,
+};
+
+function verbatim(sentence: Sentence): Named {
+  const capped = sentence.text.replace(/\s+/g, ' ').trim().split(/\s+/).slice(0, 25).join(' ');
+  return { eng: capped, plain: plainHits(capped).length === 0 ? capped : 'A reason was written down.' };
+}
+
+/**
+ * Why for a choice no change carried. The model names the sentence. Code copies it, so a paraphrase cannot rename
+ * the person or swap in words the record does not use. Confirm is the same check as every other reason.
+ */
+export async function whyUncarried(record: RepoRecord, client: ModelClient, subject: Subject, label: string): Promise<Why> {
+  const gap: Why = { kind: 'not-recorded', ask: subject.ask, guess: null };
+  const dossier = whyDossierOf(record, subject);
+  if (dossier.sentences.size === 0) return gap;
+  const gated = await ask(client, UNCARRIED, dossier, `why declined ${label}`, (answer) => {
+    if (answer.reason === null) return { value: null, problems: [] };
+    const sentence = dossier.sentences.get(answer.reason);
+    if (!sentence) return { value: null, problems: [`reason: ${answer.reason} is not an [S#] handle`] };
+    if (sentence.flags.includes('denial') || sentence.flags.includes('bot')) return { value: null, problems: [`reason: ${answer.reason} is marked (denial) or (bot)`] };
+    if (sentence.text.replace(/\s+/g, ' ').trim() === subject.quote.quote.replace(/\s+/g, ' ').trim()) return { value: null, problems: ['reason: the choice sentence is not the reason'] };
+    return { value: sentence, problems: [] };
+  });
+  const sentence = gated.value;
+  if (sentence === null) return gap;
+  const around = record.objects.get(sentence.ref)?.text ?? sentence.text;
+  const input: ConfirmInput = { subject: subject.what, quote: sentence.text.replace(/\s+/g, ' '), around: around.slice(0, 3000) };
+  const confirmed = await ask(client, CONFIRM, input, `confirm declined ${label}`, (answer) => ({ value: answer.verdict, problems: [] }));
+  if (confirmed.value !== 'states-why') return gap;
+  const source: RecordSource = { kind: 'record', ref: sentence.ref, quote: sentence.text };
+  return { kind: 'recorded', reason: { ...verbatim(sentence), source } };
 }
 
 /** Propose, then confirm. Not recorded unless both calls agree. */

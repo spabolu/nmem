@@ -4,21 +4,28 @@
  */
 import { encodeSnapshot, parseSnapshot } from '../harness/contract.ts';
 import type { Change as Entry, ChangeId, Decision, Finding, RecordSource, Snapshot, Undone, Usage } from '../harness/contract.ts';
-import { decide, settledChoices } from './choices.ts';
+import { decide, settledChoices, uncarriedDecisions } from './choices.ts';
 import { docClaims } from './claims.ts';
 import { linkChoices } from './link.ts';
-import { classifyChange } from './classify.ts';
+import { anchorShowsName, classifyChange } from './classify.ts';
 import { ModelUnavailable } from './copilot.ts';
 import type { ModelClient } from './copilot.ts';
-import { describeRoutine, proveRoutine, proveUndone } from './proofs.ts';
+import { proveRoutine, proveUndone, routineParts } from './proofs.ts';
 import type { UndoneProof } from './proofs.ts';
 import { ingest, isDoc } from './record.ts';
 import type { Change, RepoRecord } from './record.ts';
 import { collapse, noModel, ROOT } from './steps.ts';
 import type { Placeable, Steps } from './steps.ts';
 import { formTopics, implementers, overlapping, placeItems } from './topics.ts';
+import { declinedChoices, placeUncarried } from './threads.ts';
 import { vetFinding } from './vet.ts';
-import { scanReasons, whyOf } from './why.ts';
+import { scanReasons, whyOf, whyUncarried } from './why.ts';
+
+function topicList(ids: readonly string[]): [string, ...string[]] {
+  const [first, ...rest] = ids;
+  if (first === undefined) return [ROOT];
+  return [first, ...rest];
+}
 
 function label(id: ChangeId): string {
   const pull = /^pr#(\d+)$/.exec(id);
@@ -71,12 +78,20 @@ async function settleFinding(steps: Steps, found: Finding, change: Change): Prom
 }
 
 export async function assemble(record: RepoRecord, steps: Steps, usage: () => Usage | null = () => null): Promise<Built> {
+  let declinedError: unknown;
+  const declinedPromise = steps.declined().catch((error: unknown) => {
+    declinedError = error;
+    return [];
+  });
   const classified = await Promise.all(record.changes.map((change) => steps.classify(change)));
   const found = await Promise.all(record.changes.map(async (change, i) => {
     const items = await Promise.all((classified[i]?.findings ?? []).map(async (item) => ({ finding: await settleFinding(steps, item.finding, change), files: item.files })));
     return items.flatMap((item) => (item.finding === null ? [] : [{ finding: item.finding, files: item.files }]));
   }));
   const decided = await decide(record, steps, classified.flatMap((item) => item.choices));
+  const declined = await declinedPromise;
+  if (declinedError) throw declinedError;
+  const extra = await uncarriedDecisions(record, steps, declined, new Set(decided.map((item) => item.decision.id)));
   const topics = await steps.topics();
   const where = (changeId: ChangeId | null, files: readonly string[]): Pick<Placeable, 'candidates' | 'acts'> => {
     const change = record.changes.find((item) => item.id === changeId);
@@ -89,20 +104,27 @@ export async function assemble(record: RepoRecord, steps: Steps, usage: () => Us
     ...found.flatMap((items, i) => items.map((item, j) => ({ key: `finding ${i + 1}.${j + 1}`, kind: 'finding' as const, what: item.finding.name.eng, ...where(record.changes[i]?.id ?? null, item.files) }))),
   ];
   const placed = await steps.place(topics, placeable);
+  // These choices touch no files, so they have no candidates. Their own call keeps the batched place prompt stable.
+  // Joining them would redraw every item, and tally's settling page is usable only on the cached draw.
+  const extraTopics = extra.length === 0 ? new Map<string, readonly string[]>() : await steps.placeDeclined(topics, extra.map((decision) => ({ id: decision.id, what: decision.what.eng, ref: decision.what.source.ref, quote: decision.what.source.quote })));
+  const topicIds = new Set(topics.map((topic) => topic.id));
   const changes: Entry[] = record.changes.map((change, i) => {
-    const proof = proveRoutine(record.repoDir, change);
-    const words = proof ? describeRoutine(proof) : null;
     return {
       id: change.id,
       topics: overlapping(topics, [...change.touched.keys()]),
-      findings: (found[i] ?? []).map((item, j) => ({ ...item.finding, topics: placed.get(`finding ${i + 1}.${j + 1}`) ?? [] })),
-      routine: proof && words ? [{ files: proof.files, name: words.name, reason: { ...words.reason, source: { kind: 'proof', proof: proof.proof } } }] : [],
+      // Place keys findings by position. Dropping one before that call redraws every topic.
+      findings: (found[i] ?? []).flatMap((item, j) => (anchorShowsName(item.finding) ? [{ ...item.finding, topics: placed.get(`finding ${i + 1}.${j + 1}`) ?? [] }] : [])),
+      routine: routineParts(record.repoDir, change).map((part) => ({
+        files: part.files,
+        name: part.name,
+        reason: { ...part.reason, source: { kind: 'proof' as const, proof: part.proof } },
+      })),
     };
   });
-  const decisions: Decision[] = decided.map((item, i) => {
-    const [first, ...rest] = placed.get(`decision ${i + 1}`) ?? [];
-    return { ...item.decision, topics: first === undefined ? [ROOT] : [first, ...rest] };
-  });
+  const decisions: Decision[] = [
+    ...decided.map((item, i) => ({ ...item.decision, topics: topicList(placed.get(`decision ${i + 1}`) ?? []) })),
+    ...extra.map((decision) => ({ ...decision, topics: topicList((extraTopics.get(decision.id) ?? []).filter((id) => topicIds.has(id))) })),
+  ];
   const undone = proveUndone(record.repoDir, record.changes).map(undoneOf);
   const claimed = await steps.claims(topics);
   const snapshot: Snapshot = {
@@ -180,6 +202,15 @@ export function modelSteps(record: RepoRecord, client: ModelClient, notes: Notes
         return floor.why(subject);
       }
     },
+    whyDeclined: async (subject) => {
+      const label = `${subject.quote.ref}: ${subject.what.eng}`;
+      try {
+        return await whyUncarried(record, client, subject, label);
+      } catch (error) {
+        fallback(notes, `why declined ${label}`, error);
+        return floor.why(subject);
+      }
+    },
     topics: async () => {
       const root = (await floor.topics())[0];
       try {
@@ -203,6 +234,22 @@ export function modelSteps(record: RepoRecord, client: ModelClient, notes: Notes
       } catch (error) {
         fallback(notes, 'place', error);
         return floor.place(tree, items);
+      }
+    },
+    declined: async () => {
+      try {
+        return await declinedChoices(record, client, (line) => notes.push(line));
+      } catch (error) {
+        fallback(notes, 'declined', error);
+        return [];
+      }
+    },
+    placeDeclined: async (tree, items) => {
+      try {
+        return await placeUncarried(client, record, tree, items, (line) => notes.push(line));
+      } catch (error) {
+        fallback(notes, 'place declined', error);
+        return new Map();
       }
     },
     scan: async (subject, shown) => {
