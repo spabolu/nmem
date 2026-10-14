@@ -1623,17 +1623,30 @@ function rankDocs(
   );
 }
 
-function hitOf(row: Scored): SearchHit {
-  const matched =
-    [...row.doc.fields]
-      .sort((a, b) => b.weight - a.weight)
-      .find((fieldRow) => fieldRow.text.trim() !== "") ?? row.doc.fields[0];
+function hitOf(row: Scored, query: string): SearchHit {
+  const { tokens, idents } = queryParts(query);
+  const use = tokens.length > 0 ? tokens : idents;
+  const matching = row.doc.fields.filter(
+    (fieldRow) =>
+      use.some((token) => fieldHit(token, fieldRow.text) > 0) ||
+      idents.some(
+        (ident) =>
+          ident.length >= 4 && fieldRow.text.toLowerCase().includes(ident),
+      ),
+  );
+  const prose = matching
+    .filter((fieldRow) => fieldRow.name !== "id")
+    .sort((a, b) => b.weight - a.weight);
+  const picked =
+    prose[0] ??
+    matching.sort((a, b) => b.weight - a.weight)[0] ??
+    row.doc.fields[0];
   return {
     kind: row.doc.kind,
     id: row.doc.id,
     title: row.doc.title,
-    matched: matched?.show ?? row.doc.title,
-    field: matched?.name ?? "",
+    matched: picked?.show ?? row.doc.title,
+    field: picked?.name ?? "",
     score: row.score,
     link: row.doc.link,
   };
@@ -1649,7 +1662,9 @@ export function search(
   const docs = SEARCH_INDEXERS.flatMap((indexer) =>
     indexer.collect(snapshot, facts),
   );
-  return rankDocs(docs, query, rootOf(snapshot).id).map(hitOf);
+  return rankDocs(docs, query, rootOf(snapshot).id).map((row) =>
+    hitOf(row, query),
+  );
 }
 
 /** The fixed screen set the harness compares: every topic page, and every topic under every preset. */
