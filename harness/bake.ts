@@ -4,8 +4,8 @@
  * parity check writes it for every snapshot it serves. It tolerates a snapshot the parser would refuse, so the app can
  * still name that snapshot's defects.
  *
- * Keys are raw strings: every `ref` in the snapshot, `<head>:<path>` for every doc path, and every change id, which
- * the app's commit titles look up. Proofs are keyed by formatProof of every `proof` in the snapshot. Items are the
+ * Keys are raw strings: every `ref` in the snapshot, `<head>:<path>` for every doc path and every file an item lives
+ * in, and every change id, which the app's commit titles look up. The app reads a `#L` ref from its file's key. Proofs are keyed by formatProof of every `proof` in the snapshot. Items are the
  * item histories harness/items.ts derives from git, so the app never walks history itself.
  */
 import { createHash } from 'node:crypto';
@@ -18,6 +18,9 @@ import type { ProofFailure, ProofOutput, RecordObject } from './record.ts';
 import type { SourceFacts, TrackedItem } from './view.ts';
 
 export const SITE_SCHEMA_VERSION = 2;
+
+/** A file this long (a lockfile, generated code) keeps its GitHub link and leaves its text out of site.json. */
+const MAX_SOURCE_CHARS = 256 * 1024;
 
 export type BakedSource = {
   readonly facts: SourceFacts | null;
@@ -73,13 +76,15 @@ export async function bakeSite(workspace: string, snapshotFile: string): Promise
   collect(raw, refs, proofs, docs);
   for (const doc of docs) refs.add(`${facts.head}:${doc}`);
   for (const change of facts.changes) refs.add(change.id);
+  for (const item of facts.items) if (item.hops.at(-1)?.kind !== 'removed') refs.add(`${facts.head}:${item.path}`);
   const sources: Record<string, BakedSource> = {};
   for (const ref of [...refs].sort()) {
     const parsed = parseRef(ref, record.workspace.identity);
     const object = parsed ? record.resolve(parsed) : null;
+    const fits = object !== null && object.revisions.every((text) => text.length <= MAX_SOURCE_CHARS);
     sources[ref] = {
       facts: record.sourceFacts({ kind: 'record', ref, quote: 'x' }),
-      object: object ? { header: object.header, revisions: object.revisions } : null,
+      object: object && fits ? { header: object.header, revisions: object.revisions } : null,
     };
   }
   const runs = (raw && typeof raw === 'object' && Array.isArray((raw as { runs?: unknown }).runs) ? (raw as { runs: Run[] }).runs : []);

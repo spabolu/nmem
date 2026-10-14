@@ -49,6 +49,16 @@ export function timelineHref(
   })}`;
 }
 
+/** An item id is "<kind>/<name>", and a file's name holds slashes, so each segment is encoded on its own. */
+export function itemHref(
+  repo: RepoRef,
+  id: string,
+  audience: Audience,
+): string {
+  const path = id.split("/").map(encodeURIComponent).join("/");
+  return `${repoPath(repo)}/items/${path}?${qs(audience)}`;
+}
+
 export function sourceHref(
   repo: RepoRef,
   audience: Audience,

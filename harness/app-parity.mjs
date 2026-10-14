@@ -21,6 +21,7 @@ import { factsOf, openFixture } from "./record.ts";
 import {
   censusOf,
   decisionsFor,
+  itemPageOf,
   pageOf,
   search,
   TEMPLATES,
@@ -319,6 +320,48 @@ async function checkTopic(port, base, snapshot, facts, id, audience) {
   }
   screenRules(page.html, audience, label);
   return page.html;
+}
+
+function itemUrl(base, id, audience) {
+  return `${base}/items/${id.split("/").map(encodeURIComponent).join("/")}?audience=${audience}`;
+}
+
+/** A name a Non-engineer would read as code: a path, a flag, snake or camel case, or a constant. */
+function codeShaped(name) {
+  return /[_./-]|[a-z][A-Z]|^[A-Z0-9_]{3,}$/.test(name);
+}
+
+/** Every item page in both audiences: the kernel's net sentence, the screen rules, and no code name in plain. */
+async function checkItems(port, base, snapshot, facts, label) {
+  for (const item of facts.items) {
+    const kernel = itemPageOf(snapshot, facts, item.id);
+    for (const audience of ["eng", "plain"]) {
+      const where = `${label} item ${item.id} ${audience}`;
+      const page = await get(port, itemUrl(base, item.id, audience));
+      check(page.status === 200, `${where} status ${page.status}`);
+      if (page.status !== 200) continue;
+      screenRules(page.html, audience, where);
+      check(
+        attr(page.html, "data-summary") === kernel.summary[audience],
+        `${where} sentence is "${attr(page.html, "data-summary")}"`,
+      );
+      const visible = strip(page.html);
+      if (audience === "plain") {
+        for (const name of [item.path, item.name, ...item.formerNames]) {
+          if (codeShaped(name))
+            check(!visible.includes(name), `${where} shows the code name ${name}`);
+        }
+      } else if (item.hops.at(-1).kind !== "removed") {
+        check(
+          attr(page.html, "data-lives") === item.path,
+          `${where} lives in ${attr(page.html, "data-lives")}`,
+        );
+      }
+    }
+  }
+  const none = await get(port, itemUrl(base, "symbol/zzz-no-such-item", "eng"));
+  check(none.status === 404, `${label} unknown item status ${none.status}`);
+  console.log(`${label}: ${facts.items.length} item pages, both audiences`);
 }
 
 async function checkTimeline(
@@ -639,6 +682,7 @@ async function checkOracle(snapshotFile, snapshot, facts, screens, findings) {
     );
     for (const name of namesOf(round.html))
       check(!bareCommit(name), `round range names a commit id: ${name}`);
+    await checkItems(port, realBase, snapshot, facts, "oracle");
     console.log(
       `oracle: ${snapshot.topics.length} topics, ${screens.filter((row) => row.kind === "timeline").length} gold ranges, both audiences`,
     );
@@ -1190,6 +1234,18 @@ const VIEWS = [
     "source-proof",
     "/hearthware/tally/source?audience=eng&proof=grep+f01e078+-i+currenc",
   ],
+  ["item-main", "/hearthware/tally/items/symbol/main?audience=eng"],
+  ["item-main-plain", "/hearthware/tally/items/symbol/main?audience=plain"],
+  [
+    "item-refill",
+    "/northwind-labs/Wayfinder/items/option/refillWindowMs?audience=eng",
+    "fixtures",
+  ],
+  [
+    "item-usage",
+    "/eastside-commons/Seedling/items/config-key/usage?audience=eng",
+    "fixtures",
+  ],
 ];
 
 const MODES = [
@@ -1198,8 +1254,8 @@ const MODES = [
   { id: "390", width: 390, dark: false, mobile: true },
 ];
 
-/** Every view in every mode, full page. At 390 it also reports any view that scrolls sideways. */
-async function shoot(cdp, sessionId, port) {
+/** Every view in every mode, full page. At 390 it also reports any view that scrolls sideways. A view marked fixtures is served with wayfinder and seedling. */
+async function shoot(cdp, sessionId, ports) {
   fs.mkdirSync(shots, { recursive: true });
   const sideways = [];
   for (const mode of MODES) {
@@ -1222,11 +1278,11 @@ async function shoot(cdp, sessionId, port) {
       },
       sessionId,
     );
-    for (const [name, urlPath] of VIEWS) {
+    for (const [name, urlPath, server = "oracle"] of VIEWS) {
       const loaded = cdp.wait("Page.loadEventFired");
       await cdp.send(
         "Page.navigate",
-        { url: `http://127.0.0.1:${port}${urlPath}` },
+        { url: `http://127.0.0.1:${ports[server]}${urlPath}` },
         sessionId,
       );
       await loaded;
@@ -1319,6 +1375,7 @@ async function checkFixtures() {
           {},
         );
       }
+      await checkItems(port, base, snapshot, repoFacts, slug);
       console.log(
         `${slug}: ${snapshot.topics.length} topics and the whole-life timeline, both audiences`,
       );
@@ -1420,7 +1477,17 @@ async function checkLayout() {
       round.after.height > round.before.height,
       `hover does not grow the card (${round.before.height} to ${round.after.height})`,
     );
-    await shoot(cdp, sessionId, tallyPort);
+    const fixtures = start(
+      await fixtureRoot(fs.mkdtempSync(path.join(tmp, "shots-"))),
+    );
+    try {
+      await shoot(cdp, sessionId, {
+        oracle: tallyPort,
+        fixtures: await fixtures.ready,
+      });
+    } finally {
+      await fixtures.stop();
+    }
     await oracle.stop();
     if (!fs.existsSync(path.join(cache, "snapshot.json"))) {
       ws.close();

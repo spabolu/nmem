@@ -483,7 +483,7 @@ async function ExampleProof({
   return <pre className={SOURCE_PRE}>{preview}</pre>;
 }
 
-function DecisionRow({
+export function DecisionRow({
   ctx,
   decision,
 }: {

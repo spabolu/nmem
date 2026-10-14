@@ -325,9 +325,13 @@ export function readBuilt(workspace: string): Built {
   return { snapshot: parsed.snapshot, baked, items, github };
 }
 
+const LINES = /#L\d+(?:-L\d+)?$/;
+
 export function siteOf({ snapshot, baked, items, github }: Built): Site {
+  const baseOf = (ref: string) =>
+    baked.sources[ref] ?? baked.sources[ref.replace(LINES, "")];
   const sourceFacts = (ref: string): SourceFacts | null =>
-    baked.sources[ref]?.facts ?? null;
+    baseOf(ref)?.facts ?? null;
   return {
     snapshot,
     facts: {
@@ -348,7 +352,7 @@ export function siteOf({ snapshot, baked, items, github }: Built): Site {
     },
     identity: { owner: github.repo.owner, name: github.repo.name },
     github,
-    object: (ref) => baked.sources[ref]?.object ?? null,
+    object: (ref) => baseOf(ref)?.object ?? null,
     sourceFacts,
     proof(raw) {
       const proof = parseProof(raw);

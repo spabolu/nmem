@@ -12,7 +12,7 @@ export function proxy(request: NextRequest) {
     .split("/")
     .filter(Boolean)
     .map(decodeURIComponent);
-  const [owner, repo, view, id, ...extra] = parts;
+  const [owner, repo, view, ...rest] = parts;
   if (!owner || !repo || owner.startsWith("-")) return NextResponse.next();
   const refuse = (status: 400 | 404, reason: string) =>
     fetch(new URL(`/-refused/${status}`, request.nextUrl.origin)).then(
@@ -30,6 +30,16 @@ export function proxy(request: NextRequest) {
     return refuse(404, `No built repository is called ${owner}/${repo}.`);
   const query = readQuery(request.nextUrl.searchParams);
   if ("error" in query) return refuse(400, query.error);
+  if (view === "items") {
+    const item = rest.join("/");
+    if (site.facts.items.some((row) => row.id === item))
+      return NextResponse.next();
+    return refuse(
+      404,
+      item === "" ? "Pick an item." : `The snapshot has no item ${item}.`,
+    );
+  }
+  const [id, ...extra] = rest;
   if (extra.length > 0)
     return refuse(404, "Nothing at this address is in the snapshot.");
   if (view === "topics" && !site.snapshot.topics.some((row) => row.id === id)) {

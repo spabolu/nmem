@@ -964,7 +964,7 @@ export const TEMPLATES = {
     };
     if (tally.decision > 0)
       both(
-        `${capital(countWord(tally.decision))} ${behavior > 0 ? "other " : ""}change${tally.decision === 1 ? "" : "s"} carried a decision.`,
+        `${capital(countWord(tally.decision))} ${behavior > 0 ? "other" : "later"} change${tally.decision === 1 ? "" : "s"} carried a decision.`,
       );
     if (tally.check > 0)
       both(
@@ -980,6 +980,13 @@ export const TEMPLATES = {
     } else if (tally.unchanged) both("Not changed since.");
     return { eng: eng.join(" "), plain: plain.join(" ") };
   },
+  /** What an item is, in words. Plain never shows the item's own name, so its kind word stands in for it. */
+  itemKind: {
+    symbol: { eng: "Symbol", plain: "A piece of code" },
+    option: { eng: "Option", plain: "A setting" },
+    "config-key": { eng: "Config key", plain: "A setting" },
+    file: { eng: "File", plain: "A file" },
+  } satisfies Record<TrackedKind, Named>,
   /** How a hop reads on its card. Plain never names the old file or the old name. */
   hop: (hop: Hop): Named => {
     switch (hop.kind) {
