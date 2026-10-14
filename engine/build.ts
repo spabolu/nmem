@@ -10,7 +10,7 @@ import { linkChoices } from './link.ts';
 import { anchorShowsName, classifyChange } from './classify.ts';
 import { ModelUnavailable } from './copilot.ts';
 import type { ModelClient } from './copilot.ts';
-import { describeRoutine, proveRoutine, proveUndone } from './proofs.ts';
+import { proveRoutine, proveUndone, routineParts } from './proofs.ts';
 import type { UndoneProof } from './proofs.ts';
 import { ingest, isDoc } from './record.ts';
 import type { Change, RepoRecord } from './record.ts';
@@ -109,14 +109,16 @@ export async function assemble(record: RepoRecord, steps: Steps, usage: () => Us
   const extraTopics = extra.length === 0 ? new Map<string, readonly string[]>() : await steps.placeDeclined(topics, extra.map((decision) => ({ id: decision.id, what: decision.what.eng, ref: decision.what.source.ref, quote: decision.what.source.quote })));
   const topicIds = new Set(topics.map((topic) => topic.id));
   const changes: Entry[] = record.changes.map((change, i) => {
-    const proof = proveRoutine(record.repoDir, change);
-    const words = proof ? describeRoutine(proof) : null;
     return {
       id: change.id,
       topics: overlapping(topics, [...change.touched.keys()]),
       // Place keys findings by position. Dropping one before that call redraws every topic.
       findings: (found[i] ?? []).flatMap((item, j) => (anchorShowsName(item.finding) ? [{ ...item.finding, topics: placed.get(`finding ${i + 1}.${j + 1}`) ?? [] }] : [])),
-      routine: proof && words ? [{ files: proof.files, name: words.name, reason: { ...words.reason, source: { kind: 'proof', proof: proof.proof } } }] : [],
+      routine: routineParts(record.repoDir, change).map((part) => ({
+        files: part.files,
+        name: part.name,
+        reason: { ...part.reason, source: { kind: 'proof' as const, proof: part.proof } },
+      })),
     };
   });
   const decisions: Decision[] = [

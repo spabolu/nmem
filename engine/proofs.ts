@@ -2,11 +2,14 @@
  * Prove. Routine files and add-then-undo groups, settled by fixtures/lib/checks.mjs, the runner the harness uses on
  * every proof. A file is routine only when the proof's own output shows it is, and a group is undone only when its diff
  * proof prints "(no differences)". Proven files reach later steps as settled facts, never as diffs.
+ *
+ * A change is routine only when every file is. A change that mixes a behavior edit with files a proof already settled
+ * still writes those files as parts, each with that proof, and classify does not spend its dossier on them.
  */
 import type { ChangeId, Named } from '../harness/contract.ts';
-import { parseProof, runProof } from '../fixtures/lib/checks.mjs';
+import { formatProof, parseProof, runProof } from '../fixtures/lib/checks.mjs';
 import { EMPTY_TREE } from '../fixtures/lib/facts.mjs';
-import { git } from '../fixtures/lib/git.mjs';
+import { git, showFile } from '../fixtures/lib/git.mjs';
 import type { Change } from './record.ts';
 
 /** One line of `files <rev>` output: "path (new)", "path", or "path: what changed". */
@@ -69,6 +72,17 @@ export type UndoneProof = {
   readonly proof: string;
 };
 
+/** One routine part a change can write. The proof is the check that settled these files. */
+export type RoutinePartProof = {
+  readonly files: readonly [string, ...string[]];
+  readonly name: Named;
+  readonly reason: Named;
+  readonly proof: string;
+};
+
+/** The path the lockfile verb reads. The other LOCKFILES names are setup files only. */
+const LOCKFILE_VERB = 'package-lock.json';
+
 type ProofOutput = { readonly header: string; readonly text: string } | { readonly failed: string; readonly detail: string };
 
 function run(repoDir: string, raw: string): string | null {
@@ -92,13 +106,21 @@ function short(sha: string): string {
   return sha.slice(0, 7);
 }
 
-/** Each touched file the change's `files` proof shows is routine on its own, with what it is. They reach a model as settled facts, never as diffs. */
-export function settledFiles(repoDir: string, change: Change): ReadonlyMap<string, Named> {
+function filesSettled(repoDir: string, change: Change): Map<string, Named> {
   const output = run(repoDir, `files ${short(change.after)}`);
   const settled = new Map<string, Named>();
   for (const entry of output === null ? [] : entries(output)) {
     const rule = ROUTINE.find((item) => item.test(entry));
     if (rule && change.touched.has(entry.path)) settled.set(entry.path, rule.name);
+  }
+  return settled;
+}
+
+/** Each touched file a proof shows is routine on its own, with what it is. They reach a model as settled facts, never as diffs. */
+export function settledFiles(repoDir: string, change: Change): ReadonlyMap<string, Named> {
+  const settled = filesSettled(repoDir, change);
+  for (const part of partialParts(repoDir, change, settled)) {
+    for (const file of part.files) if (!settled.has(file)) settled.set(file, part.name);
   }
   return settled;
 }
@@ -129,6 +151,120 @@ export function describeRoutine(proof: RoutineProof): { readonly name: Named; re
   const eng = joinAnd(proof.kinds.map((kind) => kind.eng));
   const plain = joinAnd(proof.kinds.map((kind) => kind.plain));
   return { name: { eng, plain }, reason: { eng: `Only ${eng} changed, no code.`, plain: `Only ${plain} changed.` } };
+}
+
+type Range = { readonly from: string; readonly to: string };
+
+function rangeOf(change: Change): Range | null {
+  if (change.before === EMPTY_TREE) return null;
+  return { from: short(change.before), to: short(change.after) };
+}
+
+/** The lockfile verb's own words for a refresh that changes no version, adds nothing anyone uses, and runs no install script. */
+function lockfileUnused(text: string): boolean {
+  return text.includes('versions changed: none') && text.includes('used by any other file: none') && text.includes('with an install script: none');
+}
+
+function lockfilePart(repoDir: string, range: Range): RoutinePartProof | null {
+  const proof = formatProof({ verb: 'lockfile', from: range.from, to: range.to });
+  const text = run(repoDir, proof);
+  if (text === null || !lockfileUnused(text)) return null;
+  return {
+    files: [LOCKFILE_VERB],
+    name: { eng: 'lockfile refresh', plain: 'package list refresh' },
+    reason: {
+      eng: 'No version changed, nothing else uses the added entries, and none has an install script.',
+      plain: 'No version changed, and nothing else uses what was added.',
+    },
+    proof,
+  };
+}
+
+function sentenceOf(text: string): string {
+  const first = text.charAt(0).toUpperCase() + text.slice(1);
+  return first.endsWith('.') ? first : `${first}.`;
+}
+
+function restylePart(repoDir: string, range: Range, path: string): RoutinePartProof | null {
+  const proof = formatProof({ verb: 'restyle', from: range.from, to: range.to, path });
+  const text = run(repoDir, proof);
+  if (text === null || !text.startsWith('only ')) return null;
+  const said = sentenceOf(text);
+  return {
+    files: [path],
+    name: { eng: 'restyle', plain: 'formatting' },
+    reason: { eng: said, plain: said },
+    proof,
+  };
+}
+
+/** A generated banner in the opening lines. A mention of either word later in the file is not one. */
+function generatedBanner(text: string): boolean {
+  const head = text.split('\n').slice(0, 12).join('\n');
+  return /generated/i.test(head) && /do not edit/i.test(head);
+}
+
+function stemOf(path: string): string | null {
+  const base = path.split('/').pop() ?? '';
+  const dot = base.lastIndexOf('.');
+  const stem = dot > 0 ? base.slice(0, dot) : base;
+  return /^[A-Za-z0-9][A-Za-z0-9._-]{2,}$/.test(stem) ? stem : null;
+}
+
+function generatedPart(repoDir: string, change: Change, range: Range, path: string): RoutinePartProof | null {
+  const body = showFile(repoDir, change.after, path) as string | null;
+  const stem = stemOf(path);
+  if (body === null || stem === null || !generatedBanner(body)) return null;
+  const proof = formatProof({ verb: 'grep', rev: range.to, pattern: stem, flags: [], paths: [] });
+  if (run(repoDir, proof) !== '(no matches)') return null;
+  return {
+    files: [path],
+    name: { eng: 'generated file', plain: 'generated file' },
+    reason: {
+      eng: 'Nothing else names this generated file.',
+      plain: 'Nothing else uses this generated file.',
+    },
+    proof,
+  };
+}
+
+/**
+ * Files a proof settles that the files-proof rules did not. A file already settled that way is left to it, so a doc
+ * is not also a restyle part.
+ */
+function partialParts(repoDir: string, change: Change, settled: ReadonlyMap<string, Named>): RoutinePartProof[] {
+  const range = rangeOf(change);
+  if (!range) return [];
+  const parts: RoutinePartProof[] = [];
+  for (const path of change.touched.keys()) {
+    if (settled.has(path)) continue;
+    if (path === LOCKFILE_VERB) {
+      const part = lockfilePart(repoDir, range);
+      if (part) parts.push(part);
+      continue;
+    }
+    const generated = generatedPart(repoDir, change, range, path);
+    if (generated) {
+      parts.push(generated);
+      continue;
+    }
+    const restyle = restylePart(repoDir, range, path);
+    if (restyle) parts.push(restyle);
+  }
+  return parts;
+}
+
+/**
+ * Parts the change writes. A change whose every file is routine is one files part, the same part it wrote before.
+ * Otherwise each file a lockfile, restyle, or generated-file proof settles is its own part.
+ */
+export function routineParts(repoDir: string, change: Change): readonly RoutinePartProof[] {
+  const whole = proveRoutine(repoDir, change);
+  if (whole) {
+    const words = describeRoutine(whole);
+    return [{ files: whole.files, name: words.name, reason: words.reason, proof: whole.proof }];
+  }
+  return partialParts(repoDir, change, filesSettled(repoDir, change));
 }
 
 function treeOf(repoDir: string, rev: string): string {
