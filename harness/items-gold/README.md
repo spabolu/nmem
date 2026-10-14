@@ -17,6 +17,8 @@ The scorer matches a gold item to a derived item by kind, name, and path. A hop 
 
 At the commit that adds this folder, tally and seedling score F1 1.000 and wayfinder scores 0.976. The one wayfinder miss is `createMemoryStore`, which gold marks `extracted-from` in pr#2 and the derivation marks `introduced`.
 
+Tally and wayfinder were the development set, so they are not unseen scores. Seedling was held out until the arena picked a base, and it scored 0.903 then. The two fixes grafted after that were chosen from seedling's misses, so the 1.000 above is no longer a held-out number. The next unseen check needs gold for a repo the derivation has never been scored on.
+
 ## Shape
 
 ```json
