@@ -109,6 +109,17 @@ test('a constant whose multi-line string changes on a later line is changed in t
   assert.deepEqual(items.filter((item) => item.kind === 'symbol').map((item) => `${item.name} ${hops(item).join(', ')}`), ['main aaaaaaa introduced (name)', 'main aaaaaaa introduced (name)', 'main aaaaaaa introduced (name)']);
 });
 
+test('a type replaced by one with different fields is removed and introduced, while a renamed function with the same body is renamed', () => {
+  const roster = (name: string): string => `package main\n\nfunc ${name}(path string) ([]Volunteer, error) {\n\traw, err := os.ReadFile(path)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tvar roster []Volunteer\n\treturn roster, json.Unmarshal(raw, &roster)\n}\n`;
+  const items = historyOf([
+    { 'notify/sms.go': 'package notify\n\ntype SMS struct {\n\tAccountSID string\n\tAuthToken  string\n\tFrom       string\n}\n', 'roster.go': roster('loadRoster') },
+    { 'notify/sms.go': null, 'notify/email.go': 'package notify\n\ntype Email struct {\n\tAddr     string\n\tUser     string\n\tPassword string\n}\n', 'roster.go': roster('readRoster') },
+  ]);
+  assert.deepEqual(hopsOf(items, 'symbol', 'SMS'), ['aaaaaaa introduced (name)', 'bbbbbbb removed (name)']);
+  assert.deepEqual(hopsOf(items, 'symbol', 'Email'), ['bbbbbbb introduced (name)']);
+  assert.deepEqual(hopsOf(items, 'symbol', 'readRoster'), ['aaaaaaa introduced (name)', 'bbbbbbb renamed loadRoster (text)']);
+});
+
 test('a language with no registry row is tracked as files, and a rename keeps the file history', () => {
   const body = (word: string): string => `fn main() {\n    println!("${word}");\n    let total = 2 + 2;\n    println!("{}", total);\n}\n`;
   const items = historyOf([{ 'src/lib.rs': body('hi') }, { 'src/lib.rs': body('hello') }, { 'src/lib.rs': null, 'src/main.rs': body('hello there') }]);

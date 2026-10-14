@@ -826,12 +826,21 @@ function referenceSwaps(pairs: ReadonlyArray<readonly [string | null, string | n
   return { removed, added };
 }
 
+/** Two regions that share only these words share nothing that identifies them. */
+const COMMON_WORDS = new Set([
+  ...'break case chan const continue default defer else fallthrough for func go goto if import interface map package range return select struct switch type var bool byte error float32 float64 int int8 int16 int32 int64 rune string uint uint8 uint16 uint32 uint64 uintptr true false nil iota append cap close copy delete len make new panic print println err ctx'.split(' '),
+  ...'async await catch class debugger do enum export extends finally from function implements in instanceof let null of private protected public readonly static super this throw try typeof undefined void while with yield as any unknown never number boolean object symbol bigint Promise'.split(' '),
+  ...'and assert def del elif except False global is lambda None nonlocal not or pass raise True self cls str float dict list tuple set bytes isinstance'.split(' '),
+]);
+
+/** Keywords and the substituted name must not carry a rename alone, and a small region left with one or two distinctive tokens still needs its whole text to agree. */
 function renameScore(was: Region, now: Region, swaps: Swaps): number | null {
   if (was.kind !== now.kind || was.name === now.name) return null;
   const from = leafOf(was.name);
   const to = leafOf(now.name);
   const renamed = tokensOfRegion(was).map((t) => (t === from ? to : /^[\w$]+$/.test(from) ? t : t.split(from).join(to)));
-  const score = dice(renamed, tokensOfRegion(now));
+  const distinctive = (t: string): boolean => t.length > 1 && t !== to && !COMMON_WORDS.has(t);
+  const score = Math.min(dice(renamed, tokensOfRegion(now)), dice(renamed.filter(distinctive), tokensOfRegion(now).filter(distinctive)));
   if (score >= RENAME_MIN) return score;
   if (score < RENAME_WITH_EVIDENCE_MIN) return null;
   return swaps.removed.some((line) => line.includes(from) && swaps.added.has(rename(line, was.name, now.name)) && !was.text.includes(line)) ? score : null;
