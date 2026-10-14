@@ -1,6 +1,7 @@
 import "server-only";
 import type {
   ChangeId,
+  Decision,
   LocalId,
   Login,
   RecordRef,
@@ -13,6 +14,7 @@ import type { Site } from "@/lib/kernel/site";
 import type { Audience, Card, IsoDay, Item, Status } from "@/lib/kernel/view";
 import {
   cardDay,
+  decisionDay,
   formatDay,
   labelChange,
   MONTHS,
@@ -223,6 +225,29 @@ export function namedChange(
   if (title) return title;
   const pull = /^pr#(\d+)$/.exec(id);
   return pull ? `PR #${pull[1]}` : "A commit with no message";
+}
+
+export type Carried =
+  | { readonly kind: "none" }
+  | { readonly kind: "change"; readonly id: ChangeId; readonly label: string };
+
+export function carriedOf(
+  site: Site,
+  decision: Decision,
+  audience: Audience,
+): Carried {
+  if (decision.carriedBy === null) return { kind: "none" };
+  const name = namedChange(
+    site,
+    decision.carriedBy,
+    decisionDay(decision, site.facts),
+    audience,
+  );
+  const label =
+    audience === "plain" && name.startsWith("A change on ")
+      ? `a change on ${name.slice("A change on ".length)}`
+      : name;
+  return { kind: "change", id: decision.carriedBy, label };
 }
 
 export function itemSource(site: Site, item: Item): Source | null {

@@ -35,7 +35,7 @@ import {
   shortWhen,
   ticksOf,
 } from "@/lib/present";
-import { Chip, type Ctx, Prose, SaidText, WhyText } from "./said";
+import { CarriedBy, Chip, type Ctx, Prose, SaidText, WhyText } from "./said";
 import { CHIP, CHIP_ON, HINT } from "./styles";
 
 const RANGE_LABEL =
@@ -588,6 +588,7 @@ function CardView({ ctx, card, folded, style, more }: CardProps) {
         <span className="t said" data-nmem>
           <SaidText ctx={ctx} line={decision.what} />
         </span>
+        <CarriedBy ctx={ctx} decision={decision} className="carry" />
         <span
           className={`point ${decision.why.kind === "recorded" ? "said" : "template"}`}
           data-nmem

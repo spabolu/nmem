@@ -17,7 +17,7 @@ import {
 } from "@/lib/kernel/view";
 import { ancestors, dotOf, person, topicById } from "@/lib/present";
 import { ButtonLink } from "./links";
-import { Avatar, Chip, type Ctx, Prose, SaidText } from "./said";
+import { Avatar, CarriedBy, Chip, type Ctx, Prose, SaidText } from "./said";
 import {
   CALLOUT,
   CHIP,
@@ -358,6 +358,11 @@ function DecisionRow({
           ) : (
             <span className="who">Not named in the record</span>
           )}{" "}
+          <CarriedBy
+            className="min-w-0 break-words"
+            ctx={ctx}
+            decision={decision}
+          />{" "}
           {decision.why.kind === "recorded" ? (
             <span className="why said" data-nmem>
               <SaidText ctx={ctx} line={decision.why.reason} />

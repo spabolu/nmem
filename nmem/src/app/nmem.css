@@ -69,6 +69,15 @@
   font-weight: 600;
   font-size: 13px;
 }
+.tl-card .carry {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 12px;
+  color: var(--fgColor-muted);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
 .tl-card .point,
 .tl-card .c,
 .tl-card .note {
@@ -123,6 +132,12 @@
   display: block;
   -webkit-line-clamp: unset;
   overflow: visible;
+}
+.tl-card.placed:hover .carry,
+.tl-card.placed:focus-within .carry {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: unset;
 }
 .tl-card.behavior {
   border-color: var(--borderColor-danger-muted);
@@ -281,5 +296,10 @@
     display: block;
     -webkit-line-clamp: unset;
     overflow: visible;
+  }
+  .tl-card .carry {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: unset;
   }
 }
