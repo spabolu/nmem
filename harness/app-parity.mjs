@@ -553,25 +553,28 @@ async function checkOracle(snapshotFile, snapshot, facts, screens, findings) {
     const query =
       named.name.eng.split(/\s+/).find((word) => word.length > 4) ??
       named.name.eng;
-    const found = search(snapshot, query);
+    // The old check joined topic ids and looked for "No topic matches."
+    // That encoded topic-only search. Results are now kind:id, and an empty box says "No matches."
+    const found = search(snapshot, facts, query);
     const results = await get(
       port,
       `${realBase}/search?${new URLSearchParams({ audience: "eng", q: query })}`,
     );
     check(results.status === 200, `search status ${results.status}`);
     check(
-      attr(results.html, "data-results") === found.join(","),
+      attr(results.html, "data-results") ===
+        found.map((hit) => `${hit.kind}:${hit.id}`).join(","),
       `search for "${query}" does not match the kernel`,
     );
-    check(found.includes(named.id), `search for "${query}" missed ${named.id}`);
+    check(
+      found.some((hit) => hit.kind === "topic" && hit.id === named.id),
+      `search for "${query}" missed ${named.id}`,
+    );
     const none = await get(
       port,
       `${realBase}/search?audience=eng&q=zzznomatch`,
     );
-    check(
-      none.html.includes("No topic matches."),
-      "empty search is not worded",
-    );
+    check(none.html.includes("No matches."), "empty search is not worded");
     const source = snapshot.decisions.find(
       (row) => row.what.source.kind === "record",
     );
