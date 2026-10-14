@@ -547,7 +547,248 @@ export const TEMPLATES = {
   },
   unclassified: { eng: 'nmem could not classify this change.', plain: 'nmem could not classify this change.' },
   net: { eng: 'no net change', plain: 'no net change' },
+  /**
+   * An item page's net sentence, from counts only: "Introduced in PR #3. Renamed once. Two behavior changes, one decided
+   * in PR #12." Plain names days, never a change id or a code name.
+   */
+  item: (tally: ItemTally): Named => {
+    const eng: string[] = [];
+    const plain: string[] = [];
+    const { origin } = tally;
+    if (origin.hop.kind === 'extracted-from') {
+      eng.push(`Split out of ${origin.hop.from} in ${labelChange(origin.hop.change)}.`);
+      plain.push(`Split out of older code on ${formatDay(origin.day)}.`);
+    } else {
+      eng.push(`Introduced in ${labelChange(origin.hop.change)}.`);
+      plain.push(`Added on ${formatDay(origin.day)}.`);
+    }
+    const shape = [tally.renamed > 0 ? `renamed ${timesWord(tally.renamed)}` : '', tally.moved > 0 ? `moved ${timesWord(tally.moved)}` : ''].filter(Boolean);
+    if (shape.length > 0) {
+      const line = `${capital(joinAnd(shape))}.`;
+      eng.push(line);
+      plain.push(line);
+    }
+    const behavior = tally.behavior.length;
+    const decided = tally.behavior.filter((step) => step.decided);
+    if (behavior > 0) {
+      const one = decided.length === 1 ? decided[0] : undefined;
+      const tail = (named: (step: { readonly change: ChangeId; readonly day: IsoDay }) => string): string => {
+        if (decided.length === 0) return '';
+        if (decided.length === behavior) return behavior === 1 && one ? `, decided ${named(one)}` : behavior === 2 ? ', both decided' : ', all decided';
+        return one ? `, one decided ${named(one)}` : `, ${countWord(decided.length)} decided`;
+      };
+      eng.push(`${capital(countWord(behavior))} behavior change${behavior === 1 ? '' : 's'}${tail((step) => `in ${labelChange(step.change)}`)}.`);
+      plain.push(`${capital(countWord(behavior))} change${behavior === 1 ? '' : 's'} to what it does${tail((step) => `on ${formatDay(step.day)}`)}.`);
+    }
+    const both = (line: string): void => {
+      eng.push(line);
+      plain.push(line);
+    };
+    if (tally.decision > 0) both(`${capital(countWord(tally.decision))} ${behavior > 0 ? 'other ' : ''}change${tally.decision === 1 ? '' : 's'} carried a decision.`);
+    if (tally.check > 0) both(`${capital(countWord(tally.check))} thing${tally.check === 1 ? '' : 's'} worth a look.`);
+    if (tally.net > 0) both(`${capital(countWord(tally.net))} set${tally.net === 1 ? '' : 's'} of changes came and went with no net change.`);
+    if (tally.removed) {
+      eng.push(`Removed in ${labelChange(tally.removed.change)}.`);
+      plain.push(`Removed on ${formatDay(tally.removed.day)}.`);
+    } else if (tally.unchanged) both('Not changed since.');
+    return { eng: eng.join(' '), plain: plain.join(' ') };
+  },
+  /** How a hop reads on its card. Plain never names the old file or the old name. */
+  hop: (hop: Hop): Named => {
+    switch (hop.kind) {
+      case 'introduced':
+        return { eng: 'Introduced', plain: 'Added' };
+      case 'changed':
+        return { eng: 'Changed', plain: 'Changed' };
+      case 'removed':
+        return { eng: 'Removed', plain: 'Removed' };
+      case 'moved':
+        return { eng: `Moved from ${hop.from}`, plain: 'Moved to another file' };
+      case 'renamed':
+        return { eng: `Renamed from ${hop.from}`, plain: 'Renamed' };
+      case 'extracted-from':
+        return { eng: `Split out of ${hop.from}`, plain: 'Split out of older code' };
+    }
+  },
+  /** Said only when nmem followed the item by its text, so the reader knows the link is a match, not a name. */
+  matchedByText: (hop: Hop): Named | null => {
+    if (hop.matchedBy !== 'text') return null;
+    if (hop.kind === 'moved') return { eng: 'nmem matched it across the move by its text.', plain: 'nmem matched it across the move by comparing the text.' };
+    return { eng: 'nmem matched it by its text, since the name changed.', plain: 'nmem matched it by comparing the text, since the name changed.' };
+  },
 } as const;
+
+const COUNT_WORDS = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'] as const;
+
+function countWord(n: number): string {
+  return COUNT_WORDS[n] ?? String(n);
+}
+
+function timesWord(n: number): string {
+  return n === 1 ? 'once' : n === 2 ? 'twice' : `${countWord(n)} times`;
+}
+
+function capital(text: string): string {
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
+/**
+ * How an item page cards one hop, in the timeline's words. A behavior finding about this item gives behavior. Otherwise
+ * a decision the change carried gives decision, then a check finding about this item gives check. A change with
+ * nothing about this item is unclassified, routine, or quiet (its findings are about other files).
+ */
+export type StepKind = 'decision' | Severity | 'unclassified' | 'routine' | 'quiet';
+
+export type ItemStep = {
+  readonly hop: Hop;
+  readonly day: IsoDay;
+  readonly kind: StepKind;
+  /** Every decision the hop's change carried. */
+  readonly decisions: readonly DecisionRow[];
+  /** The change's findings about this item: anchored on its file at that change, or on a thread or commit. */
+  readonly findings: readonly number[];
+  /** The checked reasons when the change is routine. */
+  readonly routine: readonly Said[];
+  /** A bracket this hop is the item's only hop in. Two or more hops in one bracket become a net entry instead. */
+  readonly undone: Undone | null;
+};
+
+export type ItemEntry =
+  | { readonly kind: 'step'; readonly step: ItemStep }
+  | { readonly kind: 'net'; readonly undone: Undone; readonly steps: readonly ItemStep[] };
+
+export type ItemPerson = { readonly login: Login; readonly changes: number; readonly decisions: number };
+
+/** The counts TEMPLATES.item words. A step inside a net bracket counts only as that bracket. */
+export type ItemTally = {
+  readonly origin: { readonly hop: Hop; readonly day: IsoDay };
+  readonly renamed: number;
+  readonly moved: number;
+  readonly behavior: readonly { readonly change: ChangeId; readonly day: IsoDay; readonly decided: boolean }[];
+  readonly decision: number;
+  readonly check: number;
+  readonly net: number;
+  readonly removed: { readonly change: ChangeId; readonly day: IsoDay } | null;
+  readonly unchanged: boolean;
+};
+
+export type ItemPage = {
+  readonly item: TrackedItem;
+  /** Topics whose files hold the item's path. */
+  readonly topics: readonly LocalId[];
+  readonly summary: Named;
+  /** Newest first, since the newest change explains the code a reader has open and the summary already names the start. */
+  readonly entries: readonly ItemEntry[];
+  /** Routine changes that only changed the item, folded into one line like the timeline's strip. Newest first. */
+  readonly routine: { readonly count: number; readonly rows: readonly { readonly change: ChangeId; readonly day: IsoDay; readonly parts: readonly Said[] }[] };
+  /** Every decision a hop carried, newest first. */
+  readonly decisions: readonly DecisionRow[];
+  /** Who changed it and who decided for it, most first. */
+  readonly people: readonly ItemPerson[];
+};
+
+const FILE_ANCHOR = /^[0-9a-f]{7,40}:([^#]+)(?:#L\d+(?:-L\d+)?)?$/;
+
+/** The path an item had right after each hop, walked back from where it lives now. */
+function pathsAfter(item: TrackedItem): string[] {
+  const out: string[] = [];
+  let path = item.path;
+  for (let i = item.hops.length - 1; i >= 0; i -= 1) {
+    out[i] = path;
+    const hop = item.hops[i];
+    if (hop?.kind === 'moved') path = hop.from;
+  }
+  return out;
+}
+
+export function itemTopics(snapshot: Snapshot, item: TrackedItem): readonly LocalId[] {
+  return snapshot.topics.filter((topic) => topic.parent !== null && topic.files.includes(item.path)).map((topic) => topic.id);
+}
+
+/**
+ * Joins each hop of one item to what the snapshot says about its change: the decisions it carried, the findings about
+ * this item, the routine reason, and the undone bracket. Null when no item has the id.
+ */
+export function itemPageOf(snapshot: Snapshot, facts: RepoFacts, id: ItemId): ItemPage | null {
+  const item = facts.items.find((row) => row.id === id);
+  if (!item) return null;
+  const paths = pathsAfter(item);
+  const entries = new Map(snapshot.changes.map((change) => [change.id, change]));
+  const steps: ItemStep[] = item.hops.map((hop, index) => {
+    const entry = entries.get(hop.change);
+    const decisions = snapshot.decisions.filter((decision) => decision.carriedBy === hop.change).map((decision) => rowOf(decision, facts));
+    const findings = (entry?.findings ?? []).flatMap((finding, at) => {
+      const file = FILE_ANCHOR.exec(finding.anchor.ref)?.[1];
+      const about = file === undefined || file === paths[index] || (hop.kind === 'moved' && file === hop.from);
+      return about ? [at] : [];
+    });
+    const severity = mostSerious(findings.map((at) => entry?.findings[at]?.severity ?? 'check'));
+    const change = kindOf(hop.change, snapshot, facts);
+    const kind: StepKind = severity === 'behavior' ? 'behavior'
+      : decisions.length > 0 ? 'decision'
+      : severity === 'check' ? 'check'
+      : change === 'routine' || change === 'unclassified' ? change
+      : 'quiet';
+    const undone = snapshot.undone.find((group) => group.changes.includes(hop.change)) ?? null;
+    return { hop, day: changeFacts(hop.change, facts).live, kind, decisions, findings, routine: kind === 'routine' ? entry?.routine.map((part) => part.reason) ?? [] : [], undone };
+  });
+
+  const bracketed = new Map<Undone, ItemStep[]>();
+  for (const step of steps) if (step.undone) bracketed.set(step.undone, [...(bracketed.get(step.undone) ?? []), step]);
+  const nets = new Set([...bracketed].filter(([, members]) => members.length >= 2).map(([group]) => group));
+  const folded = (step: ItemStep): boolean => step.kind === 'routine' && step.hop.kind === 'changed' && !(step.undone && nets.has(step.undone));
+
+  const chain: ItemEntry[] = [];
+  const placed = new Set<Undone>();
+  for (const step of [...steps].reverse()) {
+    if (step.undone && nets.has(step.undone)) {
+      if (placed.has(step.undone)) continue;
+      placed.add(step.undone);
+      chain.push({ kind: 'net', undone: step.undone, steps: [...(bracketed.get(step.undone) ?? [])].reverse().map((member) => ({ ...member, undone: null })) });
+    } else if (!folded(step)) chain.push({ kind: 'step', step });
+  }
+  const routineRows = [...steps].reverse().filter(folded).map((step) => ({ change: step.hop.change, day: step.day, parts: step.routine }));
+
+  const [origin] = steps;
+  if (!origin) throw new Error(`${item.id} has no hops`);
+  const last = steps.at(-1);
+  const counted = steps.filter((step, index) => index > 0 && step.hop.kind !== 'removed' && !(step.undone && nets.has(step.undone)));
+  const tally: ItemTally = {
+    origin: { hop: origin.hop, day: origin.day },
+    renamed: steps.filter((step) => step.hop.kind === 'renamed').length,
+    moved: steps.filter((step) => step.hop.kind === 'moved').length,
+    behavior: counted.filter((step) => step.kind === 'behavior').map((step) => ({ change: step.hop.change, day: step.day, decided: step.decisions.length > 0 })),
+    decision: counted.filter((step) => step.kind === 'decision').length,
+    check: counted.filter((step) => step.kind === 'check' || step.kind === 'unclassified').length,
+    net: nets.size,
+    removed: last && last.hop.kind === 'removed' ? { change: last.hop.change, day: last.day } : null,
+    unchanged: steps.length === 1,
+  };
+
+  const decisions = new Map<LocalId, DecisionRow>();
+  for (const step of [...steps].reverse()) for (const row of step.decisions) if (!decisions.has(row.decision.id)) decisions.set(row.decision.id, row);
+  const people = new Map<Login, { changes: number; decisions: number }>();
+  const tallyOf = (login: Login): { changes: number; decisions: number } => {
+    const known = people.get(login) ?? { changes: 0, decisions: 0 };
+    people.set(login, known);
+    return known;
+  };
+  for (const change of new Set(item.hops.map((hop) => hop.change))) {
+    const author = changeFacts(change, facts).author;
+    if (author) tallyOf(author).changes += 1;
+  }
+  for (const row of decisions.values()) if (row.decider) tallyOf(row.decider).decisions += 1;
+
+  return {
+    item,
+    topics: itemTopics(snapshot, item),
+    summary: TEMPLATES.item(tally),
+    entries: chain,
+    routine: { count: routineRows.length, rows: routineRows },
+    decisions: [...decisions.values()].map((row, order) => ({ row, order })).sort((a, b) => (a.row.day < b.row.day ? 1 : a.row.day > b.row.day ? -1 : a.order - b.order)).map((x) => x.row),
+    people: [...people].map(([login, count]) => ({ login, ...count })).sort((a, b) => b.changes + b.decisions - (a.changes + a.decisions) || a.login.localeCompare(b.login)),
+  };
+}
 
 /**
  * Search hits are one union. An item kind, added later, is a new member here and one registry row.

@@ -16,7 +16,7 @@ import type { Snapshot } from './contract.ts';
 import { loadGold } from './gold.ts';
 import type { Slug } from './gold.ts';
 import { factsOf, openFixture } from './record.ts';
-import { renderPage, renderTimeline, screensOf } from './view.ts';
+import { itemPageOf, renderPage, renderTimeline, screensOf } from './view.ts';
 import type { RepoFacts } from './view.ts';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -83,6 +83,9 @@ for (const slug of ['tally', 'wayfinder', 'seedling'] as Slug[]) {
         }
       }
       assert.ok(rendered >= 4, `rendered ${rendered} screens`);
+      for (const item of facts.items) {
+        assert.deepEqual(kernelView.itemPageOf(site.snapshot, site.facts, item.id), itemPageOf(lab.snapshot, facts, item.id), `${slug} item ${item.id}`);
+      }
 
       for (const raw of proofsIn(oracle, new Set())) {
         const want = parseProof(raw);
