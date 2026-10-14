@@ -1,8 +1,8 @@
 /**
  * Scores one search box against the frozen lookup gold in harness/lookup/.
  * A hit is any gold target in the top results. A topic target needs that topic page.
- * A decision, change, or person target needs a result of that kind. While search returns
- * only topics, a decision or change also hits if a returned topic page shows it: a decision
+ * A decision, change, or person target needs a result of that kind. While every result is
+ * a topic, a decision or change also hits if a returned topic page shows it: a decision
  * is on the page when decisionsFor includes it, and a change is on the page when the topic
  * lists it or the topic is the root, whose history lists every change. Root can inflate
  * that fallback, so the report counts those hits apart.
@@ -136,7 +136,7 @@ function main(): void {
   const overall = empty();
   const byKind = new Map<string, Tally>();
   const misses: string[] = [];
-  console.log('lookup gold, topic-only search. hit = any target in the top results.');
+  console.log('lookup gold. hit = any target in the top results.');
   for (const slug of slugs) {
     const fixture = path.join(root, 'out', slug);
     const snapshot = loadGold(path.join(root, 'out'), slug as Slug).oracle;
@@ -144,7 +144,7 @@ function main(): void {
     const repo = empty();
     const repoKind = new Map<string, Tally>();
     for (const query of readGold(slug)) {
-      const ranked = rankedOf(search(snapshot, query.query));
+      const ranked = rankedOf(search(snapshot, facts, query.query));
       const topicsOnly = ranked.every((row) => row.kind === 'topic');
       const at = (k: number): { hit: boolean; viaRoot: boolean } => {
         const top = ranked.slice(0, k);

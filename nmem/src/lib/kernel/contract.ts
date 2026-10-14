@@ -363,7 +363,7 @@ export type Topic = {
   readonly name: Named;
   /** Paths at HEAD this topic covers. Root lists none. Line counts and alignment read these. */
   readonly files: readonly string[];
-  /** Extra search words. Search runs over name, headline, and these (view.ts search). Scored only in the user test. */
+  /** Extra search words. Search reads these with the other fields named on the view.ts indexer registry. */
   readonly words: readonly string[];
   /** "Start here": a file ref at HEAD with a #L range. The quote is the range's first line. */
   readonly start: RecordSource;
