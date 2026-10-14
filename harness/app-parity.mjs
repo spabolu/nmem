@@ -618,6 +618,48 @@ async function checkOracle(snapshotFile, snapshot, facts, screens, findings) {
       `${realBase}/search?audience=eng&q=zzznomatch`,
     );
     check(none.html.includes("No matches."), "empty search is not worded");
+    for (const [q, first] of [
+      ["minimal_transfers", "item:symbol/minimal_transfers"],
+      ["tally/settle.py", "topic:settling"],
+      ["bill", null],
+    ]) {
+      const page = await get(
+        port,
+        `${realBase}/search?${new URLSearchParams({ audience: "eng", q })}`,
+      );
+      const hits = search(snapshot, facts, q);
+      if (first)
+        check(
+          `${hits[0]?.kind}:${hits[0]?.id}` === first,
+          `search for "${q}" leads with ${hits[0]?.kind}:${hits[0]?.id}`,
+        );
+      for (const row of page.html.split("<li ").slice(1)) {
+        const kind = attr(row, "data-kind");
+        if (!kind) continue;
+        const title = strip(row.split("</a>")[0] ?? "");
+        check(
+          !/^(Commit [0-9a-f]{7,}|Pull request #?\d+)$/.test(title),
+          `search for "${q}" names a change by its id: ${title}`,
+        );
+        check(
+          (attr(row, "data-matched") ?? "") !== "",
+          `search for "${q}" shows no matched line under ${kind} ${title}`,
+        );
+        if (kind === "item" || kind === "file")
+          check(
+            row.includes('href="/hearthware/tally/items/'),
+            `search for "${q}" links ${kind} ${title} somewhere other than its item page`,
+          );
+      }
+    }
+    const plainItems = await get(
+      port,
+      `${realBase}/search?audience=plain&q=minimal_transfers`,
+    );
+    check(
+      !plainItems.html.includes('data-kind="item"'),
+      "plain search lists a code name",
+    );
     const source = snapshot.decisions.find(
       (row) => row.what.source.kind === "record",
     );
@@ -1218,6 +1260,7 @@ const VIEWS = [
     "/hearthware/tally/timeline?audience=eng&topic=root&from=2023-10-22&to=2023-11-01",
   ],
   ["search", "/hearthware/tally/search?audience=eng&q=bill"],
+  ["search-item", "/hearthware/tally/search?audience=eng&q=--round"],
   ["search-empty", "/hearthware/tally/search?audience=eng&q=zzznomatch"],
   [
     "source",

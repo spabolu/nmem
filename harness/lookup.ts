@@ -1,6 +1,8 @@
 /**
  * Scores one search box against the frozen lookup gold in harness/lookup/.
- * A hit is any gold target in the top results. A topic target needs that topic page.
+ * A hit is any gold target in the top results. A topic target needs that topic page, or, for a file, symbol, option,
+ * or config query, an item page (an item hit, or a file hit, which links to its file's item page) whose item lives in
+ * a file that topic lists. The report prints overall both with and without that item rule.
  * A decision, change, or person target needs a result of that kind. While every result is
  * a topic, a decision or change also hits if a returned topic page shows it: a decision
  * is on the page when decisionsFor includes it, and a change is on the page when the topic
@@ -16,7 +18,7 @@ import type { Snapshot } from './contract.ts';
 import { loadGold } from './gold.ts';
 import type { Slug } from './gold.ts';
 import { factsOf, openFixture } from './record.ts';
-import { decisionsFor, search } from './view.ts';
+import { decisionsFor, itemTopics, search } from './view.ts';
 import type { RepoFacts } from './view.ts';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -36,7 +38,7 @@ type Query = {
 };
 
 type Ranked = {
-  readonly kind: 'topic' | 'decision' | 'change' | 'finding' | 'file' | 'person' | 'doc-claim';
+  readonly kind: 'topic' | 'decision' | 'change' | 'finding' | 'file' | 'item' | 'person' | 'doc-claim';
   readonly id: string;
 };
 
@@ -92,7 +94,7 @@ function readGold(slug: string): Query[] {
 }
 
 function rankedOf(raw: readonly unknown[]): Ranked[] {
-  const kinds = new Set(['topic', 'decision', 'change', 'finding', 'file', 'person', 'doc-claim']);
+  const kinds = new Set(['topic', 'decision', 'change', 'finding', 'file', 'item', 'person', 'doc-claim']);
   return raw.map((item, index) => {
     if (typeof item === 'string') return { kind: 'topic', id: item };
     if (!isRecord(item) || typeof item.kind !== 'string' || typeof item.id !== 'string' || !kinds.has(item.kind)) {
@@ -117,9 +119,21 @@ function showsChange(topic: string, id: string, snapshot: Snapshot): boolean {
   return snapshot.changes.find((change) => change.id === id)?.topics.includes(topic) ?? false;
 }
 
-function targetHit(target: Target, top: readonly Ranked[], topicsOnly: boolean, snapshot: Snapshot, facts: RepoFacts): { hit: boolean; viaRoot: boolean } {
+const ITEM_QUERIES = new Set(['file', 'symbol', 'option', 'config']);
+
+/** The topics of the item page a hit opens: an item hit's own item, or the file item a file hit links to. */
+function itemPageTopics(row: Ranked, snapshot: Snapshot, facts: RepoFacts): readonly string[] {
+  const item = row.kind === 'item' ? facts.items.find((one) => one.id === row.id)
+    : row.kind === 'file' ? facts.items.find((one) => one.kind === 'file' && one.path === row.id)
+    : undefined;
+  return item ? itemTopics(snapshot, item) : [];
+}
+
+function targetHit(target: Target, top: readonly Ranked[], topicsOnly: boolean, itemRule: boolean, snapshot: Snapshot, facts: RepoFacts): { hit: boolean; viaRoot: boolean } {
   if (target.type === 'topic') {
-    return { hit: top.some((row) => row.kind === 'topic' && row.id === target.id), viaRoot: false };
+    const page = top.some((row) => row.kind === 'topic' && row.id === target.id);
+    const item = itemRule && top.some((row) => itemPageTopics(row, snapshot, facts).includes(target.id));
+    return { hit: page || item, viaRoot: false };
   }
   if (target.type === 'person') {
     return { hit: top.some((row) => row.kind === 'person' && row.id === target.login), viaRoot: false };
@@ -134,6 +148,7 @@ function targetHit(target: Target, top: readonly Ranked[], topicsOnly: boolean, 
 
 function main(): void {
   const overall = empty();
+  const strict = empty();
   const byKind = new Map<string, Tally>();
   const misses: string[] = [];
   console.log('lookup gold. hit = any target in the top results.');
@@ -146,9 +161,10 @@ function main(): void {
     for (const query of readGold(slug)) {
       const ranked = rankedOf(search(snapshot, facts, query.query));
       const topicsOnly = ranked.every((row) => row.kind === 'topic');
-      const at = (k: number): { hit: boolean; viaRoot: boolean } => {
+      const itemRule = ITEM_QUERIES.has(query.kind);
+      const at = (k: number, rule = itemRule): { hit: boolean; viaRoot: boolean } => {
         const top = ranked.slice(0, k);
-        const hits = query.targets.map((target) => targetHit(target, top, topicsOnly, snapshot, facts));
+        const hits = query.targets.map((target) => targetHit(target, top, topicsOnly, rule, snapshot, facts));
         const hit = hits.some((row) => row.hit);
         const viaRoot = hit && hits.filter((row) => row.hit).every((row) => row.viaRoot);
         return { hit, viaRoot };
@@ -157,6 +173,8 @@ function main(): void {
       const three = at(3);
       add(repo, one.hit, three.hit, three.hit && three.viaRoot);
       add(overall, one.hit, three.hit, three.hit && three.viaRoot);
+      const strictThree = at(3, false);
+      add(strict, at(1, false).hit, strictThree.hit, strictThree.hit && strictThree.viaRoot);
       const kind = repoKind.get(query.kind) ?? empty();
       add(kind, one.hit, three.hit, three.hit && three.viaRoot);
       repoKind.set(query.kind, kind);
@@ -173,6 +191,7 @@ function main(): void {
     for (const [kind, row] of [...repoKind].sort((a, b) => a[0].localeCompare(b[0]))) console.log(`  ${line(kind, row)}`);
   }
   console.log(line('overall', overall));
+  console.log(line('overall without the item rule', strict));
   for (const [kind, row] of [...byKind].sort((a, b) => a[0].localeCompare(b[0]))) console.log(`  ${line(kind, row)}`);
   console.log(`misses ${misses.length}`);
   for (const miss of misses) console.log(miss);

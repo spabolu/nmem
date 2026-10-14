@@ -801,10 +801,11 @@ export function itemPageOf(snapshot: Snapshot, facts: RepoFacts, id: ItemId): It
  * Search hits are one union. An item kind, added later, is a new member here and one registry row.
  * The ranker does not grow a branch for it.
  */
-export type SearchKind = 'topic' | 'decision' | 'change' | 'finding' | 'file' | 'person' | 'doc-claim';
+export type SearchKind = 'topic' | 'decision' | 'change' | 'finding' | 'file' | 'item' | 'person' | 'doc-claim';
 
 export type SearchLink =
   | { readonly to: 'topic'; readonly topic: LocalId; readonly anchor: string | null }
+  | { readonly to: 'item'; readonly item: ItemId }
   | { readonly to: 'timeline'; readonly topic: LocalId; readonly from: IsoDay; readonly until: IsoDay }
   | { readonly to: 'source'; readonly ref: string; readonly quote: string };
 
@@ -812,8 +813,11 @@ export type SearchHit = {
   readonly kind: SearchKind;
   readonly id: string;
   readonly title: Named;
+  /** One short line that says why this hit is here: the field that matched, the result that led to it, or what it is. */
   readonly matched: Named;
   readonly field: string;
+  /** The result that led to this one, when it matched nothing itself. */
+  readonly via: { readonly kind: SearchKind; readonly id: string } | null;
   readonly score: number;
   readonly link: SearchLink;
 };
@@ -824,6 +828,8 @@ type SearchDoc = {
   readonly kind: SearchKind;
   readonly id: string;
   readonly title: Named;
+  /** The line a hit shows when only its title matched. */
+  readonly detail: Named;
   readonly label: string;
   readonly fields: readonly { readonly name: string; readonly weight: number; readonly text: string; readonly show: Named }[];
   readonly link: SearchLink;
@@ -862,6 +868,10 @@ function both(text: string): Named {
   return { eng: text, plain: text };
 }
 
+function clipped(line: Named): Named {
+  return { eng: clip(line.eng), plain: clip(line.plain) };
+}
+
 function clip(text: string): string {
   const flat = text.replace(/\s+/g, ' ').trim();
   return flat.length > 180 ? `${flat.slice(0, 177)}...` : flat;
@@ -897,6 +907,11 @@ function changeTitle(id: ChangeId, day: IsoDay): Named {
     return { eng: `Pull request #${num}`, plain: `Pull request ${num}` };
   }
   return { eng: `Commit ${id}`, plain: `Commit on ${formatDay(day)}` };
+}
+
+/** "PR #12, Jul 2, 2023". Plain names the day only. */
+function changeLine(id: ChangeId, day: IsoDay): Named {
+  return { eng: `${labelChange(id)}, ${formatDay(day)}`, plain: `A change on ${formatDay(day)}` };
 }
 
 function field(name: string, weight: number, text: string, show: Named = both(clip(text))): SearchDoc['fields'][number] {
@@ -972,6 +987,7 @@ function collectTopics(snapshot: Snapshot): SearchDoc[] {
     kind: 'topic',
     id: topic.id,
     title: topic.name,
+    detail: { eng: clip(topic.headline.map((line) => line.eng).join(' ')), plain: clip(topic.headline.map((line) => line.plain).join(' ')) },
     label: `${topic.name.eng} ${topic.name.plain}`,
     topics: [topic.id],
     change: null,
@@ -988,20 +1004,21 @@ function collectTopics(snapshot: Snapshot): SearchDoc[] {
   }));
 }
 
-function collectDecisions(snapshot: Snapshot): SearchDoc[] {
+function collectDecisions(snapshot: Snapshot, facts: RepoFacts): SearchDoc[] {
   return snapshot.decisions.map((decision) => ({
     kind: 'decision',
     id: decision.id,
     title: { eng: clip(decision.what.eng), plain: clip(decision.what.plain) },
+    detail: whyLine(decision.why, facts),
     label: `${decision.what.eng} ${decision.what.plain}`,
     topics: [...decision.topics],
     change: decision.carriedBy,
     exact: [decision.id.toLowerCase()],
     link: topicLink(specificTopic(decision.topics, snapshot), decision.id),
     fields: [
-      field('id', weightOf(DECISION_FIELDS, 'id'), decision.id),
+      field('id', weightOf(DECISION_FIELDS, 'id'), decision.id, both('')),
       field('what', weightOf(DECISION_FIELDS, 'what'), saidText(decision.what), { eng: clip(decision.what.eng), plain: clip(decision.what.plain) }),
-      field('why', weightOf(DECISION_FIELDS, 'why'), whyText(decision.why)),
+      field('why', weightOf(DECISION_FIELDS, 'why'), whyText(decision.why), clipped(whyLine(decision.why, facts))),
     ],
   }));
 }
@@ -1013,6 +1030,7 @@ function collectFindings(snapshot: Snapshot, facts: RepoFacts): SearchDoc[] {
       kind: 'finding',
       id: `${change.id}/${index}`,
       title: finding.name,
+      detail: { eng: clip(finding.says[0].eng), plain: clip(finding.says[0].plain) },
       label: `${finding.name.eng} ${finding.name.plain}`,
       topics: [...finding.topics],
       change: change.id,
@@ -1022,7 +1040,7 @@ function collectFindings(snapshot: Snapshot, facts: RepoFacts): SearchDoc[] {
         field('name', weightOf(FINDING_FIELDS, 'name'), `${finding.name.eng} ${finding.name.plain}`, finding.name),
         field('points', weightOf(FINDING_FIELDS, 'points'), finding.says.map(saidText).join(' '), { eng: clip(finding.says.map((line) => line.eng).join(' ')), plain: clip(finding.says.map((line) => line.plain).join(' ')) }),
         field('anchor', weightOf(FINDING_FIELDS, 'anchor'), finding.anchor.quote, both(clip(finding.anchor.quote))),
-        field('why', weightOf(FINDING_FIELDS, 'why'), whyText(finding.why)),
+        field('why', weightOf(FINDING_FIELDS, 'why'), whyText(finding.why), clipped(whyLine(finding.why, facts))),
       ],
     };
   }));
@@ -1038,13 +1056,14 @@ function collectChanges(snapshot: Snapshot, facts: RepoFacts): SearchDoc[] {
       kind: 'change' as const,
       id: change.id,
       title: changeTitle(change.id, fact.live),
+      detail: changeLine(change.id, fact.live),
       label: changeTitle(change.id, fact.live).eng,
       topics: [...change.topics],
       change: change.id,
       exact: changeAliases(change.id, fact.after),
       link: timelineLink(specificTopic(change.topics, snapshot), fact.live),
       fields: [
-        field('id', weightOf(CHANGE_FIELDS, 'id'), changeAliases(change.id, fact.after).join(' '), changeTitle(change.id, fact.live)),
+        field('id', weightOf(CHANGE_FIELDS, 'id'), changeAliases(change.id, fact.after).join(' '), changeLine(change.id, fact.live)),
         field('files', weightOf(CHANGE_FIELDS, 'files'), files.join(' ')),
         field('author', weightOf(CHANGE_FIELDS, 'author'), author),
         field('routine', weightOf(CHANGE_FIELDS, 'routine'), routine),
@@ -1058,6 +1077,7 @@ function collectClaims(snapshot: Snapshot, facts: RepoFacts): SearchDoc[] {
     kind: 'doc-claim' as const,
     id: `${claim.topic}:${index}`,
     title: { eng: 'In the docs', plain: 'In the docs' },
+    detail: both(clip(claim.sentence.quote)),
     label: claim.sentence.quote,
     topics: [claim.topic],
     change: null,
@@ -1065,7 +1085,7 @@ function collectClaims(snapshot: Snapshot, facts: RepoFacts): SearchDoc[] {
     link: { to: 'source' as const, ref: `${facts.head}:${claim.sentence.path}`, quote: claim.sentence.quote },
     fields: [
       field('sentence', weightOf(CLAIM_FIELDS, 'sentence'), `${claim.sentence.quote} ${claim.sentence.path}`, both(clip(claim.sentence.quote))),
-      field('why', weightOf(CLAIM_FIELDS, 'why'), claim.verdict === 'still-true' ? '' : saidText(claim.why)),
+      field('why', weightOf(CLAIM_FIELDS, 'why'), claim.verdict === 'still-true' ? '' : saidText(claim.why), claim.verdict === 'still-true' ? both('') : clipped(claim.why)),
     ],
   }));
 }
@@ -1075,6 +1095,7 @@ function collectPeople(snapshot: Snapshot, facts: RepoFacts): SearchDoc[] {
     kind: 'person' as const,
     id: login,
     title: both(name),
+    detail: { eng: login, plain: '' },
     label: `${name} ${login}`,
     topics: [],
     change: null,
@@ -1089,21 +1110,25 @@ function collectPeople(snapshot: Snapshot, facts: RepoFacts): SearchDoc[] {
 
 function collectFiles(snapshot: Snapshot, facts: RepoFacts): SearchDoc[] {
   const rows = new Map<string, SearchDoc>();
+  const items = new Map(facts.items.filter((item) => item.kind === 'file').map((item) => [item.path, item]));
   const put = (path: string, topic: LocalId): void => {
     if (rows.has(path)) return;
     const base = path.split('/').at(-1) ?? path;
+    const item = items.get(path);
+    const page = item ? itemPageOf(snapshot, facts, item.id) : null;
     rows.set(path, {
       kind: 'file',
       id: path,
       title: both(path),
+      detail: page ? { eng: clip(page.summary.eng), plain: clip(page.summary.plain) } : both(''),
       label: path,
       topics: [topic],
       change: null,
       exact: [path.toLowerCase(), base.toLowerCase()],
-      link: topicLink(topic, null),
+      link: item ? { to: 'item', item: item.id } : topicLink(topic, null),
       fields: [
         field('path', weightOf(FILE_FIELDS, 'path'), path, both(path)),
-        field('basename', weightOf(FILE_FIELDS, 'basename'), base, both(base)),
+        field('basename', weightOf(FILE_FIELDS, 'basename'), base, both('')),
       ],
     });
   };
@@ -1117,15 +1142,45 @@ function collectFiles(snapshot: Snapshot, facts: RepoFacts): SearchDoc[] {
   return [...rows.values()];
 }
 
-/** One registry. Each row names the fields it indexes and where a hit links. File is hidden from Non-engineer. */
+const ITEM_FIELDS = [
+  { name: 'name', weight: 8 },
+  { name: 'former', weight: 6 },
+  { name: 'path', weight: 2 },
+] as const satisfies readonly SearchField[];
+
+/** Symbols, options, and config keys. A file is already a file hit, which links to the same page. */
+function collectItems(snapshot: Snapshot, facts: RepoFacts): SearchDoc[] {
+  return facts.items.filter((item) => item.kind !== 'file').map((item) => {
+    const gone = item.hops.at(-1)?.kind === 'removed';
+    return {
+      kind: 'item' as const,
+      id: item.id,
+      title: both(item.name),
+      detail: { eng: `${TEMPLATES.itemKind[item.kind].eng} ${gone ? 'that lived in' : 'in'} ${item.path}`, plain: TEMPLATES.itemKind[item.kind].plain },
+      label: [item.name, ...item.formerNames].join(' '),
+      topics: itemTopics(snapshot, item),
+      change: null,
+      exact: [item.name, ...item.formerNames].map((name) => name.toLowerCase()),
+      link: { to: 'item' as const, item: item.id },
+      fields: [
+        field('name', weightOf(ITEM_FIELDS, 'name'), item.name),
+        field('former', weightOf(ITEM_FIELDS, 'former'), item.formerNames.join(' '), both(item.formerNames.length > 0 ? `Formerly ${item.formerNames.join(', ')}` : '')),
+        field('path', weightOf(ITEM_FIELDS, 'path'), item.path, both('')),
+      ],
+    };
+  });
+}
+
+/** One registry. Each row names the fields it indexes and where a hit links. File and item are hidden from Non-engineer. */
 export const SEARCH_INDEXERS: readonly (SearchIndexer & { readonly collect: (snapshot: Snapshot, facts: RepoFacts) => readonly SearchDoc[] })[] = [
   { kind: 'topic', label: { eng: 'Topic', plain: 'Topic' }, plain: true, to: 'topic', fields: TOPIC_FIELDS, collect: collectTopics },
-  { kind: 'decision', label: { eng: 'Decision', plain: 'Decision' }, plain: true, to: 'topic', fields: DECISION_FIELDS, collect: (snapshot) => collectDecisions(snapshot) },
+  { kind: 'decision', label: { eng: 'Decision', plain: 'Decision' }, plain: true, to: 'topic', fields: DECISION_FIELDS, collect: collectDecisions },
   { kind: 'change', label: { eng: 'Change', plain: 'Change' }, plain: true, to: 'timeline', fields: CHANGE_FIELDS, collect: collectChanges },
   { kind: 'finding', label: { eng: 'What changed', plain: 'What changed' }, plain: true, to: 'timeline', fields: FINDING_FIELDS, collect: collectFindings },
   { kind: 'person', label: { eng: 'Person', plain: 'Person' }, plain: true, to: 'topic', fields: PERSON_FIELDS, collect: collectPeople },
   { kind: 'doc-claim', label: { eng: 'In the docs', plain: 'In the docs' }, plain: true, to: 'source', fields: CLAIM_FIELDS, collect: collectClaims },
-  { kind: 'file', label: { eng: 'File', plain: 'File' }, plain: false, to: 'topic', fields: FILE_FIELDS, collect: collectFiles },
+  { kind: 'file', label: { eng: 'File', plain: 'File' }, plain: false, to: 'item', fields: FILE_FIELDS, collect: collectFiles },
+  { kind: 'item', label: { eng: 'In the code', plain: 'In the code' }, plain: false, to: 'item', fields: ITEM_FIELDS, collect: collectItems },
 ];
 
 function queryParts(query: string): { tokens: string[]; idents: string[] } {
@@ -1135,7 +1190,7 @@ function queryParts(query: string): { tokens: string[]; idents: string[] } {
     const span = match[0];
     if (/^[0-9.]+$/.test(span)) continue;
     const internalCap = /[a-z][A-Z]/.test(span) || /[A-Z][a-z]+[A-Z]/.test(span);
-    if (/[\/_.:#-]/.test(span) || internalCap || /^[A-Z0-9_]{3,}$/.test(span) || /^[0-9a-f]{7,}$/i.test(span)) idents.push(span.toLowerCase());
+    if (/[/_.:#-]/.test(span) || internalCap || /^[A-Z0-9_]{3,}$/.test(span) || /^[0-9a-f]{7,}$/i.test(span)) idents.push(span.toLowerCase());
   }
   const tokens: string[] = [];
   for (const token of searchWords(query)) if (!SEARCH_STOP.has(token) && token.length > 1) tokens.push(token);
@@ -1178,7 +1233,17 @@ function phraseBonus(tokens: readonly string[], text: string): number {
   return bonus;
 }
 
-type Scored = { readonly doc: SearchDoc; readonly score: number; readonly tier: number };
+/** via is the hit that put a topic or change here when the doc matched nothing itself. */
+type Scored = { readonly doc: SearchDoc; readonly score: number; readonly tier: number; readonly via: SearchDoc | null };
+
+/**
+ * An item says where code lives, not why it changed, so the topics that hold it rank below any result whose own text
+ * matched every word of the query (200 and up). A file in five topics would otherwise bury the decision behind a rename.
+ */
+const ITEM_TOPIC = 100;
+
+/** Files and items are found by their names and paths only, so their words never sway the ranking of prose. */
+const NAMED_ONLY: ReadonlySet<SearchKind> = new Set(['file', 'item']);
 
 function rankDocs(docs: readonly SearchDoc[], query: string, rootId: LocalId): Scored[] {
   const { tokens, idents } = queryParts(query);
@@ -1186,8 +1251,8 @@ function rankDocs(docs: readonly SearchDoc[], query: string, rootId: LocalId): S
   const prNums = [...query.matchAll(/(?:^|[^A-Za-z0-9])#(\d+)\b|\bprs?\s*#?\s*(\d+)\b/gi)].map((match) => match[1] ?? match[2] ?? '');
   const shas = [...query.matchAll(/\b[0-9a-f]{7,40}\b/gi)].map((match) => match[0].toLowerCase());
   const use = tokens.length > 0 ? tokens : idents;
-  const sigil = idents.filter((ident) => /[\/_#-]/.test(ident) || /^[0-9a-f]{7,}$/.test(ident));
-  const corpus = docs.filter((doc) => doc.kind !== 'file');
+  const sigil = idents.filter((ident) => /[/_#-]/.test(ident) || /^[0-9a-f]{7,}$/.test(ident));
+  const corpus = docs.filter((doc) => !NAMED_ONLY.has(doc.kind));
   const vocab = new Set<string>();
   for (const doc of corpus) for (const row of doc.fields) for (const word of searchWords(row.text)) vocab.add(word);
   const df = new Map<string, number>();
@@ -1205,7 +1270,8 @@ function rankDocs(docs: readonly SearchDoc[], query: string, rootId: LocalId): S
       if (doc.exact.some((alias) => alias === qlow)) exact = Math.max(exact, 1000);
     }
     if (doc.kind === 'person' && doc.exact.some((alias) => alias === qlow)) exact = 980;
-    const fileField = doc.fields.find((row) => row.name === 'files' || row.name === 'path');
+    if (doc.kind === 'item' && doc.exact.some((name) => name === qlow || idents.includes(name))) exact = 950;
+    const fileField = doc.kind === 'item' ? undefined : doc.fields.find((row) => row.name === 'files' || row.name === 'path');
     if (fileField) {
       for (const path of fileField.text.split(/\s+/)) {
         if (path === '') continue;
@@ -1216,7 +1282,7 @@ function rankDocs(docs: readonly SearchDoc[], query: string, rootId: LocalId): S
         if (pathHit || baseHit) exact = Math.max(exact, doc.kind === 'topic' ? 940 : doc.kind === 'file' ? 930 : 800);
       }
     }
-    if (doc.kind !== 'file') {
+    if (!NAMED_ONLY.has(doc.kind)) {
       for (const ident of sigil) {
         if (ident.length < 4) continue;
         for (const row of doc.fields) if (row.text.toLowerCase().includes(ident)) exact = Math.max(exact, 760 + row.weight);
@@ -1225,7 +1291,7 @@ function rankDocs(docs: readonly SearchDoc[], query: string, rootId: LocalId): S
     let cover = 0;
     let matched = 0;
     let phrase = 0;
-    if (doc.kind !== 'file') {
+    if (!NAMED_ONLY.has(doc.kind)) {
       for (const token of use) {
         let best = 0;
         let bestWeight = 0;
@@ -1254,7 +1320,7 @@ function rankDocs(docs: readonly SearchDoc[], query: string, rootId: LocalId): S
     } else if (exact > 0) score = exact + phrase;
     if (doc.kind === 'topic' && doc.id === rootId && use.length === 1 && matched === 1 && (df.get(use[0] ?? '') ?? 0) >= 4) score += 30;
     if (score <= 0) continue;
-    scored.push({ doc, score, tier: exact > 0 ? 3 : all ? 2 : 1 });
+    scored.push({ doc, score, tier: exact > 0 ? 3 : all ? 2 : 1, via: null });
   }
   const best = new Map<string, Scored>();
   const put = (row: Scored): void => {
@@ -1269,11 +1335,11 @@ function rankDocs(docs: readonly SearchDoc[], query: string, rootId: LocalId): S
     const parents = specific.length > 0 ? specific : row.doc.topics;
     for (const topic of parents) {
       const parent = docs.find((doc) => doc.kind === 'topic' && doc.id === topic);
-      if (parent) put({ doc: parent, score: row.score - 1, tier: row.tier });
+      if (parent) put({ doc: parent, score: row.doc.kind === 'item' ? Math.min(row.score - 1, ITEM_TOPIC) : row.score - 1, tier: row.tier, via: row.doc });
     }
     if (row.doc.change) {
       const change = docs.find((doc) => doc.kind === 'change' && doc.id === row.doc.change);
-      if (change) put({ doc: change, score: row.score - 1, tier: row.tier });
+      if (change) put({ doc: change, score: row.score - 1, tier: row.tier, via: row.doc });
     }
   }
   const nameHits = (row: Scored): number => use.filter((token) => row.doc.label.toLowerCase().includes(token)).length;
@@ -1283,17 +1349,24 @@ function rankDocs(docs: readonly SearchDoc[], query: string, rootId: LocalId): S
 function hitOf(row: Scored, query: string): SearchHit {
   const { tokens, idents } = queryParts(query);
   const use = tokens.length > 0 ? tokens : idents;
-  const matching = row.doc.fields.filter((fieldRow) => use.some((token) => fieldHit(token, fieldRow.text) > 0) || idents.some((ident) => ident.length >= 4 && fieldRow.text.toLowerCase().includes(ident)));
-  const prose = matching.filter((fieldRow) => fieldRow.name !== 'id').sort((a, b) => b.weight - a.weight);
-  const picked = prose[0] ?? matching.sort((a, b) => b.weight - a.weight)[0] ?? row.doc.fields[0];
+  const { doc } = row;
+  const matching = doc.fields.filter((fieldRow) => use.some((token) => fieldHit(token, fieldRow.text) > 0) || idents.some((ident) => ident.length >= 4 && fieldRow.text.toLowerCase().includes(ident)));
+  const telling = matching.filter((fieldRow) => fieldRow.show.eng !== '' && fieldRow.show.eng !== doc.title.eng);
+  const byWeight = (rows: typeof telling) => [...rows].sort((a, b) => b.weight - a.weight);
+  const picked = byWeight(telling.filter((fieldRow) => fieldRow.name !== 'id'))[0] ?? byWeight(telling)[0];
+  const label = SEARCH_INDEXERS.find((indexer) => indexer.kind === row.via?.kind)?.label;
+  const matched = picked ? picked.show
+    : row.via && label ? { eng: `${label.eng}: ${row.via.title.eng}`, plain: `${label.plain}: ${row.via.title.plain}` }
+    : doc.detail;
   return {
-    kind: row.doc.kind,
-    id: row.doc.id,
-    title: row.doc.title,
-    matched: picked?.show ?? row.doc.title,
-    field: picked?.name ?? '',
+    kind: doc.kind,
+    id: doc.id,
+    title: doc.title,
+    matched,
+    field: picked?.name ?? (row.via ? `via:${row.via.kind}` : 'detail'),
+    via: !picked && row.via ? { kind: row.via.kind, id: row.via.id } : null,
     score: row.score,
-    link: row.doc.link,
+    link: doc.link,
   };
 }
 

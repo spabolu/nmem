@@ -1,9 +1,16 @@
 import { Button } from "@primer/react";
 import Form from "next/form";
 import NextLink from "next/link";
-import { repoPath, sourceHref, timelineHref, topicHref } from "@/lib/hrefs";
+import {
+  itemHref,
+  repoPath,
+  sourceHref,
+  timelineHref,
+  topicHref,
+} from "@/lib/hrefs";
 import type { SearchHit, SearchKind } from "@/lib/kernel/view";
 import { SEARCH_INDEXERS, search } from "@/lib/kernel/view";
+import { hitLine, hitTitle } from "@/lib/present";
 import { Blank } from "./blank";
 import { type Ctx, Prose } from "./said";
 import { H1, HINT, TEXT_INPUT } from "./styles";
@@ -47,6 +54,7 @@ function hrefOf(hit: SearchHit, ctx: Ctx): string {
   if (link.to === "timeline") {
     return timelineHref(repo, link.topic, link.from, link.until, audience);
   }
+  if (link.to === "item") return itemHref(repo, link.item, audience);
   return sourceHref(repo, audience, { ref: link.ref, quote: link.quote });
 }
 
@@ -92,12 +100,13 @@ export function SearchView({
           <p className={HINT}>
             {audience === "plain"
               ? "Type a name, a change, or a few words."
-              : "Type a name, a pull request, a file, or a few words."}
+              : "Type a name, a pull request, a file, a function or option, or a few words."}
           </p>
         ) : shown.length === 0 ? (
           <Blank search heading="No matches.">
             Search reads topics, decisions, changes, and people
-            {audience === "eng" ? ", plus files" : ""}. Try a shorter word.
+            {audience === "eng" ? ", plus files and code" : ""}. Try a shorter
+            word.
           </Blank>
         ) : (
           <p className={HINT} aria-live="polite">
@@ -119,8 +128,8 @@ export function SearchView({
               {listed
                 .filter((hit) => hit.kind === kind)
                 .map((hit) => {
-                  const title = hit.title[audience];
-                  const matched = hit.matched[audience];
+                  const title = hitTitle(site, hit, audience);
+                  const matched = hitLine(site, hit, audience);
                   return (
                     <li
                       key={`${hit.kind}:${hit.id}`}
@@ -134,10 +143,11 @@ export function SearchView({
                       >
                         <Prose text={title} audience={audience} />
                       </NextLink>
-                      {matched !== "" &&
-                      matched !== title &&
-                      matched !== hit.id ? (
-                        <p className={`${HINT} mt-1 mb-0 break-words`}>
+                      {matched !== "" && matched !== title ? (
+                        <p
+                          className={`${HINT} mt-1 mb-0 break-words`}
+                          data-matched={hit.field}
+                        >
                           <Prose text={matched} audience={audience} />
                         </p>
                       ) : null}

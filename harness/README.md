@@ -114,3 +114,9 @@ Each gold object is scored once per audience. An item is usable when it passes e
 | jargon | plain strings, once correct, against the shared list and code detectors | none |
 
 A snapshot containing a canary, a quarter of an object's gold-only 6-grams, or the decoy decision is a leak. One leak invalidates that system's run.
+
+## Lookup
+
+`node harness/lookup.ts` scores the search box against the frozen gold in `harness/lookup/`. A query hits when any of its targets is in the top three results. A topic target needs that topic's page in the top three. A decision, change, or person target needs a result of that kind.
+
+One extra rule covers item pages. For a file, symbol, option, or config query, a topic target also hits when an item page is in the top three and that item lives in a file the topic lists. An item hit opens its item's page, and a file hit opens its file's item page. The report prints the overall rate twice, with this rule and without it.
