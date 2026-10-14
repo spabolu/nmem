@@ -359,8 +359,9 @@ const code = (rules: CodeRules) => (source: string): Region[] => {
   for (let i = 0; i < lines.length; i += 1) {
     const line = lines[i];
     if (!line || !top(line)) continue;
+    const head = rules.block === 'indent' ? line.text : line.text.trimStart();
     for (const declaration of rules.declarations) {
-      const match = declaration.re.exec(line.text);
+      const match = declaration.re.exec(head);
       if (!match) continue;
       const end = blockEnd(i);
       if (declaration.group) {
@@ -739,7 +740,7 @@ function step(change: ChangeId, entries: readonly Entry[], files: Map<string, Tr
   for (const id of [...gone.map((g) => idOf(g.live.region)), ...appeared.map((a) => idOf(a.region))]) holders.set(id, (holders.get(id) ?? 0) + 1);
   const sameId = (g: Gone, a: Appeared): number | null => {
     const id = idOf(a.region);
-    if (idOf(g.live.region) !== id) return null;
+    if (idOf(g.live.region) !== id && !(g.live.region.kind === a.region.kind && g.live.region.name === a.region.name)) return null;
     const score = dice(tokensOfRegion(g.live.region), tokensOfRegion(a.region));
     return score >= MOVE_MIN || (deletedFiles.has(g.path) && holders.get(id) === 2) ? score : null;
   };
@@ -828,7 +829,7 @@ function renameScore(was: Region, now: Region, swaps: Swaps): number | null {
   if (was.kind !== now.kind || was.name === now.name) return null;
   const from = leafOf(was.name);
   const to = leafOf(now.name);
-  const renamed = tokensOfRegion(was).map((t) => (t === from ? to : /^[\w$]+$/.test(from) ? t : t.split(from).join(to)));
+  const renamed = tokensOfRegion(was).map((t) => (t === from ? to : t === was.key ? now.key : /^[\w$]+$/.test(from) ? t : t.split(from).join(to)));
   const score = dice(renamed, tokensOfRegion(now));
   if (score >= RENAME_MIN) return score;
   if (score < RENAME_WITH_EVIDENCE_MIN) return null;
