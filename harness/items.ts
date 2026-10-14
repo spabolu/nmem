@@ -25,6 +25,7 @@ type Line = {
   readonly blank: boolean;
   readonly first: string;
   readonly last: string;
+  readonly endsInString: boolean;
 };
 
 const REGEX_AFTER_WORD = new Set(['return', 'typeof', 'case', 'in', 'of', 'new', 'delete', 'void', 'throw', 'instanceof', 'yield', 'await']);
@@ -81,14 +82,13 @@ function scanBraces(source: string, flavor: 'js' | 'go'): Line[] {
         }
         continue;
       }
-      if (mode === 'raw') {
-        if (c === '`') mode = 'code';
-        continue;
-      }
-      if (mode === 'template') {
-        if (c === '\\') i += 1;
-        else if (c === '`') mode = 'code';
-        else if (c === '$' && text[i + 1] === '{') {
+      if (mode === 'raw' || mode === 'template') {
+        if (c === '\\' && mode === 'template') i += 1;
+        else if (c === '`') {
+          mode = 'code';
+          first ||= c;
+          last = prev = c;
+        } else if (c === '$' && text[i + 1] === '{' && mode === 'template') {
           templates.push(depth);
           depth += 1;
           i += 1;
@@ -130,7 +130,7 @@ function scanBraces(source: string, flavor: 'js' | 'go'): Line[] {
       }
       last = prev = c;
     }
-    out.push({ text, start, depth: startDepth, endDepth: depth, indent: indentOf(text), blank: start && first === '', first, last });
+    out.push({ text, start, depth: startDepth, endDepth: depth, indent: indentOf(text), blank: start && first === '', first, last, endsInString: mode === 'raw' || mode === 'template' });
   }
   return out;
 }
@@ -171,7 +171,7 @@ function scanPython(source: string): Line[] {
       } else if (c === '{' || c === '(' || c === '[') depth += 1;
       else if (c === '}' || c === ')' || c === ']') depth = Math.max(0, depth - 1);
     }
-    out.push({ text, start, depth: startDepth, endDepth: depth, indent: indentOf(text), blank: start && first === '', first, last });
+    out.push({ text, start, depth: startDepth, endDepth: depth, indent: indentOf(text), blank: start && first === '', first, last, endsInString: triple !== null });
   }
   return out;
 }
@@ -193,7 +193,7 @@ function braceStatementEnd(lines: readonly Line[], i: number): number {
     const line = lines[j];
     if (!line) break;
     if (line.endDepth < base) return j;
-    if (line.endDepth > base || line.first === '') continue;
+    if (line.endDepth > base || line.first === '' || line.endsInString) continue;
     const arrow = line.last === '>' && line.text.trimEnd().endsWith('=>');
     if (CONTINUES_AFTER.has(line.last) || arrow) continue;
     const next = nextCode(lines, j);

@@ -72,22 +72,46 @@ test('a module constant is a config key whose text is its definition', () => {
   assert.deepEqual(hops(version), ['pr#4 introduced (name)', '10474f7 changed (name)', 'pr#23 changed (name)']);
 });
 
-test('a language with no registry row is tracked as files, and a rename keeps the file history', () => {
+function historyOf(snapshots: ReadonlyArray<Record<string, string | null>>): Item[] {
   const repoDir = fs.mkdtempSync(path.join(os.tmpdir(), 'nmem-items-'));
   initRepo(repoDir);
   const identity = { name: 'Ada', email: 'ada@example.com', date: '2024-01-01T00:00:00Z' };
-  const body = (word: string): string => `fn main() {\n    println!("${word}");\n    let total = 2 + 2;\n    println!("{}", total);\n}\n`;
-  writeChanges(repoDir, { 'src/lib.rs': body('hi') });
-  const first = commitAll(repoDir, identity, 'add') as string;
-  writeChanges(repoDir, { 'src/lib.rs': body('hello') });
-  const second = commitAll(repoDir, identity, 'edit') as string;
-  writeChanges(repoDir, { 'src/lib.rs': null, 'src/main.rs': body('hello there') });
-  const third = commitAll(repoDir, identity, 'rename') as string;
-  const items = deriveItems(repoDir, [
-    { id: 'aaaaaaa' as ChangeId, before: '4b825dc642cb6eb9a060e54bf8d69288fbee4904', after: first },
-    { id: 'bbbbbbb' as ChangeId, before: first, after: second },
-    { id: 'ccccccc' as ChangeId, before: second, after: third },
+  let before = '4b825dc642cb6eb9a060e54bf8d69288fbee4904';
+  const changes = snapshots.map((files, n) => {
+    writeChanges(repoDir, files);
+    const after = commitAll(repoDir, identity, `change ${n}`) as string;
+    const range = { id: String.fromCharCode(97 + n).repeat(7) as ChangeId, before, after };
+    before = after;
+    return range;
+  });
+  const items = deriveItems(repoDir, changes);
+  fs.rmSync(repoDir, { recursive: true, force: true });
+  return items;
+}
+
+const hopsOf = (items: readonly Item[], kind: Item['kind'], name: string): string[] => {
+  const found = items.filter((item) => item.kind === kind && item.name === name);
+  assert.equal(found.length, 1, `one ${kind} ${name}`);
+  return hops(found[0] as Item);
+};
+
+test('a constant whose multi-line string changes on a later line is changed in that change', () => {
+  const go = (verb: string): string => `package main\n\nconst usage = \`usage: seedling <command>\n\ncommands:\n  remind   ${verb} tomorrow's volunteer\`\n\nfunc main() {\n\tprintln(usage)\n}\n`;
+  const js = (verb: string): string => `export const HELP = \`\nusage: wayfinder\n  --limit   ${verb} per window\n\`;\n\nexport function main() {\n  console.log(HELP);\n}\n`;
+  const py = (verb: string): string => `USAGE = """\nusage: tally\n  add   ${verb} an expense\n"""\n\n\ndef main():\n    print(USAGE)\n`;
+  const items = historyOf([
+    { 'main.go': go('text'), 'help.js': js('requests'), 'cli.py': py('record') },
+    { 'main.go': go('email'), 'help.js': js('calls'), 'cli.py': py('log') },
   ]);
+  assert.deepEqual(hopsOf(items, 'config-key', 'usage'), ['aaaaaaa introduced (name)', 'bbbbbbb changed (name)']);
+  assert.deepEqual(hopsOf(items, 'config-key', 'HELP'), ['aaaaaaa introduced (name)', 'bbbbbbb changed (name)']);
+  assert.deepEqual(hopsOf(items, 'config-key', 'USAGE'), ['aaaaaaa introduced (name)', 'bbbbbbb changed (name)']);
+  assert.deepEqual(items.filter((item) => item.kind === 'symbol').map((item) => `${item.name} ${hops(item).join(', ')}`), ['main aaaaaaa introduced (name)', 'main aaaaaaa introduced (name)', 'main aaaaaaa introduced (name)']);
+});
+
+test('a language with no registry row is tracked as files, and a rename keeps the file history', () => {
+  const body = (word: string): string => `fn main() {\n    println!("${word}");\n    let total = 2 + 2;\n    println!("{}", total);\n}\n`;
+  const items = historyOf([{ 'src/lib.rs': body('hi') }, { 'src/lib.rs': body('hello') }, { 'src/lib.rs': null, 'src/main.rs': body('hello there') }]);
   assert.deepEqual(items, [{
     kind: 'file',
     name: 'src/main.rs',
@@ -99,5 +123,4 @@ test('a language with no registry row is tracked as files, and a rename keeps th
       { change: 'ccccccc', kind: 'moved', from: 'src/lib.rs', matchedBy: 'text' },
     ],
   }]);
-  fs.rmSync(repoDir, { recursive: true, force: true });
 });
