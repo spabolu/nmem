@@ -43,6 +43,81 @@ const FRESH = {
 
 import { Tree } from "./tree";
 
+const FILE_CAP = 6;
+
+type FileGroup = {
+  readonly folder: string;
+  readonly files: readonly { readonly name: string; readonly path: string }[];
+};
+
+function fileGroups(paths: readonly string[]): readonly FileGroup[] {
+  const groups: { folder: string; files: { name: string; path: string }[] }[] =
+    [];
+  const at = new Map<string, number>();
+  for (const path of paths) {
+    const slash = path.lastIndexOf("/");
+    const folder = slash < 0 ? "" : path.slice(0, slash);
+    const name = slash < 0 ? path : path.slice(slash + 1);
+    const index = at.get(folder);
+    const group = index === undefined ? undefined : groups[index];
+    if (!group) {
+      at.set(folder, groups.length);
+      groups.push({ folder, files: [{ name, path }] });
+    } else {
+      group.files.push({ name, path });
+    }
+  }
+  return groups;
+}
+
+function FilesLine({
+  ctx,
+  files,
+}: {
+  readonly ctx: Ctx;
+  readonly files: readonly string[];
+}) {
+  if (ctx.audience === "plain" || files.length === 0) return null;
+  const { repo, audience, site } = ctx;
+  const flat = fileGroups(files).flatMap((group) =>
+    group.files.map((file, index) => ({
+      folder: index === 0 ? group.folder : null,
+      name: file.name,
+      path: file.path,
+    })),
+  );
+  const shown = flat.slice(0, FILE_CAP);
+  const rest = flat.length - shown.length;
+  return (
+    <p className="mt-3 mb-0 flex flex-wrap items-baseline gap-x-2 gap-y-1 text-[14px]">
+      <span className={LABEL}>Files</span>
+      {shown.map((file) => (
+        <span
+          key={file.path}
+          className="inline-flex max-w-full min-w-0 flex-wrap items-baseline gap-1"
+        >
+          {file.folder ? (
+            <span className="break-all text-(color:--fgColor-muted)">
+              {file.folder}/
+            </span>
+          ) : null}
+          <NextLink
+            className={`${CHIP} max-w-full break-all`}
+            href={sourceHref(repo, audience, {
+              ref: `${site.facts.head}:${file.path}`,
+            })}
+          >
+            {file.name}
+          </NextLink>
+        </span>
+      ))}
+      {rest > 0 ? (
+        <span className="text-(color:--fgColor-muted)">and {rest} more</span>
+      ) : null}
+    </p>
+  );
+}
+
 export async function TopicView({
   ctx,
   id,
@@ -169,6 +244,7 @@ export async function TopicView({
               History of this topic
             </ButtonLink>
           </div>
+          <FilesLine ctx={ctx} files={topic.files} />
         </section>
       </article>
     </>
