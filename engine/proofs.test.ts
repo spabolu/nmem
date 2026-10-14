@@ -83,6 +83,75 @@ test('a lockfile refresh, a restyle, and an unused generated file are routine pa
   assert.match(code, /\+export const allowance = 2;/);
 });
 
+const PAGE = `<!doctype html>
+<html>
+<body>
+  {{if .Thanks}}<p><strong>See you at the garden.</strong></p>{{end}}
+  <script>var n = 1;</script>
+</body>
+</html>
+`;
+
+function edited(base: Readonly<Record<string, string>>, next: Readonly<Record<string, string>>): string {
+  const workspace = fs.mkdtempSync(path.join(os.tmpdir(), 'nmem-proof-'));
+  const repoDir = path.join(workspace, 'repo');
+  initRepo(repoDir);
+  writeChanges(repoDir, { 'README.md': '# toy\n\nToy prints a greeting.\n', ...base });
+  commitAll(repoDir, { ...ANA, date: '2024-01-01T10:00:00Z' }, 'Initial commit');
+  checkoutNewBranch(repoDir, 'topic-1');
+  writeChanges(repoDir, next);
+  const sha = commitAll(repoDir, { ...ANA, date: '2024-01-02T10:00:00Z' }, 'Edit the page') as string;
+  git(repoDir, ['checkout', '--quiet', 'main']);
+  const merge = mergeNoFf(repoDir, 'topic-1', { ...ANA, date: '2024-01-02T11:00:00Z' }, 'Merge pull request #1') as string;
+  const github = {
+    repo: { owner: 'acme', name: 'toy' },
+    users: [{ login: 'ana', name: ANA.name, type: 'User' }],
+    pulls: [{ number: 1, title: 'Edit the page', body: 'Edits the page.', author: 'ana', mergeCommitSha: merge, commits: [{ sha, authorLogin: 'ana' }], comments: [], reviews: [] }],
+    issues: [],
+    discussions: [],
+  };
+  fs.writeFileSync(path.join(workspace, 'github.json'), JSON.stringify(github));
+  return workspace;
+}
+
+test('a template whose tags and actions are unchanged is routine, and the files proof says prose', () => {
+  const record = ingest(edited(
+    { 'templates/signup.html': PAGE },
+    { 'templates/signup.html': PAGE.replace('garden', 'gardne') },
+  ));
+  const change = record.changes.find((item) => item.id === 'pr#1');
+  assert.ok(change);
+  const proof = proveRoutine(record.repoDir, change);
+  assert.ok(proof);
+  assert.equal(proof.proof, `files ${change.after.slice(0, 7)}`);
+  assert.deepEqual(proof.files, ['templates/signup.html']);
+  assert.equal(runProof(record.repoDir, parseProof(proof.proof)).text, 'templates/signup.html: prose');
+  assert.deepEqual(routineParts(record.repoDir, change).map((part) => part.reason.eng), ['Only wording changed, no code.']);
+});
+
+test('a tag change, an action change, a script change, and a code string are not wording', () => {
+  const tag = ingest(edited({ 'templates/signup.html': PAGE }, { 'templates/signup.html': PAGE.replace('<p>', '<div>') }));
+  const tagChange = tag.changes.find((item) => item.id === 'pr#1');
+  assert.ok(tagChange);
+  assert.equal(proveRoutine(tag.repoDir, tagChange), null);
+  assert.equal(runProof(tag.repoDir, parseProof(`files ${tagChange.after.slice(0, 7)}`)).text, 'templates/signup.html: code');
+
+  const action = ingest(edited({ 'templates/signup.html': PAGE }, { 'templates/signup.html': PAGE.replace('{{if .Thanks}}', '{{if .Name}}') }));
+  const actionChange = action.changes.find((item) => item.id === 'pr#1');
+  assert.ok(actionChange);
+  assert.equal(proveRoutine(action.repoDir, actionChange), null);
+
+  const script = ingest(edited({ 'templates/signup.html': PAGE }, { 'templates/signup.html': PAGE.replace('var n = 1;', 'var n = 2;') }));
+  const scriptChange = script.changes.find((item) => item.id === 'pr#1');
+  assert.ok(scriptChange);
+  assert.equal(runProof(script.repoDir, parseProof(`files ${scriptChange.after.slice(0, 7)}`)).text, 'templates/signup.html: code');
+
+  const code = ingest(edited({ 'src/quotes.ts': "export const label = 'open';\n" }, { 'src/quotes.ts': 'export const label = "closed";\n' }));
+  const codeChange = code.changes.find((item) => item.id === 'pr#1');
+  assert.ok(codeChange);
+  assert.equal(runProof(code.repoDir, parseProof(`files ${codeChange.after.slice(0, 7)}`)).text, 'src/quotes.ts: code');
+});
+
 test('a used addition, an install script, a named generated file, and a code edit are not routine parts', () => {
   const usedRecord = ingest(toy({
     'package-lock.json': LOCK,

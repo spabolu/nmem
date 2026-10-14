@@ -133,13 +133,25 @@ export function proveRoutine(repoDir: string, change: Change): RoutineProof | nu
   const found = entries(output);
   if (found.length === 0 || found.length !== change.touched.size || !found.every((entry) => change.touched.has(entry.path))) return null;
   const kinds = new Set<string>();
+  let wording = false;
   for (const entry of found) {
     const rule = ROUTINE.find((item) => item.test(entry));
-    if (!rule) return null;
-    kinds.add(rule.id);
+    if (rule) {
+      kinds.add(rule.id);
+      continue;
+    }
+    // `prose` is the files verb's own word for a document or template whose tags and actions did not change.
+    // It is not a settled file on a mixed change, so classify still sees the code beside it.
+    if (entry.detail === 'prose') {
+      wording = true;
+      continue;
+    }
+    return null;
   }
+  const named = [...ROUTINE.filter((rule) => kinds.has(rule.id)).map((rule) => rule.name), ...(wording ? [{ eng: 'wording', plain: 'wording' }] : [])];
+  if (named.length === 0) return null;
   const files = found.map((entry) => entry.path);
-  return { files: files as [string, ...string[]], kinds: ROUTINE.filter((rule) => kinds.has(rule.id)).map((rule) => rule.name), proof };
+  return { files: files as [string, ...string[]], kinds: named, proof };
 }
 
 function joinAnd(items: readonly string[]): string {
