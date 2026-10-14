@@ -74,6 +74,7 @@
   min-width: 0;
   overflow: hidden;
   font-size: 12px;
+  line-height: 22px;
   color: var(--fgColor-muted);
   white-space: nowrap;
   text-overflow: ellipsis;
@@ -137,6 +138,7 @@
 .tl-card.placed:focus-within .carry {
   white-space: normal;
   overflow: visible;
+  line-height: 1.4;
   text-overflow: unset;
 }
 .tl-card.behavior {
@@ -300,6 +302,7 @@
   .tl-card .carry {
     white-space: normal;
     overflow: visible;
+    line-height: 1.4;
     text-overflow: unset;
   }
 }

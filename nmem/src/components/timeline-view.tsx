@@ -724,6 +724,15 @@ function CardView({ ctx, card, folded, style, more }: CardProps) {
         <Prose text={title} audience={audience} />
         <GithubInline ctx={ctx} refId={card.change} />
       </span>
+      {findings.length > 0 ? (
+        <span className="carry">
+          {findings.map((finding, index) => (
+            <span key={card.findings[index]} className="mr-1">
+              <Chip ctx={ctx} source={finding.anchor} />
+            </span>
+          ))}
+        </span>
+      ) : null}
       {points}
       {skip ? <span className="c">{skip[audience]}</span> : null}
       <Carries ctx={ctx} ids={card.carries} />
