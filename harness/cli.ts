@@ -14,6 +14,7 @@
  *   census <runId> [--system <name>]              first failing gate and its reason for every not-usable item, grouped
  *   cards --condition gold|github-only|<runId>/<system>/<trial> --out <participant-dir>
  *   score-sheets <dir>
+ *   items <workspace> <out.json>                  every symbol, option, config key, and file in <workspace>/repo, with its hops
  *
  * Exit codes: 0 ok, 1 a check failed (conformance, stale facts, calibration, precondition, leak), 2 bad usage.
  */
@@ -33,6 +34,9 @@ import { buildReport, compareRuns, renderMarkdown } from './report.ts';
 import { checkSystem, detectSandbox, loadRun, MAX_LIVE_CALLS, parseManifest, run } from './run.ts';
 import type { RunId } from './run.ts';
 import { changeIds, factsOf, openFixture } from './record.ts';
+import { deriveItems } from './items.ts';
+import type { ChangeRange } from './items.ts';
+import { factsOf as gitFacts } from '../fixtures/lib/facts.mjs';
 import { parseSnapshot } from './contract.ts';
 import { renderPage, renderTimeline } from './view.ts';
 
@@ -61,7 +65,8 @@ export type Command =
   | { readonly kind: 'compare'; readonly before: string; readonly after: string }
   | { readonly kind: 'census'; readonly runId: string; readonly system: string | null }
   | { readonly kind: 'cards'; readonly condition: string; readonly out: string }
-  | { readonly kind: 'score-sheets'; readonly dir: string };
+  | { readonly kind: 'score-sheets'; readonly dir: string }
+  | { readonly kind: 'items'; readonly workspace: string; readonly out: string };
 
 function flag(argv: readonly string[], name: string): string | null {
   const index = argv.indexOf(name);
@@ -161,7 +166,12 @@ export function parseArgs(argv: readonly string[]): Command {
     if (!runId || runId.startsWith('--')) throw new Error('usage: census <runId> [--system <name>]');
     return { kind: 'census', runId, system: flag(rest, '--system') };
   }
-  throw new Error('usage: check-system | facts | reviews | calibrate | run | report | render | compare | census');
+  if (command === 'items') {
+    const [workspace, out] = rest;
+    if (!workspace || !out) throw new Error('usage: items <workspace> <out.json>');
+    return { kind: 'items', workspace, out };
+  }
+  throw new Error('usage: check-system | facts | reviews | calibrate | run | report | render | compare | census | items');
 }
 
 const HARNESS_DIR = path.dirname(fileURLToPath(import.meta.url));
@@ -287,6 +297,20 @@ export async function main(argv: readonly string[]): Promise<number> {
   }
   if (command.kind === 'census') {
     process.stdout.write(renderCensus(failureCensus(runsDir, outDir, command.runId as RunId, command.system)));
+    return 0;
+  }
+  if (command.kind === 'items') {
+    const repoDir = path.join(command.workspace, 'repo');
+    const github = JSON.parse(fs.readFileSync(path.join(command.workspace, 'github.json'), 'utf8')) as unknown;
+    const started = performance.now();
+    const changes = (gitFacts(repoDir, github) as { changes: readonly ChangeRange[] }).changes;
+    const derived = performance.now();
+    const items = deriveItems(repoDir, changes);
+    const done = performance.now();
+    fs.writeFileSync(command.out, `${JSON.stringify({ items }, null, 2)}\n`);
+    const counts = new Map<string, number>();
+    for (const item of items) counts.set(item.kind, (counts.get(item.kind) ?? 0) + 1);
+    say(`${items.length} items (${[...counts].map(([kind, n]) => `${n} ${kind}`).join(', ')}) over ${changes.length} changes; facts ${((derived - started) / 1000).toFixed(1)} s, items ${((done - derived) / 1000).toFixed(1)} s`);
     return 0;
   }
   if (command.kind === 'render') {

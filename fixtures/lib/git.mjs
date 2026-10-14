@@ -45,8 +45,9 @@ export function git(repoDir, args, opts = {}) {
   const result = spawnSync('git', ['--no-pager', ...args], {
     cwd: repoDir,
     env: gitEnv(opts.identity),
-    encoding: 'utf8',
+    encoding: opts.encoding ?? 'utf8',
     input: opts.input,
+    maxBuffer: opts.maxBuffer,
   });
   if (result.error) throw new GitError(args, -1, result.error.message);
   const status = result.status ?? -1;
