@@ -425,7 +425,10 @@ function Board({
   const cards = [...view.up.cards, ...view.down.cards];
   return (
     <section className="board" aria-label="Changes on a time axis">
-      <div className="canvas" style={{ height }}>
+      <div
+        className="canvas"
+        style={{ "--canvas-h": `${height}px` } as React.CSSProperties}
+      >
         {fewer("up")}
         {paint(up.slots, "up")}
         {empty("up", view.up.cards.length)}
@@ -690,7 +693,7 @@ function CardView({ ctx, card, folded, style, more }: CardProps) {
         <WhyText ctx={ctx} why={finding.why} />
       </span>,
     );
-    finding.says.forEach((line, s) => {
+    finding.says.forEach((line) => {
       push(
         <span
           key={`s${card.findings[f]}-${line[audience]}`}

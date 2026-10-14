@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { Suspense } from "react";
+import Loading from "@/app/[owner]/[repo]/loading";
 import { BadQuery } from "@/components/bad-query";
 import { RepoFrame } from "@/components/repo-frame";
 import { TimelineView } from "@/components/timeline-view";
@@ -14,7 +16,15 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   return { title: `Timeline · ${decodeURIComponent(repo)}` };
 }
 
-export default async function TimelinePage({ params, searchParams }: Props) {
+export default function TimelinePage(props: Props) {
+  return (
+    <Suspense fallback={<Loading />}>
+      <TimelineContent {...props} />
+    </Suspense>
+  );
+}
+
+async function TimelineContent({ params, searchParams }: Props) {
   const request = await openRepo(params, searchParams);
   const { site, query } = request;
   if ("error" in query) return <BadQuery what={query.error} />;

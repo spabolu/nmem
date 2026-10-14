@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
+import Loading from "@/app/[owner]/[repo]/loading";
 import { BadQuery } from "@/components/bad-query";
 import { RepoFrame } from "@/components/repo-frame";
 import { SearchView } from "@/components/search-view";
@@ -11,7 +13,15 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   return { title: `Search · ${decodeURIComponent(repo)}` };
 }
 
-export default async function SearchPage({ params, searchParams }: Props) {
+export default function SearchPage(props: Props) {
+  return (
+    <Suspense fallback={<Loading />}>
+      <SearchContent {...props} />
+    </Suspense>
+  );
+}
+
+async function SearchContent({ params, searchParams }: Props) {
   const request = await openRepo(params, searchParams);
   const { query } = request;
   if ("error" in query) return <BadQuery what={query.error} />;

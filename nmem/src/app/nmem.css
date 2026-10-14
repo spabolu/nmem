@@ -39,6 +39,7 @@
 }
 .canvas {
   position: relative;
+  height: var(--canvas-h);
 }
 .tl-card {
   border: 1px solid var(--borderColor-default);
@@ -247,7 +248,7 @@
     padding: 8px 12px 12px;
   }
   .canvas {
-    height: auto !important;
+    height: auto;
     display: flex;
     flex-direction: column;
     gap: 8px;

@@ -1,3 +1,5 @@
+import { Suspense } from "react";
+import Loading from "@/app/loading";
 import { Blank } from "@/components/blank";
 import { PAGE } from "@/components/styles";
 
@@ -9,9 +11,15 @@ export function generateStaticParams() {
   return [{ status: "400" }, { status: "404" }];
 }
 
-export default async function Refused({
-  params,
-}: PageProps<"/-refused/[status]">) {
+export default function Refused(props: PageProps<"/-refused/[status]">) {
+  return (
+    <Suspense fallback={<Loading />}>
+      <RefusedBody {...props} />
+    </Suspense>
+  );
+}
+
+async function RefusedBody({ params }: PageProps<"/-refused/[status]">) {
   const { status } = await params;
   const missing = status === "404";
   return (

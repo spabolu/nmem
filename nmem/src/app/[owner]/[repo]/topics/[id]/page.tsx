@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { Suspense } from "react";
+import Loading from "@/app/[owner]/[repo]/loading";
 import { BadQuery } from "@/components/bad-query";
 import { RepoFrame } from "@/components/repo-frame";
 import { TopicView } from "@/components/topic-view";
@@ -13,7 +15,15 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   return { title: `${decodeURIComponent(id)} · ${decodeURIComponent(repo)}` };
 }
 
-export default async function TopicPage({ params, searchParams }: Props) {
+export default function TopicPage(props: Props) {
+  return (
+    <Suspense fallback={<Loading />}>
+      <TopicContent {...props} />
+    </Suspense>
+  );
+}
+
+async function TopicContent({ params, searchParams }: Props) {
   const request = await openRepo(params, searchParams);
   const id = decodeURIComponent((await params).id);
   if (!topicById(request.site, id)) notFound();
