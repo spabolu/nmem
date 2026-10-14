@@ -69,21 +69,36 @@ function notAChoice(text: string): boolean {
 }
 
 /**
- * A sentence that already states the refusal. "does not support" describes the code as it is, so it is not here.
- * A closing sentence is the decision on a pull request closed without merging.
+ * A sentence that already states the refusal. The verb after "going to" or "will not" is any word, so a fixture's
+ * verb list does not hide the same decision. After "we are not", only a gerund counts. "we are not sure" is not
+ * that shape, and matching it would ask about threads that are not refusals. A bare "not <any gerund>" matches
+ * bug reports such as "not working", so that form stays the words that already stated a refusal with no subject.
+ * "does not support" describes the code as it is, so it is not here.
+ * A line that starts with "Closing" is the decision on a pull request closed without merging.
  */
+const VERB = String.raw`[a-z][a-z'-]*`;
+const GERUND = String.raw`[a-z]+ing`;
+const GOING = String.raw`going to |gonna `;
+const WE_NOT = String.raw`we are|i am|we['’]re|i['’]m`;
 const REFUSAL = [
-  /\b(?:we are|i am|we're|i'm) not (?:going to |gonna )?(?:add|adding|build|building|do|doing|put|putting|pay|paying|buy|buying|implement|implementing|accept|accepting|merge|merging)\b/i,
+  new RegExp(String.raw`\b(?:${WE_NOT}) not (?:${GOING})?${GERUND}\b`, 'i'),
+  new RegExp(String.raw`\b(?:${WE_NOT}) not (?:${GOING})${VERB}\b`, 'i'),
+  new RegExp(String.raw`\bwe aren['’]?t (?:${GOING})?${GERUND}\b`, 'i'),
+  new RegExp(String.raw`\bwe aren['’]?t (?:${GOING})${VERB}\b`, 'i'),
+  new RegExp(String.raw`\b(?:will not|won['’]?t) ${VERB}\b`, 'i'),
   /\bnot (?:adding|building|paying|buying|putting|implementing|merging)\b/i,
-  /\b(?:will not|won'?t) (?:add|build|do|fix|implement|merge|accept)\b/i,
   /\bdo not add\b/i,
   /\bdon'?t add\b/i,
   /\bnot planned\b/i,
   /\bwontfix\b/i,
-  /\bwon'?t fix\b/i,
   /\bnot something we will\b/i,
   /\bdecided not to\b/i,
   /\bleav(?:e|ing) it as is\b/i,
+  /\bout of scope\b/i,
+  /\bnot a good fit\b/i,
+  /\bclosing as\b/i,
+  /\bwe['’]ll pass\b/i,
+  /\bno plans to\b/i,
 ];
 
 function statesRefusal(text: string): boolean {

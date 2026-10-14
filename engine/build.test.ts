@@ -643,6 +643,67 @@ test('declined sends a refusal thread and skips a duplicate and an open request'
   assert.deepEqual(roots('seedling'), ['pr#7', 'issue#9', 'discussion#3']);
 });
 
+test('a refusal is the sentence shape, including a verb no fixture uses, and a question or a bot is not', () => {
+  const workspace = toyWorkspace([{ title: 'Add a note', body: 'Adds a note.', files: { 'notes.txt': 'x\n' } }]);
+  const github = JSON.parse(fs.readFileSync(path.join(workspace, 'github.json'), 'utf8')) as {
+    users: { login: string; name: string; type: string }[];
+    pulls: unknown[];
+    issues: unknown[];
+  };
+  github.users.push({ login: 'dependabot[bot]', name: 'dependabot[bot]', type: 'Bot' });
+  const closed = (number: number, body: string, comments: unknown[] = []) => ({
+    number, title: 'Request', body, author: 'ana', state: 'closed', stateReason: 'completed', comments,
+  });
+  github.pulls.push(
+    { number: 2, title: 'Vendor the fork', body: "I won't vendor that fork.", author: 'ana', state: 'closed', mergeCommitSha: null, commits: [], reviews: [], comments: [] },
+    { number: 3, title: 'Ship it', body: 'We are not shipping this.', author: 'ana', state: 'open', mergeCommitSha: null, commits: [], reviews: [], comments: [] },
+  );
+  github.issues.push(
+    closed(30, 'We are not shipping a plugin for this.'),
+    closed(2, "I'm not going to backport the old parser."),
+    closed(3, 'I am not gonna relicense the project.'),
+    closed(4, "We aren't going to fork this library."),
+    closed(5, "We won't migrate the callers."),
+    closed(6, 'The team will not expose that flag.'),
+    closed(7, 'This request is out of scope.'),
+    closed(8, 'A custom codec is not a good fit.'),
+    closed(9, 'The maintainers are closing as not interested.'),
+    closed(10, "We won't be adding telemetry."),
+    closed(11, "We'll pass on a second cache."),
+    closed(12, 'No plans to support that format.'),
+    { number: 13, title: 'Request', body: 'We are not shipping a plugin for this.', author: 'ana', state: 'open', stateReason: null, comments: [] },
+    closed(14, 'We are not shipping this?'),
+    closed(15, 'Leaving this open, we are not shipping it.'),
+    closed(16, 'Closing this as a duplicate.'),
+    closed(17, 'Please look.', [{ id: 90, author: 'dependabot[bot]', body: 'We are not shipping a plugin for this.', replies: [] }]),
+    closed(18, 'We are not shipping a plugin, and there is no behavior change.'),
+    { number: 19, title: 'We are not shipping this', body: 'Please consider it.', author: 'ana', state: 'closed', stateReason: 'completed', comments: [] },
+    closed(20, 'The parser does not support gzip.'),
+    closed(21, 'The tests pass on my machine.'),
+    { number: 22, title: 'Request', body: 'We are not shipping this.', author: 'ana', state: 'closed', stateReason: 'duplicate', comments: [] },
+    closed(23, 'Thanks.'),
+  );
+  fs.writeFileSync(path.join(workspace, 'github.json'), JSON.stringify(github));
+  const said = (thread: { objects: readonly { sentences: readonly { unit: string; text: string }[] }[] }): string =>
+    thread.objects.flatMap((object) => object.sentences.filter((sentence) => sentence.unit !== 'heading').map((sentence) => sentence.text)).join('\n');
+  assert.deepEqual(declinedThreads(ingest(workspace)).map((thread) => [thread.root, said(thread)]), [
+    ['pr#2', "I won't vendor that fork."],
+    ['issue#30', 'We are not shipping a plugin for this.'],
+    ['issue#2', "I'm not going to backport the old parser."],
+    ['issue#3', 'I am not gonna relicense the project.'],
+    ['issue#4', "We aren't going to fork this library."],
+    ['issue#5', "We won't migrate the callers."],
+    ['issue#6', 'The team will not expose that flag.'],
+    ['issue#7', 'This request is out of scope.'],
+    ['issue#8', 'A custom codec is not a good fit.'],
+    ['issue#9', 'The maintainers are closing as not interested.'],
+    ['issue#10', "We won't be adding telemetry."],
+    ['issue#11', "We'll pass on a second cache."],
+    ['issue#12', 'No plans to support that format.'],
+    ['issue#13', 'We are not shipping a plugin for this.'],
+  ]);
+});
+
 test('a closed pull request is a decision carried by nothing, and a request left open is not', async () => {
   const workspace = toyWorkspace([{ title: 'Add a note', body: 'Closes #3.', files: { 'notes.txt': 'x\n' } }]);
   const github = JSON.parse(fs.readFileSync(path.join(workspace, 'github.json'), 'utf8')) as { pulls: unknown[]; issues: unknown[] };
