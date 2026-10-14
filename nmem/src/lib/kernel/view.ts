@@ -539,14 +539,19 @@ export function rangeOf(
   snapshot: Snapshot,
   facts: RepoFacts,
   range: Range,
+  item: ItemId | null = null,
 ): RangeView {
   const whole = range.topic === rootOf(snapshot).id;
   const inRange = (day: IsoDay): boolean =>
     day >= range.from && day <= range.to;
   const position = new Map(facts.changes.map((c, i) => [c.id, i]));
   const entries = new Map(snapshot.changes.map((c) => [c.id, c]));
+  const tracked =
+    item === null ? null : (facts.items.find((row) => row.id === item) ?? null);
+  const hops = tracked ? new Set(tracked.hops.map((hop) => hop.change)) : null;
   const inTopic = (id: ChangeId): boolean =>
-    whole || (entries.get(id)?.topics.includes(range.topic) ?? false);
+    (hops === null || hops.has(id)) &&
+    (whole || (entries.get(id)?.topics.includes(range.topic) ?? false));
   const live = (id: ChangeId): IsoDay => changeFacts(id, facts).live;
   const latest = (ids: readonly [ChangeId, ...ChangeId[]]): ChangeId =>
     ids.reduce((a, b) =>
@@ -575,6 +580,8 @@ export function rangeOf(
   for (const decision of decisionsFor(range.topic, snapshot, facts)) {
     const day = decisionDay(decision, facts);
     if (!inRange(day)) continue;
+    if (hops && !(decision.carriedBy !== null && hops.has(decision.carriedBy)))
+      continue;
     items.push({ kind: "decision", ref: decision.id, day });
     const carrier = decision.carriedBy;
     cards.push({
@@ -649,9 +656,21 @@ export function rangeOf(
     ...PRIORITY.flatMap(ofKind).filter((item) => !picks.includes(item)),
   ].slice(0, 3);
 
-  const topicFiles = whole
-    ? null
-    : new Set(snapshot.topics.find((t) => t.id === range.topic)?.files ?? []);
+  const itemFiles = tracked
+    ? new Set([
+        tracked.path,
+        ...tracked.hops.flatMap((hop) =>
+          hop.kind === "moved" ? [hop.from] : [],
+        ),
+      ])
+    : null;
+  const topicFiles =
+    itemFiles ??
+    (whole
+      ? null
+      : new Set(
+          snapshot.topics.find((t) => t.id === range.topic)?.files ?? [],
+        ));
   const strip = facts.changes.filter(
     (c) =>
       inRange(c.live) &&
@@ -700,12 +719,14 @@ export function rangeOf(
  * rangeOf plus the summary sentence and each row. more is 0: a pixel pack needs a board width, and no width is
  * decided, so the kernel shows every card and the website may pack them. Scores use counts, not the pack.
  */
+/** item narrows the board to the changes that item went through, and its routine lines to the files it lived in. */
 export function timelineOf(
   snapshot: Snapshot,
   facts: RepoFacts,
   range: Range,
+  item: ItemId | null = null,
 ): Timeline {
-  const view = rangeOf(snapshot, facts, range);
+  const view = rangeOf(snapshot, facts, range, item);
   return {
     range: view.range,
     summary: TEMPLATES.summary(view.range, view.counts),
@@ -745,6 +766,9 @@ export const TRUST_WORDS = {
   },
   run: { eng: "we ran it", plain: "we tried it" },
 } as const satisfies Record<ProofVerb, Named>;
+
+/** What a routine line count covers: every file, a topic's files, or the files one item lived in. */
+export type RoutineScope = "repo" | "topic" | "item";
 
 export const MONTHS = [
   "Jan",
@@ -866,11 +890,15 @@ export const TEMPLATES = {
    * "5 routine changes, 91 lines in the whole repo." Plain says "project", not "repo".
    * A zero count still names the scope, so a line count is never a bare number.
    */
-  routine: (count: number, lines: number, whole: boolean): Named => {
+  routine: (count: number, lines: number, scope: RoutineScope): Named => {
     const cover = {
-      eng: whole ? "in the whole repo" : "in this topic's files",
-      plain: whole ? "in the whole project" : "in this topic's files",
-    };
+      repo: { eng: "in the whole repo", plain: "in the whole project" },
+      topic: { eng: "in this topic's files", plain: "in this topic's files" },
+      item: {
+        eng: "in the files it lived in",
+        plain: "in the files it lived in",
+      },
+    }[scope];
     const line = (scope: string): string => {
       if (count === 0) return `No routine changes ${scope}.`;
       const changes =

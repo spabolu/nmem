@@ -16,8 +16,8 @@ import type { Snapshot } from './contract.ts';
 import { loadGold } from './gold.ts';
 import type { Slug } from './gold.ts';
 import { factsOf, openFixture } from './record.ts';
-import { itemPageOf, renderPage, renderTimeline, screensOf, search } from './view.ts';
-import type { RepoFacts } from './view.ts';
+import { itemPageOf, renderPage, renderTimeline, screensOf, search, timelineOf } from './view.ts';
+import type { Range, RepoFacts } from './view.ts';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const kernelDir = path.join(root, 'nmem', 'src', 'lib', 'kernel');
@@ -85,6 +85,8 @@ for (const slug of ['tally', 'wayfinder', 'seedling'] as Slug[]) {
       assert.ok(rendered >= 4, `rendered ${rendered} screens`);
       for (const item of facts.items) {
         assert.deepEqual(kernelView.itemPageOf(site.snapshot, site.facts, item.id), itemPageOf(lab.snapshot, facts, item.id), `${slug} item ${item.id}`);
+        const life: Range = { topic: lab.snapshot.topics.find((topic) => topic.parent === null)?.id ?? '', from: facts.born, to: facts.end };
+        assert.deepEqual(kernelView.timelineOf(site.snapshot, site.facts, life, item.id), timelineOf(lab.snapshot, facts, life, item.id), `${slug} timeline of ${item.id}`);
       }
       const gold = JSON.parse(fs.readFileSync(path.join(root, 'harness', 'lookup', `${slug}.json`), 'utf8')) as { queries: { query: string }[] };
       for (const query of [...gold.queries.map((row) => row.query), ...facts.items.slice(0, 20).map((item) => item.name)]) {

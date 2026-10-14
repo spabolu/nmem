@@ -38,12 +38,17 @@ export function timelineHref(
   from: IsoDay,
   to: IsoDay,
   audience: Audience,
-  extra: { readonly show?: string | null; readonly routine?: boolean } = {},
+  extra: {
+    readonly show?: string | null;
+    readonly routine?: boolean;
+    readonly item?: string | null;
+  } = {},
 ): string {
   return `${repoPath(repo)}/timeline?${qs(audience, {
     topic,
     from,
     to,
+    item: extra.item ?? null,
     show: extra.show ?? null,
     routine: extra.routine ? "1" : null,
   })}`;

@@ -1,7 +1,13 @@
 import { Button } from "@primer/react";
 import Form from "next/form";
 import NextLink from "next/link";
-import { repoPath, showParam, timelineHref, topicHref } from "@/lib/hrefs";
+import {
+  itemHref,
+  repoPath,
+  showParam,
+  timelineHref,
+  topicHref,
+} from "@/lib/hrefs";
 import type { ChangeId, LocalId, Said } from "@/lib/kernel/contract";
 import type { RequestQuery } from "@/lib/kernel/site";
 import { rootId } from "@/lib/kernel/site";
@@ -10,6 +16,7 @@ import type {
   IsoDay,
   ItemKind,
   Timeline,
+  TrackedItem,
   UndoneNote,
 } from "@/lib/kernel/view";
 import {
@@ -84,15 +91,19 @@ export function TimelineView({
   ctx,
   range,
   query,
+  item,
 }: {
   readonly ctx: Ctx;
   readonly range: Range;
   readonly query: RequestQuery;
+  readonly item: TrackedItem | null;
 }) {
   const { site, repo, audience } = ctx;
   const { topic, from, to } = range;
-  const view = timelineOf(site.snapshot, site.facts, range);
+  const view = timelineOf(site.snapshot, site.facts, range, item?.id ?? null);
   const whole = topic === rootId(site);
+  const scope = item ? "item" : whole ? "repo" : "topic";
+  const kept = { item: item?.id ?? null };
   const allCards = [...view.up.cards, ...view.down.cards];
   const unclassified = allCards.filter(
     (card) =>
@@ -110,6 +121,7 @@ export function TimelineView({
     .join(",");
   const link = (up: boolean, down: boolean, routine: boolean) =>
     timelineHref(repo, topic, from, to, audience, {
+      ...kept,
       show: showParam(up, down),
       routine,
     });
@@ -127,6 +139,7 @@ export function TimelineView({
       data-cards={allCards.map(cardToken).join(" ")}
       data-notes={notes}
       data-unclassified-count={unclassified}
+      data-item={item?.id}
     >
       <div className="flex items-center gap-3">
         <h1 className="m-0 text-[32px] font-[600] max-md:text-[20px]">
@@ -165,6 +178,7 @@ export function TimelineView({
       >
         <input type="hidden" name="audience" value={audience} />
         <input type="hidden" name="topic" value={topic} />
+        {item ? <input type="hidden" name="item" value={item.id} /> : null}
         <label className={RANGE_LABEL} htmlFor="range-from">
           From{" "}
           <input
@@ -205,6 +219,7 @@ export function TimelineView({
                 preset.range.from,
                 preset.range.to,
                 audience,
+                kept,
               )}
             >
               {PRESET_LABEL[preset.id]}
@@ -224,12 +239,34 @@ export function TimelineView({
             key={row.id}
             className={row.id === topic ? CHIP_ON : CHIP}
             aria-current={row.id === topic ? "true" : undefined}
-            href={timelineHref(repo, row.id, from, to, audience)}
+            href={timelineHref(repo, row.id, from, to, audience, kept)}
           >
             {row.name[audience]}
           </NextLink>
         ))}
       </nav>
+      {item ? (
+        <p
+          className="mt-0 mb-3 flex flex-wrap items-baseline gap-x-3 gap-y-1 rounded-[6px] bg-(--bgColor-accent-muted) px-3 py-2"
+          data-item-filter={item.id}
+        >
+          <span data-nmem>
+            {audience === "plain" ? (
+              "Only the changes to one part of the code."
+            ) : (
+              <>
+                Only the changes to <code>{item.name}</code>.
+              </>
+            )}
+          </span>
+          <NextLink href={itemHref(repo, item.id, audience)}>
+            Its history
+          </NextLink>
+          <NextLink href={timelineHref(repo, topic, from, to, audience)}>
+            Show every change
+          </NextLink>
+        </p>
+      ) : null}
       <section
         className="mt-0 mb-4 rounded-[10px] border border-(color:--borderColor-default) bg-(--bgColor-default) p-4"
         aria-label="Summary"
@@ -272,7 +309,7 @@ export function TimelineView({
       <section className={ROUTINE} aria-label="Routine changes">
         <p className="m-0 px-4 pt-3" data-nmem>
           {
-            TEMPLATES.routine(view.routine.count, view.routine.lines, whole)[
+            TEMPLATES.routine(view.routine.count, view.routine.lines, scope)[
               audience
             ]
           }

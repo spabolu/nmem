@@ -20,6 +20,9 @@ export default async function TimelinePage({ params, searchParams }: Props) {
   if ("error" in query) return <BadQuery what={query.error} />;
   const topic = query.topic ?? rootId(site);
   if (!topicById(site, topic)) notFound();
+  const item = query.item
+    ? (site.facts.items.find((row) => row.id === query.item) ?? notFound())
+    : null;
   const range = {
     topic,
     from: query.from ?? site.facts.born,
@@ -34,7 +37,7 @@ export default async function TimelinePage({ params, searchParams }: Props) {
       path="/timeline"
       layout="wide"
     >
-      <TimelineView ctx={ctx} range={range} query={query} />
+      <TimelineView ctx={ctx} range={range} query={query} item={item} />
     </RepoFrame>
   );
 }

@@ -1,6 +1,7 @@
 import NextLink from "next/link";
-import { sourceHref, topicHref } from "@/lib/hrefs";
+import { sourceHref, timelineHref, topicHref } from "@/lib/hrefs";
 import type { Decision, Severity } from "@/lib/kernel/contract";
+import { rootId } from "@/lib/kernel/site";
 import type {
   ItemEntry,
   ItemPage,
@@ -479,6 +480,21 @@ export function ItemView({
         >
           {page.summary[audience]}
         </p>
+        <p className="mt-0 mb-4">
+          <ButtonLink
+            variant="primary"
+            href={timelineHref(
+              ctx.repo,
+              rootId(ctx.site),
+              ctx.site.facts.born,
+              ctx.site.facts.end,
+              audience,
+              { item: item.id },
+            )}
+          >
+            {plain ? "See it on the timeline" : "History of this item"}
+          </ButtonLink>
+        </p>
         {plain ? (
           <>
             <section aria-labelledby="decisions">
@@ -500,7 +516,7 @@ export function ItemView({
           </>
         ) : null}
         <section aria-labelledby="history">
-          <h2 id="history">{plain ? "How it changed" : "History"}</h2>
+          <h2 id="history">How it changed</h2>
           <p className={HINT}>Newest first.</p>
           <ol className="m-0 flex list-none flex-col gap-3 p-0">
             {page.entries.map((entry) => (

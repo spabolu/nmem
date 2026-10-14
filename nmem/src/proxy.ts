@@ -53,6 +53,13 @@ export function proxy(request: NextRequest) {
     return refuse(404, `The snapshot has no topic ${query.topic}.`);
   }
   if (
+    view === "timeline" &&
+    query.item &&
+    !site.facts.items.some((row) => row.id === query.item)
+  ) {
+    return refuse(404, `The snapshot has no item ${query.item}.`);
+  }
+  if (
     view !== undefined &&
     !["topics", "timeline", "search", "source"].includes(view)
   ) {

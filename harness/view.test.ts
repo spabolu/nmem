@@ -95,11 +95,11 @@ test('census counts children only, and up-to-date-since counts as up to date', (
 });
 
 test('routine wording names the scope, and plain does not say repo', () => {
-  assert.equal(TEMPLATES.routine(5, 91, true).eng, '5 routine changes, 91 lines in the whole repo.');
-  assert.equal(TEMPLATES.routine(5, 2285, true).eng, '5 routine changes, 2,285 lines in the whole repo.');
-  assert.equal(TEMPLATES.routine(5, 91, true).plain, '5 routine changes, 91 lines in the whole project.');
-  assert.equal(TEMPLATES.routine(1, 11, false).eng, '1 routine change, 11 lines in this topic\'s files.');
-  assert.equal(TEMPLATES.routine(0, 0, true).plain, 'No routine changes in the whole project.');
+  assert.equal(TEMPLATES.routine(5, 91, 'repo').eng, '5 routine changes, 91 lines in the whole repo.');
+  assert.equal(TEMPLATES.routine(5, 2285, 'repo').eng, '5 routine changes, 2,285 lines in the whole repo.');
+  assert.equal(TEMPLATES.routine(5, 91, 'repo').plain, '5 routine changes, 91 lines in the whole project.');
+  assert.equal(TEMPLATES.routine(1, 11, 'topic').eng, '1 routine change, 11 lines in this topic\'s files.');
+  assert.equal(TEMPLATES.routine(0, 0, 'repo').plain, 'No routine changes in the whole project.');
   assert.equal(TEMPLATES.unclassified.plain, 'nmem could not classify this change.');
   assert.equal(TEMPLATES.net.eng, 'no net change');
 });

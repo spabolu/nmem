@@ -1,5 +1,5 @@
 import NextLink from "next/link";
-import { sourceHref, timelineHref, topicHref } from "@/lib/hrefs";
+import { itemHref, sourceHref, timelineHref, topicHref } from "@/lib/hrefs";
 import type {
   Claim,
   Decision,
@@ -77,6 +77,17 @@ function fileGroups(paths: readonly string[]): readonly FileGroup[] {
   return groups;
 }
 
+/** A file opens its item page, which says how it changed. A path nmem did not follow opens the file itself. */
+function fileHref(ctx: Ctx, path: string): string {
+  const { site, repo, audience } = ctx;
+  const item = site.facts.items.find(
+    (row) => row.kind === "file" && row.path === path,
+  );
+  return item
+    ? itemHref(repo, item.id, audience)
+    : sourceHref(repo, audience, { ref: `${site.facts.head}:${path}` });
+}
+
 function FilesLine({
   ctx,
   files,
@@ -85,7 +96,6 @@ function FilesLine({
   readonly files: readonly string[];
 }) {
   if (ctx.audience === "plain" || files.length === 0) return null;
-  const { repo, audience, site } = ctx;
   const flat = fileGroups(files).flatMap((group) =>
     group.files.map((file, index) => ({
       folder: index === 0 ? group.folder : null,
@@ -110,9 +120,7 @@ function FilesLine({
           ) : null}
           <NextLink
             className={`${CHIP} max-w-full break-all`}
-            href={sourceHref(repo, audience, {
-              ref: `${site.facts.head}:${file.path}`,
-            })}
+            href={fileHref(ctx, file.path)}
           >
             {file.name}
           </NextLink>

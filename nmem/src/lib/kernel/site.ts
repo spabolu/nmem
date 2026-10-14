@@ -377,6 +377,7 @@ export type RequestQuery = {
   readonly from: IsoDay | null;
   readonly to: IsoDay | null;
   readonly topic: string | null;
+  readonly item: string | null;
   readonly ref: string;
   readonly quote: string;
   readonly proof: string;
@@ -414,6 +415,7 @@ export function readQuery(
     from,
     to,
     topic: params.get("topic"),
+    item: params.get("item"),
     ref: params.get("ref") ?? "",
     quote: params.get("quote") ?? "",
     proof: params.get("proof") ?? "",

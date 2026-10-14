@@ -361,6 +361,51 @@ async function checkItems(port, base, snapshot, facts, label) {
   }
   const none = await get(port, itemUrl(base, "symbol/zzz-no-such-item", "eng"));
   check(none.status === 404, `${label} unknown item status ${none.status}`);
+  const rootId = snapshot.topics.find((topic) => topic.parent === null).id;
+  for (const item of facts.items) {
+    const kernel = timelineOf(
+      snapshot,
+      facts,
+      { topic: rootId, from: facts.born, to: facts.end },
+      item.id,
+    );
+    const where = `${label} timeline of ${item.id}`;
+    const page = await get(
+      port,
+      `${base}/timeline?${new URLSearchParams({ audience: "eng", item: item.id })}`,
+    );
+    check(page.status === 200, `${where} status ${page.status}`);
+    check(attr(page.html, "data-item") === item.id, `${where} is not narrowed`);
+    check(
+      attr(page.html, "data-summary") === kernel.summary.eng,
+      `${where} summary is "${attr(page.html, "data-summary")}"`,
+    );
+    check(
+      sameCounts(parseCounts(attr(page.html, "data-counts")), kernel.counts),
+      `${where} counts ${attr(page.html, "data-counts")}`,
+    );
+  }
+  const missing = await get(
+    port,
+    `${base}/timeline?audience=eng&item=symbol%2Fzzz-no-such-item`,
+  );
+  check(missing.status === 404, `${label} timeline of an unknown item is ${missing.status}`);
+  for (const topic of snapshot.topics) {
+    const page = await get(port, `${base}/topics/${encodeURIComponent(topic.id)}?audience=eng`);
+    const folders = new Map();
+    for (const path of topic.files) {
+      const folder = path.includes("/") ? path.slice(0, path.lastIndexOf("/")) : "";
+      folders.set(folder, [...(folders.get(folder) ?? []), path]);
+    }
+    for (const path of [...folders.values()].flat().slice(0, 6)) {
+      const file = facts.items.find((row) => row.kind === "file" && row.path === path);
+      if (file)
+        check(
+          page.html.includes(`href="${itemUrl(base, file.id, "eng")}"`),
+          `${label} topic ${topic.id} Files line does not open ${file.id}`,
+        );
+    }
+  }
   console.log(`${label}: ${facts.items.length} item pages, both audiences`);
 }
 
@@ -409,7 +454,11 @@ async function checkTimeline(
     topic === snapshot.topics.find((row) => row.parent === null)?.id;
   check(
     page.html.includes(
-      TEMPLATES.routine(kernel.routine.count, kernel.routine.lines, whole)[
+      TEMPLATES.routine(
+        kernel.routine.count,
+        kernel.routine.lines,
+        whole ? "repo" : "topic",
+      )[
         audience
       ],
     ),
@@ -1278,6 +1327,10 @@ const VIEWS = [
     "/hearthware/tally/source?audience=eng&proof=grep+f01e078+-i+currenc",
   ],
   ["item-main", "/hearthware/tally/items/symbol/main?audience=eng"],
+  [
+    "timeline-item",
+    "/hearthware/tally/timeline?audience=eng&item=symbol%2Fmain",
+  ],
   ["item-main-plain", "/hearthware/tally/items/symbol/main?audience=plain"],
   [
     "item-refill",
