@@ -13,9 +13,18 @@ import type {
   Snapshot,
 } from "./contract";
 import { formatProof, parseProof, parseSnapshot } from "./contract";
-import type { Audience, IsoDay, RepoFacts, SourceFacts } from "./view";
+import type {
+  Audience,
+  Hop,
+  IsoDay,
+  ItemId,
+  RepoFacts,
+  SourceFacts,
+  TrackedItem,
+  TrackedKind,
+} from "./view";
 
-export const SITE_SCHEMA_VERSION = 1;
+export const SITE_SCHEMA_VERSION = 2;
 
 const REBUILD = "rebuild this repo with nmem build-repo";
 
@@ -130,6 +139,7 @@ type Baked = {
     readonly author: string | null;
   }[];
   readonly people: readonly (readonly [string, string])[];
+  readonly items: unknown;
   readonly sources: Readonly<
     Record<
       string,
@@ -181,10 +191,95 @@ function readBaked(file: string, snapshotPath: string, bytes: string): Baked {
   return baked;
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+const TRACKED_KINDS: readonly TrackedKind[] = [
+  "symbol",
+  "option",
+  "config-key",
+  "file",
+];
+
+function parseHop(raw: unknown, changes: ReadonlySet<string>): Hop | null {
+  if (!isRecord(raw) || typeof raw.change !== "string") return null;
+  if (!changes.has(raw.change)) return null;
+  const change = raw.change as ChangeId;
+  const { kind, matchedBy, from } = raw;
+  if (kind === "introduced" || kind === "changed" || kind === "removed") {
+    return matchedBy === "name" ? { change, kind, matchedBy } : null;
+  }
+  if (typeof from !== "string") return null;
+  if (kind === "moved" && (matchedBy === "name" || matchedBy === "text")) {
+    return { change, kind, from, matchedBy };
+  }
+  if (
+    (kind === "renamed" || kind === "extracted-from") &&
+    matchedBy === "text"
+  ) {
+    return { change, kind, from, matchedBy };
+  }
+  return null;
+}
+
+function parseItem(
+  raw: unknown,
+  changes: ReadonlySet<string>,
+): TrackedItem | null {
+  if (!isRecord(raw)) return null;
+  const { id, kind, name, path: at, lines, formerNames, hops } = raw;
+  if (typeof id !== "string" || typeof name !== "string") return null;
+  if (typeof at !== "string") return null;
+  const tracked = TRACKED_KINDS.find((known) => known === kind);
+  if (!tracked) return null;
+  if (!Array.isArray(formerNames) || !Array.isArray(hops)) return null;
+  if (!formerNames.every((one) => typeof one === "string")) return null;
+  let span: TrackedItem["lines"] = null;
+  if (lines !== null) {
+    if (!isRecord(lines)) return null;
+    const { start, end } = lines;
+    if (!Number.isInteger(start) || !Number.isInteger(end)) return null;
+    if (Number(start) < 1 || Number(end) < Number(start)) return null;
+    span = { start: Number(start), end: Number(end) };
+  }
+  const parsed = hops.map((hop) => parseHop(hop, changes));
+  const [first, ...rest] = parsed;
+  if (!first || rest.some((hop) => hop === null)) return null;
+  return {
+    id: id as ItemId,
+    kind: tracked,
+    name,
+    path: at,
+    lines: span,
+    formerNames,
+    hops: [first, ...rest.filter((hop) => hop !== null)],
+  };
+}
+
+/** Item histories from site.json, checked at the boundary: known kinds, hops on known changes, one item per id. */
+function parseItems(
+  raw: unknown,
+  changes: ReadonlySet<string>,
+): readonly TrackedItem[] | string {
+  if (!Array.isArray(raw)) return "items is not a list";
+  const out: TrackedItem[] = [];
+  const ids = new Set<string>();
+  for (const [index, row] of raw.entries()) {
+    const item = parseItem(row, changes);
+    if (!item) return `items[${index}] is not an item history`;
+    if (ids.has(item.id)) return `items[${index}] repeats the id ${item.id}`;
+    ids.add(item.id);
+    out.push(item);
+  }
+  return out;
+}
+
 /** What a built workspace holds, read and checked, as plain data so a cache can keep it. */
 export type Built = {
   readonly snapshot: Snapshot;
   readonly baked: Baked;
+  readonly items: readonly TrackedItem[];
   readonly github: Github;
 };
 
@@ -208,10 +303,11 @@ export function readBuilt(workspace: string): Built {
   const github = JSON.parse(
     fs.readFileSync(path.join(workspace, "github.json"), "utf8"),
   ) as Github;
+  const changes = new Set(baked.changes.map((change) => change.id as ChangeId));
   const parsed = parseSnapshot(bytes, {
     repo: { owner: github.repo.owner, name: github.repo.name },
     head: baked.head,
-    changes: new Set(baked.changes.map((change) => change.id as ChangeId)),
+    changes,
   });
   if (!parsed.ok) {
     throw new SnapshotRejected(
@@ -219,10 +315,17 @@ export function readBuilt(workspace: string): Built {
       parsed.errors.map((error) => `${error.path}: ${error.what}`).join("\n"),
     );
   }
-  return { snapshot: parsed.snapshot, baked, github };
+  const items = parseItems(baked.items, changes);
+  if (typeof items === "string") {
+    throw new SnapshotRejected(
+      snapshotPath,
+      `${path.join(workspace, "site.json")}: ${items}; ${REBUILD}`,
+    );
+  }
+  return { snapshot: parsed.snapshot, baked, items, github };
 }
 
-export function siteOf({ snapshot, baked, github }: Built): Site {
+export function siteOf({ snapshot, baked, items, github }: Built): Site {
   const sourceFacts = (ref: string): SourceFacts | null =>
     baked.sources[ref]?.facts ?? null;
   return {
@@ -241,6 +344,7 @@ export function siteOf({ snapshot, baked, github }: Built): Site {
       })),
       people: new Map(baked.people as readonly (readonly [Login, string])[]),
       sourceOf: (source) => sourceFacts(source.ref),
+      items,
     },
     identity: { owner: github.repo.owner, name: github.repo.name },
     github,

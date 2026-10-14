@@ -5,7 +5,8 @@
  * still name that snapshot's defects.
  *
  * Keys are raw strings: every `ref` in the snapshot, `<head>:<path>` for every doc path, and every change id, which
- * the app's commit titles look up. Proofs are keyed by formatProof of every `proof` in the snapshot.
+ * the app's commit titles look up. Proofs are keyed by formatProof of every `proof` in the snapshot. Items are the
+ * item histories harness/items.ts derives from git, so the app never walks history itself.
  */
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
@@ -14,9 +15,9 @@ import { formatProof, parseProof, parseRef } from './contract.ts';
 import type { Run } from './contract.ts';
 import { factsOf, openFixture, resolveProof } from './record.ts';
 import type { ProofFailure, ProofOutput, RecordObject } from './record.ts';
-import type { SourceFacts } from './view.ts';
+import type { SourceFacts, TrackedItem } from './view.ts';
 
-export const SITE_SCHEMA_VERSION = 1;
+export const SITE_SCHEMA_VERSION = 2;
 
 export type BakedSource = {
   readonly facts: SourceFacts | null;
@@ -39,6 +40,7 @@ export type Baked = {
     readonly author: string | null;
   }[];
   readonly people: readonly (readonly [string, string])[];
+  readonly items: readonly TrackedItem[];
   readonly sources: Readonly<Record<string, BakedSource>>;
   readonly proofs: Readonly<Record<string, ProofOutput | ProofFailure>>;
 };
@@ -96,6 +98,7 @@ export async function bakeSite(workspace: string, snapshotFile: string): Promise
     end: facts.end,
     changes: facts.changes.map((change) => ({ ...change, touched: [...change.touched] })),
     people: [...facts.people],
+    items: facts.items,
     sources,
     proofs: outputs,
   };

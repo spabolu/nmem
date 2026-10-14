@@ -13,7 +13,8 @@ import { formatProof, parseRef } from './contract.ts';
 import type { ChangeId, Login, Proof, RecordRef, RecordSource, RepoIdentity, Rev, Run } from './contract.ts';
 import { hashOf } from './hash.ts';
 import type { Hash } from './hash.ts';
-import type { IsoDay, RepoFacts, SourceFacts } from './view.ts';
+import type { IsoDay, RepoFacts, SourceFacts, TrackedItem } from './view.ts';
+import { trackItems } from './items.ts';
 import { runProof } from '../fixtures/lib/checks.mjs';
 import { factsOf as gitFacts } from '../fixtures/lib/facts.mjs';
 import { commitMessage, git, showFile, tagMessage } from '../fixtures/lib/git.mjs';
@@ -591,20 +592,27 @@ export function factsOf(record: RepoRecord): RepoFacts {
     changes: GitChange[];
     people: Map<string, string>;
   };
+  const changes = raw.changes.map((change) => ({
+    id: change.id as ChangeId,
+    live: change.live as IsoDay,
+    before: change.before,
+    after: change.after,
+    touched: change.touched,
+    author: change.author as Login | null,
+  }));
+  let items: readonly TrackedItem[] | null = null;
   const facts: RepoFacts = {
     head: raw.head,
     born: raw.born as IsoDay,
     end: raw.end as IsoDay,
-    changes: raw.changes.map((change) => ({
-      id: change.id as ChangeId,
-      live: change.live as IsoDay,
-      before: change.before,
-      after: change.after,
-      touched: change.touched,
-      author: change.author as Login | null,
-    })),
+    changes,
     people: raw.people as unknown as ReadonlyMap<Login, string>,
     sourceOf: (source) => record.sourceFacts(source),
+    // Most callers never read items, and deriving them walks every change's diff.
+    get items() {
+      items ??= trackItems(record.repoDir, changes);
+      return items;
+    },
   };
   factsByRecord.set(record, facts);
   return facts;

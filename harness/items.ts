@@ -5,12 +5,10 @@
  */
 import { git } from '../fixtures/lib/git.mjs';
 import type { ChangeId } from './contract.ts';
+import type { Hop, ItemId, LineSpan, TrackedItem, TrackedKind } from './view.ts';
 
-export type ItemKind = 'symbol' | 'option' | 'config-key' | 'file';
-export type Hop =
-  | { readonly change: ChangeId; readonly kind: 'introduced' | 'changed' | 'removed'; readonly matchedBy: 'name' }
-  | { readonly change: ChangeId; readonly kind: 'moved'; readonly from: string; readonly matchedBy: 'name' | 'text' }
-  | { readonly change: ChangeId; readonly kind: 'renamed' | 'extracted-from'; readonly from: string; readonly matchedBy: 'text' };
+export type { Hop } from './view.ts';
+export type ItemKind = TrackedKind;
 export type Item = { readonly kind: ItemKind; name: string; path: string | null; readonly formerNames: string[]; readonly hops: Hop[] };
 export type ChangeRange = { readonly id: ChangeId; readonly before: string; readonly after: string };
 
@@ -678,20 +676,64 @@ function bestPairs<G, A>(gone: readonly G[], appeared: readonly A[], score: (g: 
   return out;
 }
 
-export function deriveItems(repoDir: string, changes: readonly ChangeRange[]): Item[] {
+/** The walk's end state: every item in the order it was introduced, the files at HEAD, and where each removed item last lived. */
+type Walk = { readonly items: Item[]; readonly files: Map<string, Tracked>; readonly lastPath: Map<Item, string> };
+
+function walk(repoDir: string, changes: readonly ChangeRange[]): Walk {
   const diffs = diffsOf(repoDir, changes);
   const blobs = blobsOf(repoDir, new Set([...diffs.values()].flatMap((entries) => entries.filter((e) => e.status !== 'D').map((e) => e.blob))));
-  const items: Item[] = [];
-  const files = new Map<string, Tracked>();
-  for (const change of changes) step(change.id, diffs.get(change.after) ?? [], files, (blob) => blobs.get(blob) ?? null, items);
-  return items;
+  const out: Walk = { items: [], files: new Map(), lastPath: new Map() };
+  for (const change of changes) step(change.id, diffs.get(change.after) ?? [], (blob) => blobs.get(blob) ?? null, out);
+  return out;
 }
 
-function step(change: ChangeId, entries: readonly Entry[], files: Map<string, Tracked>, textOf: (blob: string) => string | null, items: Item[]): void {
+export function deriveItems(repoDir: string, changes: readonly ChangeRange[]): Item[] {
+  return walk(repoDir, changes).items;
+}
+
+/** The lines of a region's text in its file: where its first line sits, through as many of its next lines as follow in order. A scanner may cut a region mid-line, so lines compare trimmed and the first by prefix. */
+function spanOf(file: string | null, region: string): LineSpan | null {
+  if (file === null) return null;
+  const lines = splitLines(file).map((line) => line.trim());
+  const want = splitLines(region).map((line) => line.trim());
+  const head = want[0] ?? '';
+  const exact = lines.indexOf(head);
+  const start = head === '' ? -1 : exact >= 0 ? exact : lines.findIndex((line) => line.startsWith(head));
+  if (start < 0) return null;
+  let end = start;
+  while (end + 1 < lines.length && end + 1 - start < want.length && lines[end + 1] === want[end + 1 - start]) end += 1;
+  return { start: start + 1, end: end + 1 };
+}
+
+/** The items as the view kernel reads them: an id per item, the last path of a removed item, and lines at HEAD. */
+export function trackItems(repoDir: string, changes: readonly ChangeRange[]): TrackedItem[] {
+  const { items, files, lastPath } = walk(repoDir, changes);
+  const lines = new Map<Item, LineSpan | null>();
+  for (const tracked of files.values()) for (const live of tracked.regions.values()) lines.set(live.item, spanOf(tracked.text, live.region.text));
+  const seen = new Map<string, number>();
+  return items.map((item) => {
+    const base = `${item.kind}/${item.name}`;
+    const n = (seen.get(base) ?? 0) + 1;
+    seen.set(base, n);
+    const [first, ...rest] = item.hops;
+    if (!first) throw new Error(`${base} has no hops`);
+    const path = item.path ?? lastPath.get(item);
+    if (path === undefined) throw new Error(`${base} has no path`);
+    return { id: (n === 1 ? base : `${base}~${n}`) as ItemId, kind: item.kind, name: item.name, path, lines: item.path === null ? null : (lines.get(item) ?? null), formerNames: [...item.formerNames], hops: [first, ...rest] };
+  });
+}
+
+function step(change: ChangeId, entries: readonly Entry[], textOf: (blob: string) => string | null, out: Walk): void {
+  const { files, items } = out;
   const created = (kind: ItemKind, name: string, path: string, hop: Hop): Item => {
     const item: Item = { kind, name, path, formerNames: [], hops: [hop] };
     items.push(item);
     return item;
+  };
+  const removed = (item: Item): void => {
+    item.hops.push({ change, kind: 'removed', matchedBy: 'name' });
+    if (item.path !== null) out.lastPath.set(item, item.path);
+    item.path = null;
   };
   const olds = new Map<string, Tracked>();
   const news = new Map<string, Next>();
@@ -764,16 +806,9 @@ function step(change: ChangeId, entries: readonly Entry[], files: Map<string, Tr
     const hop: Hop = drawn.owner !== null && drawn.score >= EXTRACT_MIN && drawn.mass >= EXTRACT_MIN_TOKENS ? { change, kind: 'extracted-from', from: drawn.owner, matchedBy: 'text' } : { change, kind: 'introduced', matchedBy: 'name' };
     a.into.regions.set(idOf(a.region), { item: created(a.region.kind, a.region.name, a.path, hop), region: a.region });
   }
-  for (const g of open(gone)) {
-    g.live.item.hops.push({ change, kind: 'removed', matchedBy: 'name' });
-    g.live.item.path = null;
-  }
+  for (const g of open(gone)) removed(g.live.item);
 
-  for (const [path, before] of olds) {
-    if (continued.has(path)) continue;
-    before.item.hops.push({ change, kind: 'removed', matchedBy: 'name' });
-    before.item.path = null;
-  }
+  for (const [path, before] of olds) if (!continued.has(path)) removed(before.item);
   for (const path of olds.keys()) files.delete(path);
   for (const [path, next] of news) {
     const before = next.source === null ? undefined : olds.get(next.source);

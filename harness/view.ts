@@ -25,6 +25,29 @@ export type ChangeFacts = {
 
 export type SourceFacts = { readonly day: IsoDay; readonly author: Login | null; readonly url: string };
 
+/** "symbol/main", "option/--ledger", "file/tally/cli.py". A second item of the same kind and name gets "~2", in the order it was introduced. */
+export type ItemId = string & { readonly __brand: 'ItemId' };
+export type TrackedKind = 'symbol' | 'option' | 'config-key' | 'file';
+/** One change an item went through. matchedBy says whether nmem followed it by its name or, across a rename or move, by its text. */
+export type Hop =
+  | { readonly change: ChangeId; readonly kind: 'introduced' | 'changed' | 'removed'; readonly matchedBy: 'name' }
+  | { readonly change: ChangeId; readonly kind: 'moved'; readonly from: string; readonly matchedBy: 'name' | 'text' }
+  | { readonly change: ChangeId; readonly kind: 'renamed' | 'extracted-from'; readonly from: string; readonly matchedBy: 'text' };
+export type LineSpan = { readonly start: number; readonly end: number };
+/** A symbol, option, config key, or file followed through the change list by harness/items.ts. Derived from git, never by a model. */
+export type TrackedItem = {
+  readonly id: ItemId;
+  readonly kind: TrackedKind;
+  readonly name: string;
+  /** Where it lives at HEAD, or where it last lived when its last hop is removed. */
+  readonly path: string;
+  /** Its lines in path at HEAD. Null for a file, a removed item, or text nmem could not place. */
+  readonly lines: LineSpan | null;
+  readonly formerNames: readonly string[];
+  /** Oldest first. */
+  readonly hops: readonly [Hop, ...Hop[]];
+};
+
 export type RepoFacts = {
   readonly head: string;
   readonly born: IsoDay;
@@ -37,6 +60,7 @@ export type RepoFacts = {
   /** Day, author, and URL of a resolvable record object. For a file ref, the author and day of the commit that added
    *  the file on main, so an ADR's decider is the person who added it. */
   readonly sourceOf: (source: RecordSource) => SourceFacts | null;
+  readonly items: readonly TrackedItem[];
 };
 
 export type Kind = 'decision' | 'behavior' | 'check' | 'routine' | 'unclassified';

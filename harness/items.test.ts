@@ -5,8 +5,9 @@ import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import type { ChangeId } from './contract.ts';
-import { deriveItems } from './items.ts';
+import { deriveItems, trackItems } from './items.ts';
 import type { ChangeRange, Item } from './items.ts';
+import type { ItemId } from './view.ts';
 import { factsOf } from '../fixtures/lib/facts.mjs';
 import { commitAll, initRepo, writeChanges } from '../fixtures/lib/git.mjs';
 
@@ -73,6 +74,10 @@ test('a module constant is a config key whose text is its definition', () => {
 });
 
 function historyOf(snapshots: ReadonlyArray<Record<string, string | null>>): Item[] {
+  return withHistory(snapshots, deriveItems);
+}
+
+function withHistory<T>(snapshots: ReadonlyArray<Record<string, string | null>>, read: (repoDir: string, changes: readonly ChangeRange[]) => T): T {
   const repoDir = fs.mkdtempSync(path.join(os.tmpdir(), 'nmem-items-'));
   initRepo(repoDir);
   const identity = { name: 'Ada', email: 'ada@example.com', date: '2024-01-01T00:00:00Z' };
@@ -84,9 +89,9 @@ function historyOf(snapshots: ReadonlyArray<Record<string, string | null>>): Ite
     before = after;
     return range;
   });
-  const items = deriveItems(repoDir, changes);
+  const out = read(repoDir, changes);
   fs.rmSync(repoDir, { recursive: true, force: true });
-  return items;
+  return out;
 }
 
 const hopsOf = (items: readonly Item[], kind: Item['kind'], name: string): string[] => {
@@ -146,4 +151,22 @@ test('a language with no registry row is tracked as files, and a rename keeps th
       { change: 'ccccccc', kind: 'moved', from: 'src/lib.rs', matchedBy: 'text' },
     ],
   }]);
+});
+
+test('the view reads each item under a unique id, with its lines at HEAD and the file a removed item last lived in', () => {
+  const repoDir = path.join(root, 'out', 'tally', 'repo');
+  const github = JSON.parse(fs.readFileSync(path.join(root, 'out', 'tally', 'github.json'), 'utf8')) as unknown;
+  const tracked = trackItems(repoDir, (factsOf(repoDir, github) as { changes: readonly ChangeRange[] }).changes);
+  const byId = new Map(tracked.map((item) => [item.id, item]));
+  assert.equal(byId.size, tracked.length);
+  assert.deepEqual(byId.get('symbol/main' as ItemId)?.lines, { start: 35, end: 77 });
+  assert.deepEqual({ path: byId.get('option/--round' as ItemId)?.path, lines: byId.get('option/--round' as ItemId)?.lines }, { path: 'tally/cli.py', lines: null });
+  assert.deepEqual({ path: byId.get('symbol/split_bill' as ItemId)?.path, lines: byId.get('symbol/split_bill' as ItemId)?.lines }, { path: 'tally.py', lines: null });
+  assert.equal(byId.get('file/tally/cli.py' as ItemId)?.lines, null);
+});
+
+test('a second item of the same kind and name gets the next number, in the order it was introduced', () => {
+  const flags = (name: string): string => `package main\n\nimport "flag"\n\nfunc ${name}() {\n\tdata := flag.String("data", "", "file")\n\tprintln(*data)\n}\n`;
+  const items = withHistory([{ 'a.go': flags('serve') }, { 'b.go': flags('export') }], trackItems);
+  assert.deepEqual(items.filter((item) => item.kind === 'option').map((item) => `${item.id} ${item.path}`), ['option/-data a.go', 'option/-data~2 b.go']);
 });

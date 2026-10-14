@@ -39,6 +39,7 @@ function facts(): RepoFacts {
     }],
     people: new Map(),
     sourceOf: () => ({ day: day('2023-03-01'), author: null, url: 'https://github.com/acme/demo/pull/1' }),
+    items: [],
   };
 }
 

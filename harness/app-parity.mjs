@@ -774,12 +774,23 @@ fs.writeFileSync(oracleFile, JSON.stringify(gold.oracle));
 const nullFile = path.join(tmp, "null.json");
 fs.writeFileSync(nullFile, JSON.stringify(nullSnapshot(facts)));
 
+let plimitBaked = null;
+
+/** The shared repos cache keeps whatever site.json its last build wrote, so p-limit is served from a fresh bake. */
+async function plimitRoot() {
+  plimitBaked ??= await rootWith(
+    path.join(plimitCache, "snapshot.json"),
+    plimitCache,
+  );
+  return plimitBaked;
+}
+
 async function checkPlimit() {
   const cache = plimitCache;
   const snapshotFile = path.join(cache, "snapshot.json");
   check(fs.existsSync(snapshotFile), "p-limit snapshot is missing");
   if (!fs.existsSync(snapshotFile)) return;
-  const server = start(path.dirname(path.dirname(cache)));
+  const server = start(await plimitRoot());
   try {
     const port = await server.ready;
     const identity = JSON.parse(
@@ -1415,7 +1426,7 @@ async function checkLayout() {
       ws.close();
       return;
     }
-    const plimit = start(path.dirname(path.dirname(cache)));
+    const plimit = start(await plimitRoot());
     try {
       const plimitPort = await plimit.ready;
       const plimitIdentity = JSON.parse(

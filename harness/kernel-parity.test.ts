@@ -64,6 +64,8 @@ for (const slug of ['tally', 'wayfinder', 'seedling'] as Slug[]) {
       assert.ok(lab.ok, 'lab parses gold');
       const site = kernel.loadSite(dir);
       assert.deepEqual(site.snapshot, lab.snapshot, 'both parsers read the same snapshot');
+      assert.deepEqual(site.facts.items, facts.items, 'site.json carries the item histories the lab derives');
+      assert.ok(facts.items.length > 0, 'items were derived');
 
       const screens = screensOf(lab.snapshot, facts);
       assert.deepEqual(kernelView.screensOf(site.snapshot, site.facts), screens, 'same screens');
