@@ -3,7 +3,7 @@
  * `next start`.
  * Fetches each page the way a reader would and checks the v1 screen rules against the kernel and gold for the tally
  * oracle, the null and engine snapshots, wayfinder, seedling, and p-limit when it is built. Then measures the timeline
- * layout in headless Chrome and shoots every view at 1400 light, 1400 dark, and 390 into the shots folder.
+ * layout in headless Chrome, including that a timeline card's text and chips do not overlap or stick out of the card, and shoots every view at 1400 light, 1400 dark, and 390 into the shots folder.
  * Owns its servers: starts each one, waits until it answers, and kills it on the way out. Needs `npm run build` first.
  *
  *   node harness/app-parity.mjs [shots dir]
@@ -46,6 +46,13 @@ function fail(message) {
 
 function check(ok, message) {
   if (!ok) fail(message);
+}
+
+function faceBlame(where, faces) {
+  const list = faces ?? [];
+  const shown = list.slice(0, 30);
+  const rest = list.length - shown.length;
+  return `${where} cards overlap or clip: ${shown.join("; ")}${rest > 0 ? `; and ${rest} more` : ""}`;
 }
 
 function decode(value) {
@@ -965,6 +972,115 @@ const CLIP = `(() => {
   };
 })()`;
 
+/**
+ * Placed-card text blocks and chips. Line-clamp can leave a box shorter than the line it paints, so compare text
+ * rects, not only element boxes. Text that sits entirely past a line-clamp box is that element's ellipsis and does
+ * not count. A painted line must stay inside the card and off the next child.
+ */
+const CARD_FACE = `(() => {
+  const tol = 1;
+  const flat = (value) => String(value || "").replace(/\\s+/g, " ").trim();
+  const box = (el) => {
+    const r = el.getBoundingClientRect();
+    return { left: r.left, top: r.top, right: r.right, bottom: r.bottom };
+  };
+  const live = (r) => r.right - r.left > tol && r.bottom - r.top > tol;
+  const meet = (a, b) =>
+    Math.min(a.right, b.right) - Math.max(a.left, b.left) > tol &&
+    Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) > tol;
+  const inside = (r, outer) =>
+    r.left >= outer.left - tol &&
+    r.right <= outer.right + tol &&
+    r.top >= outer.top - tol &&
+    r.bottom <= outer.bottom + tol;
+  const cut = (a, b) => ({
+    left: Math.max(a.left, b.left),
+    top: Math.max(a.top, b.top),
+    right: Math.min(a.right, b.right),
+    bottom: Math.min(a.bottom, b.bottom),
+  });
+  const paintedBox = (el, card) => {
+    let r = box(el);
+    let node = el.parentElement;
+    while (node && node !== card) {
+      const style = getComputedStyle(node);
+      if (clamps(node) || style.overflowX !== "visible" || style.overflowY !== "visible")
+        r = cut(r, box(node));
+      node = node.parentElement;
+    }
+    return r;
+  };
+  const clamps = (el) => {
+    const value = getComputedStyle(el).webkitLineClamp;
+    return Boolean(value) && value !== "none";
+  };
+  const ink = (el) => {
+    const rects = [];
+    const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+    let node;
+    while ((node = walker.nextNode())) {
+      if (!node.textContent.trim()) continue;
+      const range = document.createRange();
+      range.selectNodeContents(node);
+      for (const r of range.getClientRects()) {
+        if (r.width > tol && r.height > tol)
+          rects.push({ left: r.left, top: r.top, right: r.right, bottom: r.bottom });
+      }
+    }
+    for (const chip of el.querySelectorAll("[data-chip]")) {
+      const r = box(chip);
+      if (live(r)) rects.push(r);
+    }
+    return rects;
+  };
+  const name = (card) => {
+    const kind = card.getAttribute("data-kind") || "card";
+    const id = card.getAttribute("data-id") || "";
+    const title = flat(card.querySelector(".t") && card.querySelector(".t").innerText).slice(0, 42);
+    return [kind, id, title].filter(Boolean).join(" ");
+  };
+  const hits = [];
+  const seen = new Set();
+  const add = (line) => {
+    if (seen.has(line)) return;
+    seen.add(line);
+    hits.push(line);
+  };
+  for (const card of document.querySelectorAll(".tl-card.placed")) {
+    const outer = box(card);
+    if (!live(outer)) continue;
+    const label = name(card);
+    const blocks = [...card.children].filter((el) => live(box(el)));
+    const chips = [...card.querySelectorAll("[data-chip]")].filter(
+      (el) => live(box(el)) && !blocks.includes(el),
+    );
+    const targets = [...blocks, ...chips];
+    for (const el of blocks) {
+      const self = box(el);
+      const hiddenClamp = clamps(el);
+      if (!inside(self, outer)) add(label + ": " + flat(el.innerText).slice(0, 36) + " clipped by card");
+      for (const piece of ink(el)) {
+        const ellipsis = hiddenClamp && !meet(piece, self);
+        if (ellipsis) continue;
+        if (!inside(piece, outer))
+          add(label + ": " + flat(el.innerText).slice(0, 36) + " clipped by card");
+        for (const other of targets) {
+          if (other === el || el.contains(other) || other.contains(el)) continue;
+          const otherBox = paintedBox(other, card);
+          if (!live(otherBox) || !meet(piece, otherBox)) continue;
+          add(label + ": " + flat(el.innerText).slice(0, 36) + " overlaps " + flat(other.innerText).slice(0, 36));
+        }
+      }
+    }
+    for (const chip of chips) {
+      const r = paintedBox(chip, card);
+      if (!live(r) || inside(r, outer)) continue;
+      add(label + ": " + flat(chip.innerText).slice(0, 36) + " clipped by card");
+    }
+  }
+  return hits;
+})()`;
+
 const HOVER = `(() => {
   const card = document.querySelector('.tl-card.decision.placed');
   if (!card) return { error: 'no decision card' };
@@ -991,6 +1107,17 @@ async function measureClips(cdp, sessionId, url) {
     { expression: CLIP, returnByValue: true },
     sessionId,
   );
+  const faces = await cdp.send(
+    "Runtime.evaluate",
+    { expression: CARD_FACE, returnByValue: true },
+    sessionId,
+  );
+  let faceList = ["card face measurement failed"];
+  if (Array.isArray(faces.result?.value)) faceList = faces.result.value;
+  else if (faces.exceptionDetails?.text)
+    faceList = [`card face measurement failed: ${faces.exceptionDetails.text}`];
+  const clipValue = clips.result?.value ?? { error: "clip measurement failed" };
+  clipValue.faces = faceList;
   await cdp.send("DOM.enable", {}, sessionId);
   await cdp.send("CSS.enable", {}, sessionId);
   const doc = await cdp.send("DOM.getDocument", { depth: 1 }, sessionId);
@@ -1016,7 +1143,7 @@ async function measureClips(cdp, sessionId, url) {
     sessionId,
   );
   return {
-    clips: clips.result.value,
+    clips: clipValue,
     before: before.result.value,
     after: after.result.value,
   };
@@ -1241,6 +1368,29 @@ async function checkLayout() {
       `round labels cover a card: ${round.clips.overCard.join(", ")}`,
     );
     check(
+      (round.clips.faces ?? []).length === 0,
+      faceBlame("round", round.clips.faces),
+    );
+    await cdp.send(
+      "Emulation.setDeviceMetricsOverride",
+      { width: 1400, height: 900, deviceScaleFactor: 1, mobile: false },
+      sessionId,
+    );
+    const lifeUrl = `http://127.0.0.1:${tallyPort}/${tallyIdentity.owner}/${tallyIdentity.name}/timeline?audience=eng`;
+    const tallyLife = await measureClips(cdp, sessionId, lifeUrl);
+    check(!tallyLife.clips.error, `life layout ${tallyLife.clips.error}`);
+    check(
+      (tallyLife.clips.faces ?? []).length === 0,
+      faceBlame("life eng", tallyLife.clips.faces),
+    );
+    const lifePlainUrl = `http://127.0.0.1:${tallyPort}/${tallyIdentity.owner}/${tallyIdentity.name}/timeline?audience=plain`;
+    const tallyPlain = await measureClips(cdp, sessionId, lifePlainUrl);
+    check(!tallyPlain.clips.error, `life plain layout ${tallyPlain.clips.error}`);
+    check(
+      (tallyPlain.clips.faces ?? []).length === 0,
+      faceBlame("life plain", tallyPlain.clips.faces),
+    );
+    check(
       round.before.extra === "none",
       `round card extra starts visible (${round.before.extra})`,
     );
@@ -1268,6 +1418,11 @@ async function checkLayout() {
       const plimitIdentity = JSON.parse(
         fs.readFileSync(path.join(cache, "github.json"), "utf8"),
       ).repo;
+      await cdp.send(
+        "Emulation.setDeviceMetricsOverride",
+        { width: 1400, height: 900, deviceScaleFactor: 1, mobile: false },
+        sessionId,
+      );
       const lifeUrl = `http://127.0.0.1:${plimitPort}/${plimitIdentity.owner}/${plimitIdentity.name}/timeline?audience=eng&topic=root&from=2016-10-21&to=2026-09-19`;
       const life = await measureClips(cdp, sessionId, lifeUrl);
       check(!life.clips.error, `p-limit layout ${life.clips.error}`);
@@ -1287,12 +1442,16 @@ async function checkLayout() {
         life.clips.overCard.length === 0,
         `p-limit labels cover a card: ${life.clips.overCard.join(", ")}`,
       );
+      check(
+        (life.clips.faces ?? []).length === 0,
+        faceBlame("p-limit", life.clips.faces),
+      );
     } finally {
       await plimit.stop();
     }
     ws.close();
     console.log(
-      "layout: headless Chrome, round range and p-limit life, no clipped labels",
+      "layout: headless Chrome, round range, tally life, and p-limit life, card faces and labels",
     );
   } finally {
     await oracle.stop();
