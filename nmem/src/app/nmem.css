@@ -105,6 +105,21 @@
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
+/* A receipt longer than the card would wrap into a second chip line that the clamp cannot hold, so it shows one clamped line until the card opens. */
+.tl-card.placed [data-chip] {
+  display: -webkit-inline-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 1;
+  max-width: 100%;
+  overflow: hidden;
+  vertical-align: bottom;
+}
+.tl-card.placed:hover [data-chip],
+.tl-card.placed:focus-within [data-chip] {
+  display: inline-flex;
+  -webkit-line-clamp: unset;
+  overflow: visible;
+}
 .tl-card.placed:hover,
 .tl-card.placed:focus-within {
   z-index: 8;
