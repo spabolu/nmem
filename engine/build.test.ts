@@ -6,8 +6,8 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { parseSnapshot } from '../harness/contract.ts';
-import type { Snapshot } from '../harness/contract.ts';
+import { login, parseSnapshot } from '../harness/contract.ts';
+import type { Login, Snapshot } from '../harness/contract.ts';
 import { changeIds, factsOf, openFixture } from '../harness/record.ts';
 import { kindOf } from '../harness/view.ts';
 import { checkoutNewBranch, commitAll, git, initRepo, mergeNoFf, writeChanges } from '../fixtures/lib/git.mjs';
@@ -167,6 +167,28 @@ test('a denial sentence never becomes an intent, from a revert line or from clas
     ['pr#1', 'Adds a farewell line.'],
     ['pr#3', 'Moves the greeting to stdout.'],
   ]);
+});
+
+test('a finding stays only when its anchor shows a word of its name', async () => {
+  const record = ingest(toyWorkspace([
+    { title: 'Add a farewell', body: 'The farewell stays.', files: { 'farewell.txt': 'farewell stays\n' } },
+  ]));
+  const source = { kind: 'record' as const, ref: 'pr#1', quote: 'The farewell stays.' };
+  const ask: [Login, ...Login[]] = [login('ana')];
+  const why = { kind: 'not-recorded' as const, ask, guess: null };
+  const point = { eng: 'The farewell stays.', plain: 'The farewell stays.', source };
+  const built = await assemble(record, {
+    ...noModel(record),
+    classify: async (change) => ({
+      choices: [],
+      findings: change.id === 'pr#1' ? [
+        { finding: { severity: 'behavior', topics: [], anchor: source, name: { eng: 'Farewell stays put', plain: 'The farewell stays' }, says: [point], why }, files: ['farewell.txt'] },
+        { finding: { severity: 'behavior', topics: [], anchor: source, name: { eng: 'Store errors now answer', plain: 'Errors answer' }, says: [point], why }, files: ['farewell.txt'] },
+      ] : [],
+    }),
+  });
+  const snapshot = JSON.parse(built.bytes) as Snapshot;
+  assert.deepEqual(snapshot.changes.find((change) => change.id === 'pr#1')?.findings.map((finding) => finding.name.eng), ['Farewell stays put']);
 });
 
 type Canned = Readonly<Record<string, readonly unknown[]>>;
@@ -347,7 +369,7 @@ test('a bad reply after the re-ask leaves the change unclassified and says so', 
 
 test('a reason is recorded only when a second call agrees, and the scan drops a card point that states one', async () => {
   const record = ingest(toyWorkspace([
-    { title: 'Add a farewell', body: 'Use one farewell line. People asked for a goodbye. No behavior change intended.', files: { 'farewell.txt': 'bye\n' } },
+    { title: 'Add a farewell', body: 'Use one farewell line. People asked for a goodbye. No behavior change intended.', files: { 'farewell.txt': 'prints bye\n' } },
     { title: 'Tidy the greeting', body: 'Moves the greeting to stdout.', files: { 'greet.txt': 'hello\n' } },
   ]));
   const chose = (sentence: string, eng: string) => ({ sentence, stance: 'chose', carried: 'this', restates: null, what: { eng, plain: eng }, files: [] });
@@ -355,14 +377,14 @@ test('a reason is recorded only when a second call agrees, and the scan drops a 
     'claims README.md': [{ claims: [] }],
     'classify pr#1': [{
       choices: [chose('S2', 'One farewell line.')],
-      findings: [{ severity: 'behavior', anchor: 'L1', files: [], name: { eng: 'Says bye', plain: 'Says bye' }, says: [{ eng: 'It prints bye.', plain: 'It says bye.', source: 'L1' }, { eng: 'Users wanted it.', plain: 'People wanted it.', source: 'S3' }] }],
+      findings: [{ severity: 'behavior', anchor: 'L1', files: [], name: { eng: 'Prints bye', plain: 'Prints bye' }, says: [{ eng: 'It prints bye.', plain: 'It says bye.', source: 'L1' }, { eng: 'Users wanted it.', plain: 'People wanted it.', source: 'S3' }] }],
     }],
     'classify pr#2': [{ choices: [chose('S2', 'Greeting goes to stdout.')], findings: [] }],
     'why decision pr#1: One farewell line.': [{ reason: 'S3', said: { eng: 'People asked for a goodbye.', plain: 'People asked for a goodbye.' } }],
     'confirm decision pr#1: One farewell line.': [{ verdict: 'states-why' }],
-    'why finding pr#1: Says bye': [{ reason: 'S4', said: { eng: 'Nothing changes.', plain: 'Nothing changes.' } }, { reason: null, said: null }],
-    'scan Says bye': [{ stated: ['5'] }],
-    'vet pr#1: Says bye': [{ verdict: 'stands' }],
+    'why finding pr#1: Prints bye': [{ reason: 'S4', said: { eng: 'Nothing changes.', plain: 'Nothing changes.' } }, { reason: null, said: null }],
+    'scan Prints bye': [{ stated: ['5'] }],
+    'vet pr#1: Prints bye': [{ verdict: 'stands' }],
     'why decision pr#2: Moves the greeting to stdout.': [{ reason: 'S2', said: { eng: 'It moves the greeting.', plain: 'It moves the greeting.' } }],
     'confirm decision pr#2: Moves the greeting to stdout.': [{ verdict: 'does-not' }],
     'scan Moves the greeting to stdout.': [{ stated: [] }],
@@ -376,7 +398,7 @@ test('a reason is recorded only when a second call agrees, and the scan drops a 
   const finding = snapshot.changes.find((change) => change.id === 'pr#1')?.findings[0];
   assert.deepEqual([finding?.says.map((said) => said.eng), finding?.why], [['It prints bye.'], { kind: 'not-recorded', ask: ['ana'], guess: null }]);
   assert.deepEqual(notes, ['scan dropped a sentence that states a reason: Users wanted it.', 'topics fell back: no canned answer for form topics sample 1']);
-  const why = client.seen.find((request) => request.label === 'why finding pr#1: Says bye' && request.sample === 1);
+  const why = client.seen.find((request) => request.label === 'why finding pr#1: Prints bye' && request.sample === 1);
   assert.match(why?.user ?? '', /- reason: S4 is marked \(denial\) or \(bot\), so it can never be a reason$/);
 });
 
