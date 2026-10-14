@@ -25,6 +25,29 @@ export type ChangeFacts = {
 
 export type SourceFacts = { readonly day: IsoDay; readonly author: Login | null; readonly url: string };
 
+/** "symbol/main", "option/--ledger", "file/tally/cli.py". A second item of the same kind and name gets "~2", in the order it was introduced. */
+export type ItemId = string & { readonly __brand: 'ItemId' };
+export type TrackedKind = 'symbol' | 'option' | 'config-key' | 'file';
+/** One change an item went through. matchedBy says whether nmem followed it by its name or, across a rename or move, by its text. */
+export type Hop =
+  | { readonly change: ChangeId; readonly kind: 'introduced' | 'changed' | 'removed'; readonly matchedBy: 'name' }
+  | { readonly change: ChangeId; readonly kind: 'moved'; readonly from: string; readonly matchedBy: 'name' | 'text' }
+  | { readonly change: ChangeId; readonly kind: 'renamed' | 'extracted-from'; readonly from: string; readonly matchedBy: 'text' };
+export type LineSpan = { readonly start: number; readonly end: number };
+/** A symbol, option, config key, or file followed through the change list by harness/items.ts. Derived from git, never by a model. */
+export type TrackedItem = {
+  readonly id: ItemId;
+  readonly kind: TrackedKind;
+  readonly name: string;
+  /** Where it lives at HEAD, or where it last lived when its last hop is removed. */
+  readonly path: string;
+  /** Its lines in path at HEAD. Null for a file, a removed item, or text nmem could not place. */
+  readonly lines: LineSpan | null;
+  readonly formerNames: readonly string[];
+  /** Oldest first. */
+  readonly hops: readonly [Hop, ...Hop[]];
+};
+
 export type RepoFacts = {
   readonly head: string;
   readonly born: IsoDay;
@@ -37,6 +60,7 @@ export type RepoFacts = {
   /** Day, author, and URL of a resolvable record object. For a file ref, the author and day of the commit that added
    *  the file on main, so an ADR's decider is the person who added it. */
   readonly sourceOf: (source: RecordSource) => SourceFacts | null;
+  readonly items: readonly TrackedItem[];
 };
 
 export type Kind = 'decision' | 'behavior' | 'check' | 'routine' | 'unclassified';
@@ -304,12 +328,15 @@ function rowOf(decision: Decision, facts: RepoFacts): DecisionRow {
  * thing worth a look, skipping kinds absent from the range. It fills the remaining slots by PRIORITY, then newest, up
  * to three items in total. Newest breaks a same-day tie by first-parent order, then by finding order.
  */
-export function rangeOf(snapshot: Snapshot, facts: RepoFacts, range: Range): RangeView {
+export function rangeOf(snapshot: Snapshot, facts: RepoFacts, range: Range, item: ItemId | null = null): RangeView {
   const whole = range.topic === rootOf(snapshot).id;
   const inRange = (day: IsoDay): boolean => day >= range.from && day <= range.to;
   const position = new Map(facts.changes.map((c, i) => [c.id, i]));
   const entries = new Map(snapshot.changes.map((c) => [c.id, c]));
-  const inTopic = (id: ChangeId): boolean => whole || (entries.get(id)?.topics.includes(range.topic) ?? false);
+  const tracked = item === null ? null : facts.items.find((row) => row.id === item) ?? null;
+  const history = tracked ? itemHistoryOf(snapshot, facts, tracked) : null;
+  const hops = history ? new Map(history.steps.map((step, index) => [step.hop.change, { step, index }])) : null;
+  const inTopic = (id: ChangeId): boolean => (hops === null || hops.has(id)) && (whole || (entries.get(id)?.topics.includes(range.topic) ?? false));
   const live = (id: ChangeId): IsoDay => changeFacts(id, facts).live;
   const latest = (ids: readonly [ChangeId, ...ChangeId[]]): ChangeId =>
     ids.reduce((a, b) => ((position.get(b) ?? -1) > (position.get(a) ?? -1) ? b : a));
@@ -322,8 +349,12 @@ export function rangeOf(snapshot: Snapshot, facts: RepoFacts, range: Range): Ran
     if (!group.changes.some(inTopic)) continue;
     const last = latest(group.changes);
     const inside = group.changes.filter((id) => inRange(live(id)));
-    if (inside.length === group.changes.length) full.push({ group, last });
-    else for (const id of inside) notes.set(id, id === last ? 'undoes-earlier' : 'part-of-later-undo');
+    const folds = history === null || history.nets.has(group);
+    if (folds && inside.length === group.changes.length) full.push({ group, last });
+    else for (const id of inside) {
+      if (id !== last) notes.set(id, 'part-of-later-undo');
+      else if (inside.length < group.changes.length) notes.set(id, 'undoes-earlier');
+    }
   }
   const collapsed = new Set(full.flatMap((x) => x.group.changes));
 
@@ -332,28 +363,47 @@ export function rangeOf(snapshot: Snapshot, facts: RepoFacts, range: Range): Ran
   for (const decision of decisionsFor(range.topic, snapshot, facts)) {
     const day = decisionDay(decision, facts);
     if (!inRange(day)) continue;
+    if (hops && !(decision.carriedBy !== null && hops.has(decision.carriedBy))) continue;
     items.push({ kind: 'decision', ref: decision.id, day });
     const carrier = decision.carriedBy;
     cards.push({ kind: 'decision', row: rowOf(decision, facts), carries: carrier ? [carrier] : [], undoneNote: carrier ? notes.get(carrier) ?? null : null });
   }
-  for (const change of [...facts.changes].reverse()) {
-    if (!inRange(change.live) || !inTopic(change.id) || collapsed.has(change.id)) continue;
+  /** A change's card below the axis and the items it counts, or null when it gets no card. */
+  type Look = { readonly severity: Severity; readonly findings: readonly number[]; readonly counted: readonly Item[] };
+  const changeLook = (change: ChangeFacts): Look | null => {
     const kind = kindOf(change.id, snapshot, facts);
-    if (kind === 'routine' || kind === 'decision') continue;
+    if (kind === 'routine' || kind === 'decision') return null;
     const entry = entries.get(change.id);
     const own = (entry?.findings ?? []).flatMap((finding, index) => (whole || finding.topics.includes(range.topic) ? [{ finding, index }] : []));
-    if (own.length === 0 && (entry?.findings.length ?? 0) > 0) continue;
+    if (own.length === 0 && (entry?.findings.length ?? 0) > 0) return null;
     const severity = mostSerious(own.map((x) => x.finding.severity)) ?? (kind === 'unclassified' ? 'check' : kind);
-    if (own.length > 0) for (const { finding, index } of own) items.push({ kind: finding.severity, ref: `${change.id}/${index}`, day: change.live });
-    else items.push({ kind: severity, ref: change.id, day: change.live });
+    const counted = own.length > 0
+      ? own.map(({ finding, index }) => ({ kind: finding.severity, ref: `${change.id}/${index}`, day: change.live }))
+      : [{ kind: severity, ref: change.id, day: change.live }];
+    return { severity, findings: own.map((x) => x.index), counted };
+  };
+  /** One item's hop is carded and counted by the rule its page uses, so both say the same counts. */
+  const hopLook = (change: ChangeFacts, step: ItemStep, index: number): Look | null => {
+    const severity = step.kind === 'behavior' || step.kind === 'check' ? step.kind : step.kind === 'unclassified' ? 'check' : null;
+    if (severity === null) return null;
+    const as = countedAs(step, index);
+    const named = step.findings.find((at) => entries.get(change.id)?.findings[at]?.severity === severity);
+    return { severity, findings: step.findings, counted: as ? [{ kind: as, ref: named === undefined ? change.id : `${change.id}/${named}`, day: change.live }] : [] };
+  };
+  for (const change of [...facts.changes].reverse()) {
+    if (!inRange(change.live) || !inTopic(change.id) || collapsed.has(change.id)) continue;
+    const hop = hops?.get(change.id);
+    const look = hop ? hopLook(change, hop.step, hop.index) : changeLook(change);
+    if (!look) continue;
+    items.push(...look.counted);
     cards.push({
-      kind: severity,
+      kind: look.severity,
       change: change.id,
       day: change.live,
-      findings: own.map((x) => x.index),
+      findings: look.findings,
       carries: carried([change.id]),
       undoneNote: notes.get(change.id) ?? null,
-      skippable: entry?.routine.map((part) => part.name) ?? [],
+      skippable: entries.get(change.id)?.routine.map((part) => part.name) ?? [],
     });
   }
   for (const { group, last } of [...full].sort((a, b) => (position.get(b.last) ?? 0) - (position.get(a.last) ?? 0))) {
@@ -368,8 +418,13 @@ export function rangeOf(snapshot: Snapshot, facts: RepoFacts, range: Range): Ran
   const picks = (['decision', 'behavior', 'check'] as const).flatMap((kind) => ofKind(kind).slice(0, 1));
   const named = [...picks, ...PRIORITY.flatMap(ofKind).filter((item) => !picks.includes(item))].slice(0, 3);
 
-  const topicFiles = whole ? null : new Set(snapshot.topics.find((t) => t.id === range.topic)?.files ?? []);
-  const strip = facts.changes.filter((c) => inRange(c.live) && inTopic(c.id) && !collapsed.has(c.id) && kindOf(c.id, snapshot, facts) === 'routine');
+  const itemFiles = tracked ? new Set([tracked.path, ...tracked.hops.flatMap((hop) => (hop.kind === 'moved' ? [hop.from] : []))]) : null;
+  const topicFiles = itemFiles ?? (whole ? null : new Set(snapshot.topics.find((t) => t.id === range.topic)?.files ?? []));
+  const routine = (id: ChangeId): boolean => {
+    const hop = hops?.get(id);
+    return hop ? foldsAsRoutine(hop.step) : kindOf(id, snapshot, facts) === 'routine';
+  };
+  const strip = facts.changes.filter((c) => inRange(c.live) && inTopic(c.id) && !collapsed.has(c.id) && routine(c.id));
   const lines = strip.reduce((n, c) => n + [...c.touched].reduce((m, [file, count]) => m + (topicFiles === null || topicFiles.has(file) ? count : 0), 0), 0);
 
   return {
@@ -386,8 +441,9 @@ export function rangeOf(snapshot: Snapshot, facts: RepoFacts, range: Range): Ran
  * rangeOf plus the summary sentence and each row. more is 0: a pixel pack needs a board width, and no width is
  * decided, so the kernel shows every card and the website may pack them. Scores use counts, not the pack.
  */
-export function timelineOf(snapshot: Snapshot, facts: RepoFacts, range: Range): Timeline {
-  const view = rangeOf(snapshot, facts, range);
+/** item narrows the board to the changes that item went through, and its routine lines to the files it lived in. */
+export function timelineOf(snapshot: Snapshot, facts: RepoFacts, range: Range, item: ItemId | null = null): Timeline {
+  const view = rangeOf(snapshot, facts, range, item);
   return {
     range: view.range,
     summary: TEMPLATES.summary(view.range, view.counts),
@@ -409,6 +465,9 @@ export const TRUST_WORDS = {
   introduced: { eng: 'we found when it first appeared', plain: 'we found when it first appeared' },
   run: { eng: 'we ran it', plain: 'we tried it' },
 } as const satisfies Record<ProofVerb, Named>;
+
+/** What a routine line count covers: every file, a topic's files, or the files one item lived in. */
+export type RoutineScope = 'repo' | 'topic' | 'item';
 
 export const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'] as const;
 
@@ -491,11 +550,12 @@ export const TEMPLATES = {
    * "5 routine changes, 91 lines in the whole repo." Plain says "project", not "repo".
    * A zero count still names the scope, so a line count is never a bare number.
    */
-  routine: (count: number, lines: number, whole: boolean): Named => {
+  routine: (count: number, lines: number, scope: RoutineScope): Named => {
     const cover = {
-      eng: whole ? 'in the whole repo' : "in this topic's files",
-      plain: whole ? 'in the whole project' : "in this topic's files",
-    };
+      repo: { eng: 'in the whole repo', plain: 'in the whole project' },
+      topic: { eng: "in this topic's files", plain: "in this topic's files" },
+      item: { eng: 'in the files it lived in', plain: 'in the files it lived in' },
+    }[scope];
     const line = (scope: string): string => {
       if (count === 0) return `No routine changes ${scope}.`;
       const changes = count === 1 ? '1 routine change' : `${count} routine changes`;
@@ -523,16 +583,862 @@ export const TEMPLATES = {
   },
   unclassified: { eng: 'nmem could not classify this change.', plain: 'nmem could not classify this change.' },
   net: { eng: 'no net change', plain: 'no net change' },
+  /**
+   * An item page's net sentence, from counts only: "Introduced in PR #3. Renamed once. Two behavior changes, one decided
+   * in PR #12." Plain names days, never a change id or a code name.
+   */
+  item: (tally: ItemTally): Named => {
+    const eng: string[] = [];
+    const plain: string[] = [];
+    const { origin } = tally;
+    if (origin.hop.kind === 'extracted-from') {
+      eng.push(`Split out of ${origin.hop.from} in ${labelChange(origin.hop.change)}.`);
+      plain.push(`Split out of older code on ${formatDay(origin.day)}.`);
+    } else {
+      eng.push(`Introduced in ${labelChange(origin.hop.change)}.`);
+      plain.push(`Added on ${formatDay(origin.day)}.`);
+    }
+    const shape = [tally.renamed > 0 ? `renamed ${timesWord(tally.renamed)}` : '', tally.moved > 0 ? `moved ${timesWord(tally.moved)}` : ''].filter(Boolean);
+    if (shape.length > 0) {
+      const line = `${capital(joinAnd(shape))}.`;
+      eng.push(line);
+      plain.push(line);
+    }
+    const behavior = tally.behavior.length;
+    const decided = tally.behavior.filter((step) => step.decided);
+    if (behavior > 0) {
+      const one = decided.length === 1 ? decided[0] : undefined;
+      const tail = (named: (step: { readonly change: ChangeId; readonly day: IsoDay }) => string): string => {
+        if (decided.length === 0) return '';
+        if (decided.length === behavior) return behavior === 1 && one ? `, decided ${named(one)}` : behavior === 2 ? ', both decided' : ', all decided';
+        return one ? `, one decided ${named(one)}` : `, ${countWord(decided.length)} decided`;
+      };
+      eng.push(`${capital(countWord(behavior))} behavior change${behavior === 1 ? '' : 's'}${tail((step) => `in ${labelChange(step.change)}`)}.`);
+      plain.push(`${capital(countWord(behavior))} change${behavior === 1 ? '' : 's'} to what it does${tail((step) => `on ${formatDay(step.day)}`)}.`);
+    }
+    const both = (line: string): void => {
+      eng.push(line);
+      plain.push(line);
+    };
+    if (tally.decision > 0) both(`${capital(countWord(tally.decision))} ${behavior > 0 ? 'other' : 'later'} change${tally.decision === 1 ? '' : 's'} carried a decision.`);
+    if (tally.check > 0) both(`${capital(countWord(tally.check))} thing${tally.check === 1 ? '' : 's'} worth a look.`);
+    if (tally.net > 0) both(`${capital(countWord(tally.net))} set${tally.net === 1 ? '' : 's'} of changes came and went with no net change.`);
+    if (tally.removed) {
+      eng.push(`Removed in ${labelChange(tally.removed.change)}.`);
+      plain.push(`Removed on ${formatDay(tally.removed.day)}.`);
+    } else if (tally.unchanged) both('Not changed since.');
+    return { eng: eng.join(' '), plain: plain.join(' ') };
+  },
+  /** What an item is, in words. Plain never shows the item's own name, so its kind word stands in for it. */
+  itemKind: {
+    symbol: { eng: 'Symbol', plain: 'A piece of code' },
+    option: { eng: 'Option', plain: 'A setting' },
+    'config-key': { eng: 'Config key', plain: 'A setting' },
+    file: { eng: 'File', plain: 'A file' },
+  } satisfies Record<TrackedKind, Named>,
+  /** How a hop reads on its card. Plain never names the old file or the old name. */
+  hop: (hop: Hop): Named => {
+    switch (hop.kind) {
+      case 'introduced':
+        return { eng: 'Introduced', plain: 'Added' };
+      case 'changed':
+        return { eng: 'Changed', plain: 'Changed' };
+      case 'removed':
+        return { eng: 'Removed', plain: 'Removed' };
+      case 'moved':
+        return { eng: `Moved from ${hop.from}`, plain: 'Moved to another file' };
+      case 'renamed':
+        return { eng: `Renamed from ${hop.from}`, plain: 'Renamed' };
+      case 'extracted-from':
+        return { eng: `Split out of ${hop.from}`, plain: 'Split out of older code' };
+    }
+  },
+  /** Said only when nmem followed the item by its text, so the reader knows the link is a match, not a name. */
+  matchedByText: (hop: Hop): Named | null => {
+    if (hop.matchedBy !== 'text') return null;
+    if (hop.kind === 'moved') return { eng: 'nmem matched it across the move by its text.', plain: 'nmem matched it across the move by comparing the text.' };
+    return { eng: 'nmem matched it by its text, since the name changed.', plain: 'nmem matched it by comparing the text, since the name changed.' };
+  },
 } as const;
 
-/** Case-insensitive token match over topic names (both audiences), headline text, and words. Scored only in the user test. */
-export function search(snapshot: Snapshot, query: string): readonly LocalId[] {
-  const tokens = query.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
-  if (tokens.length === 0) return [];
-  return snapshot.topics.filter((topic) => {
-    const hay = [topic.name.eng, topic.name.plain, ...topic.headline.flatMap((line) => [line.eng, line.plain]), ...topic.words].join(' ').toLowerCase();
-    return tokens.every((token) => hay.includes(token));
-  }).map((topic) => topic.id);
+const COUNT_WORDS = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'] as const;
+
+function countWord(n: number): string {
+  return COUNT_WORDS[n] ?? String(n);
+}
+
+function timesWord(n: number): string {
+  return n === 1 ? 'once' : n === 2 ? 'twice' : `${countWord(n)} times`;
+}
+
+function capital(text: string): string {
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
+/**
+ * How an item page cards one hop, in the timeline's words. A behavior finding about this item gives behavior. Otherwise
+ * a decision the change carried gives decision, then a check finding about this item gives check. A change with
+ * nothing about this item is unclassified, routine, or quiet (its findings are about other files).
+ */
+export type StepKind = 'decision' | Severity | 'unclassified' | 'routine' | 'quiet';
+
+export type ItemStep = {
+  readonly hop: Hop;
+  readonly day: IsoDay;
+  readonly kind: StepKind;
+  /** Every decision the hop's change carried. */
+  readonly decisions: readonly DecisionRow[];
+  /** The change's findings about this item: anchored on its file at that change, or on a thread or commit. */
+  readonly findings: readonly number[];
+  /** The checked reasons when the change is routine. */
+  readonly routine: readonly Said[];
+  /** A bracket this hop is the item's only hop in. Two or more hops in one bracket become a net entry instead. */
+  readonly undone: Undone | null;
+};
+
+export type ItemEntry =
+  | { readonly kind: 'step'; readonly step: ItemStep }
+  | { readonly kind: 'net'; readonly undone: Undone; readonly steps: readonly ItemStep[] };
+
+export type ItemPerson = { readonly login: Login; readonly changes: number; readonly decisions: number };
+
+/** The counts TEMPLATES.item words. A step inside a net bracket counts only as that bracket. */
+export type ItemTally = {
+  readonly origin: { readonly hop: Hop; readonly day: IsoDay };
+  readonly renamed: number;
+  readonly moved: number;
+  readonly behavior: readonly { readonly change: ChangeId; readonly day: IsoDay; readonly decided: boolean }[];
+  readonly decision: number;
+  readonly check: number;
+  readonly net: number;
+  readonly removed: { readonly change: ChangeId; readonly day: IsoDay } | null;
+  readonly unchanged: boolean;
+};
+
+export type ItemPage = {
+  readonly item: TrackedItem;
+  /** Topics whose files hold the item's path. */
+  readonly topics: readonly LocalId[];
+  /** The counts the net sentence words, which the item's timeline over its life also counts. */
+  readonly tally: ItemTally;
+  readonly summary: Named;
+  /** Newest first, since the newest change explains the code a reader has open and the summary already names the start. */
+  readonly entries: readonly ItemEntry[];
+  /** Routine changes that only changed the item, folded into one line like the timeline's strip. Newest first. */
+  readonly routine: { readonly count: number; readonly rows: readonly { readonly change: ChangeId; readonly day: IsoDay; readonly parts: readonly Said[] }[] };
+  /** Who changed it and who decided for it, most first. */
+  readonly people: readonly ItemPerson[];
+};
+
+const FILE_ANCHOR = /^[0-9a-f]{7,40}:([^#]+)(?:#L\d+(?:-L\d+)?)?$/;
+
+/** The path an item had right after each hop, walked back from where it lives now. */
+function pathsAfter(item: TrackedItem): string[] {
+  const out: string[] = [];
+  let path = item.path;
+  for (let i = item.hops.length - 1; i >= 0; i -= 1) {
+    out[i] = path;
+    const hop = item.hops[i];
+    if (hop?.kind === 'moved') path = hop.from;
+  }
+  return out;
+}
+
+export function itemTopics(snapshot: Snapshot, item: TrackedItem): readonly LocalId[] {
+  return snapshot.topics.filter((topic) => topic.parent !== null && topic.files.includes(item.path)).map((topic) => topic.id);
+}
+
+/** One item's hops, oldest first, each classified once, and the undone brackets that hold two or more of them. */
+export type ItemHistory = { readonly steps: readonly ItemStep[]; readonly nets: ReadonlySet<Undone> };
+
+/**
+ * What one hop adds to an item's counts, on its page and on its timeline alike. The first hop opens the net sentence
+ * and a removal closes it, so neither counts as a change to the item. Bracket members count through their bracket,
+ * which each caller folds before asking.
+ */
+function countedAs(step: ItemStep, index: number): 'behavior' | 'decision' | 'check' | null {
+  if (index === 0 || step.hop.kind === 'removed') return null;
+  if (step.kind === 'behavior' || step.kind === 'decision') return step.kind;
+  return step.kind === 'check' || step.kind === 'unclassified' ? 'check' : null;
+}
+
+/** A routine hop that only changed the item folds into the routine count on its page and its timeline. Its first hop, a move, a rename, and its removal are part of its story instead. */
+function foldsAsRoutine(step: ItemStep): boolean {
+  return step.kind === 'routine' && step.hop.kind === 'changed';
+}
+
+/**
+ * Joins each hop of one item to what the snapshot says about its change: the decisions it carried, the findings about
+ * this item, the routine reason, and the undone bracket.
+ */
+export function itemHistoryOf(snapshot: Snapshot, facts: RepoFacts, item: TrackedItem): ItemHistory {
+  const paths = pathsAfter(item);
+  const entries = new Map(snapshot.changes.map((change) => [change.id, change]));
+  const steps: ItemStep[] = item.hops.map((hop, index) => {
+    const entry = entries.get(hop.change);
+    const decisions = snapshot.decisions.filter((decision) => decision.carriedBy === hop.change).map((decision) => rowOf(decision, facts));
+    const findings = (entry?.findings ?? []).flatMap((finding, at) => {
+      const file = FILE_ANCHOR.exec(finding.anchor.ref)?.[1];
+      const about = file === undefined || file === paths[index] || (hop.kind === 'moved' && file === hop.from);
+      return about ? [at] : [];
+    });
+    const severity = mostSerious(findings.map((at) => entry?.findings[at]?.severity ?? 'check'));
+    const change = kindOf(hop.change, snapshot, facts);
+    const kind: StepKind = severity === 'behavior' ? 'behavior'
+      : decisions.length > 0 ? 'decision'
+      : severity === 'check' ? 'check'
+      : change === 'routine' || change === 'unclassified' ? change
+      : 'quiet';
+    const undone = snapshot.undone.find((group) => group.changes.includes(hop.change)) ?? null;
+    return { hop, day: changeFacts(hop.change, facts).live, kind, decisions, findings, routine: kind === 'routine' ? entry?.routine.map((part) => part.reason) ?? [] : [], undone };
+  });
+  const members = new Map<Undone, number>();
+  for (const step of steps) if (step.undone) members.set(step.undone, (members.get(step.undone) ?? 0) + 1);
+  return { steps, nets: new Set([...members].filter(([, count]) => count >= 2).map(([group]) => group)) };
+}
+
+/** An item's page, from its history. Null when no item has the id. */
+export function itemPageOf(snapshot: Snapshot, facts: RepoFacts, id: ItemId): ItemPage | null {
+  const item = facts.items.find((row) => row.id === id);
+  if (!item) return null;
+  const { steps, nets } = itemHistoryOf(snapshot, facts, item);
+  const bracketed = new Map<Undone, ItemStep[]>();
+  for (const step of steps) if (step.undone && nets.has(step.undone)) bracketed.set(step.undone, [...(bracketed.get(step.undone) ?? []), step]);
+  const folded = (step: ItemStep): boolean => foldsAsRoutine(step) && !(step.undone && nets.has(step.undone));
+
+  const chain: ItemEntry[] = [];
+  const placed = new Set<Undone>();
+  for (const step of [...steps].reverse()) {
+    if (step.undone && nets.has(step.undone)) {
+      if (placed.has(step.undone)) continue;
+      placed.add(step.undone);
+      chain.push({ kind: 'net', undone: step.undone, steps: [...(bracketed.get(step.undone) ?? [])].reverse().map((member) => ({ ...member, undone: null })) });
+    } else if (!folded(step)) chain.push({ kind: 'step', step });
+  }
+  const routineRows = [...steps].reverse().filter(folded).map((step) => ({ change: step.hop.change, day: step.day, parts: step.routine }));
+
+  const [origin] = steps;
+  if (!origin) throw new Error(`${item.id} has no hops`);
+  const last = steps.at(-1);
+  const counted = steps.flatMap((step, index) => {
+    const as = step.undone && nets.has(step.undone) ? null : countedAs(step, index);
+    return as ? [{ step, as }] : [];
+  });
+  const tally: ItemTally = {
+    origin: { hop: origin.hop, day: origin.day },
+    renamed: steps.filter((step) => step.hop.kind === 'renamed').length,
+    moved: steps.filter((step) => step.hop.kind === 'moved').length,
+    behavior: counted.filter((x) => x.as === 'behavior').map(({ step }) => ({ change: step.hop.change, day: step.day, decided: step.decisions.length > 0 })),
+    decision: counted.filter((x) => x.as === 'decision').length,
+    check: counted.filter((x) => x.as === 'check').length,
+    net: nets.size,
+    removed: last && last.hop.kind === 'removed' ? { change: last.hop.change, day: last.day } : null,
+    unchanged: steps.length === 1,
+  };
+
+  const decisions = new Map<LocalId, DecisionRow>();
+  for (const step of [...steps].reverse()) for (const row of step.decisions) if (!decisions.has(row.decision.id)) decisions.set(row.decision.id, row);
+  const people = new Map<Login, { changes: number; decisions: number }>();
+  const tallyOf = (login: Login): { changes: number; decisions: number } => {
+    const known = people.get(login) ?? { changes: 0, decisions: 0 };
+    people.set(login, known);
+    return known;
+  };
+  for (const change of new Set(item.hops.map((hop) => hop.change))) {
+    const author = changeFacts(change, facts).author;
+    if (author) tallyOf(author).changes += 1;
+  }
+  for (const row of decisions.values()) if (row.decider) tallyOf(row.decider).decisions += 1;
+
+  return {
+    item,
+    topics: itemTopics(snapshot, item),
+    tally,
+    summary: TEMPLATES.item(tally),
+    entries: chain,
+    routine: { count: routineRows.length, rows: routineRows },
+    people: [...people].map(([login, count]) => ({ login, ...count })).sort((a, b) => b.changes + b.decisions - (a.changes + a.decisions) || a.login.localeCompare(b.login)),
+  };
+}
+
+/**
+ * Search hits are one union. An item kind, added later, is a new member here and one registry row.
+ * The ranker does not grow a branch for it.
+ */
+export type SearchKind = 'topic' | 'decision' | 'change' | 'finding' | 'file' | 'item' | 'person' | 'doc-claim';
+
+export type SearchLink =
+  | { readonly to: 'topic'; readonly topic: LocalId; readonly anchor: string | null }
+  | { readonly to: 'item'; readonly item: ItemId }
+  | { readonly to: 'timeline'; readonly topic: LocalId; readonly from: IsoDay; readonly until: IsoDay }
+  | { readonly to: 'source'; readonly ref: string; readonly quote: string };
+
+export type SearchHit = {
+  readonly kind: SearchKind;
+  readonly id: string;
+  readonly title: Named;
+  /** One short line that says why this hit is here: the field that matched, the result that led to it, or what it is. */
+  readonly matched: Named;
+  readonly field: string;
+  /** The result that led to this one, when it matched nothing itself. */
+  readonly via: { readonly kind: SearchKind; readonly id: string } | null;
+  readonly score: number;
+  readonly link: SearchLink;
+};
+
+type SearchField = { readonly name: string; readonly weight: number };
+
+type SearchDoc = {
+  readonly kind: SearchKind;
+  readonly id: string;
+  readonly title: Named;
+  /** The line a hit shows when only its title matched. */
+  readonly detail: Named;
+  readonly label: string;
+  readonly fields: readonly { readonly name: string; readonly weight: number; readonly text: string; readonly show: Named }[];
+  readonly link: SearchLink;
+  readonly topics: readonly LocalId[];
+  readonly change: ChangeId | null;
+  readonly exact: readonly string[];
+};
+
+export type SearchIndexer = {
+  readonly kind: SearchKind;
+  readonly label: Named;
+  /** Non-engineer hides a kind whose words are only a path. */
+  readonly plain: boolean;
+  readonly to: SearchLink['to'];
+  readonly fields: readonly SearchField[];
+};
+
+const SEARCH_STOP = new Set('a an the to for of and or in on with who what why how is are was were be been being did do does when where which still now about from by that this it its as at if not no into over then than their them they we you your i my our up'.split(' '));
+
+function searchWords(text: string): string[] {
+  return text.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+}
+
+function saidText(line: Said | null): string {
+  if (!line) return '';
+  const quote = line.source.kind === 'record' ? line.source.quote : '';
+  return `${line.eng} ${line.plain} ${quote}`;
+}
+
+function whyText(why: Why): string {
+  if (why.kind === 'recorded') return saidText(why.reason);
+  return `${why.guess?.eng ?? ''} ${why.guess?.plain ?? ''}`;
+}
+
+function both(text: string): Named {
+  return { eng: text, plain: text };
+}
+
+function clipped(line: Named): Named {
+  return { eng: clip(line.eng), plain: clip(line.plain) };
+}
+
+function clip(text: string): string {
+  const flat = text.replace(/\s+/g, ' ').trim();
+  return flat.length > 180 ? `${flat.slice(0, 177)}...` : flat;
+}
+
+function specificTopic(topics: readonly LocalId[], snapshot: Snapshot): LocalId {
+  const root = rootOf(snapshot).id;
+  return topics.find((id) => id !== root) ?? topics[0] ?? root;
+}
+
+function topicLink(topic: LocalId, anchor: string | null): SearchLink {
+  return { to: 'topic', topic, anchor };
+}
+
+function timelineLink(topic: LocalId, day: IsoDay): SearchLink {
+  return { to: 'timeline', topic, from: day, until: day };
+}
+
+function changeAliases(id: ChangeId, after: string): string[] {
+  const out = new Set([id.toLowerCase(), after.toLowerCase()]);
+  const limit = Math.min(after.length, 12);
+  for (let n = 7; n <= limit; n += 1) out.add(after.slice(0, n).toLowerCase());
+  if (id.startsWith('pr#')) {
+    const num = id.slice(3);
+    for (const form of [`#${num}`, `pr${num}`, `pr#${num}`, `pr ${num}`, `pr #${num}`, `pull request ${num}`, `pull request #${num}`, `prs ${num}`]) out.add(form);
+  }
+  return [...out];
+}
+
+function changeTitle(id: ChangeId, day: IsoDay): Named {
+  if (id.startsWith('pr#')) {
+    const num = id.slice(3);
+    return { eng: `Pull request #${num}`, plain: `Pull request ${num}` };
+  }
+  return { eng: `Commit ${id}`, plain: `Commit on ${formatDay(day)}` };
+}
+
+/** "PR #12, Jul 2, 2023". Plain names the day only. */
+function changeLine(id: ChangeId, day: IsoDay): Named {
+  return { eng: `${labelChange(id)}, ${formatDay(day)}`, plain: `A change on ${formatDay(day)}` };
+}
+
+function field(name: string, weight: number, text: string, show: Named = both(clip(text))): SearchDoc['fields'][number] {
+  return { name, weight, text, show };
+}
+
+function personLink(login: Login, snapshot: Snapshot, facts: RepoFacts): SearchLink {
+  const decided = snapshot.decisions
+    .filter((decision) => deciderOf(decision, facts) === login)
+    .map((decision) => ({ decision, day: decisionDay(decision, facts) }))
+    .sort((a, b) => (a.day < b.day ? 1 : a.day > b.day ? -1 : 0));
+  const newest = decided[0];
+  if (newest) return topicLink(specificTopic(newest.decision.topics, snapshot), newest.decision.id);
+  const authored = facts.changes.filter((change) => change.author === login);
+  const last = authored[authored.length - 1];
+  if (last) {
+    const entry = snapshot.changes.find((change) => change.id === last.id);
+    return timelineLink(specificTopic(entry?.topics ?? [], snapshot), last.live);
+  }
+  return topicLink(rootOf(snapshot).id, null);
+}
+
+const TOPIC_FIELDS = [
+  { name: 'name', weight: 6 },
+  { name: 'headline', weight: 4 },
+  { name: 'words', weight: 5 },
+  { name: 'files', weight: 4 },
+  { name: 'start', weight: 6 },
+  { name: 'example', weight: 3 },
+] as const satisfies readonly SearchField[];
+
+const DECISION_FIELDS = [
+  { name: 'id', weight: 7 },
+  { name: 'what', weight: 6 },
+  { name: 'why', weight: 4 },
+] as const satisfies readonly SearchField[];
+
+const FINDING_FIELDS = [
+  { name: 'name', weight: 6 },
+  { name: 'points', weight: 4 },
+  { name: 'anchor', weight: 6 },
+  { name: 'why', weight: 3 },
+] as const satisfies readonly SearchField[];
+
+const CHANGE_FIELDS = [
+  { name: 'id', weight: 10 },
+  { name: 'files', weight: 4 },
+  { name: 'author', weight: 6 },
+  { name: 'routine', weight: 5 },
+] as const satisfies readonly SearchField[];
+
+const CLAIM_FIELDS = [
+  { name: 'sentence', weight: 5 },
+  { name: 'why', weight: 3 },
+] as const satisfies readonly SearchField[];
+
+const PERSON_FIELDS = [
+  { name: 'login', weight: 10 },
+  { name: 'name', weight: 9 },
+] as const satisfies readonly SearchField[];
+
+const FILE_FIELDS = [
+  { name: 'path', weight: 8 },
+  { name: 'basename', weight: 6 },
+] as const satisfies readonly SearchField[];
+
+function weightOf(fields: readonly SearchField[], name: string): number {
+  return fields.find((fieldRow) => fieldRow.name === name)?.weight ?? 1;
+}
+
+function collectTopics(snapshot: Snapshot): SearchDoc[] {
+  return snapshot.topics.map((topic) => ({
+    kind: 'topic',
+    id: topic.id,
+    title: topic.name,
+    detail: { eng: clip(topic.headline.map((line) => line.eng).join(' ')), plain: clip(topic.headline.map((line) => line.plain).join(' ')) },
+    label: `${topic.name.eng} ${topic.name.plain}`,
+    topics: [topic.id],
+    change: null,
+    exact: [],
+    link: topicLink(topic.id, null),
+    fields: [
+      field('name', weightOf(TOPIC_FIELDS, 'name'), `${topic.name.eng} ${topic.name.plain}`, topic.name),
+      field('headline', weightOf(TOPIC_FIELDS, 'headline'), topic.headline.map(saidText).join(' '), { eng: clip(topic.headline.map((line) => line.eng).join(' ')), plain: clip(topic.headline.map((line) => line.plain).join(' ')) }),
+      field('words', weightOf(TOPIC_FIELDS, 'words'), topic.words.join(' ')),
+      field('files', weightOf(TOPIC_FIELDS, 'files'), topic.files.join(' ')),
+      field('start', weightOf(TOPIC_FIELDS, 'start'), `${topic.start.quote} ${topic.start.ref}`, both(clip(topic.start.quote))),
+      field('example', weightOf(TOPIC_FIELDS, 'example'), saidText(topic.example), topic.example ? { eng: clip(topic.example.eng), plain: clip(topic.example.plain) } : both('')),
+    ],
+  }));
+}
+
+function collectDecisions(snapshot: Snapshot, facts: RepoFacts): SearchDoc[] {
+  return snapshot.decisions.map((decision) => ({
+    kind: 'decision',
+    id: decision.id,
+    title: { eng: clip(decision.what.eng), plain: clip(decision.what.plain) },
+    detail: whyLine(decision.why, facts),
+    label: `${decision.what.eng} ${decision.what.plain}`,
+    topics: [...decision.topics],
+    change: decision.carriedBy,
+    exact: [decision.id.toLowerCase()],
+    link: topicLink(specificTopic(decision.topics, snapshot), decision.id),
+    fields: [
+      field('id', weightOf(DECISION_FIELDS, 'id'), decision.id, both('')),
+      field('what', weightOf(DECISION_FIELDS, 'what'), saidText(decision.what), { eng: clip(decision.what.eng), plain: clip(decision.what.plain) }),
+      field('why', weightOf(DECISION_FIELDS, 'why'), whyText(decision.why), clipped(whyLine(decision.why, facts))),
+    ],
+  }));
+}
+
+function collectFindings(snapshot: Snapshot, facts: RepoFacts): SearchDoc[] {
+  return snapshot.changes.flatMap((change) => change.findings.map((finding, index): SearchDoc => {
+    const day = changeFacts(change.id, facts).live;
+    return {
+      kind: 'finding',
+      id: `${change.id}/${index}`,
+      title: finding.name,
+      detail: { eng: clip(finding.says[0].eng), plain: clip(finding.says[0].plain) },
+      label: `${finding.name.eng} ${finding.name.plain}`,
+      topics: [...finding.topics],
+      change: change.id,
+      exact: [],
+      link: timelineLink(specificTopic(finding.topics, snapshot), day),
+      fields: [
+        field('name', weightOf(FINDING_FIELDS, 'name'), `${finding.name.eng} ${finding.name.plain}`, finding.name),
+        field('points', weightOf(FINDING_FIELDS, 'points'), finding.says.map(saidText).join(' '), { eng: clip(finding.says.map((line) => line.eng).join(' ')), plain: clip(finding.says.map((line) => line.plain).join(' ')) }),
+        field('anchor', weightOf(FINDING_FIELDS, 'anchor'), finding.anchor.quote, both(clip(finding.anchor.quote))),
+        field('why', weightOf(FINDING_FIELDS, 'why'), whyText(finding.why), clipped(whyLine(finding.why, facts))),
+      ],
+    };
+  }));
+}
+
+function collectChanges(snapshot: Snapshot, facts: RepoFacts): SearchDoc[] {
+  return snapshot.changes.map((change) => {
+    const fact = changeFacts(change.id, facts);
+    const author = fact.author ? `${fact.author} ${facts.people.get(fact.author) ?? ''}` : '';
+    const routine = change.routine.map((part) => `${part.name.eng} ${part.name.plain} ${part.files.join(' ')}`).join(' ');
+    const files = [...fact.touched.keys(), ...change.routine.flatMap((part) => part.files)];
+    return {
+      kind: 'change' as const,
+      id: change.id,
+      title: changeTitle(change.id, fact.live),
+      detail: changeLine(change.id, fact.live),
+      label: changeTitle(change.id, fact.live).eng,
+      topics: [...change.topics],
+      change: change.id,
+      exact: changeAliases(change.id, fact.after),
+      link: timelineLink(specificTopic(change.topics, snapshot), fact.live),
+      fields: [
+        field('id', weightOf(CHANGE_FIELDS, 'id'), changeAliases(change.id, fact.after).join(' '), changeLine(change.id, fact.live)),
+        field('files', weightOf(CHANGE_FIELDS, 'files'), files.join(' ')),
+        field('author', weightOf(CHANGE_FIELDS, 'author'), author),
+        field('routine', weightOf(CHANGE_FIELDS, 'routine'), routine),
+      ],
+    };
+  });
+}
+
+function collectClaims(snapshot: Snapshot, facts: RepoFacts): SearchDoc[] {
+  return snapshot.claims.map((claim, index) => ({
+    kind: 'doc-claim' as const,
+    id: `${claim.topic}:${index}`,
+    title: { eng: 'In the docs', plain: 'In the docs' },
+    detail: both(clip(claim.sentence.quote)),
+    label: claim.sentence.quote,
+    topics: [claim.topic],
+    change: null,
+    exact: [],
+    link: { to: 'source' as const, ref: `${facts.head}:${claim.sentence.path}`, quote: claim.sentence.quote },
+    fields: [
+      field('sentence', weightOf(CLAIM_FIELDS, 'sentence'), `${claim.sentence.quote} ${claim.sentence.path}`, both(clip(claim.sentence.quote))),
+      field('why', weightOf(CLAIM_FIELDS, 'why'), claim.verdict === 'still-true' ? '' : saidText(claim.why), claim.verdict === 'still-true' ? both('') : clipped(claim.why)),
+    ],
+  }));
+}
+
+function collectPeople(snapshot: Snapshot, facts: RepoFacts): SearchDoc[] {
+  return [...facts.people].map(([login, name]) => ({
+    kind: 'person' as const,
+    id: login,
+    title: both(name),
+    detail: { eng: login, plain: '' },
+    label: `${name} ${login}`,
+    topics: [],
+    change: null,
+    exact: [login.toLowerCase(), name.toLowerCase()],
+    link: personLink(login, snapshot, facts),
+    fields: [
+      field('login', weightOf(PERSON_FIELDS, 'login'), login),
+      field('name', weightOf(PERSON_FIELDS, 'name'), name, both(name)),
+    ],
+  }));
+}
+
+function collectFiles(snapshot: Snapshot, facts: RepoFacts): SearchDoc[] {
+  const rows = new Map<string, SearchDoc>();
+  const items = new Map(facts.items.filter((item) => item.kind === 'file').map((item) => [item.path, item]));
+  const put = (path: string, topic: LocalId): void => {
+    if (rows.has(path)) return;
+    const base = path.split('/').at(-1) ?? path;
+    const item = items.get(path);
+    const page = item ? itemPageOf(snapshot, facts, item.id) : null;
+    rows.set(path, {
+      kind: 'file',
+      id: path,
+      title: both(path),
+      detail: page ? { eng: clip(page.summary.eng), plain: clip(page.summary.plain) } : both(''),
+      label: path,
+      topics: [topic],
+      change: null,
+      exact: [path.toLowerCase(), base.toLowerCase()],
+      link: item ? { to: 'item', item: item.id } : topicLink(topic, null),
+      fields: [
+        field('path', weightOf(FILE_FIELDS, 'path'), path, both(path)),
+        field('basename', weightOf(FILE_FIELDS, 'basename'), base, both('')),
+      ],
+    });
+  };
+  for (const topic of snapshot.topics) for (const path of topic.files) put(path, topic.id);
+  for (const change of facts.changes) {
+    const entry = snapshot.changes.find((row) => row.id === change.id);
+    const topic = specificTopic(entry?.topics ?? [], snapshot);
+    for (const path of change.touched.keys()) put(path, topic);
+    for (const part of entry?.routine ?? []) for (const path of part.files) put(path, topic);
+  }
+  return [...rows.values()];
+}
+
+const ITEM_FIELDS = [
+  { name: 'name', weight: 8 },
+  { name: 'former', weight: 6 },
+  { name: 'path', weight: 2 },
+] as const satisfies readonly SearchField[];
+
+/** Symbols, options, and config keys. A file is already a file hit, which links to the same page. */
+function collectItems(snapshot: Snapshot, facts: RepoFacts): SearchDoc[] {
+  return facts.items.filter((item) => item.kind !== 'file').map((item) => {
+    const gone = item.hops.at(-1)?.kind === 'removed';
+    return {
+      kind: 'item' as const,
+      id: item.id,
+      title: both(item.name),
+      detail: { eng: `${TEMPLATES.itemKind[item.kind].eng} ${gone ? 'that lived in' : 'in'} ${item.path}`, plain: TEMPLATES.itemKind[item.kind].plain },
+      label: [item.name, ...item.formerNames].join(' '),
+      topics: itemTopics(snapshot, item),
+      change: null,
+      exact: [item.name, ...item.formerNames].map((name) => name.toLowerCase()),
+      link: { to: 'item' as const, item: item.id },
+      fields: [
+        field('name', weightOf(ITEM_FIELDS, 'name'), item.name),
+        field('former', weightOf(ITEM_FIELDS, 'former'), item.formerNames.join(' '), both(item.formerNames.length > 0 ? `Formerly ${item.formerNames.join(', ')}` : '')),
+        field('path', weightOf(ITEM_FIELDS, 'path'), item.path, both('')),
+      ],
+    };
+  });
+}
+
+/** One registry. Each row names the fields it indexes and where a hit links. File and item are hidden from Non-engineer. */
+export const SEARCH_INDEXERS: readonly (SearchIndexer & { readonly collect: (snapshot: Snapshot, facts: RepoFacts) => readonly SearchDoc[] })[] = [
+  { kind: 'topic', label: { eng: 'Topic', plain: 'Topic' }, plain: true, to: 'topic', fields: TOPIC_FIELDS, collect: collectTopics },
+  { kind: 'decision', label: { eng: 'Decision', plain: 'Decision' }, plain: true, to: 'topic', fields: DECISION_FIELDS, collect: collectDecisions },
+  { kind: 'change', label: { eng: 'Change', plain: 'Change' }, plain: true, to: 'timeline', fields: CHANGE_FIELDS, collect: collectChanges },
+  { kind: 'finding', label: { eng: 'What changed', plain: 'What changed' }, plain: true, to: 'timeline', fields: FINDING_FIELDS, collect: collectFindings },
+  { kind: 'person', label: { eng: 'Person', plain: 'Person' }, plain: true, to: 'topic', fields: PERSON_FIELDS, collect: collectPeople },
+  { kind: 'doc-claim', label: { eng: 'In the docs', plain: 'In the docs' }, plain: true, to: 'source', fields: CLAIM_FIELDS, collect: collectClaims },
+  { kind: 'file', label: { eng: 'File', plain: 'File' }, plain: false, to: 'item', fields: FILE_FIELDS, collect: collectFiles },
+  { kind: 'item', label: { eng: 'In the code', plain: 'In the code' }, plain: false, to: 'item', fields: ITEM_FIELDS, collect: collectItems },
+];
+
+function queryParts(query: string): { tokens: string[]; idents: string[] } {
+  const idents: string[] = [];
+  for (const match of query.matchAll(/--?[A-Za-z][A-Za-z0-9-]*/g)) idents.push(match[0].toLowerCase());
+  for (const match of query.matchAll(/\b[A-Za-z0-9_./:-]{3,}\b/g)) {
+    const span = match[0];
+    if (/^[0-9.]+$/.test(span)) continue;
+    const internalCap = /[a-z][A-Z]/.test(span) || /[A-Z][a-z]+[A-Z]/.test(span);
+    if (/[/_.:#-]/.test(span) || internalCap || /^[A-Z0-9_]{3,}$/.test(span) || /^[0-9a-f]{7,}$/i.test(span)) idents.push(span.toLowerCase());
+  }
+  const tokens: string[] = [];
+  for (const token of searchWords(query)) if (!SEARCH_STOP.has(token) && token.length > 1) tokens.push(token);
+  for (const ident of idents) for (const part of searchWords(ident)) if (!SEARCH_STOP.has(part) && part.length > 2) tokens.push(part);
+  return { tokens: [...new Set(tokens)], idents: [...new Set(idents)] };
+}
+
+function stems(token: string): string[] {
+  const out = [token];
+  if (token.length >= 4 && token.endsWith('s') && !token.endsWith('ss')) out.push(token.slice(0, -1));
+  if (token.length >= 5 && token.endsWith('es')) out.push(token.slice(0, -2));
+  return out;
+}
+
+function fieldHit(token: string, text: string): number {
+  const low = text.toLowerCase();
+  const parts = searchWords(low);
+  let best = 0;
+  for (const stem of stems(token)) {
+    if (parts.includes(stem)) best = Math.max(best, stem === token ? 1 : 0.8);
+    else if (stem.length >= 4 && parts.some((word) => word.startsWith(stem) || (stem.startsWith(word) && word.length >= 5))) best = Math.max(best, 0.7);
+    else if (stem.length >= 5 && low.includes(stem)) best = Math.max(best, 0.65);
+  }
+  return best;
+}
+
+function phraseBonus(tokens: readonly string[], text: string): number {
+  if (tokens.length < 2) return 0;
+  const parts = searchWords(text);
+  let bonus = 0;
+  for (let i = 0; i < tokens.length - 1; i += 1) {
+    const left = stems(tokens[i] ?? '');
+    const right = stems(tokens[i + 1] ?? '');
+    for (let at = 0; at < parts.length - 1; at += 1) {
+      const here = parts[at] ?? '';
+      const next = parts[at + 1] ?? '';
+      if (left.some((stem) => here === stem || here.startsWith(stem)) && right.some((stem) => next === stem || next.startsWith(stem))) bonus += 12;
+    }
+  }
+  return bonus;
+}
+
+/** via is the hit that put a topic or change here when the doc matched nothing itself. */
+type Scored = { readonly doc: SearchDoc; readonly score: number; readonly tier: number; readonly via: SearchDoc | null };
+
+/**
+ * An item says where code lives, not why it changed, so the topics that hold it rank below any result whose own text
+ * matched every word of the query (200 and up). A file in five topics would otherwise bury the decision behind a rename.
+ */
+const ITEM_TOPIC = 100;
+
+/** Files and items are found by their names and paths only, so their words never sway the ranking of prose. */
+const NAMED_ONLY: ReadonlySet<SearchKind> = new Set(['file', 'item']);
+
+function rankDocs(docs: readonly SearchDoc[], query: string, rootId: LocalId): Scored[] {
+  const { tokens, idents } = queryParts(query);
+  const qlow = query.toLowerCase().replace(/\s+/g, ' ').trim();
+  const prNums = [...query.matchAll(/(?:^|[^A-Za-z0-9])#(\d+)\b|\bprs?\s*#?\s*(\d+)\b/gi)].map((match) => match[1] ?? match[2] ?? '');
+  const shas = [...query.matchAll(/\b[0-9a-f]{7,40}\b/gi)].map((match) => match[0].toLowerCase());
+  const use = tokens.length > 0 ? tokens : idents;
+  const sigil = idents.filter((ident) => /[/_#-]/.test(ident) || /^[0-9a-f]{7,}$/.test(ident));
+  const corpus = docs.filter((doc) => !NAMED_ONLY.has(doc.kind));
+  const vocab = new Set<string>();
+  for (const doc of corpus) for (const row of doc.fields) for (const word of searchWords(row.text)) vocab.add(word);
+  const df = new Map<string, number>();
+  for (const token of vocab) {
+    let count = 0;
+    for (const doc of corpus) if (doc.fields.some((row) => fieldHit(token, row.text) > 0)) count += 1;
+    df.set(token, count);
+  }
+  const scored: Scored[] = [];
+  for (const doc of docs) {
+    let exact = 0;
+    if (doc.kind === 'change') {
+      if (prNums.some((num) => num !== '' && doc.id === `pr#${num}`)) exact = 1000;
+      if (shas.some((sha) => doc.exact.some((alias) => alias.startsWith(sha)))) exact = Math.max(exact, 1000);
+      if (doc.exact.some((alias) => alias === qlow)) exact = Math.max(exact, 1000);
+    }
+    if (doc.kind === 'person' && doc.exact.some((alias) => alias === qlow)) exact = 980;
+    if (doc.kind === 'item' && doc.exact.some((name) => name === qlow || idents.includes(name))) exact = 950;
+    const fileField = doc.kind === 'item' ? undefined : doc.fields.find((row) => row.name === 'files' || row.name === 'path');
+    if (fileField) {
+      for (const path of fileField.text.split(/\s+/)) {
+        if (path === '') continue;
+        const low = path.toLowerCase();
+        const base = low.split('/').at(-1) ?? '';
+        const pathHit = idents.includes(low) || qlow === low || qlow.startsWith(`${low} `);
+        const baseHit = base.length >= 3 && (idents.includes(base) || qlow === base || qlow.startsWith(`${base} `));
+        if (pathHit || baseHit) exact = Math.max(exact, doc.kind === 'topic' ? 940 : doc.kind === 'file' ? 930 : 800);
+      }
+    }
+    if (!NAMED_ONLY.has(doc.kind)) {
+      for (const ident of sigil) {
+        if (ident.length < 4) continue;
+        for (const row of doc.fields) if (row.text.toLowerCase().includes(ident)) exact = Math.max(exact, 760 + row.weight);
+      }
+    }
+    let cover = 0;
+    let matched = 0;
+    let phrase = 0;
+    if (!NAMED_ONLY.has(doc.kind)) {
+      for (const token of use) {
+        let best = 0;
+        let bestWeight = 0;
+        for (const row of doc.fields) {
+          const hit = fieldHit(token, row.text);
+          if (hit * row.weight > best * bestWeight) {
+            best = hit;
+            bestWeight = row.weight;
+          }
+          phrase = Math.max(phrase, phraseBonus(use, row.text));
+        }
+        if (best > 0) {
+          matched += 1;
+          const idf = Math.log((corpus.length + 1) / ((df.get(token) ?? 1) + 0.5));
+          cover += best * bestWeight * Math.max(idf, 0.2);
+        }
+      }
+    }
+    const all = use.length > 0 && matched === use.length;
+    const ratio = matched / Math.max(use.length, 1);
+    let score = exact;
+    if (matched > 0 && exact === 0) {
+      const distinctive = use.some((token) => token.length >= 5 && doc.fields.some((row) => fieldHit(token, row.text) > 0));
+      const tier = all ? 200 : ratio >= 0.5 || distinctive ? 40 : 0;
+      score = tier + cover * ratio + phrase;
+    } else if (exact > 0) score = exact + phrase;
+    if (doc.kind === 'topic' && doc.id === rootId && use.length === 1 && matched === 1 && (df.get(use[0] ?? '') ?? 0) >= 4) score += 30;
+    if (score <= 0) continue;
+    scored.push({ doc, score, tier: exact > 0 ? 3 : all ? 2 : 1, via: null });
+  }
+  const best = new Map<string, Scored>();
+  const put = (row: Scored): void => {
+    const key = `${row.doc.kind}:${row.doc.id}`;
+    const prev = best.get(key);
+    if (!prev || row.score > prev.score) best.set(key, row);
+  };
+  for (const row of scored) {
+    put(row);
+    if (row.score < 12 || row.doc.kind === 'file') continue;
+    const specific = row.doc.topics.filter((topic) => topic !== rootId);
+    const parents = specific.length > 0 ? specific : row.doc.topics;
+    for (const topic of parents) {
+      const parent = docs.find((doc) => doc.kind === 'topic' && doc.id === topic);
+      if (parent) put({ doc: parent, score: row.doc.kind === 'item' ? Math.min(row.score - 1, ITEM_TOPIC) : row.score - 1, tier: row.tier, via: row.doc });
+    }
+    if (row.doc.change) {
+      const change = docs.find((doc) => doc.kind === 'change' && doc.id === row.doc.change);
+      if (change) put({ doc: change, score: row.score - 1, tier: row.tier, via: row.doc });
+    }
+  }
+  const nameHits = (row: Scored): number => use.filter((token) => row.doc.label.toLowerCase().includes(token)).length;
+  return [...best.values()].sort((a, b) => b.score - a.score || nameHits(b) - nameHits(a) || b.tier - a.tier || a.doc.id.localeCompare(b.doc.id));
+}
+
+function hitOf(row: Scored, query: string): SearchHit {
+  const { tokens, idents } = queryParts(query);
+  const use = tokens.length > 0 ? tokens : idents;
+  const { doc } = row;
+  const matching = doc.fields.filter((fieldRow) => use.some((token) => fieldHit(token, fieldRow.text) > 0) || idents.some((ident) => ident.length >= 4 && fieldRow.text.toLowerCase().includes(ident)));
+  const telling = matching.filter((fieldRow) => fieldRow.show.eng !== '' && fieldRow.show.eng !== doc.title.eng);
+  const byWeight = (rows: typeof telling) => [...rows].sort((a, b) => b.weight - a.weight);
+  const picked = byWeight(telling.filter((fieldRow) => fieldRow.name !== 'id'))[0] ?? byWeight(telling)[0];
+  const label = SEARCH_INDEXERS.find((indexer) => indexer.kind === row.via?.kind)?.label;
+  const matched = picked ? picked.show
+    : row.via && label ? { eng: `${label.eng}: ${row.via.title.eng}`, plain: `${label.plain}: ${row.via.title.plain}` }
+    : doc.detail;
+  return {
+    kind: doc.kind,
+    id: doc.id,
+    title: doc.title,
+    matched,
+    field: picked?.name ?? (row.via ? `via:${row.via.kind}` : 'detail'),
+    via: !picked && row.via ? { kind: row.via.kind, id: row.via.id } : null,
+    score: row.score,
+    link: doc.link,
+  };
+}
+
+/** Exact identifier first, then every content token by field weight, then a partial match. No fuzzy library. */
+export function search(snapshot: Snapshot, facts: RepoFacts, query: string): readonly SearchHit[] {
+  if (query.trim() === '') return [];
+  const docs = SEARCH_INDEXERS.flatMap((indexer) => indexer.collect(snapshot, facts));
+  return rankDocs(docs, query, rootOf(snapshot).id).map((row) => hitOf(row, query));
 }
 
 /** The fixed screen set the harness compares: every topic page, and every topic under every preset. */

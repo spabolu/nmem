@@ -70,6 +70,16 @@
   font-weight: 600;
   font-size: 13px;
 }
+.tl-card .carry {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 12px;
+  line-height: 22px;
+  color: var(--fgColor-muted);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
 .tl-card .point,
 .tl-card .c,
 .tl-card .note {
@@ -78,7 +88,8 @@
 }
 .tl-card.placed .point ~ .point,
 .tl-card.placed .c,
-.tl-card.placed .note {
+.tl-card.placed .note,
+.tl-card.placed .carry {
   display: none;
 }
 .tl-card.placed .k {
@@ -94,6 +105,21 @@
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+}
+/* A receipt longer than the card would wrap into a second chip line that the clamp cannot hold, so it shows one clamped line until the card opens. */
+.tl-card.placed [data-chip] {
+  display: -webkit-inline-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 1;
+  max-width: 100%;
+  overflow: hidden;
+  vertical-align: bottom;
+}
+.tl-card.placed:hover [data-chip],
+.tl-card.placed:focus-within [data-chip] {
+  display: inline-flex;
+  -webkit-line-clamp: unset;
+  overflow: visible;
 }
 .tl-card.placed:hover,
 .tl-card.placed:focus-within {
@@ -114,7 +140,9 @@
 .tl-card.placed:hover .c,
 .tl-card.placed:focus-within .c,
 .tl-card.placed:hover .note,
-.tl-card.placed:focus-within .note {
+.tl-card.placed:focus-within .note,
+.tl-card.placed:hover .carry,
+.tl-card.placed:focus-within .carry {
   display: block;
 }
 .tl-card.placed:hover .t,
@@ -124,6 +152,13 @@
   display: block;
   -webkit-line-clamp: unset;
   overflow: visible;
+}
+.tl-card.placed:hover .carry,
+.tl-card.placed:focus-within .carry {
+  white-space: normal;
+  overflow: visible;
+  line-height: 1.4;
+  text-overflow: unset;
 }
 .tl-card.behavior {
   border-color: var(--borderColor-danger-muted);
@@ -274,7 +309,8 @@
   }
   .tl-card.placed .point ~ .point,
   .tl-card.placed .c,
-  .tl-card.placed .note {
+  .tl-card.placed .note,
+  .tl-card.placed .carry {
     display: block;
   }
   .tl-card.placed .t,
@@ -282,5 +318,11 @@
     display: block;
     -webkit-line-clamp: unset;
     overflow: visible;
+  }
+  .tl-card .carry {
+    white-space: normal;
+    overflow: visible;
+    line-height: 1.4;
+    text-overflow: unset;
   }
 }

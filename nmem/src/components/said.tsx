@@ -1,10 +1,10 @@
 import NextLink from "next/link";
 import { type RepoRef, sourceHref } from "@/lib/hrefs";
-import type { Said, Source, Why } from "@/lib/kernel/contract";
+import type { Decision, Said, Source, Why } from "@/lib/kernel/contract";
 import type { Site } from "@/lib/kernel/site";
 import type { Audience } from "@/lib/kernel/view";
 import { TEMPLATES } from "@/lib/kernel/view";
-import { avatarOf, chipOf, person } from "@/lib/present";
+import { avatarOf, carriedOf, chipOf, person } from "@/lib/present";
 import { CHIP } from "./styles";
 
 /** Engineer text marks code with backticks. Plain text never shows code, so it prints as written. */
@@ -94,6 +94,33 @@ export function Avatar({
       aria-hidden="true"
     >
       {avatar.initials}
+    </span>
+  );
+}
+
+export function CarriedBy({
+  ctx,
+  decision,
+  className,
+}: {
+  readonly ctx: Ctx;
+  readonly decision: Decision;
+  readonly className?: string;
+}) {
+  const carried = carriedOf(ctx.site, decision, ctx.audience);
+  if (carried.kind === "none") {
+    return (
+      <span className={className} data-nmem>
+        No code change.
+      </span>
+    );
+  }
+  return (
+    <span className={className} data-nmem>
+      Carried out by:{" "}
+      <NextLink href={sourceHref(ctx.repo, ctx.audience, { ref: carried.id })}>
+        <Prose text={carried.label} audience={ctx.audience} />
+      </NextLink>
     </span>
   );
 }

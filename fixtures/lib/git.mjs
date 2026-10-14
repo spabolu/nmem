@@ -45,8 +45,10 @@ export function git(repoDir, args, opts = {}) {
   const result = spawnSync('git', ['--no-pager', ...args], {
     cwd: repoDir,
     env: gitEnv(opts.identity),
-    encoding: 'utf8',
+    encoding: opts.encoding ?? 'utf8',
     input: opts.input,
+    // A vendor commit's diff is larger than spawnSync's 1MB default.
+    maxBuffer: opts.maxBuffer ?? 1 << 28,
   });
   if (result.error) throw new GitError(args, -1, result.error.message);
   const status = result.status ?? -1;

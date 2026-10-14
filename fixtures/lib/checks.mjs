@@ -131,6 +131,37 @@ function leafDiff(a, b, keys = [], out = []) {
 
 const STATUS_WORDS = { A: 'new', D: 'deleted', T: 'type changed' };
 
+/** A document or a view template. Markdown is already named by path, so it is not here. */
+const PROSE_FILE = /\.(html?|txt|adoc|asciidoc|org|tex|tmpl|tpl|hbs|mustache|handlebars|jinja2?|j2|liquid|ejs|erb)$/i;
+const TEMPLATE_ACTION = /\{\{[\s\S]*?\}\}|\{%[\s\S]*?%\}|<%[\s\S]*?%>/g;
+
+function takeAll(source, re) {
+  const found = [];
+  const rest = source.replace(re, (match) => {
+    found.push(match);
+    return '';
+  });
+  return { found, rest };
+}
+
+/**
+ * Tags, template actions, and script or style bodies, in order. Null when the file is not a document or a template.
+ * A wording edit leaves all three sequences equal.
+ */
+function markupOf(source) {
+  const code = takeAll(source, /<(script|style)\b[^>]*>[\s\S]*?<\/\1>/gi);
+  const actions = takeAll(code.rest, TEMPLATE_ACTION);
+  const tags = actions.rest.match(/<\/?[A-Za-z!][^>\n]*>/g) ?? [];
+  return { code: code.found.join('\n'), actions: actions.found.join('\n'), tags: tags.join('\n') };
+}
+
+function proseOnly(before, after) {
+  if (before === after) return false;
+  const left = markupOf(before);
+  const right = markupOf(after);
+  return left.code === right.code && left.actions === right.actions && left.tags === right.tags;
+}
+
 function describeModified(repoDir, from, to, file) {
   if (/\.md$/.test(file) || file.startsWith('.github/')) return file;
   if (file.endsWith('.json')) {
@@ -150,6 +181,11 @@ function describeModified(repoDir, from, to, file) {
   const added = sets.filter((m, i) => m && changed[i][0] === '+');
   if (sets.every(Boolean) && removed.length === 1 && added.length === 1 && removed[0][1] === added[0][1]) {
     return `${file}: ${removed[0][1]} ${removed[0][2]} -> ${added[0][2]}`;
+  }
+  if (PROSE_FILE.test(file)) {
+    const before = showFile(repoDir, from, file);
+    const after = showFile(repoDir, to, file);
+    if (before !== null && after !== null && proseOnly(before, after)) return `${file}: prose`;
   }
   return `${file}: code`;
 }

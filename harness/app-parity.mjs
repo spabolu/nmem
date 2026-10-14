@@ -3,10 +3,11 @@
  * `next start`.
  * Fetches each page the way a reader would and checks the v1 screen rules against the kernel and gold for the tally
  * oracle, the null and engine snapshots, wayfinder, seedling, and p-limit when it is built. Then measures the timeline
- * layout in headless Chrome and shoots every view at 1400 light, 1400 dark, and 390 into the shots folder.
+ * layout in headless Chrome, including that a timeline card's text and chips do not overlap or stick out of the card, and shoots every view at 1400 light, 1400 dark, and 390 into the shots folder.
  * Owns its servers: starts each one, waits until it answers, and kills it on the way out. Needs `npm run build` first.
+ * With --engine it serves tally, wayfinder, and seedling from real engine snapshots instead (see checkEngine).
  *
- *   node harness/app-parity.mjs [shots dir]
+ *   node harness/app-parity.mjs [shots dir] [--engine <cells>]    cells holds <slug>/snapshot.json, such as harness/runs/<runId>/nmem/t1
  */
 import { spawn, spawnSync } from "node:child_process";
 import fs from "node:fs";
@@ -21,19 +22,24 @@ import { factsOf, openFixture } from "./record.ts";
 import {
   censusOf,
   decisionsFor,
+  itemPageOf,
   pageOf,
   search,
   TEMPLATES,
   TRUST_WORDS,
   timelineOf,
 } from "./view.ts";
-import { fixtureRoot } from "./app-fixtures.mjs";
+import { engineOf, FIXTURES, fixtureRoot, goldOf } from "./app-fixtures.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const app = path.join(root, "nmem");
 const workspace = path.join(root, "out", "tally");
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "nmem-parity-"));
-const shots = path.resolve(process.argv[2] ?? path.join(tmp, "shots"));
+const args = process.argv.slice(2);
+const engineAt = args.indexOf("--engine");
+const engineCells =
+  engineAt >= 0 ? path.resolve(args.splice(engineAt, 2)[1]) : null;
+const shots = path.resolve(args[0] ?? path.join(tmp, "shots"));
 const plimitCache = path.join(
   os.homedir(),
   ".cache/nmem/repos/sindresorhus/p-limit",
@@ -46,6 +52,26 @@ function fail(message) {
 
 function check(ok, message) {
   if (!ok) fail(message);
+}
+
+const engineNotes = [];
+
+/**
+ * A rule about words the snapshot wrote, such as no jargon or code name in plain text. Gold must keep it. An engine
+ * snapshot that breaks it is an engine finding, which the harness's jargon gate already scores, so --engine lists it
+ * instead of failing the app for rendering what it was given.
+ */
+function snapshotText(ok, message) {
+  if (ok) return;
+  if (engineCells) engineNotes.push(message);
+  else fail(message);
+}
+
+function faceBlame(where, faces) {
+  const list = faces ?? [];
+  const shown = list.slice(0, 30);
+  const rest = list.length - shown.length;
+  return `${where} cards overlap or clip: ${shown.join("; ")}${rest > 0 ? `; and ${rest} more` : ""}`;
 }
 
 function decode(value) {
@@ -178,6 +204,9 @@ function start(...roots) {
   };
 }
 
+/** Sees every page get fetches. checkEngine sets it to look for content the engine did not write. */
+let watch = null;
+
 async function get(port, urlPath) {
   const response = await fetch(`http://127.0.0.1:${port}${urlPath}`, {
     signal: AbortSignal.timeout(20000),
@@ -186,6 +215,7 @@ async function get(port, urlPath) {
   const html = raw
     .replace(/<script\b[^>]*>[\s\S]*?<\/script>/g, "")
     .replace(/&#x27;/g, "'");
+  watch?.(urlPath, html);
   return {
     status: response.status,
     html,
@@ -241,7 +271,7 @@ function screenRules(html, audience, label) {
     ];
     for (const text of claimed) {
       const hits = plainHits(text);
-      check(
+      snapshotText(
         hits.length === 0,
         `${label} plain text has ${hits.join(", ")} in "${text.slice(0, 80)}"`,
       );
@@ -282,7 +312,11 @@ async function checkTopic(port, base, snapshot, facts, id, audience) {
     .map((line) => line[audience])
     .join(" ")
     .replace(/`/g, "");
-  const tight = (text) => (text ?? "").replace(/\s+([.,;:!?])/g, "$1");
+  const tight = (text) =>
+    (text ?? "")
+      .replace(/\s+/g, " ")
+      .replace(/\s+([.,;:!?])/g, "$1")
+      .trim();
   check(
     tight(texts(page.html, "data-headline")[0]) === tight(headline),
     `${label} headline differs from the kernel`,
@@ -312,6 +346,116 @@ async function checkTopic(port, base, snapshot, facts, id, audience) {
   }
   screenRules(page.html, audience, label);
   return page.html;
+}
+
+function itemUrl(base, id, audience) {
+  return `${base}/items/${id.split("/").map(encodeURIComponent).join("/")}?audience=${audience}`;
+}
+
+/** A name a Non-engineer would read as code: a path, a flag, snake or camel case, or a constant. */
+function codeShaped(name) {
+  return /[_./-]|[a-z][A-Z]|^[A-Z0-9_]{3,}$/.test(name);
+}
+
+/** Every item page in both audiences: the kernel's net sentence, the screen rules, and no code name in plain. */
+async function checkItems(port, base, snapshot, facts, label) {
+  for (const item of facts.items) {
+    const kernel = itemPageOf(snapshot, facts, item.id);
+    for (const audience of ["eng", "plain"]) {
+      const where = `${label} item ${item.id} ${audience}`;
+      const page = await get(port, itemUrl(base, item.id, audience));
+      check(page.status === 200, `${where} status ${page.status}`);
+      if (page.status !== 200) continue;
+      screenRules(page.html, audience, where);
+      check(
+        attr(page.html, "data-summary") === kernel.summary[audience],
+        `${where} sentence is "${attr(page.html, "data-summary")}"`,
+      );
+      const visible = strip(page.html);
+      const count = (mark) => page.html.split(mark).length - 1;
+      for (const decision of snapshot.decisions) {
+        if (!item.hops.some((hop) => hop.change === decision.carriedBy))
+          continue;
+        const shown = count(`"${decision.id}"`) + count(`#${decision.id}"`);
+        check(
+          shown === 1 && count(`data-decision="${decision.id}"`) === 1,
+          `${where} shows decision ${decision.id} ${shown} times`,
+        );
+      }
+      if (audience === "plain") {
+        for (const name of [item.path, item.name, ...item.formerNames]) {
+          if (codeShaped(name))
+            snapshotText(
+              !visible.includes(name),
+              `${where} shows the code name ${name}`,
+            );
+        }
+      } else if (item.hops.at(-1).kind !== "removed") {
+        check(
+          attr(page.html, "data-lives") === item.path,
+          `${where} lives in ${attr(page.html, "data-lives")}`,
+        );
+      }
+    }
+  }
+  const none = await get(port, itemUrl(base, "symbol/zzz-no-such-item", "eng"));
+  check(none.status === 404, `${label} unknown item status ${none.status}`);
+  const rootId = snapshot.topics.find((topic) => topic.parent === null).id;
+  for (const item of facts.items) {
+    const kernel = timelineOf(
+      snapshot,
+      facts,
+      { topic: rootId, from: facts.born, to: facts.end },
+      item.id,
+    );
+    const where = `${label} timeline of ${item.id}`;
+    const page = await get(
+      port,
+      `${base}/timeline?${new URLSearchParams({ audience: "eng", item: item.id })}`,
+    );
+    check(page.status === 200, `${where} status ${page.status}`);
+    check(attr(page.html, "data-item") === item.id, `${where} is not narrowed`);
+    check(
+      attr(page.html, "data-summary") === kernel.summary.eng,
+      `${where} summary is "${attr(page.html, "data-summary")}"`,
+    );
+    check(
+      sameCounts(parseCounts(attr(page.html, "data-counts")), kernel.counts),
+      `${where} counts ${attr(page.html, "data-counts")}`,
+    );
+  }
+  const missing = await get(
+    port,
+    `${base}/timeline?audience=eng&item=symbol%2Fzzz-no-such-item`,
+  );
+  check(
+    missing.status === 404,
+    `${label} timeline of an unknown item is ${missing.status}`,
+  );
+  for (const topic of snapshot.topics) {
+    const page = await get(
+      port,
+      `${base}/topics/${encodeURIComponent(topic.id)}?audience=eng`,
+    );
+    const folders = new Map();
+    for (const path of topic.files) {
+      const folder = path.includes("/")
+        ? path.slice(0, path.lastIndexOf("/"))
+        : "";
+      folders.set(folder, [...(folders.get(folder) ?? []), path]);
+    }
+    for (const path of [...folders.values()].flat().slice(0, 6)) {
+      const file = facts.items.find(
+        (row) => row.kind === "file" && row.path === path,
+      );
+      if (file)
+        check(
+          page.html.includes(`href="${itemUrl(base, file.id, "eng")}"`),
+          `${label} topic ${topic.id} Files line does not open ${file.id}`,
+        );
+    }
+  }
+  console.log(`${label}: ${facts.items.length} item pages, both audiences`);
 }
 
 async function checkTimeline(
@@ -359,9 +503,11 @@ async function checkTimeline(
     topic === snapshot.topics.find((row) => row.parent === null)?.id;
   check(
     page.html.includes(
-      TEMPLATES.routine(kernel.routine.count, kernel.routine.lines, whole)[
-        audience
-      ],
+      TEMPLATES.routine(
+        kernel.routine.count,
+        kernel.routine.lines,
+        whole ? "repo" : "topic",
+      )[audience],
     ),
     `${label} routine sentence is not the kernel's`,
   );
@@ -546,24 +692,69 @@ async function checkOracle(snapshotFile, snapshot, facts, screens, findings) {
     const query =
       named.name.eng.split(/\s+/).find((word) => word.length > 4) ??
       named.name.eng;
-    const found = search(snapshot, query);
+    // The old check joined topic ids and looked for "No topic matches."
+    // That encoded topic-only search. Results are now kind:id, and an empty box says "No matches."
+    const found = search(snapshot, facts, query);
     const results = await get(
       port,
       `${realBase}/search?${new URLSearchParams({ audience: "eng", q: query })}`,
     );
     check(results.status === 200, `search status ${results.status}`);
     check(
-      attr(results.html, "data-results") === found.join(","),
+      attr(results.html, "data-results") ===
+        found.map((hit) => `${hit.kind}:${hit.id}`).join(","),
       `search for "${query}" does not match the kernel`,
     );
-    check(found.includes(named.id), `search for "${query}" missed ${named.id}`);
+    check(
+      found.some((hit) => hit.kind === "topic" && hit.id === named.id),
+      `search for "${query}" missed ${named.id}`,
+    );
     const none = await get(
       port,
       `${realBase}/search?audience=eng&q=zzznomatch`,
     );
+    check(none.html.includes("No matches."), "empty search is not worded");
+    for (const [q, first] of [
+      ["minimal_transfers", "item:symbol/minimal_transfers"],
+      ["tally/settle.py", "topic:settling"],
+      ["bill", null],
+    ]) {
+      const page = await get(
+        port,
+        `${realBase}/search?${new URLSearchParams({ audience: "eng", q })}`,
+      );
+      const hits = search(snapshot, facts, q);
+      if (first)
+        check(
+          `${hits[0]?.kind}:${hits[0]?.id}` === first,
+          `search for "${q}" leads with ${hits[0]?.kind}:${hits[0]?.id}`,
+        );
+      for (const row of page.html.split("<li ").slice(1)) {
+        const kind = attr(row, "data-kind");
+        if (!kind) continue;
+        const title = strip(row.split("</a>")[0] ?? "");
+        check(
+          !/^(Commit [0-9a-f]{7,}|Pull request #?\d+)$/.test(title),
+          `search for "${q}" names a change by its id: ${title}`,
+        );
+        check(
+          (attr(row, "data-matched") ?? "") !== "",
+          `search for "${q}" shows no matched line under ${kind} ${title}`,
+        );
+        if (kind === "item" || kind === "file")
+          check(
+            row.includes('href="/hearthware/tally/items/'),
+            `search for "${q}" links ${kind} ${title} somewhere other than its item page`,
+          );
+      }
+    }
+    const plainItems = await get(
+      port,
+      `${realBase}/search?audience=plain&q=minimal_transfers`,
+    );
     check(
-      none.html.includes("No topic matches."),
-      "empty search is not worded",
+      !plainItems.html.includes('data-kind="item"'),
+      "plain search lists a code name",
     );
     const source = snapshot.decisions.find(
       (row) => row.what.source.kind === "record",
@@ -629,6 +820,7 @@ async function checkOracle(snapshotFile, snapshot, facts, screens, findings) {
     );
     for (const name of namesOf(round.html))
       check(!bareCommit(name), `round range names a commit id: ${name}`);
+    await checkItems(port, realBase, snapshot, facts, "oracle");
     console.log(
       `oracle: ${snapshot.topics.length} topics, ${screens.filter((row) => row.kind === "timeline").length} gold ranges, both audiences`,
     );
@@ -764,12 +956,23 @@ fs.writeFileSync(oracleFile, JSON.stringify(gold.oracle));
 const nullFile = path.join(tmp, "null.json");
 fs.writeFileSync(nullFile, JSON.stringify(nullSnapshot(facts)));
 
+let plimitBaked = null;
+
+/** The shared repos cache keeps whatever site.json its last build wrote, so p-limit is served from a fresh bake. */
+async function plimitRoot() {
+  plimitBaked ??= await rootWith(
+    path.join(plimitCache, "snapshot.json"),
+    plimitCache,
+  );
+  return plimitBaked;
+}
+
 async function checkPlimit() {
   const cache = plimitCache;
   const snapshotFile = path.join(cache, "snapshot.json");
   check(fs.existsSync(snapshotFile), "p-limit snapshot is missing");
   if (!fs.existsSync(snapshotFile)) return;
-  const server = start(path.dirname(path.dirname(cache)));
+  const server = start(await plimitRoot());
   try {
     const port = await server.ready;
     const identity = JSON.parse(
@@ -965,6 +1168,115 @@ const CLIP = `(() => {
   };
 })()`;
 
+/**
+ * Placed-card text blocks and chips. Line-clamp can leave a box shorter than the line it paints, so compare text
+ * rects, not only element boxes. Text that sits entirely past a line-clamp box is that element's ellipsis and does
+ * not count. A painted line must stay inside the card and off the next child.
+ */
+const CARD_FACE = `(() => {
+  const tol = 1;
+  const flat = (value) => String(value || "").replace(/\\s+/g, " ").trim();
+  const box = (el) => {
+    const r = el.getBoundingClientRect();
+    return { left: r.left, top: r.top, right: r.right, bottom: r.bottom };
+  };
+  const live = (r) => r.right - r.left > tol && r.bottom - r.top > tol;
+  const meet = (a, b) =>
+    Math.min(a.right, b.right) - Math.max(a.left, b.left) > tol &&
+    Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) > tol;
+  const inside = (r, outer) =>
+    r.left >= outer.left - tol &&
+    r.right <= outer.right + tol &&
+    r.top >= outer.top - tol &&
+    r.bottom <= outer.bottom + tol;
+  const cut = (a, b) => ({
+    left: Math.max(a.left, b.left),
+    top: Math.max(a.top, b.top),
+    right: Math.min(a.right, b.right),
+    bottom: Math.min(a.bottom, b.bottom),
+  });
+  const paintedBox = (el, card) => {
+    let r = box(el);
+    let node = el.parentElement;
+    while (node && node !== card) {
+      const style = getComputedStyle(node);
+      if (clamps(node) || style.overflowX !== "visible" || style.overflowY !== "visible")
+        r = cut(r, box(node));
+      node = node.parentElement;
+    }
+    return r;
+  };
+  const clamps = (el) => {
+    const value = getComputedStyle(el).webkitLineClamp;
+    return Boolean(value) && value !== "none";
+  };
+  const ink = (el) => {
+    const rects = [];
+    const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+    let node;
+    while ((node = walker.nextNode())) {
+      if (!node.textContent.trim()) continue;
+      const range = document.createRange();
+      range.selectNodeContents(node);
+      for (const r of range.getClientRects()) {
+        if (r.width > tol && r.height > tol)
+          rects.push({ left: r.left, top: r.top, right: r.right, bottom: r.bottom });
+      }
+    }
+    for (const chip of el.querySelectorAll("[data-chip]")) {
+      const r = box(chip);
+      if (live(r)) rects.push(r);
+    }
+    return rects;
+  };
+  const name = (card) => {
+    const kind = card.getAttribute("data-kind") || "card";
+    const id = card.getAttribute("data-id") || "";
+    const title = flat(card.querySelector(".t") && card.querySelector(".t").innerText).slice(0, 42);
+    return [kind, id, title].filter(Boolean).join(" ");
+  };
+  const hits = [];
+  const seen = new Set();
+  const add = (line) => {
+    if (seen.has(line)) return;
+    seen.add(line);
+    hits.push(line);
+  };
+  for (const card of document.querySelectorAll(".tl-card.placed")) {
+    const outer = box(card);
+    if (!live(outer)) continue;
+    const label = name(card);
+    const blocks = [...card.children].filter((el) => live(box(el)));
+    const chips = [...card.querySelectorAll("[data-chip]")].filter(
+      (el) => live(box(el)) && !blocks.includes(el),
+    );
+    const targets = [...blocks, ...chips];
+    for (const el of blocks) {
+      const self = box(el);
+      const hiddenClamp = clamps(el);
+      if (!inside(self, outer)) add(label + ": " + flat(el.innerText).slice(0, 36) + " clipped by card");
+      for (const piece of ink(el)) {
+        const ellipsis = hiddenClamp && !meet(piece, self);
+        if (ellipsis) continue;
+        if (!inside(piece, outer))
+          add(label + ": " + flat(el.innerText).slice(0, 36) + " clipped by card");
+        for (const other of targets) {
+          if (other === el || el.contains(other) || other.contains(el)) continue;
+          const otherBox = paintedBox(other, card);
+          if (!live(otherBox) || !meet(piece, otherBox)) continue;
+          add(label + ": " + flat(el.innerText).slice(0, 36) + " overlaps " + flat(other.innerText).slice(0, 36));
+        }
+      }
+    }
+    for (const chip of chips) {
+      const r = paintedBox(chip, card);
+      if (!live(r) || inside(r, outer)) continue;
+      add(label + ": " + flat(chip.innerText).slice(0, 36) + " clipped by card");
+    }
+  }
+  return hits;
+})()`;
+
 const HOVER = `(() => {
   const card = document.querySelector('.tl-card.decision.placed');
   if (!card) return { error: 'no decision card' };
@@ -991,6 +1303,17 @@ async function measureClips(cdp, sessionId, url) {
     { expression: CLIP, returnByValue: true },
     sessionId,
   );
+  const faces = await cdp.send(
+    "Runtime.evaluate",
+    { expression: CARD_FACE, returnByValue: true },
+    sessionId,
+  );
+  let faceList = ["card face measurement failed"];
+  if (Array.isArray(faces.result?.value)) faceList = faces.result.value;
+  else if (faces.exceptionDetails?.text)
+    faceList = [`card face measurement failed: ${faces.exceptionDetails.text}`];
+  const clipValue = clips.result?.value ?? { error: "clip measurement failed" };
+  clipValue.faces = faceList;
   await cdp.send("DOM.enable", {}, sessionId);
   await cdp.send("CSS.enable", {}, sessionId);
   const doc = await cdp.send("DOM.getDocument", { depth: 1 }, sessionId);
@@ -1016,7 +1339,7 @@ async function measureClips(cdp, sessionId, url) {
     sessionId,
   );
   return {
-    clips: clips.result.value,
+    clips: clipValue,
     before: before.result.value,
     after: after.result.value,
   };
@@ -1033,6 +1356,7 @@ const VIEWS = [
     "/hearthware/tally/timeline?audience=eng&topic=root&from=2023-10-22&to=2023-11-01",
   ],
   ["search", "/hearthware/tally/search?audience=eng&q=bill"],
+  ["search-item", "/hearthware/tally/search?audience=eng&q=--round"],
   ["search-empty", "/hearthware/tally/search?audience=eng&q=zzznomatch"],
   [
     "source",
@@ -1049,6 +1373,22 @@ const VIEWS = [
     "source-proof",
     "/hearthware/tally/source?audience=eng&proof=grep+f01e078+-i+currenc",
   ],
+  ["item-main", "/hearthware/tally/items/symbol/main?audience=eng"],
+  [
+    "timeline-item",
+    "/hearthware/tally/timeline?audience=eng&item=symbol%2Fmain",
+  ],
+  ["item-main-plain", "/hearthware/tally/items/symbol/main?audience=plain"],
+  [
+    "item-refill",
+    "/northwind-labs/Wayfinder/items/option/refillWindowMs?audience=eng",
+    "fixtures",
+  ],
+  [
+    "item-usage",
+    "/eastside-commons/Seedling/items/config-key/usage?audience=eng",
+    "fixtures",
+  ],
 ];
 
 const MODES = [
@@ -1057,8 +1397,8 @@ const MODES = [
   { id: "390", width: 390, dark: false, mobile: true },
 ];
 
-/** Every view in every mode, full page. At 390 it also reports any view that scrolls sideways. */
-async function shoot(cdp, sessionId, port) {
+/** Every view in every mode, full page. At 390 it also reports any view that scrolls sideways. A view marked fixtures is served with wayfinder and seedling. */
+async function shoot(cdp, sessionId, ports, views = VIEWS) {
   fs.mkdirSync(shots, { recursive: true });
   const sideways = [];
   for (const mode of MODES) {
@@ -1081,11 +1421,11 @@ async function shoot(cdp, sessionId, port) {
       },
       sessionId,
     );
-    for (const [name, urlPath] of VIEWS) {
+    for (const [name, urlPath, server = "oracle"] of views) {
       const loaded = cdp.wait("Page.loadEventFired");
       await cdp.send(
         "Page.navigate",
-        { url: `http://127.0.0.1:${port}${urlPath}` },
+        { url: `http://127.0.0.1:${ports[server]}${urlPath}` },
         sessionId,
       );
       await loaded;
@@ -1131,7 +1471,7 @@ async function shoot(cdp, sessionId, port) {
   await cdp.send("Emulation.setEmulatedMedia", { features: [] }, sessionId);
   check(sideways.length === 0, `views scroll sideways: ${sideways.join(", ")}`);
   console.log(
-    `shots: ${VIEWS.length * MODES.length} into ${shots}, none scroll sideways at 390: ${sideways.length === 0}`,
+    `shots: ${views.length * MODES.length} into ${shots}, none scroll sideways at 390: ${sideways.length === 0}`,
   );
 }
 
@@ -1178,6 +1518,7 @@ async function checkFixtures() {
           {},
         );
       }
+      await checkItems(port, base, snapshot, repoFacts, slug);
       console.log(
         `${slug}: ${snapshot.topics.length} topics and the whole-life timeline, both audiences`,
       );
@@ -1187,6 +1528,46 @@ async function checkFixtures() {
   }
 }
 
+async function openTab(browser) {
+  const debugPort = await browser.ready;
+  const version = await fetch(
+    `http://127.0.0.1:${debugPort}/json/version`,
+  ).then((res) => res.json());
+  const ws = new WebSocket(version.webSocketDebuggerUrl);
+  await new Promise((resolve, reject) => {
+    ws.addEventListener("open", resolve);
+    ws.addEventListener("error", reject);
+  });
+  const cdp = new Cdp(ws);
+  const created = await cdp.send("Target.createTarget", {
+    url: "about:blank",
+  });
+  const attached = await cdp.send("Target.attachToTarget", {
+    targetId: created.targetId,
+    flatten: true,
+  });
+  const sessionId = attached.sessionId;
+  await cdp.send("Page.enable", {}, sessionId);
+  return { ws, cdp, sessionId };
+}
+
+/** A timeline's cards and labels sit apart: nothing clipped, overlapping, cut, or on the axis. */
+function laidOut(measured, label) {
+  const { clips } = measured;
+  check(!clips.error, `${label} layout ${clips.error}`);
+  for (const [list, what] of [
+    [clips.clipped, "clips"],
+    [clips.cutDates, "truncates"],
+    [clips.onTrack, "has ticks on the axis:"],
+    [clips.overCard, "has labels over a card:"],
+  ])
+    check(
+      (list ?? []).length === 0,
+      `${label} ${what} ${(list ?? []).join(", ")}`,
+    );
+  check((clips.faces ?? []).length === 0, faceBlame(label, clips.faces));
+}
+
 async function checkLayout() {
   check(fs.existsSync(chromeBin), `missing ${chromeBin}`);
   if (!fs.existsSync(chromeBin)) return;
@@ -1194,25 +1575,7 @@ async function checkLayout() {
   const browser = launchChrome();
   const oracle = start(await rootWith(oracleFile));
   try {
-    const debugPort = await browser.ready;
-    const version = await fetch(
-      `http://127.0.0.1:${debugPort}/json/version`,
-    ).then((res) => res.json());
-    const ws = new WebSocket(version.webSocketDebuggerUrl);
-    await new Promise((resolve, reject) => {
-      ws.addEventListener("open", resolve);
-      ws.addEventListener("error", reject);
-    });
-    const cdp = new Cdp(ws);
-    const created = await cdp.send("Target.createTarget", {
-      url: "about:blank",
-    });
-    const attached = await cdp.send("Target.attachToTarget", {
-      targetId: created.targetId,
-      flatten: true,
-    });
-    const sessionId = attached.sessionId;
-    await cdp.send("Page.enable", {}, sessionId);
+    const { ws, cdp, sessionId } = await openTab(browser);
     const tallyPort = await oracle.ready;
     const tallyIdentity = JSON.parse(
       fs.readFileSync(path.join(workspace, "github.json"), "utf8"),
@@ -1241,6 +1604,32 @@ async function checkLayout() {
       `round labels cover a card: ${round.clips.overCard.join(", ")}`,
     );
     check(
+      (round.clips.faces ?? []).length === 0,
+      faceBlame("round", round.clips.faces),
+    );
+    await cdp.send(
+      "Emulation.setDeviceMetricsOverride",
+      { width: 1400, height: 900, deviceScaleFactor: 1, mobile: false },
+      sessionId,
+    );
+    const lifeUrl = `http://127.0.0.1:${tallyPort}/${tallyIdentity.owner}/${tallyIdentity.name}/timeline?audience=eng`;
+    const tallyLife = await measureClips(cdp, sessionId, lifeUrl);
+    check(!tallyLife.clips.error, `life layout ${tallyLife.clips.error}`);
+    check(
+      (tallyLife.clips.faces ?? []).length === 0,
+      faceBlame("life eng", tallyLife.clips.faces),
+    );
+    const lifePlainUrl = `http://127.0.0.1:${tallyPort}/${tallyIdentity.owner}/${tallyIdentity.name}/timeline?audience=plain`;
+    const tallyPlain = await measureClips(cdp, sessionId, lifePlainUrl);
+    check(
+      !tallyPlain.clips.error,
+      `life plain layout ${tallyPlain.clips.error}`,
+    );
+    check(
+      (tallyPlain.clips.faces ?? []).length === 0,
+      faceBlame("life plain", tallyPlain.clips.faces),
+    );
+    check(
       round.before.extra === "none",
       `round card extra starts visible (${round.before.extra})`,
     );
@@ -1256,18 +1645,33 @@ async function checkLayout() {
       round.after.height > round.before.height,
       `hover does not grow the card (${round.before.height} to ${round.after.height})`,
     );
-    await shoot(cdp, sessionId, tallyPort);
+    const fixtures = start(
+      await fixtureRoot(fs.mkdtempSync(path.join(tmp, "shots-"))),
+    );
+    try {
+      await shoot(cdp, sessionId, {
+        oracle: tallyPort,
+        fixtures: await fixtures.ready,
+      });
+    } finally {
+      await fixtures.stop();
+    }
     await oracle.stop();
     if (!fs.existsSync(path.join(cache, "snapshot.json"))) {
       ws.close();
       return;
     }
-    const plimit = start(path.dirname(path.dirname(cache)));
+    const plimit = start(await plimitRoot());
     try {
       const plimitPort = await plimit.ready;
       const plimitIdentity = JSON.parse(
         fs.readFileSync(path.join(cache, "github.json"), "utf8"),
       ).repo;
+      await cdp.send(
+        "Emulation.setDeviceMetricsOverride",
+        { width: 1400, height: 900, deviceScaleFactor: 1, mobile: false },
+        sessionId,
+      );
       const lifeUrl = `http://127.0.0.1:${plimitPort}/${plimitIdentity.owner}/${plimitIdentity.name}/timeline?audience=eng&topic=root&from=2016-10-21&to=2026-09-19`;
       const life = await measureClips(cdp, sessionId, lifeUrl);
       check(!life.clips.error, `p-limit layout ${life.clips.error}`);
@@ -1287,12 +1691,16 @@ async function checkLayout() {
         life.clips.overCard.length === 0,
         `p-limit labels cover a card: ${life.clips.overCard.join(", ")}`,
       );
+      check(
+        (life.clips.faces ?? []).length === 0,
+        faceBlame("p-limit", life.clips.faces),
+      );
     } finally {
       await plimit.stop();
     }
     ws.close();
     console.log(
-      "layout: headless Chrome, round range and p-limit life, no clipped labels",
+      "layout: headless Chrome, round range, tally life, and p-limit life, card faces and labels",
     );
   } finally {
     await oracle.stop();
@@ -1300,42 +1708,232 @@ async function checkLayout() {
   }
 }
 
-try {
-  await refuseBad();
-  await checkOracle(
-    oracleFile,
-    gold.oracle,
-    facts,
-    goldFile.extras.screens,
-    goldFile.extras.findings,
+/** The item page and search query each engine repo is shot with. The items come from git, so they exist whatever the engine wrote. */
+const ENGINE_VIEWS = {
+  tally: { item: "symbol/main", query: "bill" },
+  wayfinder: { item: "option/refillWindowMs", query: "bucket" },
+  seedling: { item: "config-key/usage", query: "swap" },
+};
+
+/**
+ * Serves tally, wayfinder, and seedling from real engine snapshots and holds every view to the kernel: each topic, the
+ * whole-life timeline, each item page and item timeline, and each lookup query, in both audiences. No page may show a
+ * gold decision or topic the engine did not write. Then each life timeline and item timeline must lay out with no card
+ * overlap or clip, and each repo is shot at its root and busiest topic, timeline, search, and one item page.
+ */
+async function checkEngine(cells) {
+  const server = start(
+    await fixtureRoot(
+      fs.mkdtempSync(path.join(tmp, "engine-")),
+      engineOf(cells),
+    ),
   );
-  await checkHonest(nullFile, "null", (snapshot) => {
-    check(
-      snapshot.decisions.length === 0,
-      "null fixture is not empty of decisions",
+  const views = [];
+  const timelines = [];
+  try {
+    const port = await server.ready;
+    for (const slug of FIXTURES) {
+      const ws = path.join(root, "out", slug);
+      const { repo } = JSON.parse(
+        fs.readFileSync(path.join(ws, "github.json"), "utf8"),
+      );
+      const base = `/${repo.owner}/${repo.name}`;
+      const snapshot = engineOf(cells)(slug);
+      const repoFacts = factsOf(openFixture(ws));
+      const gold = goldOf(slug);
+      const decisions = new Set(snapshot.decisions.map((row) => row.id));
+      const topics = new Set(snapshot.topics.map((row) => row.id));
+      const foreign = [
+        ...gold.decisions
+          .filter((row) => !decisions.has(row.id))
+          .map((row) => `"${row.id}"`),
+        ...gold.topics
+          .filter((row) => !topics.has(row.id))
+          .map((row) => `/topics/${encodeURIComponent(row.id)}?`),
+      ];
+      watch = (urlPath, html) => {
+        for (const mark of foreign)
+          check(!html.includes(mark), `engine ${urlPath} shows gold's ${mark}`);
+      };
+      for (const topic of snapshot.topics)
+        for (const audience of ["eng", "plain"])
+          await checkTopic(port, base, snapshot, repoFacts, topic.id, audience);
+      const rootId = snapshot.topics.find((topic) => topic.parent === null).id;
+      for (const audience of ["eng", "plain"])
+        await checkTimeline(
+          port,
+          base,
+          snapshot,
+          repoFacts,
+          rootId,
+          repoFacts.born,
+          repoFacts.end,
+          audience,
+          null,
+          {},
+        );
+      await checkItems(port, base, snapshot, repoFacts, `engine ${slug}`);
+      const lookup = JSON.parse(
+        fs.readFileSync(
+          path.join(root, "harness", "lookup", `${slug}.json`),
+          "utf8",
+        ),
+      );
+      for (const { query } of lookup.queries) {
+        const hits = search(snapshot, repoFacts, query);
+        const eng = await get(
+          port,
+          `${base}/search?${new URLSearchParams({ audience: "eng", q: query })}`,
+        );
+        check(
+          attr(eng.html, "data-results") ===
+            hits.map((hit) => `${hit.kind}:${hit.id}`).join(","),
+          `engine ${slug} search for "${query}" does not match the kernel`,
+        );
+        const plain = await get(
+          port,
+          `${base}/search?${new URLSearchParams({ audience: "plain", q: query })}`,
+        );
+        check(
+          !plain.html.includes('data-kind="item"'),
+          `engine ${slug} plain search for "${query}" lists a code name`,
+        );
+        screenRules(plain.html, "plain", `engine ${slug} search "${query}"`);
+      }
+      watch = null;
+      const busiest = snapshot.topics
+        .filter((topic) => topic.parent !== null)
+        .map((topic) => ({
+          topic,
+          count: decisionsFor(topic.id, snapshot, repoFacts).length,
+        }))
+        .sort((a, b) => b.count - a.count)[0]?.topic;
+      const { item, query } = ENGINE_VIEWS[slug];
+      const itemPath = item.split("/").map(encodeURIComponent).join("/");
+      views.push(
+        [`engine-${slug}-topics-root`, `${base}?audience=eng`, "engine"],
+        ...(busiest
+          ? [
+              [
+                `engine-${slug}-topic`,
+                `${base}/topics/${encodeURIComponent(busiest.id)}?audience=eng`,
+                "engine",
+              ],
+              [
+                `engine-${slug}-topic-plain`,
+                `${base}/topics/${encodeURIComponent(busiest.id)}?audience=plain`,
+                "engine",
+              ],
+            ]
+          : []),
+        [`engine-${slug}-timeline`, `${base}/timeline?audience=eng`, "engine"],
+        [
+          `engine-${slug}-search`,
+          `${base}/search?${new URLSearchParams({ audience: "eng", q: query })}`,
+          "engine",
+        ],
+        [
+          `engine-${slug}-item`,
+          `${base}/items/${itemPath}?audience=eng`,
+          "engine",
+        ],
+        [
+          `engine-${slug}-item-plain`,
+          `${base}/items/${itemPath}?audience=plain`,
+          "engine",
+        ],
+      );
+      timelines.push(
+        [`engine ${slug} life eng`, `${base}/timeline?audience=eng`],
+        [`engine ${slug} life plain`, `${base}/timeline?audience=plain`],
+        [
+          `engine ${slug} timeline of ${item}`,
+          `${base}/timeline?${new URLSearchParams({ audience: "eng", item })}`,
+        ],
+      );
+      console.log(
+        `engine ${slug}: ${snapshot.topics.length} topics, ${repoFacts.items.length} items, ${lookup.queries.length} queries, both audiences, kernel-exact`,
+      );
+    }
+    check(fs.existsSync(chromeBin), `missing ${chromeBin}`);
+    if (!fs.existsSync(chromeBin)) return;
+    const browser = launchChrome();
+    try {
+      const { ws, cdp, sessionId } = await openTab(browser);
+      await cdp.send(
+        "Emulation.setDeviceMetricsOverride",
+        { width: 1400, height: 900, deviceScaleFactor: 1, mobile: false },
+        sessionId,
+      );
+      for (const [label, urlPath] of timelines)
+        laidOut(
+          await measureClips(
+            cdp,
+            sessionId,
+            `http://127.0.0.1:${port}${urlPath}`,
+          ),
+          label,
+        );
+      await shoot(cdp, sessionId, { engine: port }, views);
+      ws.close();
+      console.log(
+        `engine layout: ${timelines.length} timelines in headless Chrome, card faces and labels`,
+      );
+    } finally {
+      await browser.stop();
+    }
+  } finally {
+    watch = null;
+    await server.stop();
+  }
+}
+
+try {
+  if (engineCells) {
+    await checkEngine(engineCells);
+  } else {
+    await refuseBad();
+    await checkOracle(
+      oracleFile,
+      gold.oracle,
+      facts,
+      goldFile.extras.screens,
+      goldFile.extras.findings,
     );
-    check(snapshot.topics.length === 1, "null fixture is not a single root");
-  });
-  const engineFile = buildEngine();
-  await checkHonest(engineFile, "engine", (snapshot) => {
-    check(
-      snapshot.topics.length === 1,
-      `engine snapshot has ${snapshot.topics.length} topics, the no-model build writes one`,
-    );
-    check(
-      snapshot.claims.length === 0,
-      "engine snapshot has claims, so an out-of-date line would not be the empty case",
-    );
-  });
-  await checkFixtures();
-  await checkPlimit();
-  await checkLayout();
+    await checkHonest(nullFile, "null", (snapshot) => {
+      check(
+        snapshot.decisions.length === 0,
+        "null fixture is not empty of decisions",
+      );
+      check(snapshot.topics.length === 1, "null fixture is not a single root");
+    });
+    const engineFile = buildEngine();
+    await checkHonest(engineFile, "engine", (snapshot) => {
+      check(
+        snapshot.topics.length === 1,
+        `engine snapshot has ${snapshot.topics.length} topics, the no-model build writes one`,
+      );
+      check(
+        snapshot.claims.length === 0,
+        "engine snapshot has claims, so an out-of-date line would not be the empty case",
+      );
+    });
+    await checkFixtures();
+    await checkPlimit();
+    await checkLayout();
+  }
 } catch (error) {
   fail(error instanceof Error ? (error.stack ?? error.message) : String(error));
 } finally {
   fs.rmSync(tmp, { recursive: true, force: true, maxRetries: 5 });
 }
 
+if (engineNotes.length) {
+  console.log(
+    `engine text: ${engineNotes.length} plain lines carry jargon or a code name the engine wrote`,
+  );
+  for (const message of engineNotes.slice(0, 12)) console.log(`  ${message}`);
+}
 if (failures.length) {
   console.error(`FAIL ${failures.length}`);
   for (const message of failures) console.error(`- ${message}`);

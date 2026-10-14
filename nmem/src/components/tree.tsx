@@ -48,8 +48,16 @@ export function Tree({
           className={TEXT_INPUT}
           type="search"
           name="q"
-          placeholder="Find a topic by name or by what it does"
-          aria-label="Find a topic"
+          placeholder={
+            audience === "plain"
+              ? "Topics, decisions, changes, people"
+              : "Topics, decisions, changes, files"
+          }
+          aria-label={
+            audience === "plain"
+              ? "Search topics, decisions, changes, and people"
+              : "Search topics, decisions, changes, files, and people"
+          }
         />
       </Form>
       <div className={PANEL}>

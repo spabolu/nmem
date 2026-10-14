@@ -228,6 +228,29 @@ function judgeOf(judge: Judge | null, config: RunConfig): RunManifest['judge'] {
   return { model: judge.model, version: judge.version, family, sharedWith };
 }
 
+/**
+ * Tracked files under the system directory, as bytes in the worktree. The manifest fields do not change when those
+ * files do, and a rerun would otherwise reuse the scored cell.
+ */
+function trackedSource(dir: string): Hash {
+  const listed = spawnSync('git', ['-C', dir, 'ls-files', '-z', '--', '.'], { encoding: 'buffer' });
+  if (listed.status !== 0) {
+    const detail = Buffer.isBuffer(listed.stderr) ? listed.stderr.toString('utf8').trim() : 'git ls-files failed';
+    throw new Error(`cannot list tracked source in ${dir}: ${detail}`);
+  }
+  const names = listed.stdout.toString('utf8').split('\0').filter((name) => name.length > 0).sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+  return hashOf(names.map((name) => {
+    const file = path.join(dir, name);
+    try {
+      if (!fs.statSync(file).isFile()) return [name, null];
+      return [name, fs.readFileSync(file).toString('base64')];
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return [name, null];
+      throw error;
+    }
+  }));
+}
+
 /** Same inputs, same directory. A clock or a random secret would make a repeated run a different run. */
 function planId(config: RunConfig, repos: RunManifest['repos'], judge: Judge | null): RunId {
   return `r${hashOf(
@@ -236,7 +259,7 @@ function planId(config: RunConfig, repos: RunManifest['repos'], judge: Judge | n
     config.sandbox.kind,
     config.calibration,
     judge ? [judge.model, judge.version] : 'no-judge',
-    config.systems.map((system) => [system.name, system.dir, system.build, system.models, system.passEnv, system.buildSec]),
+    config.systems.map((system) => [system.name, system.dir, system.build, system.models, system.passEnv, system.buildSec, trackedSource(system.dir)]),
     repos.map((repo) => [repo.slug, repo.fixture, repo.gold, repo.facts, repo.main]),
   ).slice(0, 12)}` as RunId;
 }

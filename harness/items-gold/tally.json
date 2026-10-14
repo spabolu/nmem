@@ -1,0 +1,170 @@
+{
+  "slug": "tally",
+  "items": [
+    {
+      "id": "i-main",
+      "kind": "symbol",
+      "name": "main",
+      "path": "tally/cli.py",
+      "formerNames": [],
+      "hops": [
+        { "change": "pr#1", "kind": "introduced", "note": "Added as the entry point of the tally.py script, reading payer, cents, and names from argv, refusing a payer outside the split or negative cents, and printing who owes the payer." },
+        { "change": "pr#3", "kind": "changed", "note": "Wrapped int(raw) in a try so a non-whole amount prints \"cents must be a whole number\" and returns 2 instead of a traceback." },
+        { "change": "pr#4", "kind": "moved", "from": "tally.py", "note": "Moved into tally/cli.py and rewritten around argparse subcommands, where add appends an expense to the ledger file and balances prints running totals, and the negative-cents check was dropped." },
+        { "change": "pr#6", "kind": "changed", "note": "Added a pay branch that appends a payment row and saves the ledger." },
+        { "change": "pr#12", "kind": "changed", "note": "The fallthrough now prints the minimal_transfers() payments, or \"everyone is settled\", instead of returning 2." },
+        { "change": "pr#20", "kind": "changed", "note": "Passes args.round to balances_for()." },
+        { "change": "pr#22", "kind": "changed", "note": "Calls balances_for(rows) again without args.round." },
+        { "change": "e7e5ff3", "kind": "changed", "note": "Refuses negative cents with \"cents must be zero or more\" and exit 2 in both the add and pay branches." }
+      ]
+    },
+    {
+      "id": "i-add-expense",
+      "kind": "symbol",
+      "name": "add_expense",
+      "path": "tally/ledger.py",
+      "formerNames": [],
+      "hops": [
+        { "change": "pr#4", "kind": "extracted-from", "from": "split_bill", "note": "Created in tally/ledger.py from the skip-the-payer loop of split_bill() and the divmod split of shares() in tally.py, adding each share to a balances dict instead of printing lines." },
+        { "change": "ca7fe65", "kind": "changed", "note": "Every share is now cents // len(names), so the payer absorbs leftover cents instead of the first names typed." },
+        { "change": "pr#20", "kind": "changed", "note": "Gained a mode parameter where \"first\" restores the divmod split and the default \"payer\" keeps the floor split." },
+        { "change": "pr#22", "kind": "changed", "note": "The mode parameter was reverted, so the floor split is the only split again." }
+      ]
+    },
+    {
+      "id": "i-minimal-transfers",
+      "kind": "symbol",
+      "name": "minimal_transfers",
+      "path": "tally/settle.py",
+      "formerNames": [],
+      "hops": [
+        { "change": "pr#12", "kind": "introduced", "note": "Added in tally/settle.py to sort debtors and creditors by amount then name and pair them greedily into (from, to, cents) transfers." }
+      ]
+    },
+    {
+      "id": "i-show",
+      "kind": "symbol",
+      "name": "show",
+      "path": "tally/cli.py",
+      "formerNames": [],
+      "hops": [
+        { "change": "pr#4", "kind": "introduced", "note": "Added to format an amount as \"N cents\"." },
+        { "change": "10474f7", "kind": "changed", "note": "Now formats amounts as signed dollars and cents, like -$3.33, instead of raw cents." }
+      ]
+    },
+    {
+      "id": "i-split-bill",
+      "kind": "symbol",
+      "name": "split_bill",
+      "path": null,
+      "formerNames": [],
+      "hops": [
+        { "change": "pr#1", "kind": "introduced", "note": "Added in tally.py to list who owes the payer, using shares() so leftover cents go to the first names." },
+        { "change": "pr#4", "kind": "removed", "note": "Deleted with tally.py when the splitter moved into the tally package, where add_expense() took over its split." }
+      ]
+    },
+    {
+      "id": "i-ledger-flag",
+      "kind": "option",
+      "name": "--ledger",
+      "path": "tally/cli.py",
+      "formerNames": ["--data"],
+      "hops": [
+        { "change": "pr#4", "kind": "introduced", "note": "Added as --data with default ledger.txt, read by load() and save() in main()." },
+        { "change": "pr#6", "kind": "changed", "note": "The new pay branch also saves the ledger to args.data." },
+        { "change": "pr#9", "kind": "changed", "note": "Default changed from ledger.txt to ledger.db for the SQLite store." },
+        { "change": "pr#18", "kind": "changed", "note": "Default changed from ledger.db to ledger.json for the JSON store." },
+        { "change": "58bb170", "kind": "renamed", "from": "--data", "note": "Renamed to --ledger with dest=\"data\", so the old --data spelling is no longer accepted." }
+      ]
+    },
+    {
+      "id": "i-round-flag",
+      "kind": "option",
+      "name": "--round",
+      "path": null,
+      "formerNames": [],
+      "hops": [
+        { "change": "pr#20", "kind": "introduced", "note": "Added with choices payer and first and default payer, and passed to balances_for() for balances and settle." },
+        { "change": "pr#21", "kind": "changed", "note": "Default changed from payer to first." },
+        { "change": "pr#22", "kind": "removed", "note": "Removed along with the args.round argument to balances_for() when PRs #20 and #21 were reverted." }
+      ]
+    },
+    {
+      "id": "i-note-flag",
+      "kind": "option",
+      "name": "--note",
+      "path": "tally/cli.py",
+      "formerNames": [],
+      "hops": [
+        { "change": "pr#4", "kind": "introduced", "note": "Added to the add subcommand with default misc and stored on each expense row." },
+        { "change": "pr#6", "kind": "changed", "note": "The new pay subcommand got its own --note, also defaulting to misc and stored on each payment row." },
+        { "change": "f01e078", "kind": "changed", "note": "Default changed from misc to unmarked on both add and pay." }
+      ]
+    },
+    {
+      "id": "i-version",
+      "kind": "config-key",
+      "name": "__version__",
+      "path": "tally/__init__.py",
+      "formerNames": [],
+      "hops": [
+        { "change": "pr#4", "kind": "introduced", "note": "Set to \"0.2.0\" in the new tally/__init__.py." },
+        { "change": "10474f7", "kind": "changed", "note": "Bumped from \"0.2.0\" to \"0.3.0\"." },
+        { "change": "pr#23", "kind": "changed", "note": "Bumped from \"0.3.0\" to \"1.0.0\"." }
+      ]
+    },
+    {
+      "id": "i-cli-file",
+      "kind": "file",
+      "name": "tally/cli.py",
+      "path": "tally/cli.py",
+      "formerNames": ["tally.py"],
+      "hops": [
+        { "change": "pr#1", "kind": "introduced", "note": "Added as tally.py, a one-shot script that splits one bill and prints who owes the payer." },
+        { "change": "pr#3", "kind": "changed", "note": "A non-whole cents value now prints a sentence instead of a traceback." },
+        { "change": "pr#4", "kind": "moved", "from": "tally.py", "note": "Moved to tally/cli.py and rewritten as an argparse command with --data, add, and balances over a ledger file." },
+        { "change": "pr#6", "kind": "changed", "note": "Added the pay subcommand and its branch in main()." },
+        { "change": "pr#9", "kind": "changed", "note": "The --data default became ledger.db." },
+        { "change": "pr#12", "kind": "changed", "note": "Imported minimal_transfers and added the settle subcommand and its output." },
+        { "change": "10474f7", "kind": "changed", "note": "show() now prints dollars instead of raw cents." },
+        { "change": "pr#18", "kind": "changed", "note": "The --data default became ledger.json." },
+        { "change": "pr#20", "kind": "changed", "note": "Added the --round option and passed it to balances_for()." },
+        { "change": "pr#21", "kind": "changed", "note": "The --round default became first." },
+        { "change": "pr#22", "kind": "changed", "note": "Removed --round and its use in main()." },
+        { "change": "e7e5ff3", "kind": "changed", "note": "add and pay refuse negative cents again." },
+        { "change": "58bb170", "kind": "changed", "note": "The file option is now --ledger instead of --data." },
+        { "change": "f01e078", "kind": "changed", "note": "The --note default became unmarked on add and pay." }
+      ]
+    },
+    {
+      "id": "i-store-file",
+      "kind": "file",
+      "name": "tally/store.py",
+      "path": "tally/store.py",
+      "formerNames": [],
+      "hops": [
+        { "change": "pr#4", "kind": "introduced", "note": "Added to load and save ledger.txt as one space-separated line per expense." },
+        { "change": "pr#6", "kind": "changed", "note": "Now parses and formats payment lines too." },
+        { "change": "pr#9", "kind": "changed", "note": "Rewritten to keep the ledger in a SQLite entries table through sqlite3." },
+        { "change": "pr#18", "kind": "changed", "note": "Rewritten to load and save a JSON file holding an entries list, dropping SQLite." }
+      ]
+    },
+    {
+      "id": "i-readme",
+      "kind": "file",
+      "name": "README.md",
+      "path": "README.md",
+      "formerNames": [],
+      "hops": [
+        { "change": "b97eafe", "kind": "introduced", "note": "Added with a placeholder saying there is nothing here yet." },
+        { "change": "pr#1", "kind": "changed", "note": "Describes running tally.py to split one bill." },
+        { "change": "pr#4", "kind": "changed", "note": "Describes the python -m tally add and balances commands and the ledger.txt file." },
+        { "change": "9cc54c2", "kind": "changed", "note": "Spelling-only fix of roomates to roommates." },
+        { "change": "pr#6", "kind": "changed", "note": "Added a tally pay example." },
+        { "change": "pr#9", "kind": "changed", "note": "Says the ledger is a SQLite file named ledger.db and points to ADR-0002." },
+        { "change": "pr#12", "kind": "changed", "note": "The balances example became tally settle." },
+        { "change": "pr#23", "kind": "changed", "note": "Rewrote the intro for roommates, says the ledger is ledger.json, and points to docs/index.md." }
+      ]
+    }
+  ]
+}

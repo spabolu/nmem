@@ -1,6 +1,7 @@
 import "server-only";
 import type {
   ChangeId,
+  Decision,
   LocalId,
   Login,
   RecordRef,
@@ -10,12 +11,21 @@ import type {
 import { parseProof, parseRef } from "@/lib/kernel/contract";
 import { plainHits } from "@/lib/kernel/plain";
 import type { Site } from "@/lib/kernel/site";
-import type { Audience, Card, IsoDay, Item, Status } from "@/lib/kernel/view";
+import type {
+  Audience,
+  Card,
+  IsoDay,
+  Item,
+  SearchHit,
+  Status,
+} from "@/lib/kernel/view";
 import {
   cardDay,
+  decisionDay,
   formatDay,
   labelChange,
   MONTHS,
+  SEARCH_INDEXERS,
   TRUST_WORDS,
 } from "@/lib/kernel/view";
 
@@ -223,6 +233,56 @@ export function namedChange(
   if (title) return title;
   const pull = /^pr#(\d+)$/.exec(id);
   return pull ? `PR #${pull[1]}` : "A commit with no message";
+}
+
+function changeName(site: Site, id: string, audience: Audience): string | null {
+  const live = site.facts.changes.find((row) => row.id === id)?.live;
+  return live ? namedChange(site, id, live, audience) : null;
+}
+
+/** A change is named by its pull request title or commit subject, never by its id alone. */
+export function hitTitle(
+  site: Site,
+  hit: SearchHit,
+  audience: Audience,
+): string {
+  if (hit.kind !== "change") return hit.title[audience];
+  return changeName(site, hit.id, audience) ?? hit.title[audience];
+}
+
+/** The line under a hit. A hit that a change led to names that change the same way. */
+export function hitLine(
+  site: Site,
+  hit: SearchHit,
+  audience: Audience,
+): string {
+  if (hit.via?.kind !== "change") return hit.matched[audience];
+  const name = changeName(site, hit.via.id, audience);
+  const label = SEARCH_INDEXERS.find((row) => row.kind === "change")?.label;
+  return name && label ? `${label[audience]}: ${name}` : hit.matched[audience];
+}
+
+export type Carried =
+  | { readonly kind: "none" }
+  | { readonly kind: "change"; readonly id: ChangeId; readonly label: string };
+
+export function carriedOf(
+  site: Site,
+  decision: Decision,
+  audience: Audience,
+): Carried {
+  if (decision.carriedBy === null) return { kind: "none" };
+  const name = namedChange(
+    site,
+    decision.carriedBy,
+    decisionDay(decision, site.facts),
+    audience,
+  );
+  const label =
+    audience === "plain" && name.startsWith("A change on ")
+      ? `a change on ${name.slice("A change on ".length)}`
+      : name;
+  return { kind: "change", id: decision.carriedBy, label };
 }
 
 export function itemSource(site: Site, item: Item): Source | null {

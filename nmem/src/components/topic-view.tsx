@@ -1,23 +1,30 @@
 import NextLink from "next/link";
-import { sourceHref, timelineHref, topicHref } from "@/lib/hrefs";
-import type { Decision, LocalId, Said, Source } from "@/lib/kernel/contract";
+import { itemHref, sourceHref, timelineHref, topicHref } from "@/lib/hrefs";
+import type {
+  Claim,
+  Decision,
+  LocalId,
+  Said,
+  Source,
+} from "@/lib/kernel/contract";
 import { parseProof } from "@/lib/kernel/contract";
 import type { Site } from "@/lib/kernel/site";
 import { rootId } from "@/lib/kernel/site";
-import type { Status, TopicPage } from "@/lib/kernel/view";
+import type { Audience, RepoFacts, Status, TopicPage } from "@/lib/kernel/view";
 import {
   censusOf,
   deciderOf,
   decisionDay,
   decisionsFor,
   formatDay,
+  labelChange,
   pageOf,
   statusOf,
   TEMPLATES,
 } from "@/lib/kernel/view";
 import { ancestors, dotOf, person, topicById } from "@/lib/present";
 import { ButtonLink } from "./links";
-import { Avatar, Chip, type Ctx, Prose, SaidText } from "./said";
+import { Avatar, CarriedBy, Chip, type Ctx, Prose, SaidText } from "./said";
 import {
   CALLOUT,
   CHIP,
@@ -42,6 +49,89 @@ const FRESH = {
 } as const;
 
 import { Tree } from "./tree";
+
+const FILE_CAP = 6;
+
+type FileGroup = {
+  readonly folder: string;
+  readonly files: readonly { readonly name: string; readonly path: string }[];
+};
+
+function fileGroups(paths: readonly string[]): readonly FileGroup[] {
+  const groups: { folder: string; files: { name: string; path: string }[] }[] =
+    [];
+  const at = new Map<string, number>();
+  for (const path of paths) {
+    const slash = path.lastIndexOf("/");
+    const folder = slash < 0 ? "" : path.slice(0, slash);
+    const name = slash < 0 ? path : path.slice(slash + 1);
+    const index = at.get(folder);
+    const group = index === undefined ? undefined : groups[index];
+    if (!group) {
+      at.set(folder, groups.length);
+      groups.push({ folder, files: [{ name, path }] });
+    } else {
+      group.files.push({ name, path });
+    }
+  }
+  return groups;
+}
+
+/** A file opens its item page, which says how it changed. A path nmem did not follow opens the file itself. */
+function fileHref(ctx: Ctx, path: string): string {
+  const { site, repo, audience } = ctx;
+  const item = site.facts.items.find(
+    (row) => row.kind === "file" && row.path === path,
+  );
+  return item
+    ? itemHref(repo, item.id, audience)
+    : sourceHref(repo, audience, { ref: `${site.facts.head}:${path}` });
+}
+
+function FilesLine({
+  ctx,
+  files,
+}: {
+  readonly ctx: Ctx;
+  readonly files: readonly string[];
+}) {
+  if (ctx.audience === "plain" || files.length === 0) return null;
+  const flat = fileGroups(files).flatMap((group) =>
+    group.files.map((file, index) => ({
+      folder: index === 0 ? group.folder : null,
+      name: file.name,
+      path: file.path,
+    })),
+  );
+  const shown = flat.slice(0, FILE_CAP);
+  const rest = flat.length - shown.length;
+  return (
+    <p className="mt-3 mb-0 flex flex-wrap items-baseline gap-x-2 gap-y-1 text-[14px]">
+      <span className={LABEL}>Files</span>
+      {shown.map((file) => (
+        <span
+          key={file.path}
+          className="inline-flex max-w-full min-w-0 flex-wrap items-baseline gap-1"
+        >
+          {file.folder ? (
+            <span className="break-all text-(color:--fgColor-muted)">
+              {file.folder}/
+            </span>
+          ) : null}
+          <NextLink
+            className={`${CHIP} max-w-full break-all`}
+            href={fileHref(ctx, file.path)}
+          >
+            {file.name}
+          </NextLink>
+        </span>
+      ))}
+      {rest > 0 ? (
+        <span className="text-(color:--fgColor-muted)">and {rest} more</span>
+      ) : null}
+    </p>
+  );
+}
 
 export async function TopicView({
   ctx,
@@ -89,7 +179,7 @@ export async function TopicView({
           </nav>
         ) : null}
         <h1 className={H1}>{topic.name[audience]}</h1>
-        <StatusBox ctx={ctx} id={id} page={page} docs={topic.docs} />
+        <StatusBox all={all} ctx={ctx} docs={topic.docs} id={id} page={page} />
         <p
           className="my-2 max-w-[760px] text-[20px] leading-[1.6] font-[600] max-md:text-[16px]"
           data-headline
@@ -169,6 +259,7 @@ export async function TopicView({
               History of this topic
             </ButtonLink>
           </div>
+          <FilesLine ctx={ctx} files={topic.files} />
         </section>
       </article>
     </>
@@ -187,16 +278,96 @@ function brokenSource(site: Site, topic: LocalId, status: Status): Said | null {
   return claim && "why" in claim ? claim.why : null;
 }
 
+function changeDay(facts: RepoFacts, id: string): string {
+  const live = facts.changes.find((change) => change.id === id)?.live;
+  return live ? formatDay(live) : "";
+}
+
+function verdictLine(
+  claim: Claim,
+  audience: Audience,
+  facts: RepoFacts,
+): string {
+  switch (claim.verdict) {
+    case "still-true":
+      return "Still true";
+    case "no-longer-true":
+      return "No longer true";
+    case "depends":
+      return "Not always true";
+    case "true-since": {
+      const day = changeDay(facts, claim.since);
+      if (audience === "plain")
+        return day ? `True since ${day}` : "True since a later change";
+      return `True since ${labelChange(claim.since)}${day ? `, ${day}` : ""}`;
+    }
+  }
+}
+
+function DocClaims({
+  ctx,
+  id,
+  all,
+}: {
+  readonly ctx: Ctx;
+  readonly id: LocalId;
+  readonly all: boolean;
+}) {
+  const { site, repo, audience } = ctx;
+  const claims = site.snapshot.claims.filter((claim) => claim.topic === id);
+  if (claims.length === 0) return null;
+  if (!all) {
+    return (
+      <p className="mt-2 mb-0">
+        <NextLink href={topicHref(repo, id, audience, true)}>
+          Show all ({claims.length})
+        </NextLink>
+      </p>
+    );
+  }
+  return (
+    <div className="mt-2">
+      <ul className="m-0 list-none p-0">
+        {claims.map((claim) => (
+          <li
+            key={`${claim.sentence.path}:${claim.sentence.quote}`}
+            className="border-t border-(color:--borderColor-muted) py-2"
+          >
+            <p className="m-0 font-[600]" data-nmem>
+              {verdictLine(claim, audience, site.facts)}
+            </p>
+            <q className="mt-1 mb-0 block break-words">
+              {claim.sentence.quote}
+            </q>
+            {"why" in claim ? (
+              <p className="said mt-1 mb-0 break-words" data-nmem>
+                <SaidText ctx={ctx} line={claim.why} />
+              </p>
+            ) : null}
+          </li>
+        ))}
+      </ul>
+      <p className="mt-2 mb-0">
+        <NextLink href={topicHref(repo, id, audience)}>
+          Show the status only
+        </NextLink>
+      </p>
+    </div>
+  );
+}
+
 function StatusBox({
   ctx,
   id,
   page,
   docs,
+  all,
 }: {
   readonly ctx: Ctx;
   readonly id: LocalId;
   readonly page: TopicPage;
   readonly docs: readonly string[];
+  readonly all: boolean;
 }) {
   const { site, repo, audience } = ctx;
   const status = page.status;
@@ -270,6 +441,7 @@ function StatusBox({
             <span data-nmem>{page.statusLine[audience]}</span>
           </p>
           {docChips}
+          <DocClaims all={all} ctx={ctx} id={id} />
         </div>
       </div>
     );
@@ -283,14 +455,15 @@ function StatusBox({
           {page.statusLine[audience]}
         </p>
         {docChips}
-        {status.kind === "out-of-date-since" ? (
-          <q className="mt-1 mb-0">{status.sentence.quote}</q>
+        {status.kind === "out-of-date-since" && !all ? (
+          <q className="mt-1 mb-0 break-words">{status.sentence.quote}</q>
         ) : null}
-        {broken ? (
+        {broken && !all ? (
           <p className="said mt-1 mb-0" data-nmem>
             <SaidText ctx={ctx} line={broken} />
           </p>
         ) : null}
+        <DocClaims all={all} ctx={ctx} id={id} />
       </div>
     </div>
   );
@@ -318,7 +491,7 @@ async function ExampleProof({
   return <pre className={SOURCE_PRE}>{preview}</pre>;
 }
 
-function DecisionRow({
+export function DecisionRow({
   ctx,
   decision,
 }: {
@@ -358,6 +531,11 @@ function DecisionRow({
           ) : (
             <span className="who">Not named in the record</span>
           )}{" "}
+          <CarriedBy
+            className="min-w-0 break-words"
+            ctx={ctx}
+            decision={decision}
+          />{" "}
           {decision.why.kind === "recorded" ? (
             <span className="why said" data-nmem>
               <SaidText ctx={ctx} line={decision.why.reason} />

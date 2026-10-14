@@ -1,0 +1,154 @@
+{
+  "slug": "wayfinder",
+  "items": [
+    {
+      "id": "i-api-key",
+      "kind": "symbol",
+      "name": "apiKey",
+      "path": "src/key.ts",
+      "formerNames": ["clientIp"],
+      "hops": [
+        { "change": "pr#1", "kind": "introduced", "note": "Added as clientIp, returning the first x-forwarded-for address or the socket address." },
+        { "change": "ef52cf1", "kind": "renamed", "from": "clientIp", "note": "Renamed to apiKey and now returns the x-api-key header or a bearer token, or \"anonymous\"." },
+        { "change": "pr#16", "kind": "changed", "note": "Formatting-only: single quotes became double quotes." }
+      ]
+    },
+    {
+      "id": "i-take",
+      "kind": "symbol",
+      "name": "take",
+      "path": "src/bucket.ts",
+      "formerNames": [],
+      "hops": [
+        { "change": "pr#5", "kind": "introduced", "note": "Added the token bucket step, which refills by elapsed time up to capacity, rejects below one token with a retryAfterMs, and otherwise spends one token." },
+        { "change": "pr#16", "kind": "changed", "note": "The windowMs parameter was renamed refillWindowMs, with the math unchanged." }
+      ]
+    },
+    {
+      "id": "i-create-limiter",
+      "kind": "symbol",
+      "name": "createLimiter",
+      "path": "src/limit.ts",
+      "formerNames": [],
+      "hops": [
+        { "change": "pr#1", "kind": "introduced", "note": "Added a fixed-window middleware that counts each client IP per window in a module Map and answers 429 when the window is full." },
+        { "change": "pr#2", "kind": "changed", "note": "Became async, reads and writes counts through a pluggable store, takes a key function, and answers 429 if the store throws." },
+        { "change": "ef52cf1", "kind": "changed", "note": "The default key function became apiKey instead of clientIp." },
+        { "change": "pr#5", "kind": "changed", "note": "Replaced the fixed window with take() on a stored token bucket per key." },
+        { "change": "8635c79", "kind": "changed", "note": "A store error now calls next() and lets the request through instead of answering 429." },
+        { "change": "5f4bea4", "kind": "changed", "note": "Reverted to answering 429 when the store throws." },
+        { "change": "pr#13", "kind": "changed", "note": "Sets RateLimit and Retry-After headers on every response and records each decision in optional metrics." },
+        { "change": "pr#16", "kind": "changed", "note": "Reads refillWindowMs instead of windowMs, passes options.limit * 2 as the bucket capacity, and drops RateLimit-Reset from allowed responses." }
+      ]
+    },
+    {
+      "id": "i-rate-limit-headers",
+      "kind": "symbol",
+      "name": "rateLimitHeaders",
+      "path": "src/headers.ts",
+      "formerNames": [],
+      "hops": [
+        { "change": "pr#13", "kind": "introduced", "note": "Added to build the RateLimit-Limit, RateLimit-Remaining, and RateLimit-Reset headers, plus Retry-After when the caller must wait." },
+        { "change": "pr#16", "kind": "changed", "note": "Formatting-only: single quotes became double quotes." }
+      ]
+    },
+    {
+      "id": "i-create-metrics",
+      "kind": "symbol",
+      "name": "createMetrics",
+      "path": "src/metrics.ts",
+      "formerNames": [],
+      "hops": [
+        { "change": "pr#13", "kind": "introduced", "note": "Added an in-memory count of allowed and rejected requests with record() and snapshot()." },
+        { "change": "pr#16", "kind": "changed", "note": "Formatting-only: its two object literals were split across lines." }
+      ]
+    },
+    {
+      "id": "i-hit-window",
+      "kind": "symbol",
+      "name": "hitWindow",
+      "path": null,
+      "formerNames": [],
+      "hops": [
+        { "change": "pr#1", "kind": "introduced", "note": "Added in src/window.ts to allow a request while count <= limit and return the new count and remaining." },
+        { "change": "768a9b9", "kind": "changed", "note": "Changed count <= limit to count < limit so a window allows exactly limit requests." },
+        { "change": "pr#5", "kind": "removed", "note": "Deleted with src/window.ts when the token bucket replaced the fixed window." }
+      ]
+    },
+    {
+      "id": "i-memory-store",
+      "kind": "symbol",
+      "name": "createMemoryStore",
+      "path": "src/store.ts",
+      "formerNames": [],
+      "hops": [
+        { "change": "pr#2", "kind": "extracted-from", "from": "createLimiter", "note": "Created in src/store.ts from the in-memory counts Map that createLimiter read and wrote, now behind a CounterStore read and write interface." },
+        { "change": "pr#5", "kind": "changed", "note": "Stores and returns copies of a BucketState of tokens and updatedAt, and returns undefined for an unknown key." }
+      ]
+    },
+    {
+      "id": "i-refill-window-ms",
+      "kind": "option",
+      "name": "refillWindowMs",
+      "path": "src/limit.ts",
+      "formerNames": ["windowMs"],
+      "hops": [
+        { "change": "pr#1", "kind": "introduced", "note": "Added as the windowMs option of createLimiter, used to compute the fixed window id." },
+        { "change": "pr#2", "kind": "changed", "note": "The statement that reads windowMs moved inside the new try block and keys on keyFn(req), with the window math unchanged." },
+        { "change": "pr#5", "kind": "changed", "note": "windowMs is now passed to take() as the time the bucket takes to refill instead of a window length." },
+        { "change": "pr#16", "kind": "renamed", "from": "windowMs", "note": "Renamed to refillWindowMs in Options and in the take() call." }
+      ]
+    },
+    {
+      "id": "i-limit-option",
+      "kind": "option",
+      "name": "limit",
+      "path": "src/limit.ts",
+      "formerNames": [],
+      "hops": [
+        { "change": "pr#1", "kind": "introduced", "note": "Added as the number of requests allowed per window, passed to hitWindow()." },
+        { "change": "pr#2", "kind": "changed", "note": "hitWindow() now compares limit with a count read from the store." },
+        { "change": "pr#5", "kind": "changed", "note": "limit is now the token bucket capacity passed to take()." },
+        { "change": "pr#13", "kind": "changed", "note": "limit is also sent to callers as the RateLimit-Limit header." },
+        { "change": "pr#16", "kind": "changed", "note": "The bucket capacity became options.limit * 2 while the RateLimit-Limit header still reports limit." }
+      ]
+    },
+    {
+      "id": "i-version",
+      "kind": "config-key",
+      "name": "version",
+      "path": "package.json",
+      "formerNames": [],
+      "hops": [
+        { "change": "0bb1864", "kind": "introduced", "note": "Set to 0.0.0 in the first package.json." },
+        { "change": "08fd6c2", "kind": "changed", "note": "Bumped from 0.0.0 to 0.1.0." },
+        { "change": "a62cc2d", "kind": "changed", "note": "Bumped from 0.1.0 to 0.3.0." },
+        { "change": "3311836", "kind": "changed", "note": "Bumped from 0.3.0 to 0.9.0." },
+        { "change": "aedc535", "kind": "changed", "note": "Bumped from 0.9.0 to 1.0.0." }
+      ]
+    },
+    {
+      "id": "i-redis-file",
+      "kind": "file",
+      "name": "src/redis.ts",
+      "path": null,
+      "formerNames": [],
+      "hops": [
+        { "change": "pr#4", "kind": "introduced", "note": "Added createRedisStore, which keeps each counter in Redis under a wayfinder: key prefix." },
+        { "change": "pr#5", "kind": "changed", "note": "Stores each bucket state as JSON instead of a plain counter." },
+        { "change": "pr#11", "kind": "removed", "note": "Deleted with the Redis adapter, so buckets live only in process memory." }
+      ]
+    },
+    {
+      "id": "i-codeowners",
+      "kind": "file",
+      "name": ".github/CODEOWNERS",
+      "path": ".github/CODEOWNERS",
+      "formerNames": [],
+      "hops": [
+        { "change": "520c2a0", "kind": "introduced", "note": "Added owners for src/bucket.ts, src/store.ts, and src/redis.ts." },
+        { "change": "pr#11", "kind": "changed", "note": "Dropped the src/redis.ts line." }
+      ]
+    }
+  ]
+}
