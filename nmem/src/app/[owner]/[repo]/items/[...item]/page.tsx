@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { Suspense } from "react";
+import Loading from "@/app/[owner]/[repo]/loading";
 import { BadQuery } from "@/components/bad-query";
 import { ItemView } from "@/components/item-view";
 import { RepoFrame } from "@/components/repo-frame";
@@ -27,7 +29,15 @@ export async function generateMetadata({
   return { title: `${name} · ${decodeURIComponent(repo)}` };
 }
 
-export default async function ItemPage({ params, searchParams }: Props) {
+export default function ItemPage(props: Props) {
+  return (
+    <Suspense fallback={<Loading />}>
+      <ItemContent {...props} />
+    </Suspense>
+  );
+}
+
+async function ItemContent({ params, searchParams }: Props) {
   const request = await openRepo(params, searchParams);
   const segments = (await params).item;
   const page = itemPageOf(
