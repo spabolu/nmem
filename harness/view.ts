@@ -334,7 +334,8 @@ export function rangeOf(snapshot: Snapshot, facts: RepoFacts, range: Range, item
   const position = new Map(facts.changes.map((c, i) => [c.id, i]));
   const entries = new Map(snapshot.changes.map((c) => [c.id, c]));
   const tracked = item === null ? null : facts.items.find((row) => row.id === item) ?? null;
-  const hops = tracked ? new Set(tracked.hops.map((hop) => hop.change)) : null;
+  const history = tracked ? itemHistoryOf(snapshot, facts, tracked) : null;
+  const hops = history ? new Map(history.steps.map((step, index) => [step.hop.change, { step, index }])) : null;
   const inTopic = (id: ChangeId): boolean => (hops === null || hops.has(id)) && (whole || (entries.get(id)?.topics.includes(range.topic) ?? false));
   const live = (id: ChangeId): IsoDay => changeFacts(id, facts).live;
   const latest = (ids: readonly [ChangeId, ...ChangeId[]]): ChangeId =>
@@ -348,8 +349,12 @@ export function rangeOf(snapshot: Snapshot, facts: RepoFacts, range: Range, item
     if (!group.changes.some(inTopic)) continue;
     const last = latest(group.changes);
     const inside = group.changes.filter((id) => inRange(live(id)));
-    if (inside.length === group.changes.length) full.push({ group, last });
-    else for (const id of inside) notes.set(id, id === last ? 'undoes-earlier' : 'part-of-later-undo');
+    const folds = history === null || history.nets.has(group);
+    if (folds && inside.length === group.changes.length) full.push({ group, last });
+    else for (const id of inside) {
+      if (id !== last) notes.set(id, 'part-of-later-undo');
+      else if (inside.length < group.changes.length) notes.set(id, 'undoes-earlier');
+    }
   }
   const collapsed = new Set(full.flatMap((x) => x.group.changes));
 
@@ -363,24 +368,42 @@ export function rangeOf(snapshot: Snapshot, facts: RepoFacts, range: Range, item
     const carrier = decision.carriedBy;
     cards.push({ kind: 'decision', row: rowOf(decision, facts), carries: carrier ? [carrier] : [], undoneNote: carrier ? notes.get(carrier) ?? null : null });
   }
-  for (const change of [...facts.changes].reverse()) {
-    if (!inRange(change.live) || !inTopic(change.id) || collapsed.has(change.id)) continue;
+  /** A change's card below the axis and the items it counts, or null when it gets no card. */
+  type Look = { readonly severity: Severity; readonly findings: readonly number[]; readonly counted: readonly Item[] };
+  const changeLook = (change: ChangeFacts): Look | null => {
     const kind = kindOf(change.id, snapshot, facts);
-    if (kind === 'routine' || kind === 'decision') continue;
+    if (kind === 'routine' || kind === 'decision') return null;
     const entry = entries.get(change.id);
     const own = (entry?.findings ?? []).flatMap((finding, index) => (whole || finding.topics.includes(range.topic) ? [{ finding, index }] : []));
-    if (own.length === 0 && (entry?.findings.length ?? 0) > 0) continue;
+    if (own.length === 0 && (entry?.findings.length ?? 0) > 0) return null;
     const severity = mostSerious(own.map((x) => x.finding.severity)) ?? (kind === 'unclassified' ? 'check' : kind);
-    if (own.length > 0) for (const { finding, index } of own) items.push({ kind: finding.severity, ref: `${change.id}/${index}`, day: change.live });
-    else items.push({ kind: severity, ref: change.id, day: change.live });
+    const counted = own.length > 0
+      ? own.map(({ finding, index }) => ({ kind: finding.severity, ref: `${change.id}/${index}`, day: change.live }))
+      : [{ kind: severity, ref: change.id, day: change.live }];
+    return { severity, findings: own.map((x) => x.index), counted };
+  };
+  /** One item's hop is carded and counted by the rule its page uses, so both say the same counts. */
+  const hopLook = (change: ChangeFacts, step: ItemStep, index: number): Look | null => {
+    const severity = step.kind === 'behavior' || step.kind === 'check' ? step.kind : step.kind === 'unclassified' ? 'check' : null;
+    if (severity === null) return null;
+    const as = countedAs(step, index);
+    const named = step.findings.find((at) => entries.get(change.id)?.findings[at]?.severity === severity);
+    return { severity, findings: step.findings, counted: as ? [{ kind: as, ref: named === undefined ? change.id : `${change.id}/${named}`, day: change.live }] : [] };
+  };
+  for (const change of [...facts.changes].reverse()) {
+    if (!inRange(change.live) || !inTopic(change.id) || collapsed.has(change.id)) continue;
+    const hop = hops?.get(change.id);
+    const look = hop ? hopLook(change, hop.step, hop.index) : changeLook(change);
+    if (!look) continue;
+    items.push(...look.counted);
     cards.push({
-      kind: severity,
+      kind: look.severity,
       change: change.id,
       day: change.live,
-      findings: own.map((x) => x.index),
+      findings: look.findings,
       carries: carried([change.id]),
       undoneNote: notes.get(change.id) ?? null,
-      skippable: entry?.routine.map((part) => part.name) ?? [],
+      skippable: entries.get(change.id)?.routine.map((part) => part.name) ?? [],
     });
   }
   for (const { group, last } of [...full].sort((a, b) => (position.get(b.last) ?? 0) - (position.get(a.last) ?? 0))) {
@@ -397,7 +420,11 @@ export function rangeOf(snapshot: Snapshot, facts: RepoFacts, range: Range, item
 
   const itemFiles = tracked ? new Set([tracked.path, ...tracked.hops.flatMap((hop) => (hop.kind === 'moved' ? [hop.from] : []))]) : null;
   const topicFiles = itemFiles ?? (whole ? null : new Set(snapshot.topics.find((t) => t.id === range.topic)?.files ?? []));
-  const strip = facts.changes.filter((c) => inRange(c.live) && inTopic(c.id) && !collapsed.has(c.id) && kindOf(c.id, snapshot, facts) === 'routine');
+  const routine = (id: ChangeId): boolean => {
+    const hop = hops?.get(id);
+    return hop ? foldsAsRoutine(hop.step) : kindOf(id, snapshot, facts) === 'routine';
+  };
+  const strip = facts.changes.filter((c) => inRange(c.live) && inTopic(c.id) && !collapsed.has(c.id) && routine(c.id));
   const lines = strip.reduce((n, c) => n + [...c.touched].reduce((m, [file, count]) => m + (topicFiles === null || topicFiles.has(file) ? count : 0), 0), 0);
 
   return {
@@ -692,6 +719,8 @@ export type ItemPage = {
   readonly item: TrackedItem;
   /** Topics whose files hold the item's path. */
   readonly topics: readonly LocalId[];
+  /** The counts the net sentence words, which the item's timeline over its life also counts. */
+  readonly tally: ItemTally;
   readonly summary: Named;
   /** Newest first, since the newest change explains the code a reader has open and the summary already names the start. */
   readonly entries: readonly ItemEntry[];
@@ -721,13 +750,30 @@ export function itemTopics(snapshot: Snapshot, item: TrackedItem): readonly Loca
   return snapshot.topics.filter((topic) => topic.parent !== null && topic.files.includes(item.path)).map((topic) => topic.id);
 }
 
+/** One item's hops, oldest first, each classified once, and the undone brackets that hold two or more of them. */
+export type ItemHistory = { readonly steps: readonly ItemStep[]; readonly nets: ReadonlySet<Undone> };
+
+/**
+ * What one hop adds to an item's counts, on its page and on its timeline alike. The first hop opens the net sentence
+ * and a removal closes it, so neither counts as a change to the item. Bracket members count through their bracket,
+ * which each caller folds before asking.
+ */
+function countedAs(step: ItemStep, index: number): 'behavior' | 'decision' | 'check' | null {
+  if (index === 0 || step.hop.kind === 'removed') return null;
+  if (step.kind === 'behavior' || step.kind === 'decision') return step.kind;
+  return step.kind === 'check' || step.kind === 'unclassified' ? 'check' : null;
+}
+
+/** A routine hop that only changed the item folds into the routine count on its page and its timeline. Its first hop, a move, a rename, and its removal are part of its story instead. */
+function foldsAsRoutine(step: ItemStep): boolean {
+  return step.kind === 'routine' && step.hop.kind === 'changed';
+}
+
 /**
  * Joins each hop of one item to what the snapshot says about its change: the decisions it carried, the findings about
- * this item, the routine reason, and the undone bracket. Null when no item has the id.
+ * this item, the routine reason, and the undone bracket.
  */
-export function itemPageOf(snapshot: Snapshot, facts: RepoFacts, id: ItemId): ItemPage | null {
-  const item = facts.items.find((row) => row.id === id);
-  if (!item) return null;
+export function itemHistoryOf(snapshot: Snapshot, facts: RepoFacts, item: TrackedItem): ItemHistory {
   const paths = pathsAfter(item);
   const entries = new Map(snapshot.changes.map((change) => [change.id, change]));
   const steps: ItemStep[] = item.hops.map((hop, index) => {
@@ -748,11 +794,19 @@ export function itemPageOf(snapshot: Snapshot, facts: RepoFacts, id: ItemId): It
     const undone = snapshot.undone.find((group) => group.changes.includes(hop.change)) ?? null;
     return { hop, day: changeFacts(hop.change, facts).live, kind, decisions, findings, routine: kind === 'routine' ? entry?.routine.map((part) => part.reason) ?? [] : [], undone };
   });
+  const members = new Map<Undone, number>();
+  for (const step of steps) if (step.undone) members.set(step.undone, (members.get(step.undone) ?? 0) + 1);
+  return { steps, nets: new Set([...members].filter(([, count]) => count >= 2).map(([group]) => group)) };
+}
 
+/** An item's page, from its history. Null when no item has the id. */
+export function itemPageOf(snapshot: Snapshot, facts: RepoFacts, id: ItemId): ItemPage | null {
+  const item = facts.items.find((row) => row.id === id);
+  if (!item) return null;
+  const { steps, nets } = itemHistoryOf(snapshot, facts, item);
   const bracketed = new Map<Undone, ItemStep[]>();
-  for (const step of steps) if (step.undone) bracketed.set(step.undone, [...(bracketed.get(step.undone) ?? []), step]);
-  const nets = new Set([...bracketed].filter(([, members]) => members.length >= 2).map(([group]) => group));
-  const folded = (step: ItemStep): boolean => step.kind === 'routine' && step.hop.kind === 'changed' && !(step.undone && nets.has(step.undone));
+  for (const step of steps) if (step.undone && nets.has(step.undone)) bracketed.set(step.undone, [...(bracketed.get(step.undone) ?? []), step]);
+  const folded = (step: ItemStep): boolean => foldsAsRoutine(step) && !(step.undone && nets.has(step.undone));
 
   const chain: ItemEntry[] = [];
   const placed = new Set<Undone>();
@@ -768,14 +822,17 @@ export function itemPageOf(snapshot: Snapshot, facts: RepoFacts, id: ItemId): It
   const [origin] = steps;
   if (!origin) throw new Error(`${item.id} has no hops`);
   const last = steps.at(-1);
-  const counted = steps.filter((step, index) => index > 0 && step.hop.kind !== 'removed' && !(step.undone && nets.has(step.undone)));
+  const counted = steps.flatMap((step, index) => {
+    const as = step.undone && nets.has(step.undone) ? null : countedAs(step, index);
+    return as ? [{ step, as }] : [];
+  });
   const tally: ItemTally = {
     origin: { hop: origin.hop, day: origin.day },
     renamed: steps.filter((step) => step.hop.kind === 'renamed').length,
     moved: steps.filter((step) => step.hop.kind === 'moved').length,
-    behavior: counted.filter((step) => step.kind === 'behavior').map((step) => ({ change: step.hop.change, day: step.day, decided: step.decisions.length > 0 })),
-    decision: counted.filter((step) => step.kind === 'decision').length,
-    check: counted.filter((step) => step.kind === 'check' || step.kind === 'unclassified').length,
+    behavior: counted.filter((x) => x.as === 'behavior').map(({ step }) => ({ change: step.hop.change, day: step.day, decided: step.decisions.length > 0 })),
+    decision: counted.filter((x) => x.as === 'decision').length,
+    check: counted.filter((x) => x.as === 'check').length,
     net: nets.size,
     removed: last && last.hop.kind === 'removed' ? { change: last.hop.change, day: last.day } : null,
     unchanged: steps.length === 1,
@@ -798,6 +855,7 @@ export function itemPageOf(snapshot: Snapshot, facts: RepoFacts, id: ItemId): It
   return {
     item,
     topics: itemTopics(snapshot, item),
+    tally,
     summary: TEMPLATES.item(tally),
     entries: chain,
     routine: { count: routineRows.length, rows: routineRows },
