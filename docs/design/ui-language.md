@@ -111,4 +111,5 @@ Timeline board labels stay at 11 and 13 px because `harness/app-parity.mjs` meas
 ## Rerun the checks
 
 - `node harness/app-parity.mjs <dir>` checks the screen rules and the timeline layout against `next start`, then shoots every view through Chrome DevTools at 1400px light, 1400px dark, and 390px into `<dir>`. It also reports any view that scrolls sideways.
+- `node harness/app-parity.mjs <dir> --engine harness/runs/<runId>/nmem/t1` runs the same checks on the engine snapshots of a scored run and shoots each repo's topics, timeline, search, and one item page.
 - `node harness/pixel-diff.mjs <dir>` compares those shots with the frozen set in `harness/shots-baseline`.

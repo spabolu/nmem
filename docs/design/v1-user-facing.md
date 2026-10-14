@@ -1,9 +1,11 @@
 # nmem v1: what people see
 
-v1 is two read-only views on an nmem website:
+v1 is two read-only views on an nmem website, plus two ways into them:
 
 - A **topic tree** that explains the repo and the decisions behind it, starting from any topic you pick or search for.
 - A **timeline** of the repo's changes over time.
+- A **search box** that finds topics, decisions, changes, people, doc sentences, files, and pieces of code.
+- An **item page** that shows how one function, option, config key, or file changed over time.
 
 Together they cover the needs in `docs/research-takeaways.md`, "What nmem has to do well": find the part of the code that matters, know whether a doc is still true, see what changed over a period, and know why, or know that nobody wrote it down. v1 only shows. It takes no actions and writes nothing back to GitHub.
 
@@ -14,13 +16,13 @@ The throwaway prototype for this scope is `nmem-v1-proto` in the session temp fo
 | Question | v1 answer |
 |---|---|
 | Where people use it | An nmem website that looks like GitHub and links back to it. A tab on github.com needs a browser extension, so it waits. |
-| What people can do | Read, search, pick a topic, pick a date range, and follow links to GitHub. Nothing else. |
+| What people can do | Read, search, pick a topic, pick a date range, open one item's history, and follow links to GitHub. Nothing else. |
 | Topics with no written doc | nmem writes a short page from the code and its history, and the page says nobody on the team wrote it. |
 | Who shapes the tree | nmem builds it. Teams cannot edit it. |
 
 ## Topic tree
 
-The tree groups the repo by what the code does: the repo at the root, then areas, then topics. The reader starts anywhere. They click a topic in the tree, or they type in the search box and pick a result. Search matches topic names and what each topic does.
+The tree groups the repo by what the code does: the repo at the root, then areas, then topics. The reader starts anywhere. They click a topic in the tree, or they type in the search box and pick a result.
 
 Each topic page shows, top to bottom:
 
@@ -38,6 +40,39 @@ Each topic page shows, top to bottom:
 - Only important changes get a card: **Decision**, **Behavior change**, or **Worth a look**. A card shows what changed and why, and links to the change on GitHub. The name is what changed, never a commit id alone.
 - Routine work is one counted strip, for example "14 routine changes, 2,285 lines". It opens to a list, and each row gives the reason nmem treats it as routine.
 - Changes that were added and later undone collapse into one "no net change" bracket.
+
+## Search
+
+The search box sits above the tree on every page.
+
+- Results are grouped by kind: **Topic**, **Decision**, **Change**, **What changed**, **Person**, **In the docs**, **File**, and **In the code**.
+- Each result shows a title and the line that matched. A change is named by its pull request title or commit subject, never by its id alone.
+- Each result opens the page that already holds it. A topic opens its page. A decision opens its topic. A change or a finding opens the timeline at its day. A doc sentence opens its source. A file or a piece of code opens its item page.
+- An exact name ranks first. That covers a flag such as `--round`, a path, a symbol, a config key, `#12` or `PR 12`, and a short SHA. A result that matches every word of the query comes next, weighted by the field it matched in. A partial match comes last.
+- Non-engineer results list no file and no piece of code, because both are code names.
+- A query with no result says "No matches."
+
+## Item page
+
+An item is a function, class, or other symbol, a command-line option, a config key, or a file. nmem follows each one through the change list using git alone. No model writes an item's history. The reader reaches an item page from search, from a file on a topic page, or from a file result.
+
+Each item page shows, top to bottom:
+
+1. **What it is.** Engineer shows the kind and the name, where it lives now with its lines, any former names, and Start here. A removed item says where it last lived. Non-engineer shows "History of one part of the code" and the kind in words, such as "A piece of code" or "A setting", and never the name.
+2. **Part of**, the topics whose files hold it.
+3. **The net sentence**, for example "Introduced in PR #3. Renamed once. Two behavior changes, one decided in PR #12."
+4. **History of this item** ("See it on the timeline" for Non-engineer), which opens the timeline narrowed to it.
+5. **People**, for Non-engineer. Who changed it and who decided for it.
+6. **How it changed**, newest first. One card per change, in the timeline's card kinds and colors. The card says what happened to the item (added, changed, moved, renamed, split out of older code, or removed) and names the change. It shows the findings about the item and every decision the change carried, each with its reason or "Nobody wrote down why". Two or more of the item's changes inside one "no net change" bracket fold into one card. Routine changes that only edited the item fold into one counted line.
+
+The rules for the item page:
+
+- The net sentence is a template over counts. The first change and a removal are their own clauses. Every other change counts once, by one kind. It is a behavior change when a finding about the item is one. Otherwise it is a decision when the change carried one. Otherwise it is worth a look when a finding about the item is a check, or when nmem could not classify the change. A bracket the item changed twice in counts once. Non-engineer names days, not changes.
+- A finding is about the item when its anchor is the item's file at that change, or a thread or commit.
+- A change that nmem matched by the item's text, not its name, says so on its card: "nmem matched it by its text, since the name changed." A move says the same across the move.
+- Non-engineer never shows a code name. The page hides the item's name, its path, its former names, and the file it moved from. The card says "Renamed" or "Moved to another file".
+- Each decision appears once, inside the card of the change that carried it. That change is the only thing that ties the decision to the item, so the page does not list decisions apart from their cards.
+- The timeline narrowed to an item cards and counts each change by the same rule. Over the item's whole life, its summary counts the same behavior changes, things to check, no-net-change brackets, and routine changes as the item page. The timeline counts decisions one per decision, which matches the decisions the item page's cards show.
 
 ## What a decision is
 

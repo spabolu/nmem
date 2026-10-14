@@ -23,6 +23,8 @@ node harness/cli.ts report <runId>                               # re-render a f
 node harness/cli.ts render --run <runId> --system eventlog --repo wayfinder --topic counting
 node harness/cli.ts compare <runId> <runId>                      # items whose usable verdict flipped, by gold id
 node harness/cli.ts census <runId> [--system nmem]               # first failing gate and reason per not-usable item, grouped
+node harness/cli.ts items out/tally items.json                    # every symbol, option, config key, and file, with its hops
+node harness/lookup.ts                                            # search box hit rate against harness/lookup/
 ```
 
 `run` labels its numbers uncalibrated unless a stamp matches the harness source, the judge model and version, gold, facts, and the two reviews. Every build is unblinded until the sandbox lands. `--offline` uses only judge verdicts already in `harness/.cache/judge/`. `--rescore` scores every cell again from its kept snapshot.
@@ -120,3 +122,18 @@ A snapshot containing a canary, a quarter of an object's gold-only 6-grams, or t
 `node harness/lookup.ts` scores the search box against the frozen gold in `harness/lookup/`. A query hits when any of its targets is in the top three results. A topic target needs that topic's page in the top three. A decision, change, or person target needs a result of that kind.
 
 One extra rule covers item pages. For a file, symbol, option, or config query, a topic target also hits when an item page is in the top three and that item lives in a file the topic lists. An item hit opens its item's page, and a file hit opens its file's item page. The report prints the overall rate twice, with this rule and without it.
+
+## Items
+
+`harness/items.ts` derives every item of a repo from git alone: each symbol, option, config key, and file, with one hop per change that edited it. A hop is `introduced`, `changed`, `moved`, `renamed`, `extracted-from`, or `removed`. A rename, an extraction, and a move found by comparing text carry `matchedBy: 'text'`, and the item page says so. `bake.ts` writes the items into `site.json`, and `view.ts` joins each hop to the snapshot in `itemPageOf`. `timelineOf` with an item id narrows the timeline to that item's changes and counts them by the same rule as the page.
+
+`harness/items-gold/` holds the frozen item gold, 12 items per fixture, and its scorer. `items-gold.test.ts` runs `cli.ts items` on each fixture and checks the scorer's line for each repo, so `node --test` fails when a derivation change moves a hop. To score by hand:
+
+```sh
+node harness/cli.ts items out/wayfinder /tmp/items.json
+node harness/items-gold/score-items.mjs /tmp/items.json wayfinder
+```
+
+## App parity on engine snapshots
+
+`node harness/app-parity.mjs <shots dir>` checks the app against gold. With `--engine <cells>` it serves tally, wayfinder, and seedling from engine snapshots instead, where `<cells>` holds `<slug>/snapshot.json`, such as `harness/runs/<runId>/nmem/t1`. Every topic, the whole-life timeline, every item page and item timeline, and every lookup query must match the kernel in both audiences. No page may show a decision or topic that only gold has. Each life timeline and one item timeline per repo must lay out with no card overlap or clip, and no view may scroll sideways at 390. Jargon or a code name in plain text the engine wrote is listed, not failed, because the jargon gate above already scores it.
