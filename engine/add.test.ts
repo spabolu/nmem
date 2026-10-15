@@ -95,6 +95,9 @@ test('a private repo is refused before anything is cloned', async () => {
     async releases() {
       throw new Error('listed releases of a private repo');
     },
+    async history() {
+      throw new Error('listed history of a private repo');
+    },
   };
   await assert.rejects(add('acme/secret', { remote, root: dir, publicOnly: true }), { message: 'acme/secret is private. nmem builds public repositories only.' });
   assert.equal(fs.existsSync(path.join(dir, 'repos', 'acme', 'secret', 'repo')), false);
