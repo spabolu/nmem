@@ -7,7 +7,7 @@ import type { Change as Entry, ChangeId, Decision, Finding, RecordSource, Snapsh
 import { decide, settledChoices, uncarriedDecisions } from './choices.ts';
 import { docClaims } from './claims.ts';
 import { linkChoices } from './link.ts';
-import { anchorShowsName, classifyChange } from './classify.ts';
+import { classifyChange } from './classify.ts';
 import { ModelUnavailable } from './copilot.ts';
 import type { ModelClient } from './copilot.ts';
 import { proveRoutine, proveUndone, routineParts } from './proofs.ts';
@@ -60,8 +60,7 @@ function checkQuotes(snapshot: Snapshot, record: RepoRecord): void {
   }
 }
 
-/** dropped lists behavior findings the anchor filter removed, so a real-repo build can be audited for true losses. */
-export type Built = { readonly bytes: string; readonly summary: string; readonly dropped: readonly string[] };
+export type Built = { readonly bytes: string; readonly summary: string };
 
 /**
  * A finding that vet does not keep is dropped, and one it reads as a silently dropped refusal becomes a check.
@@ -109,13 +108,12 @@ export async function assemble(record: RepoRecord, steps: Steps, usage: () => Us
   // Joining them would redraw every item, and tally's settling page is usable only on the cached draw.
   const extraTopics = extra.length === 0 ? new Map<string, readonly string[]>() : await steps.placeDeclined(topics, extra.map((decision) => ({ id: decision.id, what: decision.what.eng, ref: decision.what.source.ref, quote: decision.what.source.quote })));
   const topicIds = new Set(topics.map((topic) => topic.id));
-  const dropped = record.changes.flatMap((change, i) => (found[i] ?? []).filter((item) => !anchorShowsName(item.finding)).map((item) => `${change.id}: ${item.finding.name.eng} | anchor ${item.finding.anchor.quote.trim()}`));
   const changes: Entry[] = record.changes.map((change, i) => {
     return {
       id: change.id,
       topics: overlapping(topics, [...change.touched.keys()]),
       // Place keys findings by position. Dropping one before that call redraws every topic.
-      findings: (found[i] ?? []).flatMap((item, j) => (anchorShowsName(item.finding) ? [{ ...item.finding, topics: placed.get(`finding ${i + 1}.${j + 1}`) ?? [] }] : [])),
+      findings: (found[i] ?? []).map((item, j) => ({ ...item.finding, topics: placed.get(`finding ${i + 1}.${j + 1}`) ?? [] })),
       routine: routineParts(record.repoDir, change).map((part) => ({
         files: part.files,
         name: part.name,
@@ -146,7 +144,7 @@ export async function assemble(record: RepoRecord, steps: Steps, usage: () => Us
   checkQuotes(snapshot, record);
   const routine = changes.filter((change) => change.routine.length > 0).length;
   const summary = `${record.identity.name}: ${changes.length} changes (${routine} routine), ${decisions.length} decisions, ${undone.length} undone, ${snapshot.topics.length} topics, ${snapshot.claims.length} claims`;
-  return { bytes, summary, dropped };
+  return { bytes, summary };
 }
 
 /** What a model build tells its operator: refusals the gates made, and steps that fell back. */

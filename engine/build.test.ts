@@ -170,28 +170,6 @@ test('a denial sentence never becomes an intent, from a revert line or from clas
   ]);
 });
 
-test('a finding stays only when its anchor shows a word of its name', async () => {
-  const record = ingest(toyWorkspace([
-    { title: 'Add a farewell', body: 'The farewell stays.', files: { 'farewell.txt': 'farewell stays\n' } },
-  ]));
-  const source = { kind: 'record' as const, ref: 'pr#1', quote: 'The farewell stays.' };
-  const ask: [Login, ...Login[]] = [login('ana')];
-  const why = { kind: 'not-recorded' as const, ask, guess: null };
-  const point = { eng: 'The farewell stays.', plain: 'The farewell stays.', source };
-  const built = await assemble(record, {
-    ...noModel(record),
-    classify: async (change) => ({
-      choices: [],
-      findings: change.id === 'pr#1' ? [
-        { finding: { severity: 'behavior', topics: [], anchor: source, name: { eng: 'Farewell stays put', plain: 'The farewell stays' }, says: [point], why }, files: ['farewell.txt'] },
-        { finding: { severity: 'behavior', topics: [], anchor: source, name: { eng: 'Store errors now answer', plain: 'Errors answer' }, says: [point], why }, files: ['farewell.txt'] },
-      ] : [],
-    }),
-  });
-  const snapshot = JSON.parse(built.bytes) as Snapshot;
-  assert.deepEqual(snapshot.changes.find((change) => change.id === 'pr#1')?.findings.map((finding) => finding.name.eng), ['Farewell stays put']);
-});
-
 type Canned = Readonly<Record<string, readonly unknown[]>>;
 
 /** A model client that answers each request by its label and sample from a fixed table, and records what it was asked. */
