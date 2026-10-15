@@ -4,7 +4,7 @@
  * code files, so the decision lands on the topic those files belong to.
  */
 import type { ChangeId } from '../harness/contract.ts';
-import { ModelUnavailable } from './copilot.ts';
+import { stepCanFallBack } from './copilot.ts';
 import type { ModelClient } from './copilot.ts';
 import { arr, ask, nullable, obj, OPUS, str } from './model.ts';
 import { proveRoutine } from './proofs.ts';
@@ -34,28 +34,65 @@ function titleOf(change: Change): string {
   return collapse(own?.sentences[0]?.text ?? change.id);
 }
 
-type Open = { readonly key: string; readonly choice: Choice; readonly candidates: ReadonlyMap<string, Change> };
+type Open = { readonly key: string; readonly choice: Choice; readonly candidates: ReadonlyMap<string, Change>; readonly lines: readonly string[] };
 
-function opensOf(record: RepoRecord, choices: readonly Choice[]): { readonly text: string; readonly open: readonly Open[] } {
+const HEADER = 'Agreements that a later change may have carried. Pick a [C#] only from that agreement\'s list, or null when none of them put it into effect.';
+
+/** A vendor or initial commit can touch thousands of files; the carrier is told apart by its title and a few paths. */
+const FILES_SHOWN = 12;
+
+/** An agreement is carried soon after it is made. Listing every later change of an 8,000-commit repo would not fit a call. */
+const LATER_SHOWN = 300;
+
+function filesLine(change: Change): string {
+  const paths = [...change.touched.keys()];
+  if (paths.length === 0) return 'none';
+  const shown = paths.slice(0, FILES_SHOWN).join(', ');
+  return paths.length > FILES_SHOWN ? `${shown}, and ${paths.length - FILES_SHOWN} more` : shown;
+}
+
+function opensOf(record: RepoRecord, choices: readonly Choice[]): readonly Open[] {
   const open: Open[] = [];
-  const out = ['Agreements that a later change may have carried. Pick a [C#] only from that agreement\'s list, or null when none of them put it into effect.'];
   for (const choice of choices) {
     if (choice.carriedBy !== null) continue;
     const source = sourceChange(record, choice);
     const start = source === null ? -1 : record.changes.findIndex((change) => change.id === source.id);
-    const later = start < 0 ? [] : record.changes.slice(start + 1);
+    const later = start < 0 ? [] : record.changes.slice(start + 1, start + 1 + LATER_SHOWN);
     if (later.length === 0) continue;
     const key = `A${open.length + 1}`;
     const candidates = new Map<string, Change>();
-    out.push('', `${key}: ${collapse(choice.sentence.text)}`);
+    const lines = ['', `${key}: ${collapse(choice.sentence.text)}`];
     later.forEach((change, i) => {
       const handle = `C${i + 1}`;
       candidates.set(handle, change);
-      out.push(`[${handle}] ${titleOf(change)} Files: ${[...change.touched.keys()].join(', ') || 'none'}.`);
+      lines.push(`[${handle}] ${titleOf(change)} Files: ${filesLine(change)}.`);
     });
-    open.push({ key, choice, candidates });
+    open.push({ key, choice, candidates, lines });
   }
-  return { text: out.join('\n'), open };
+  return open;
+}
+
+/** About 100k tokens a call. swift-argument-parser's agreements in one call came to 1.3M tokens, over the model's limit. */
+const BATCH_CHARS = 400_000;
+
+/** The reply holds one link per agreement within maxOutputTokens. */
+const BATCH_AGREEMENTS = 60;
+
+function batchesOf(open: readonly Open[]): readonly (readonly Open[])[] {
+  const batches: Open[][] = [];
+  let size = 0;
+  for (const item of open) {
+    const chars = item.lines.reduce((n, line) => n + line.length + 1, 0);
+    const last = batches.at(-1);
+    if (last && last.length < BATCH_AGREEMENTS && size + chars <= BATCH_CHARS) {
+      last.push(item);
+      size += chars;
+    } else {
+      batches.push([item]);
+      size = HEADER.length + chars;
+    }
+  }
+  return batches;
 }
 
 const LINK_ANSWER = obj({
@@ -111,17 +148,19 @@ function carried(choice: Choice, change: Change): Choice {
 
 /** Choices already carried pass through. An agreement the model joins to a later change takes that change's id and code files. */
 export async function linkChoices(record: RepoRecord, client: ModelClient, choices: readonly Choice[], note: (line: string) => void): Promise<readonly Choice[]> {
-  const { text, open } = opensOf(record, choices);
+  const open = opensOf(record, choices);
   if (open.length === 0) return choices;
-  let picked: ReadonlyMap<string, Change>;
-  try {
-    const linked = await ask(client, LINK, { text }, 'link', (answer) => gateLink(open, answer));
-    linked.problems.forEach((line) => note(`link ${line}`));
-    picked = linked.value;
-  } catch (error) {
-    if (!(error instanceof ModelUnavailable && error.reason === 'bad-reply')) throw error;
-    note(`link fell back: ${error.message}`);
-    return choices;
+  const picked = new Map<string, Change>();
+  for (const batch of batchesOf(open)) {
+    const text = [HEADER, ...batch.flatMap((item) => item.lines)].join('\n');
+    try {
+      const linked = await ask(client, LINK, { text }, 'link', (answer) => gateLink(batch, answer));
+      linked.problems.forEach((line) => note(`link ${line}`));
+      for (const [key, change] of linked.value) picked.set(key, change);
+    } catch (error) {
+      if (!stepCanFallBack(error)) throw error;
+      note(`link fell back for ${batch.map((item) => item.key).join(', ')}: ${error.message}`);
+    }
   }
   const byKey = new Map(open.map((item) => [item.choice, item.key]));
   return choices.map((choice) => {

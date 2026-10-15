@@ -33,7 +33,7 @@ const ATTEMPTS = 3;
 const REQUEST_MS = 180_000;
 const SIGN_IN = 'Run `node engine/cli.ts auth copilot`, or set GITHUB_COPILOT_TOKEN to a GitHub token with Copilot access.';
 
-export type UnavailableReason = 'disabled' | 'offline-miss' | 'auth' | 'provider-error' | 'bad-reply';
+export type UnavailableReason = 'disabled' | 'offline-miss' | 'auth' | 'provider-error' | 'bad-reply' | 'too-long';
 
 /** Every way a model can fail to answer. A step turns it into its fallback, and a scored run fails on auth or provider. */
 export class ModelUnavailable extends Error {
@@ -45,6 +45,11 @@ export class ModelUnavailable extends Error {
     this.reason = reason;
     this.label = label;
   }
+}
+
+/** A reply that fails its checks, or a request too long to send, means this step's own fallback; anything else stops the build. */
+export function stepCanFallBack(error: unknown): error is ModelUnavailable {
+  return error instanceof ModelUnavailable && (error.reason === 'bad-reply' || error.reason === 'too-long');
 }
 
 type Sleep = (ms: number) => Promise<void>;
@@ -105,7 +110,11 @@ async function send(url: string, init: RequestInit, label: string, sleep: Sleep,
       await sleep(after !== null && Number.isFinite(Number(after)) ? Number(after) * 1000 : attempt * 1000);
       continue;
     }
-    if (!response.ok) throw new ModelUnavailable('provider-error', label, `${url} answered ${response.status}: ${(await response.text()).slice(0, 200)}`);
+    if (!response.ok) {
+      const body = (await response.text()).slice(0, 200);
+      if (response.status === 400 && /too long|maximum context|too many tokens/i.test(body)) throw new ModelUnavailable('too-long', label, `the request was too long for the model: ${body}`);
+      throw new ModelUnavailable('provider-error', label, `${url} answered ${response.status}: ${body}`);
+    }
     try {
       return await response.json();
     } catch (error) {

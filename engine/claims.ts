@@ -14,7 +14,7 @@ import { EMPTY_TREE } from '../fixtures/lib/facts.mjs';
 import { git } from '../fixtures/lib/git.mjs';
 import { JARGON } from '../fixtures/lib/plain.mjs';
 import { isTestFile } from '../fixtures/lib/tests.mjs';
-import { ModelUnavailable } from './copilot.ts';
+import { stepCanFallBack } from './copilot.ts';
 import type { ModelClient } from './copilot.ts';
 import { arr, ask, lengthProblems, lit, named, nullable, obj, OPUS, plainProblems, str } from './model.ts';
 import type { Gated, Task } from './model.ts';
@@ -298,7 +298,7 @@ export async function docClaims(record: RepoRecord, client: ModelClient, topics:
     try {
       return await work();
     } catch (error) {
-      if (!(error instanceof ModelUnavailable && error.reason === 'bad-reply')) throw error;
+      if (!stepCanFallBack(error)) throw error;
       note(`claims ${label} fell back: ${error.message}`);
       return fallback;
     }

@@ -8,7 +8,7 @@ import { decide, settledChoices, uncarriedDecisions } from './choices.ts';
 import { docClaims } from './claims.ts';
 import { linkChoices } from './link.ts';
 import { classifyChange } from './classify.ts';
-import { ModelUnavailable } from './copilot.ts';
+import { stepCanFallBack } from './copilot.ts';
 import type { ModelClient } from './copilot.ts';
 import { proveRoutine, proveUndone, routineParts } from './proofs.ts';
 import type { UndoneProof } from './proofs.ts';
@@ -151,7 +151,7 @@ export async function assemble(record: RepoRecord, steps: Steps, usage: () => Us
 export type Notes = string[];
 
 function fallback(notes: Notes, label: string, error: unknown): void {
-  if (error instanceof ModelUnavailable && error.reason === 'bad-reply') notes.push(`${label} fell back: ${error.message}`);
+  if (stepCanFallBack(error)) notes.push(`${label} fell back: ${error.message}`);
   else throw error;
 }
 

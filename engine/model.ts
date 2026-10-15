@@ -86,29 +86,38 @@ export type Task<In, Out> = {
 /** A gate's result: the domain value it built, and what it had to drop or refuse, one line each. */
 export type Gated<T> = { readonly value: T; readonly problems: readonly string[] };
 
-function requestOf<In, Out>(task: Task<In, Out>, input: In, sample: number, repair: string | null, label: string): ChatRequest {
+function requestOf<In, Out>(task: Task<In, Out>, input: In, sample: number, repair: string | null, label: string, maxOutputTokens = task.maxOutputTokens): ChatRequest {
   const user = task.render(input);
   return {
     model: task.model,
     system: `nmem ${task.id} v${task.version}\n\n${task.rules}`,
     user: repair === null ? user : `${user}\n\n${repair}`,
     tool: { name: 'answer', description: `Your answer for nmem ${task.id}. Always answer by calling this tool.`, parameters: task.answer.json },
-    maxOutputTokens: task.maxOutputTokens,
+    maxOutputTokens,
     sample,
     label,
   };
 }
 
-async function attempt<Out, T>(client: ModelClient, request: ChatRequest, answer: Shape<Out>, gate: (out: Out) => Gated<T>): Promise<{ readonly raw: unknown; readonly gated: Gated<T> } | { readonly raw: unknown; readonly error: string }> {
+type Attempt<T> = { readonly raw: unknown; readonly truncated: boolean } & ({ readonly gated: Gated<T> } | { readonly error: string });
+
+async function attempt<Out, T>(client: ModelClient, request: ChatRequest, answer: Shape<Out>, gate: (out: Out) => Gated<T>): Promise<Attempt<T>> {
   let raw: unknown = null;
+  let truncated = false;
   try {
-    raw = (await client.call(request)).value;
-    return { raw, gated: gate(answer.parse(raw, 'answer')) };
+    const reply = await client.call(request);
+    raw = reply.value;
+    truncated = reply.usage.outputTokens >= request.maxOutputTokens;
+    return { raw, truncated, gated: gate(answer.parse(raw, 'answer')) };
   } catch (error) {
-    if (error instanceof ShapeError || (error instanceof ModelUnavailable && error.reason === 'bad-reply')) return { raw, error: error.message };
+    if (error instanceof ShapeError) return { raw, truncated, error: error.message };
+    if (error instanceof ModelUnavailable && error.reason === 'bad-reply') return { raw, truncated: error.message.includes('(finish length)'), error: error.message };
     throw error;
   }
 }
+
+/** A reply cut off at its token limit gets this many times the limit on the re-ask; a large repo's topic map needs it. */
+const TRUNCATED_GROWTH = 4;
 
 /**
  * Render, call, parse, gate. A shape error, a reply with no tool call, or a gate that dropped anything gets one re-ask
@@ -120,7 +129,8 @@ export async function ask<In, Out, T>(client: ModelClient, task: Task<In, Out>, 
   if ('gated' in first && first.gated.problems.length === 0) return first.gated;
   const problems = 'gated' in first ? first.gated.problems : [first.error];
   const repair = `Your previous answer:\n${JSON.stringify(first.raw)}\n\nIt had these problems. Answer again with all of them fixed:\n${problems.map((line) => `- ${line}`).join('\n')}`;
-  const second = await attempt(client, requestOf(task, input, 1, repair, label), task.answer, gate);
+  const budget = first.truncated ? task.maxOutputTokens * TRUNCATED_GROWTH : task.maxOutputTokens;
+  const second = await attempt(client, requestOf(task, input, 1, repair, label, budget), task.answer, gate);
   if ('gated' in second) return second.gated;
   throw new ModelUnavailable('bad-reply', label, second.error);
 }

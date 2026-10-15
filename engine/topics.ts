@@ -7,7 +7,7 @@ import { createHash } from 'node:crypto';
 import type { LocalId, Named, RecordSource, Said, Topic } from '../harness/contract.ts';
 import { JARGON, plainHits } from '../fixtures/lib/plain.mjs';
 import { isTestFile } from '../fixtures/lib/tests.mjs';
-import { ModelUnavailable } from './copilot.ts';
+import { stepCanFallBack } from './copilot.ts';
 import type { ModelClient } from './copilot.ts';
 import { arr, ask, lengthProblems, named, nullable, obj, OPUS, plainProblems, str, words } from './model.ts';
 import type { Gated, Task } from './model.ts';
@@ -346,7 +346,7 @@ export async function formTopics(record: RepoRecord, client: ModelClient, floorR
       written.problems.forEach((line) => note(`page ${topic.id} ${line}`));
       return written.value;
     } catch (error) {
-      if (!(error instanceof ModelUnavailable && error.reason === 'bad-reply')) throw error;
+      if (!stepCanFallBack(error)) throw error;
       note(`page ${topic.id} fell back: ${error.message}`);
       return null;
     }
@@ -385,7 +385,7 @@ async function pagesForSplit(record: RepoRecord, client: ModelClient, before: re
         written.problems.forEach((line) => note(`${label} ${line}`));
         page = written.value;
       } catch (error) {
-        if (!(error instanceof ModelUnavailable && error.reason === 'bad-reply')) throw error;
+        if (!stepCanFallBack(error)) throw error;
         note(`${label} fell back: ${error.message}`);
       }
     }

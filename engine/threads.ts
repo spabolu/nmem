@@ -5,7 +5,7 @@
  */
 import type { LocalId, Named, Topic } from '../harness/contract.ts';
 import { plainHits } from '../fixtures/lib/plain.mjs';
-import { ModelUnavailable } from './copilot.ts';
+import { stepCanFallBack } from './copilot.ts';
 import type { ModelClient } from './copilot.ts';
 import { arr, ask, nullable, obj, OPUS, str } from './model.ts';
 import type { Gated, Task } from './model.ts';
@@ -208,7 +208,7 @@ export async function declinedChoices(record: RepoRecord, client: ModelClient, n
       const what = closedWhat(record, thread.root, picked.sentence) ?? sentenceWhat(record, thread.root, picked.sentence, picked.also);
       return [{ sentence: picked.sentence, stance: 'chose' as const, what, carriedBy: null, files: [] }];
     } catch (error) {
-      if (!(error instanceof ModelUnavailable && error.reason === 'bad-reply')) throw error;
+      if (!stepCanFallBack(error)) throw error;
       note(`declined ${thread.root} fell back: ${error.message}`);
       return [];
     }

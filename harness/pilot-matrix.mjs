@@ -27,6 +27,13 @@ if (!out || slugs.length === 0) {
 }
 fs.mkdirSync(out, { recursive: true });
 
+// A crawl against a stale app build once read the quoted restyle proof as unreadable and failed every page.
+const appBuild = spawnSync("npm", ["run", "build"], { cwd: app, encoding: "utf8" });
+if (appBuild.status !== 0) {
+  console.error(`nmem build failed\n${appBuild.stdout}${appBuild.stderr}`);
+  process.exit(1);
+}
+
 function run(argv, logFile) {
   const started = Date.now();
   const result = spawnSync(process.execPath, [path.join(repoRoot, "engine", "cli.ts"), ...argv], {

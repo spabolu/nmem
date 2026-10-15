@@ -5,7 +5,7 @@ import type { AddressInfo } from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import { callKey, credentialFile, deviceLogin, loadCredential, modelId, ModelUnavailable, openClient } from './copilot.ts';
+import { callKey, credentialFile, deviceLogin, loadCredential, modelId, ModelUnavailable, openClient, stepCanFallBack } from './copilot.ts';
 import type { ChatRequest, Credential, GitHubToken } from './copilot.ts';
 
 type Seen = { readonly method: string; readonly path: string; readonly headers: http.IncomingHttpHeaders; readonly body: string };
@@ -200,6 +200,20 @@ test('a 429 is retried after retry-after, three 500s fail, and a 401 fails at on
   }
   assert.deepEqual(slept, [0, 1000, 2000]);
   assert.equal(server.seen.filter((seen) => seen.path === '/chat/completions').length, 6);
+});
+
+test('a prompt over the model limit fails at once as too-long, which a step may fall back from', async () => {
+  const server = await fakeServer((seen, url) => {
+    if (seen.path === '/copilot_internal/v2/token') return EXCHANGE(url);
+    return { status: 400, headers: {}, json: { error: { message: 'prompt is too long: 1294600 tokens > 1000000 maximum', code: 'invalid_request_body' } } };
+  });
+  const client = openClient({ store: temp(), mode: 'live', credential: CREDENTIAL, hosts: { web: server.url, api: server.url }, sleep: async () => {} });
+  try {
+    await assert.rejects(client.call(REQUEST), (error: unknown) => error instanceof ModelUnavailable && error.reason === 'too-long' && stepCanFallBack(error));
+  } finally {
+    await server.close();
+  }
+  assert.equal(server.seen.filter((seen) => seen.path === '/chat/completions').length, 1);
 });
 
 test('a reply split into a text choice and a tool-call choice is read, and a reply with no call is cached as bad', async () => {
