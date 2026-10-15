@@ -9,6 +9,7 @@ import { login } from '../harness/contract.ts';
 import type { ChangeId, Login, RepoIdentity } from '../harness/contract.ts';
 import { EMPTY_TREE, factsOf } from '../fixtures/lib/facts.mjs';
 import { commitMessage, git, showFile } from '../fixtures/lib/git.mjs';
+import { loginOfCommit, shaLogins } from '../fixtures/lib/login.mjs';
 import { DENIAL } from '../fixtures/lib/plain.mjs';
 
 export type Handle = string & { readonly __brand: 'Handle' };
@@ -121,6 +122,7 @@ type Github = {
   readonly raw: unknown;
   readonly repo: RepoIdentity;
   readonly users: readonly { readonly login: string; readonly name: string; readonly bot: boolean }[];
+  readonly commits: readonly { readonly sha: string; readonly authorLogin: string | null }[];
   readonly pulls: readonly GithubPull[];
   readonly issues: readonly GithubIssue[];
   readonly discussions: readonly GithubThreaded[];
@@ -189,6 +191,12 @@ export function parseGithub(raw: unknown): Github {
     users: list(get(raw, 'users', '$'), 'users', (value, where) => {
       const name = text(get(value, 'login', where), `${where}.login`);
       return { login: name, name: text(get(value, 'name', where), `${where}.name`), bot: get(value, 'type', where) === 'Bot' || name.endsWith('[bot]') };
+    }),
+    commits: list(get(raw, 'commits', '$'), 'commits', (entry, at) => {
+      const author = get(entry, 'authorLogin', at);
+      const authorLogin = author === null || author === undefined ? null : text(author, `${at}.authorLogin`);
+      if (authorLogin !== null) login(authorLogin);
+      return { sha: text(get(entry, 'sha', at), `${at}.sha`), authorLogin };
     }),
     pulls: list(get(raw, 'pulls', '$'), 'pulls', (value, where) => {
       const merge = get(value, 'mergeCommitSha', where);
@@ -441,13 +449,12 @@ export function ingest(workspace: string): RepoRecord {
   const github = parseGithub(raw);
   const bots = new Set(github.users.filter((user) => user.bot).map((user) => login(user.login)));
   const names = new Map(github.users.flatMap((user) => (user.name !== '' && user.name !== user.login ? [[login(user.login), user.name] as const] : [])));
-  const byName = new Map(github.users.map((user) => [user.name, login(user.login)]));
-  const bySha = new Map<string, Login | null>();
-  for (const pull of github.pulls) {
-    if (pull.mergeCommitSha) bySha.set(pull.mergeCommitSha, login(pull.author));
-    for (const commit of pull.commits) bySha.set(commit.sha, commit.authorLogin === null ? null : login(commit.authorLogin));
-  }
-  const commitAuthor = (sha: string, name: string): Login | null => (bySha.has(sha) ? bySha.get(sha) ?? null : byName.get(name) ?? null);
+  const byName = new Map(github.users.map((user) => [user.name, user.login]));
+  const bySha = shaLogins(github) as Map<string, string | null>;
+  const commitAuthor = (sha: string, name: string, email: string): Login | null => {
+    const raw = loginOfCommit(sha, name, email, bySha, byName) as string | null;
+    return raw === null ? null : login(raw);
+  };
 
   const objects = new Map<string, RecordObject>();
   const add = <T extends RecordObject>(object: T): T => {
@@ -490,9 +497,9 @@ export function ingest(workspace: string): RepoRecord {
   };
   const changes: Change[] = facts.changes.map((change) => {
     const range = change.before === EMPTY_TREE ? [change.after] : [change.after, `^${change.before}`];
-    const log = lines(git(repoDir, ['log', '--reverse', '--format=%H%x09%an%x09%P', ...range]).stdout).map((row) => {
-      const [sha = '', name = '', parents = ''] = row.split('\t');
-      return { sha, author: commitAuthor(sha, name), merge: parents.split(' ').length > 1 };
+    const log = lines(git(repoDir, ['log', '--reverse', '--format=%H%x09%an%x09%ae%x09%P', ...range]).stdout).map((row) => {
+      const [sha = '', name = '', email = '', parents = ''] = row.split('\t');
+      return { sha, author: commitAuthor(sha, name, email), merge: parents.split(' ').length > 1 };
     });
     const commits = log.map((commit) => add(objectOf(commit.sha.slice(0, 7), commit.author, commitMessage(repoDir, commit.sha) as string, bots)));
     const patches = log.filter((commit) => !commit.merge).flatMap((commit) => patchesOf(repoDir, commit.sha, commit.author, add));
@@ -501,7 +508,7 @@ export function ingest(workspace: string): RepoRecord {
       id: change.id as ChangeId,
       before: change.before,
       after: change.after,
-      author: change.author === null ? null : login(change.author),
+      author: log.at(-1)?.author ?? (change.author === null ? null : login(change.author)),
       touched: change.touched,
       objects: [...(pull ? pullObjects.get(Number(pull[1])) ?? [] : []), ...commits],
       patches,
@@ -519,11 +526,11 @@ export function ingest(workspace: string): RepoRecord {
   }
   for (const file of atHead.filter(isDoc)) {
     const body = (showFile(repoDir, facts.head, file) as string | null) ?? '';
-    const added = lines(git(repoDir, ['log', '--reverse', '--diff-filter=A', '--format=%H%x09%an', facts.head, '--', file]).stdout)[0] ?? '';
-    const [sha = '', name = ''] = added.split('\t');
+    const added = lines(git(repoDir, ['log', '--reverse', '--diff-filter=A', '--format=%H%x09%an%x09%ae', facts.head, '--', file]).stdout)[0] ?? '';
+    const [sha = '', name = '', email = ''] = added.split('\t');
     const status = adrStatus(body);
     const ref = `${head7}:${file}`;
-    const object = objectOf(ref, sha ? commitAuthor(sha, name) : null, body, bots, segment(body), status?.kind === 'superseded');
+    const object = objectOf(ref, sha ? commitAuthor(sha, name, email) : null, body, bots, segment(body), status?.kind === 'superseded');
     const doc = add({ ...object, path: file, lines: body.replace(/\n$/, '').split('\n').map((line, i) => ({ handle: `${ref}#L${i + 1}` as Handle, number: i + 1, text: line })) });
     docs.push(doc);
     files.push(doc);
@@ -535,4 +542,9 @@ export function ingest(workspace: string): RepoRecord {
   }
 
   return { repoDir, identity: github.repo, head: facts.head, changes, objects, threads, threadEnds, rootOf, files: files.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0)), docs, adrs, bots, names };
+}
+
+/** Changes whose record names no person, so a finding or decision on them has nobody to ask. */
+export function changesWithoutLogin(record: RepoRecord): readonly Change[] {
+  return record.changes.filter((change) => ![change.author, ...change.objects.map((object) => object.author)].some((who) => who !== null && !record.bots.has(who)));
 }

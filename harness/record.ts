@@ -18,6 +18,7 @@ import { trackItems } from './items.ts';
 import { runProof } from '../fixtures/lib/checks.mjs';
 import { factsOf as gitFacts } from '../fixtures/lib/facts.mjs';
 import { commitMessage, git, showFile, tagMessage } from '../fixtures/lib/git.mjs';
+import { loginOfCommit, shaLogins } from '../fixtures/lib/login.mjs';
 
 export type Sha = string & { readonly __brand: 'Sha' };
 
@@ -73,6 +74,7 @@ type GithubRelease = { readonly tag: string; readonly title: string; readonly bo
 type Github = {
   readonly repo: { readonly owner: string; readonly name: string };
   readonly users: readonly GithubUser[];
+  readonly commits?: readonly { readonly sha: string; readonly authorLogin: string | null }[];
   readonly pulls: readonly GithubPull[];
   readonly issues: readonly GithubIssue[];
   readonly discussions: readonly GithubDiscussion[];
@@ -267,11 +269,7 @@ function indexComments(github: Github, base: string): ReadonlyMap<number, Commen
 
 function indexRecord(github: Github): Indexed {
   const base = `https://github.com/${github.repo.owner}/${github.repo.name}`;
-  const shaLogin = new Map<string, string | null>();
-  for (const pull of github.pulls) {
-    if (pull.mergeCommitSha) shaLogin.set(pull.mergeCommitSha, pull.author);
-    for (const commit of pull.commits) shaLogin.set(commit.sha, commit.authorLogin);
-  }
+  const shaLogin = shaLogins(github) as Map<string, string | null>;
   return {
     github,
     pulls: new Map(github.pulls.map((pull) => [pull.number, pull])),
@@ -352,9 +350,9 @@ export function openRecord(ws: Workspace): RepoRecord {
     if (!shas.has(rev)) shas.set(rev, fullSha(repoDir, rev));
     return shas.get(rev) ?? null;
   };
-  const loginFor = (sha: string, name: string): Login | null => {
-    if (index.shaLogin.has(sha)) return (index.shaLogin.get(sha) ?? null) as Login | null;
-    return (index.loginByName.get(name) ?? null) as Login | null;
+  const loginFor = (sha: string, name: string, email: string): Login | null => {
+    const raw = loginOfCommit(sha, name, email, index.shaLogin, index.loginByName) as string | null;
+    return raw === null ? null : (raw as Login);
   };
   const objects = new Map<string, RecordObject | null>();
   const resolve = (ref: RecordRef): RecordObject | null => {
@@ -418,15 +416,15 @@ export function openRecord(ws: Workspace): RepoRecord {
     if (ref.kind === 'commit') {
       const sha = revision(ref.rev);
       if (!sha) return null;
-      const [day, name] = git(repoDir, ['show', '-s', '--format=%cs%x09%an', sha]).stdout.trim().split('\t');
-      return { day: (day ?? '') as IsoDay, author: loginFor(sha, name ?? ''), url: `${base}/commit/${sha}` };
+      const [day, name, email] = git(repoDir, ['show', '-s', '--format=%cs%x09%an%x09%ae', sha]).stdout.trim().split('\t');
+      return { day: (day ?? '') as IsoDay, author: loginFor(sha, name ?? '', email ?? ''), url: `${base}/commit/${sha}` };
     }
     if (ref.kind === 'file') {
-      const added = git(repoDir, ['log', '--reverse', '--diff-filter=A', '--format=%H%x09%an%x09%cs', ws.mainSha, '--', ref.path]).stdout.split('\n').find(Boolean);
+      const added = git(repoDir, ['log', '--reverse', '--diff-filter=A', '--format=%H%x09%an%x09%ae%x09%cs', ws.mainSha, '--', ref.path]).stdout.split('\n').find(Boolean);
       if (!added) return null;
-      const [sha, name, day] = added.split('\t');
+      const [sha, name, email, day] = added.split('\t');
       const cited = revision(ref.rev);
-      return { day: (day ?? '') as IsoDay, author: loginFor(sha ?? '', name ?? ''), url: `${base}/blob/${cited ?? sha}/${ref.path}` };
+      return { day: (day ?? '') as IsoDay, author: loginFor(sha ?? '', name ?? '', email ?? ''), url: `${base}/blob/${cited ?? sha}/${ref.path}` };
     }
     if (ref.kind === 'pr') {
       const pull = index.pulls.get(ref.number);
