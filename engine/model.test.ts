@@ -38,3 +38,8 @@ test('a malformed reply under its limit is re-asked with the same limit', async 
   await ask(clientOf([{ value: {}, outputTokens: 10 }, { value: { names: [] }, outputTokens: 10 }], seen), TASK, 'go', 'toy', (out) => ({ value: out.names, problems: [] }));
   assert.deepEqual(seen.map((request) => request.maxOutputTokens), [100, 100]);
 });
+
+test('a bracketed handle and an array sent as JSON text parse as the plain answer', () => {
+  const shape = obj({ start: str, names: arr(str) });
+  assert.deepEqual(shape.parse({ start: '[L715]', names: '["[S2]", "keep [this]"]' }, 'answer'), { start: 'L715', names: ['S2', 'keep [this]'] });
+});

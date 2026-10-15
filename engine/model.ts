@@ -20,13 +20,25 @@ class ShapeError extends Error {}
 
 type Shape<T> = { readonly json: JsonSchema; readonly parse: (value: unknown, path: string) => T };
 
+/** A handle written with its brackets, such as [L715], is the handle L715. */
 export const str: Shape<string> = {
   json: { type: 'string' },
   parse: (value, path) => {
     if (typeof value !== 'string') throw new ShapeError(`${path}: expected a string`);
-    return value;
+    return /^\[[A-Z]\d+\]$/.test(value) ? value.slice(1, -1) : value;
   },
 };
+
+/** Models sometimes send an array argument as its JSON text; that is the same answer. */
+function arrayOf(value: unknown): unknown {
+  if (typeof value !== 'string') return value;
+  try {
+    const parsed: unknown = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed : value;
+  } catch {
+    return value;
+  }
+}
 
 export function lit<const L extends string>(...values: readonly [L, ...L[]]): Shape<L> {
   return {
@@ -41,7 +53,8 @@ export function lit<const L extends string>(...values: readonly [L, ...L[]]): Sh
 export function arr<T>(item: Shape<T>, limits: { readonly min?: number; readonly max?: number } = {}): Shape<readonly T[]> {
   return {
     json: { type: 'array', items: item.json, ...(limits.min === undefined ? {} : { minItems: limits.min }), ...(limits.max === undefined ? {} : { maxItems: limits.max }) },
-    parse: (value, path) => {
+    parse: (raw, path) => {
+      const value = arrayOf(raw);
       if (!Array.isArray(value)) throw new ShapeError(`${path}: expected an array`);
       if (limits.min !== undefined && value.length < limits.min) throw new ShapeError(`${path}: expected at least ${limits.min} items`);
       if (limits.max !== undefined && value.length > limits.max) throw new ShapeError(`${path}: expected at most ${limits.max} items`);
