@@ -1320,7 +1320,8 @@ function rankDocs(docs: readonly SearchDoc[], query: string, rootId: LocalId): S
   const vocab = new Set<string>();
   for (const doc of corpus) for (const row of doc.fields) for (const word of searchWords(row.text)) vocab.add(word);
   const df = new Map<string, number>();
-  for (const token of vocab) {
+  for (const token of use) {
+    if (!vocab.has(token) || df.has(token)) continue;
     let count = 0;
     for (const doc of corpus) if (doc.fields.some((row) => fieldHit(token, row.text) > 0)) count += 1;
     df.set(token, count);

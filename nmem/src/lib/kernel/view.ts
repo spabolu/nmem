@@ -2176,7 +2176,8 @@ function rankDocs(
     for (const row of doc.fields)
       for (const word of searchWords(row.text)) vocab.add(word);
   const df = new Map<string, number>();
-  for (const token of vocab) {
+  for (const token of use) {
+    if (!vocab.has(token) || df.has(token)) continue;
     let count = 0;
     for (const doc of corpus)
       if (doc.fields.some((row) => fieldHit(token, row.text) > 0)) count += 1;
