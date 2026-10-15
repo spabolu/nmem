@@ -184,6 +184,7 @@ export async function main(argv: readonly string[]): Promise<number> {
   fs.renameSync(temp, command.out);
   if (command.site) await bakeSite(command.workspace, command.out);
   for (const note of built.notes) console.error(`note: ${note}`);
+  for (const line of built.dropped) console.error(`dropped: ${line}`);
   console.error(`${built.summary}; ${client === null ? 'no model' : callsLine(client.totals())}`);
   return 0;
 }

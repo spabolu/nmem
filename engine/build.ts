@@ -60,7 +60,8 @@ function checkQuotes(snapshot: Snapshot, record: RepoRecord): void {
   }
 }
 
-export type Built = { readonly bytes: string; readonly summary: string };
+/** dropped lists behavior findings the anchor filter removed, so a real-repo build can be audited for true losses. */
+export type Built = { readonly bytes: string; readonly summary: string; readonly dropped: readonly string[] };
 
 /**
  * A finding that vet does not keep is dropped, and one it reads as a silently dropped refusal becomes a check.
@@ -108,6 +109,7 @@ export async function assemble(record: RepoRecord, steps: Steps, usage: () => Us
   // Joining them would redraw every item, and tally's settling page is usable only on the cached draw.
   const extraTopics = extra.length === 0 ? new Map<string, readonly string[]>() : await steps.placeDeclined(topics, extra.map((decision) => ({ id: decision.id, what: decision.what.eng, ref: decision.what.source.ref, quote: decision.what.source.quote })));
   const topicIds = new Set(topics.map((topic) => topic.id));
+  const dropped = record.changes.flatMap((change, i) => (found[i] ?? []).filter((item) => !anchorShowsName(item.finding)).map((item) => `${change.id}: ${item.finding.name.eng} | anchor ${item.finding.anchor.quote.trim()}`));
   const changes: Entry[] = record.changes.map((change, i) => {
     return {
       id: change.id,
@@ -144,7 +146,7 @@ export async function assemble(record: RepoRecord, steps: Steps, usage: () => Us
   checkQuotes(snapshot, record);
   const routine = changes.filter((change) => change.routine.length > 0).length;
   const summary = `${record.identity.name}: ${changes.length} changes (${routine} routine), ${decisions.length} decisions, ${undone.length} undone, ${snapshot.topics.length} topics, ${snapshot.claims.length} claims`;
-  return { bytes, summary };
+  return { bytes, summary, dropped };
 }
 
 /** What a model build tells its operator: refusals the gates made, and steps that fell back. */
