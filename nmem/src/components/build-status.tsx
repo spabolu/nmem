@@ -1,0 +1,234 @@
+import { MarkGithubIcon } from "@primer/octicons-react";
+import { notFound } from "next/navigation";
+import { connection } from "next/server";
+import { AppLink } from "@/components/links";
+import { Refresh } from "@/components/refresh";
+import { RequestButton } from "@/components/request-button";
+import { HINT, PAGE, SOURCE_PRE } from "@/components/styles";
+import { withAudience } from "@/lib/hrefs";
+import {
+  type BuildView,
+  buildView,
+  logTail,
+  type Phase,
+  workerAlive,
+  workerCommand,
+} from "@/lib/jobs";
+import type { Audience } from "@/lib/kernel/view";
+
+const PHASE: Record<Phase, string> = {
+  fetching: "Fetching the repository from GitHub.",
+  building: "Reading the history.",
+  baking: "Preparing the pages.",
+};
+
+function ago(iso: string, now: number): string | null {
+  const at = Date.parse(iso);
+  if (Number.isNaN(at)) return null;
+  const seconds = Math.max(0, Math.round((now - at) / 1000));
+  if (seconds < 60) return `${seconds} second${seconds === 1 ? "" : "s"}`;
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes} minute${minutes === 1 ? "" : "s"}`;
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  const hour = `${hours} hour${hours === 1 ? "" : "s"}`;
+  return rest === 0 ? hour : `${hour} ${rest} minute${rest === 1 ? "" : "s"}`;
+}
+
+function moving(view: BuildView): boolean {
+  return (
+    view.kind === "request" || view.kind === "queued" || view.kind === "running"
+  );
+}
+
+function headline(view: BuildView, alive: boolean): string {
+  if (!alive && moving(view)) return "This build is not moving.";
+  switch (view.kind) {
+    case "request":
+    case "queued":
+      return "Waiting to start.";
+    case "running":
+      return PHASE[view.phase];
+    case "failed":
+      return "The build failed.";
+    case "done":
+      return "Finishing the pages.";
+    case "unread":
+      return view.reason;
+    default: {
+      const exhaustive: never = view;
+      return exhaustive;
+    }
+  }
+}
+
+function since(view: BuildView, now: number): string | null {
+  if (view.kind === "unread") return null;
+  if (view.kind === "running") {
+    const span = ago(view.startedAt, now);
+    return span ? `Started ${span} ago.` : null;
+  }
+  if (view.kind === "failed") {
+    const span = ago(view.finishedAt, now);
+    return span ? `Failed ${span} ago.` : null;
+  }
+  const span = ago(view.requestedAt, now);
+  return span ? `Requested ${span} ago.` : null;
+}
+
+function StartCommand() {
+  return (
+    <div className="flex flex-col gap-2">
+      <p className="m-0">
+        From the nmem checkout, run this, then come back to this page.
+      </p>
+      <pre className={SOURCE_PRE}>{workerCommand()}</pre>
+    </div>
+  );
+}
+
+export async function BuildStatus({
+  owner,
+  name,
+  audience,
+}: {
+  readonly owner: string;
+  readonly name: string;
+  readonly audience: Audience;
+}) {
+  await connection();
+  const view = buildView(owner, name);
+  if (!view) notFound();
+  const alive = workerAlive();
+  const now = Date.now();
+  const slug = `${owner}/${name}`;
+  const path = `/${owner}/${name}`;
+  const search = new URLSearchParams();
+  const lines = audience === "eng" ? logTail(owner, name) : [];
+  const progress =
+    audience === "eng" && view.kind === "running" && view.progress !== ""
+      ? view.progress
+      : null;
+  const elapsed = since(view, now);
+  return (
+    <>
+      <header className="flex min-h-14 min-w-0 items-center gap-2 border-b border-(color:--borderColor-default) bg-(--bgColor-inset) px-6 max-md:px-4">
+        <MarkGithubIcon size={24} className="shrink-0" />
+        <AppLink
+          href="/"
+          className="font-(family-name:--fontStack-sansSerifDisplay) text-(length:--text-title-size-medium) [font-weight:var(--base-text-weight-semibold)] text-(color:--fgColor-default)!"
+        >
+          nmem
+        </AppLink>
+      </header>
+      <main
+        id="main"
+        className={PAGE.wide}
+        data-view="build"
+        data-audience={audience}
+        data-build-state={view.kind}
+        data-build-phase={
+          view.kind === "running" || view.kind === "failed"
+            ? view.phase
+            : undefined
+        }
+      >
+        <Refresh />
+        <p className="m-0 mb-2 text-[14px] text-(color:--fgColor-muted)">
+          <AppLink href={withAudience(path, search, "eng")}>Engineer</AppLink>
+          <span className="mx-2" aria-hidden="true">
+            ·
+          </span>
+          <AppLink href={withAudience(path, search, "plain")}>
+            Non-engineer
+          </AppLink>
+        </p>
+        <h1 className="m-0 mb-3 text-[32px] font-[600] break-all max-md:text-[20px]">
+          {slug}
+        </h1>
+        <p className="m-0 mb-2 text-[16px]">{headline(view, alive)}</p>
+        {elapsed ? <p className={`${HINT} m-0 mb-3`}>{elapsed}</p> : null}
+        {view.kind === "failed" ? (
+          <p className="m-0 mb-4 max-w-[68ch] text-[16px] [overflow-wrap:anywhere]">
+            {view.reason}
+          </p>
+        ) : null}
+        {progress && progress !== headline(view, alive) ? (
+          <p className={`${HINT} m-0 mb-4 [overflow-wrap:anywhere]`}>
+            {progress}
+          </p>
+        ) : null}
+        {audience === "eng" && view.kind === "running" && view.attempts > 0 ? (
+          <p className={`${HINT} m-0 mb-4`}>
+            {`Restarted ${view.attempts} ${view.attempts === 1 ? "time" : "times"} after a stop.`}
+          </p>
+        ) : null}
+        {!alive ? (
+          <div className="mb-4 max-w-[68ch]">
+            <StartCommand />
+          </div>
+        ) : null}
+        {view.kind === "failed" && view.retryable ? (
+          <RequestButton repo={slug} label="Retry" force variant="primary" />
+        ) : null}
+        {view.kind === "unread" ? (
+          <RequestButton repo={slug} label="Retry" force variant="primary" />
+        ) : null}
+        {lines.length > 0 ? (
+          <pre className={`${SOURCE_PRE} mt-6`} data-build-log>
+            {lines.join("\n")}
+          </pre>
+        ) : null}
+      </main>
+    </>
+  );
+}
+
+export async function BuildBanner({
+  owner,
+  name,
+}: {
+  readonly owner: string;
+  readonly name: string;
+}) {
+  await connection();
+  const view = buildView(owner, name);
+  const slug = `${owner}/${name}`;
+  if (!view || view.kind === "done") {
+    return (
+      <div className="mb-4 flex justify-end">
+        <RequestButton repo={slug} label="Rebuild" force />
+      </div>
+    );
+  }
+  const alive = workerAlive();
+  return (
+    <div
+      className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-[8px] border border-(color:--borderColor-default) bg-(--bgColor-muted) px-4 py-3"
+      data-build-state={view.kind}
+    >
+      <Refresh />
+      <div className="min-w-0">
+        <p className="m-0 text-[14px]">{headline(view, alive)}</p>
+        {view.kind === "failed" ? (
+          <p className={`${HINT} m-0 mt-1 [overflow-wrap:anywhere]`}>
+            {view.reason} The last finished build is still on this page.
+          </p>
+        ) : (
+          <p className={`${HINT} m-0 mt-1`}>
+            This page still shows the last finished build.
+          </p>
+        )}
+        {!alive ? <StartCommand /> : null}
+      </div>
+      {view.kind === "failed" && view.retryable ? (
+        <RequestButton repo={slug} label="Retry" force />
+      ) : null}
+    </div>
+  );
+}
+
+export function buildStateLine(view: BuildView | null, alive: boolean): string {
+  if (!view) return "Not built yet.";
+  return headline(view, alive);
+}

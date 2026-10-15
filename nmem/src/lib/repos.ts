@@ -75,6 +75,17 @@ function listWorkspaces(): readonly Workspace[] {
   );
 }
 
+/** Canonical owner/name when a snapshot is already on disk, ignoring the typed case. */
+export function builtSlug(owner: string, name: string): string | null {
+  const want = `${owner}/${name}`.toLowerCase();
+  const found = listWorkspaces().find(
+    (row) =>
+      row.built &&
+      `${row.identity.owner}/${row.identity.name}`.toLowerCase() === want,
+  );
+  return found ? `${found.identity.owner}/${found.identity.name}` : null;
+}
+
 /** GitHub matches owner and repo names without regard to case, so the URL does too. */
 function findWorkspace(owner: string, repo: string): Workspace | null {
   const want = `${owner}/${repo}`.toLowerCase();

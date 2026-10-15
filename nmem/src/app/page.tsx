@@ -3,9 +3,17 @@ import { Heading, Text } from "@primer/react";
 import { connection } from "next/server";
 import { Suspense } from "react";
 import { AddRepo } from "@/components/add-repo";
+import { buildStateLine } from "@/components/build-status";
 import { AppLink, ButtonLink } from "@/components/links";
-import { HINT, PANEL, PANEL_HD } from "@/components/styles";
+import { RequestButton } from "@/components/request-button";
+import { HINT, PANEL, PANEL_HD, SOURCE_PRE } from "@/components/styles";
 import { repoPath, topicsHref } from "@/lib/hrefs";
+import {
+  type BuildView,
+  listBuilds,
+  workerAlive,
+  workerCommand,
+} from "@/lib/jobs";
 import { repoCards } from "@/lib/repos";
 
 type RepoCard = Awaited<ReturnType<typeof repoCards>>[number];
@@ -25,6 +33,10 @@ const ROW =
 
 function cardSlug(card: RepoCard): string {
   return `${card.identity.owner}/${card.identity.name}`;
+}
+
+function keyOf(slug: string): string {
+  return slug.toLowerCase();
 }
 
 export default function Home() {
@@ -53,13 +65,7 @@ export default function Home() {
   );
 }
 
-function AnalyzeSection({
-  built,
-  waiting,
-}: {
-  readonly built: readonly string[];
-  readonly waiting?: readonly string[];
-}) {
+function AnalyzeSection({ built }: { readonly built: readonly string[] }) {
   return (
     <section
       className="mb-8 min-w-0 rounded-[8px] border border-(color:--borderColor-default) bg-(--bgColor-default) p-6 shadow-(--shadow-resting-small) max-md:p-4"
@@ -73,10 +79,10 @@ function AnalyzeSection({
         Analyze a repository
       </Heading>
       <Text as="p" className="m-0! mb-4! text-(color:--fgColor-muted)!">
-        Paste owner/repo or a github.com URL. Open it if nmem already built it
-        on this Mac, or copy the commands that build it.
+        Type owner/repo or a github.com URL. Open it if it is already built, or
+        press Build.
       </Text>
-      <AddRepo built={built} waiting={waiting} />
+      <AddRepo built={built} />
     </section>
   );
 }
@@ -93,14 +99,15 @@ function HomeFallback() {
 async function HomeBody() {
   await connection();
   const cards = await repoCards();
+  const builds = listBuilds();
+  const alive = workerAlive();
+  const byKey = new Map(builds.map((view) => [view.slug, view]));
   const built = cards.filter((card) => card.built);
-  const waiting = cards.filter((card) => !card.built);
+  const builtKeys = new Set(built.map((card) => keyOf(cardSlug(card))));
+  const waiting = waitingRows(cards, builds, builtKeys);
   return (
     <>
-      <AnalyzeSection
-        built={built.map(cardSlug)}
-        waiting={waiting.map(cardSlug)}
-      />
+      <AnalyzeSection built={built.map(cardSlug)} />
       <section className={PANEL} aria-labelledby="built-heading">
         <div className={`${PANEL_HD} flex items-center justify-between gap-2`}>
           <h2
@@ -113,7 +120,7 @@ async function HomeBody() {
         </div>
         {built.length === 0 ? (
           <p className="m-0 p-6 text-center text-[14px] text-(color:--fgColor-muted)">
-            Nothing is built yet. Paste a repository above to get the commands.
+            Nothing is built yet. Paste a repository above and press Build.
           </p>
         ) : (
           <ul
@@ -121,19 +128,35 @@ async function HomeBody() {
             data-repos={built.length}
           >
             {built.map((card) => (
-              <RepoRow key={cardSlug(card)} card={card} />
+              <RepoRow
+                key={cardSlug(card)}
+                card={card}
+                view={byKey.get(keyOf(cardSlug(card))) ?? null}
+                alive={alive}
+              />
             ))}
           </ul>
         )}
       </section>
-      {waiting.length > 0 ? <WaitingRepos cards={waiting} /> : null}
+      {waiting.length > 0 ? (
+        <WaitingRepos rows={waiting} alive={alive} />
+      ) : null}
     </>
   );
 }
 
-function RepoRow({ card }: { readonly card: RepoCard }) {
+function RepoRow({
+  card,
+  view,
+  alive,
+}: {
+  readonly card: RepoCard;
+  readonly view: BuildView | null;
+  readonly alive: boolean;
+}) {
   const slug = cardSlug(card);
   const readable = card.census !== null;
+  const active = view !== null && view.kind !== "done";
   return (
     <li className={ROW}>
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -149,27 +172,39 @@ function RepoRow({ card }: { readonly card: RepoCard }) {
             {readable ? "Built" : "Unreadable"}
           </span>
         </div>
-        {card.census ? (
-          <div className="flex flex-wrap items-center gap-2">
-            <ButtonLink
-              href={topicsHref(card.identity, "eng")}
-              size="small"
-              variant="primary"
-            >
-              Topics
-            </ButtonLink>
-            <ButtonLink
-              href={`${repoPath(card.identity)}/timeline?audience=eng`}
-              size="small"
-            >
-              Timeline
-            </ButtonLink>
-          </div>
-        ) : null}
+        <div className="flex flex-wrap items-center gap-2">
+          {card.census ? (
+            <>
+              <ButtonLink
+                href={topicsHref(card.identity, "eng")}
+                size="small"
+                variant="primary"
+              >
+                Topics
+              </ButtonLink>
+              <ButtonLink
+                href={`${repoPath(card.identity)}/timeline?audience=eng`}
+                size="small"
+              >
+                Timeline
+              </ButtonLink>
+            </>
+          ) : null}
+          {view?.kind === "failed" ? (
+            <RequestButton repo={slug} label="Retry" force />
+          ) : active ? null : (
+            <RequestButton repo={slug} label="Rebuild" force />
+          )}
+        </div>
       </div>
       {card.identity.description ? (
         <p className="m-0 text-[14px] [overflow-wrap:anywhere] text-(color:--fgColor-muted)">
           {card.identity.description}
+        </p>
+      ) : null}
+      {active ? (
+        <p className="m-0 text-[14px] text-(color:--fgColor-muted)">
+          {buildStateLine(view, alive)}
         </p>
       ) : null}
       {card.census ? (
@@ -188,7 +223,55 @@ function RepoRow({ card }: { readonly card: RepoCard }) {
   );
 }
 
-function WaitingRepos({ cards }: { readonly cards: readonly RepoCard[] }) {
+type WaitRow = {
+  readonly slug: string;
+  readonly href: string | null;
+  readonly view: BuildView | null;
+};
+
+function waitingRows(
+  cards: readonly RepoCard[],
+  builds: readonly BuildView[],
+  builtKeys: ReadonlySet<string>,
+): readonly WaitRow[] {
+  const rows: WaitRow[] = [];
+  const seen = new Set<string>();
+  for (const card of cards) {
+    if (card.built) continue;
+    const slug = cardSlug(card);
+    const key = keyOf(slug);
+    seen.add(key);
+    const view = builds.find((item) => item.slug === key) ?? null;
+    rows.push({
+      slug,
+      href: view ? `/${slug}?audience=eng` : null,
+      view,
+    });
+  }
+  for (const view of builds) {
+    if (builtKeys.has(view.slug) || seen.has(view.slug)) continue;
+    rows.push({
+      slug: view.kind === "done" ? view.repo : view.slug,
+      href: `/${view.slug}?audience=eng`,
+      view,
+    });
+  }
+  return rows;
+}
+
+function rowAction(view: BuildView | null): "build" | "retry" | null {
+  if (!view || view.kind === "unread") return view ? "retry" : "build";
+  if (view.kind === "failed" && view.retryable) return "retry";
+  return null;
+}
+
+function WaitingRepos({
+  rows,
+  alive,
+}: {
+  readonly rows: readonly WaitRow[];
+  readonly alive: boolean;
+}) {
   return (
     <section className={`${PANEL} mt-6`} aria-labelledby="waiting-heading">
       <div className={`${PANEL_HD} flex items-center justify-between gap-2`}>
@@ -196,22 +279,48 @@ function WaitingRepos({ cards }: { readonly cards: readonly RepoCard[] }) {
           id="waiting-heading"
           className="m-0! text-[14px]! font-[600]! text-(color:--fgColor-default)!"
         >
-          Added, not built yet
+          Not built yet
         </h2>
-        <span className={COUNT}>{cards.length}</span>
+        <span className={COUNT}>{rows.length}</span>
       </div>
+      {!alive ? (
+        <div className="border-b border-(color:--borderColor-muted) p-4">
+          <p className="m-0 mb-2 text-[14px]">
+            Nothing is building these yet. From the nmem checkout, run:
+          </p>
+          <pre className={SOURCE_PRE}>{workerCommand()}</pre>
+        </div>
+      ) : null}
       <ul className="m-0 flex list-none flex-col p-0">
-        {cards.map((card) => {
-          const slug = cardSlug(card);
+        {rows.map((row) => {
+          const action = rowAction(row.view);
           return (
             <li
-              key={slug}
-              className="flex min-w-0 flex-col gap-1 border-t border-(color:--borderColor-muted) p-4 first:border-t-0"
+              key={row.slug}
+              className="flex min-w-0 flex-wrap items-center justify-between gap-2 border-t border-(color:--borderColor-muted) p-4 first:border-t-0"
             >
-              <span className="break-all font-[600]">{slug}</span>
-              <pre className="m-0 font-(family-name:--fontStack-monospace) text-(length:--text-codeBlock-size) text-(color:--fgColor-muted) [overflow-wrap:anywhere] whitespace-pre-wrap">
-                {`node engine/cli.ts build-repo ${slug}`}
-              </pre>
+              <div className="min-w-0">
+                {row.href ? (
+                  <AppLink href={row.href} className="break-all font-[600]">
+                    {row.slug}
+                  </AppLink>
+                ) : (
+                  <span className="break-all font-[600]">{row.slug}</span>
+                )}
+                <p className="m-0 mt-1 text-[14px] [overflow-wrap:anywhere] text-(color:--fgColor-muted)">
+                  {row.view?.kind === "failed"
+                    ? row.view.reason
+                    : buildStateLine(row.view, alive)}
+                </p>
+              </div>
+              {action ? (
+                <RequestButton
+                  repo={row.slug}
+                  label={action === "retry" ? "Retry" : "Build"}
+                  force={action === "retry"}
+                  variant="primary"
+                />
+              ) : null}
             </li>
           );
         })}

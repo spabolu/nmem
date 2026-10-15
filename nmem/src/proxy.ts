@@ -1,4 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server";
+import { hasBuild } from "@/lib/jobs";
 import { readQuery, SnapshotRejected } from "@/lib/kernel/site";
 import { siteForProxy } from "@/lib/repos";
 
@@ -32,8 +33,14 @@ export function proxy(request: NextRequest) {
     if (error instanceof SnapshotRejected) return refuse(503, error.message);
     throw error;
   }
-  if (!site)
-    return refuse(404, `No built repository is called ${owner}/${repo}.`);
+  if (!site) {
+    if (view !== undefined || !hasBuild(owner, repo)) {
+      return refuse(404, `No built repository is called ${owner}/${repo}.`);
+    }
+    const pending = readQuery(request.nextUrl.searchParams);
+    if ("error" in pending) return refuse(400, pending.error);
+    return NextResponse.next();
+  }
   const query = readQuery(request.nextUrl.searchParams);
   if ("error" in query) return refuse(400, query.error);
   if (view === "items") {
