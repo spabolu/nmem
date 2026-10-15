@@ -2,7 +2,8 @@
  * `nmem add <owner>/<repo>`: mirror one GitHub repo into a workspace the engine and harness read, repo/ (a clone whose
  * HEAD is the default branch) and github.json. The run is incremental and converges after a crash at any point:
  * git first, then each changed pull, issue, and discussion into the write-once item cache, then sync.json, then
- * github.json, which is rebuilt from sync.json and the cache alone.
+ * default-branch commit authors into authors.json, then github.json, which is rebuilt from sync.json, authors.json,
+ * and the cache alone.
  */
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
@@ -12,7 +13,7 @@ import { git } from '../fixtures/lib/git.mjs';
 import { QUERY_VERSION } from './github.ts';
 import type { Kind, RawNode, Remote, Slug, Stamp } from './github.ts';
 import { assemble, encode } from './mirror.ts';
-import type { GithubJson } from './mirror.ts';
+import type { GithubJson, StoredCommit } from './mirror.ts';
 
 export const NMEM_CACHE = path.join(os.userInfo().homedir, '.cache', 'nmem');
 const KINDS: readonly Kind[] = ['pulls', 'issues', 'discussions'];
@@ -54,6 +55,65 @@ function writeAtomic(file: string, bytes: string): void {
   const temp = `${file}.${process.pid}.tmp`;
   fs.writeFileSync(temp, bytes);
   fs.renameSync(temp, file);
+}
+
+type AuthorState = {
+  readonly version: 1;
+  readonly tip: string | null;
+  readonly cursor: string | null;
+  readonly complete: boolean;
+  readonly commits: Record<string, string | null>;
+};
+
+function readAuthors(file: string): AuthorState {
+  if (!fs.existsSync(file)) return { version: 1, tip: null, cursor: null, complete: false, commits: {} };
+  const raw = JSON.parse(fs.readFileSync(file, 'utf8')) as Partial<AuthorState>;
+  if (raw.version !== 1 || typeof raw.commits !== 'object' || raw.commits === null || Array.isArray(raw.commits)) throw new Error(`${file} is not an nmem author index; delete it to read commit authors again`);
+  return { version: 1, tip: typeof raw.tip === 'string' ? raw.tip : null, cursor: typeof raw.cursor === 'string' ? raw.cursor : null, complete: raw.complete === true, commits: raw.commits };
+}
+
+function writeAuthors(file: string, state: AuthorState): void {
+  const commits = Object.fromEntries(Object.entries(state.commits).sort((a, b) => (a[0] < b[0] ? -1 : 1)));
+  writeAtomic(file, `${JSON.stringify({ version: 1, tip: state.tip, cursor: state.cursor, complete: state.complete, commits }, null, 2)}\n`);
+}
+
+function onBranch(repoDir: string, commits: Readonly<Record<string, string | null>>): StoredCommit[] {
+  return git(repoDir, ['rev-list', 'HEAD']).stdout
+    .split('\n')
+    .filter((sha) => sha !== '' && Object.hasOwn(commits, sha))
+    .map((sha) => ({ sha, authorLogin: commits[sha] ?? null }))
+    .sort((a, b) => (a.sha < b.sha ? -1 : a.sha > b.sha ? 1 : 0));
+}
+
+/**
+ * Pages default-branch history into authors.json. A finished index for this HEAD is not fetched again. A crash resumes
+ * from the saved cursor. A later push fetches only until the previous tip, which is already stored.
+ */
+async function commitAuthors(remote: Remote, repoDir: string, workspace: string, slug: Slug, say: (line: string) => void): Promise<StoredCommit[]> {
+  const file = path.join(workspace, 'authors.json');
+  const head = git(repoDir, ['rev-parse', 'HEAD']).stdout.trim();
+  const state = readAuthors(file);
+  if (state.complete && state.tip === head) {
+    say('commits: already stored');
+    return onBranch(repoDir, state.commits);
+  }
+  const commits = { ...state.commits };
+  let after = state.tip === head && !state.complete ? state.cursor : null;
+  const stopAt = state.complete && state.tip !== null && state.tip !== head ? state.tip : null;
+  for (;;) {
+    const page = await remote.history(slug, after);
+    let seenOldTip = false;
+    for (const commit of page.commits) {
+      if (!Object.hasOwn(commits, commit.sha)) commits[commit.sha] = commit.authorLogin;
+      if (commit.sha === stopAt) seenOldTip = true;
+    }
+    const complete = page.next === null || seenOldTip;
+    after = page.next;
+    writeAuthors(file, { version: 1, tip: head, cursor: complete ? null : after, complete, commits });
+    say(`commits: stored ${Object.keys(commits).length}`);
+    if (complete) break;
+  }
+  return onBranch(repoDir, commits);
 }
 
 type Entry<K extends Kind> = { readonly key: string; readonly kind: K; readonly owner: string; readonly name: string; readonly number: number; readonly updatedAt: string; readonly node: RawNode[K] };
@@ -200,7 +260,7 @@ export async function add(input: string, options: AddOptions): Promise<Summary> 
         if (node === null) throw new Error(`${kind} #${number} is in sync.json but not in the cache`);
         return node;
       });
-  const doc = assemble({ slug, meta, pulls: stored('pulls'), issues: stored('issues'), discussions: stored('discussions'), tags: await remote.tags(slug), releases: await remote.releases(slug) });
+  const doc = assemble({ slug, meta, pulls: stored('pulls'), issues: stored('issues'), discussions: stored('discussions'), tags: await remote.tags(slug), releases: await remote.releases(slug) }, await commitAuthors(remote, repoDir, workspace, slug, say));
   writeAtomic(path.join(workspace, 'github.json'), encode(doc));
   const total = Object.values(next).reduce((n, index) => n + Object.keys(index).length, 0);
   return {

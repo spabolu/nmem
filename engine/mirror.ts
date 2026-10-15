@@ -81,6 +81,8 @@ export type Discussion = {
 };
 export type Tag = { readonly name: string; readonly sha: string; readonly at: string; readonly by: string; readonly message: string };
 export type Release = { readonly tag: string; readonly title: string; readonly body: string; readonly createdAt: string; readonly author: string };
+/** A default-branch commit and the GitHub login of its author, or null when GitHub has no user for it. Absent on fixture github.json. */
+export type StoredCommit = { readonly sha: string; readonly authorLogin: string | null };
 export type GithubJson = {
   readonly repo: { readonly name: string; readonly owner: string; readonly description: string; readonly defaultBranch: string };
   readonly users: readonly User[];
@@ -89,6 +91,7 @@ export type GithubJson = {
   readonly discussions: readonly Discussion[];
   readonly tags: readonly Tag[];
   readonly releases: readonly Release[];
+  readonly commits?: readonly StoredCommit[];
 };
 
 /** "2024-11-19T10:00:00.000+02:00" and "2024-11-19T08:00:00Z" both become "2024-11-19T08:00:00Z". */
@@ -335,7 +338,7 @@ export type Mirror = {
  * github.json from the mirror. Nodes are mapped oldest update first, so a person's name is the one on their newest
  * item, and every list comes out in a fixed order whatever order the nodes arrive in.
  */
-export function assemble(mirror: Mirror): GithubJson {
+export function assemble(mirror: Mirror, commits?: readonly StoredCommit[]): GithubJson {
   const people = new People();
   const items: { readonly updatedAt: string; readonly map: () => void }[] = [];
   const pulls: Pull[] = [];
@@ -360,7 +363,8 @@ export function assemble(mirror: Mirror): GithubJson {
     tags,
     releases,
   };
-  return doc;
+  if (commits === undefined) return doc;
+  return { ...doc, commits: [...commits].sort((a, b) => (a.sha < b.sha ? -1 : a.sha > b.sha ? 1 : 0)) };
 }
 
 /** The bytes on disk: two-space JSON with no trailing newline, like the fixtures. */
