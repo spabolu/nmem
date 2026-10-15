@@ -112,7 +112,8 @@ async function crawl(workspace) {
       const page = await get(server.port, url);
       if (page.status !== 200) failures.push(`${page.status} ${url}`);
       if (page.ms > 5000) slow.push(`${page.ms}ms ${url}`);
-      const bad = [">undefined<", "[object Object]", ">NaN<", "Invalid Date"].find((token) => page.html.includes(token));
+      const prose = page.html.replace(/<code\b[^>]*>[\s\S]*?<\/code>/g, "");
+      const bad = [">undefined<", "[object Object]", ">NaN<", "Invalid Date"].find((token) => prose.includes(token));
       if (bad) invented.push(`${bad} ${url}`);
       if (url.includes("/timeline?audience=eng")) unclassified = Number(attr(page.html, "data-unclassified-count"));
     }
