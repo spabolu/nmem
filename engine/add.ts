@@ -159,6 +159,8 @@ export type AddOptions = {
   readonly say?: (line: string) => void;
   readonly origin?: (slug: Slug) => string;
   readonly now?: () => number;
+  /** Refuse a private repository before cloning. The worker always sets this. */
+  readonly publicOnly?: boolean;
 };
 
 export type Summary = {
@@ -222,6 +224,7 @@ export async function add(input: string, options: AddOptions): Promise<Summary> 
   const asked = parseSlug(input);
   const meta = await remote.meta(asked);
   const slug: Slug = { owner: meta.owner.login, name: meta.name };
+  if (options.publicOnly && meta.isPrivate) throw new Error(`${slug.owner}/${slug.name} is private. nmem builds public repositories only.`);
   const branch = meta.defaultBranchRef?.name;
   if (branch === undefined) throw new Error(`${slug.owner}/${slug.name} has no default branch, so it has no history to read`);
   const workspace = workspaceOf(root, slug);
