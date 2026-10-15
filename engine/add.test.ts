@@ -76,6 +76,33 @@ function read(file: string): GithubJson {
   return JSON.parse(fs.readFileSync(file, 'utf8')) as GithubJson;
 }
 
+test('a private repo is refused before anything is cloned', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'nmem-add-'));
+  const remote: Remote = {
+    calls: () => 1,
+    async meta() {
+      return { name: 'secret', owner: { login: 'acme' }, description: null, isPrivate: true, defaultBranchRef: { name: 'main' }, hasDiscussionsEnabled: false };
+    },
+    async list() {
+      throw new Error('listed a private repo');
+    },
+    async details() {
+      throw new Error('fetched a private repo');
+    },
+    async tags() {
+      throw new Error('listed tags of a private repo');
+    },
+    async releases() {
+      throw new Error('listed releases of a private repo');
+    },
+    async history() {
+      throw new Error('listed history of a private repo');
+    },
+  };
+  await assert.rejects(add('acme/secret', { remote, root: dir, publicOnly: true }), { message: 'acme/secret is private. nmem builds public repositories only.' });
+  assert.equal(fs.existsSync(path.join(dir, 'repos', 'acme', 'secret', 'repo')), false);
+});
+
 test('a slug comes from owner/name, a GitHub URL, or an SSH remote', () => {
   for (const input of ['sindresorhus/p-limit', 'https://github.com/sindresorhus/p-limit', 'https://github.com/sindresorhus/p-limit.git', 'github.com/sindresorhus/p-limit/', 'git@github.com:sindresorhus/p-limit.git']) {
     assert.deepEqual(parseSlug(input), { owner: 'sindresorhus', name: 'p-limit' });

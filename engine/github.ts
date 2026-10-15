@@ -122,6 +122,7 @@ export type RawMeta = {
   readonly name: string;
   readonly owner: { readonly login: string };
   readonly description: string | null;
+  readonly isPrivate: boolean;
   readonly defaultBranchRef: { readonly name: string } | null;
   readonly hasDiscussionsEnabled: boolean;
 };
@@ -383,7 +384,7 @@ export function graphqlRemote(graphql: Graphql, say: (line: string) => void = ()
   const repository = async (slug: Slug, selection: string, variables: Readonly<Record<string, unknown>> = {}, declared = ''): Promise<Record<string, unknown>> => {
     const { data, errors } = await graphql.query(`query($owner: String!, $name: String!${declared}) { repository(owner: $owner, name: $name) { ${selection} } }`, { owner: slug.owner, name: slug.name, ...variables });
     const repo = data.repository as Record<string, unknown> | null;
-    if (!repo) throw new Error(`github.com/${slug.owner}/${slug.name} is not a repository this token can read: ${errors.map((error) => error.message).join('; ')}`);
+    if (!repo) throw new Error(`${slug.owner}/${slug.name} does not exist, or this GitHub token cannot read it.`);
     if (errors.length > 0) throw new Error(`GitHub: ${errors.map((error) => error.message).join('; ').slice(0, 300)}`);
     return repo;
   };
@@ -452,7 +453,7 @@ export function graphqlRemote(graphql: Graphql, say: (line: string) => void = ()
   return {
     calls: () => graphql.calls(),
     async meta(slug) {
-      return (await repository(slug, 'name owner { login } description defaultBranchRef { name } hasDiscussionsEnabled')) as unknown as RawMeta;
+      return (await repository(slug, 'name owner { login } description isPrivate defaultBranchRef { name } hasDiscussionsEnabled')) as unknown as RawMeta;
     },
     async list(slug, kind, after) {
       const field = LIST_FIELD[kind];

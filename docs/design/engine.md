@@ -36,14 +36,18 @@ How `nmem build <workspace> <out.json>` turns a repo and its GitHub record into 
 
 ## Real repos
 
-`nmem add` mirrors a public GitHub repo into `~/.cache/nmem/repos/<owner>/<repo>/`: `repo/` is a clone with every branch, tag, and pull head, and HEAD on the default branch, and `github.json` is in the fixture format, built by `engine/mirror.ts` from GraphQL. It leaves out `reactions`, `checks`, `mergeMethod`, `crossReferences`, and `danglingReferences`, which no reader reads. A rerun lists pulls, issues, and discussions newest update first until it reaches what `sync.json` has, fetches only those, and rebuilds `github.json` from `sync.json` and the item cache in `~/.cache/nmem/github`, so the same remote state gives the same bytes. Default-branch commit authors are an optional `commits` list of sha and authorLogin. `add` pages them with GraphQL `history(first: 100)` into `authors.json` and does not fetch a finished index again. A crash resumes from the saved cursor. Fixture `github.json` files omit the list. The token comes from `GITHUB_TOKEN`, `gh auth token`, or `nmem auth copilot`, because GraphQL refuses unauthenticated calls.
+`nmem add` mirrors a public GitHub repo into `~/.cache/nmem/repos/<owner>/<repo>/`: `repo/` is a clone with every branch, tag, and pull head, and HEAD on the default branch, and `github.json` is in the fixture format, built by `engine/mirror.ts` from GraphQL. It leaves out `reactions`, `checks`, `mergeMethod`, `crossReferences`, and `danglingReferences`, which no reader reads. A rerun lists pulls, issues, and discussions newest update first until it reaches what `sync.json` has, fetches only those, and rebuilds `github.json` from `sync.json` and the item cache in `~/.cache/nmem/github`, so the same remote state gives the same bytes. Default-branch commit authors are an optional `commits` list of sha and authorLogin. `add` pages them with GraphQL `history(first: 100)` into `authors.json` and does not fetch a finished index again. A crash resumes from the saved cursor. Fixture `github.json` files omit the list. The token comes from `GITHUB_TOKEN`, `gh auth token`, or `nmem auth copilot`, because GraphQL refuses unauthenticated calls. `nmem serve` starts the app and the worker over `<root>/repos` (default `~/.cache/nmem`). The home page writes a request file; the worker is the only process that clones, calls the model, or bakes.
 
 ```sh
 node engine/cli.ts add sindresorhus/p-limit        # or https://github.com/sindresorhus/p-limit
 node engine/cli.ts build-repo sindresorhus/p-limit # writes snapshot.json next to github.json
-node engine/cli.ts serve sindresorhus/p-limit      # rebakes a stale site.json, prints the local URL; stop it with Ctrl-C
+node engine/cli.ts request sindresorhus/p-limit    # asks the worker to build it; a second request is a no-op
+node engine/cli.ts worker                          # one build at a time, from <root>/jobs
+node engine/cli.ts serve [--root <dir>] [--port N] # app plus worker; stop both with Ctrl-C
 node engine/cli.ts bake sindresorhus/p-limit       # rewrites site.json for an existing snapshot, no model calls
 ```
+
+Jobs live in `<root>/jobs/`, keyed by lowercase `owner/name`. The app and `nmem request` write only the request file. The worker writes the job file, the log, and `jobs/worker.lock`. A request beside a queued or running job is dropped. A running job whose process has died is queued again, and becomes a retryable failure after three stops. The worker refuses a private repository before it clones.
 
 ## Models and auth
 
