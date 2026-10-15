@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server";
-import { readQuery } from "@/lib/kernel/site";
+import { readQuery, SnapshotRejected } from "@/lib/kernel/site";
 import { siteForProxy } from "@/lib/repos";
 
 /**
@@ -14,7 +14,7 @@ export function proxy(request: NextRequest) {
     .map(decodeURIComponent);
   const [owner, repo, view, ...rest] = parts;
   if (!owner || !repo || owner.startsWith("-")) return NextResponse.next();
-  const refuse = (status: 400 | 404, reason: string) =>
+  const refuse = (status: 400 | 404 | 503, reason: string) =>
     fetch(new URL(`/-refused/${status}`, request.nextUrl.origin)).then(
       (page) =>
         new NextResponse(page.body, {
@@ -25,7 +25,13 @@ export function proxy(request: NextRequest) {
           },
         }),
     );
-  const site = siteForProxy(owner, repo);
+  let site: ReturnType<typeof siteForProxy>;
+  try {
+    site = siteForProxy(owner, repo);
+  } catch (error) {
+    if (error instanceof SnapshotRejected) return refuse(503, error.message);
+    throw error;
+  }
   if (!site)
     return refuse(404, `No built repository is called ${owner}/${repo}.`);
   const query = readQuery(request.nextUrl.searchParams);

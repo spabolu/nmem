@@ -921,8 +921,33 @@ async function refuseBad() {
       "home does not name the refused snapshot",
     );
     const page = await get(port, "/hearthware/tally?audience=eng");
-    check(page.status === 500, `a refused snapshot serves ${page.status}`);
+    check(page.status === 503, `a refused snapshot serves ${page.status}`);
+    check(
+      page.html.includes("nmem cannot open this repository yet"),
+      "a refused snapshot does not serve the refusal page",
+    );
     console.log("bad snapshot: refused, home names it");
+  } finally {
+    await server.stop();
+  }
+}
+
+async function refuseStale() {
+  const dir = await rootWith(oracleFile);
+  const site = path.join(dir, "hearthware", "tally", "site.json");
+  const baked = JSON.parse(fs.readFileSync(site, "utf8"));
+  fs.writeFileSync(site, JSON.stringify({ ...baked, schemaVersion: 1 }));
+  const server = start(dir);
+  try {
+    const port = await server.ready;
+    const home = await get(port, "/");
+    check(
+      home.html.includes("node engine/cli.ts bake hearthware/tally"),
+      "home does not give the bake command for a stale site.json",
+    );
+    const page = await get(port, "/hearthware/tally");
+    check(page.status === 503, `a stale site.json serves ${page.status}`);
+    console.log("stale site.json: refused, home gives the bake command");
   } finally {
     await server.stop();
   }
@@ -1893,6 +1918,7 @@ try {
     await checkEngine(engineCells);
   } else {
     await refuseBad();
+    await refuseStale();
     await checkOracle(
       oracleFile,
       gold.oracle,

@@ -9,17 +9,19 @@
  *   nmem auth copilot
  *
  * add mirrors a GitHub repo into ~/.cache/nmem/repos/<owner>/<repo>. build-repo writes snapshot.json there, plus the
- * site.json the app reads in place of git and proof runs (harness/bake.ts). serve checks both, then runs the built app
- * in nmem/ (`npm start`) over that repos root, on port 3000 unless --port says otherwise. bake rewrites site.json
+ * site.json the app reads in place of git and proof runs (harness/bake.ts). serve needs snapshot.json, rebakes site.json
+ * when it is missing or older than the app reads, then runs the built app in nmem/ (`npm start`) over that repos root,
+ * on port 3000 unless --port says otherwise. bake rewrites site.json
  * for the snapshot already there, with no model calls.
  * Exit codes: 0 ok, 1 the command failed, 2 bad usage.
  */
 import { spawn } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { add, NMEM_CACHE, parseSlug, summaryLine, workspaceOf } from './add.ts';
-import { bakeSite } from '../harness/bake.ts';
+import { bakeSite, SITE_SCHEMA_VERSION } from '../harness/bake.ts';
 import { build } from './build.ts';
 import { deviceLogin, loadCredential, ModelUnavailable, openClient } from './copilot.ts';
 import type { ModelClient, Totals } from './copilot.ts';
@@ -135,9 +137,17 @@ export async function main(argv: readonly string[]): Promise<number> {
     }
   }
   if (command.kind === 'serve') {
-    for (const name of ['snapshot.json', 'site.json']) {
-      if (!fs.existsSync(path.join(command.workspace, name))) {
-        console.error(`no ${name} in ${command.workspace}; run \`node engine/cli.ts build-repo\` first`);
+    const snapshot = path.join(command.workspace, 'snapshot.json');
+    if (!fs.existsSync(snapshot)) {
+      console.error(`no snapshot.json in ${command.workspace}; run \`node engine/cli.ts build-repo\` first`);
+      return 1;
+    }
+    if (siteIsStale(command.workspace, snapshot)) {
+      try {
+        await bakeSite(command.workspace, snapshot);
+        console.log(`rebaked ${path.join(command.workspace, 'site.json')} for this app`);
+      } catch (error) {
+        console.error((error as Error).message);
         return 1;
       }
     }
@@ -183,3 +193,14 @@ function callsLine(totals: Totals): string {
 }
 
 if (import.meta.main) process.exitCode = await main(process.argv.slice(2));
+
+/** site.json is derived from snapshot.json and git, so serve rewrites it when it is missing or was baked by an older nmem. */
+function siteIsStale(workspace: string, snapshot: string): boolean {
+  try {
+    const baked = JSON.parse(fs.readFileSync(path.join(workspace, 'site.json'), 'utf8')) as { schemaVersion?: unknown; snapshotSha256?: unknown };
+    const sha = createHash('sha256').update(fs.readFileSync(snapshot)).digest('hex');
+    return baked.schemaVersion !== SITE_SCHEMA_VERSION || baked.snapshotSha256 !== sha;
+  } catch {
+    return true;
+  }
+}

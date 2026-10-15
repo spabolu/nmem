@@ -26,7 +26,12 @@ import type {
 
 export const SITE_SCHEMA_VERSION = 2;
 
-const REBUILD = "rebuild this repo with nmem build-repo";
+/** site.json is derived from snapshot.json and git, so a stale one needs only a bake, which calls no model. */
+function rebake(snapshotPath: string): string {
+  const workspace = path.dirname(snapshotPath);
+  const name = `${path.basename(path.dirname(workspace))}/${path.basename(workspace)}`;
+  return `run \`node engine/cli.ts bake ${name}\` to rewrite it from snapshot.json, with no model calls`;
+}
 
 /** A snapshot the app refused. The message starts with the snapshot path. */
 export class SnapshotRejected extends Error {
@@ -171,13 +176,13 @@ function readBaked(file: string, snapshotPath: string, bytes: string): Baked {
   } catch (err) {
     throw new SnapshotRejected(
       snapshotPath,
-      `${file} is missing or unreadable; ${REBUILD}. ${err instanceof Error ? err.message : String(err)}`,
+      `${file} is missing or unreadable; ${rebake(snapshotPath)}. ${err instanceof Error ? err.message : String(err)}`,
     );
   }
   if (baked.schemaVersion !== SITE_SCHEMA_VERSION) {
     throw new SnapshotRejected(
       snapshotPath,
-      `${file} is schema version ${String(baked.schemaVersion)}, and this app reads version ${SITE_SCHEMA_VERSION}; ${REBUILD}`,
+      `${file} is schema version ${String(baked.schemaVersion)}, and this app reads version ${SITE_SCHEMA_VERSION}; ${rebake(snapshotPath)}`,
     );
   }
   if (
@@ -185,7 +190,7 @@ function readBaked(file: string, snapshotPath: string, bytes: string): Baked {
   ) {
     throw new SnapshotRejected(
       snapshotPath,
-      `${file} was baked for a different snapshot; ${REBUILD}`,
+      `${file} was baked for a different snapshot; ${rebake(snapshotPath)}`,
     );
   }
   return baked;
@@ -319,7 +324,7 @@ export function readBuilt(workspace: string): Built {
   if (typeof items === "string") {
     throw new SnapshotRejected(
       snapshotPath,
-      `${path.join(workspace, "site.json")}: ${items}; ${REBUILD}`,
+      `${path.join(workspace, "site.json")}: ${items}; ${rebake(snapshotPath)}`,
     );
   }
   return { snapshot: parsed.snapshot, baked, items, github };
