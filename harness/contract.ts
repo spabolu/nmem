@@ -176,6 +176,7 @@ export function formatRef(ref: RecordRef): string {
  *   files <rev> | files <rev>..<rev>                "path (new); path (deleted); package.json: version a -> b"
  *   diff <rev>..<rev>                               "(no differences)" or git's --shortstat line
  *   restyle <rev>..<rev>:<path>                     "only quote marks, spacing and trailing commas changed" or "code changed"
+ *   restyle <rev>..<rev>: "<path>"                  the same, for a path that must be a JSON string
  *   lockfile <rev>..<rev>                           "package.json unchanged; versions changed: none; removed: none;
  *                                                    added: 75, used by any other file: none, with an install script: none"
  *   introduced <path> <needle>                      "first added in ec966ff on 2024-11-19 by Jon Okonkwo"

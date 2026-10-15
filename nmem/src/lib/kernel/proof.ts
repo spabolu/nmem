@@ -149,6 +149,16 @@ const PROOFS: Grammar = {
   },
   restyle: {
     parse(args) {
+      if (args.length === 2) {
+        const head = bare(args[0]);
+        const range =
+          head?.endsWith(":") && args[1]?.quoted
+            ? revRange({ value: head.slice(0, -1), quoted: false })
+            : null;
+        return range && args[1]
+          ? { verb: "restyle", ...range, path: args[1].value }
+          : null;
+      }
       const value = args.length === 1 ? bare(args[0]) : null;
       const colon = value === null ? -1 : value.indexOf(":");
       if (value === null || colon < 1 || colon === value.length - 1)
@@ -158,7 +168,10 @@ const PROOFS: Grammar = {
         ? { verb: "restyle", ...range, path: value.slice(colon + 1) }
         : null;
     },
-    format: (p) => `restyle ${p.from}..${p.to}:${p.path}`,
+    format: (p) =>
+      !/[\s"]/.test(p.path)
+        ? `restyle ${p.from}..${p.to}:${p.path}`
+        : `restyle ${p.from}..${p.to}: ${JSON.stringify(p.path)}`,
   },
   lockfile: {
     parse(args) {

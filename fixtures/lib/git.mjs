@@ -42,7 +42,8 @@ function gitEnv(identity) {
 }
 
 export function git(repoDir, args, opts = {}) {
-  const result = spawnSync('git', ['--no-pager', ...args], {
+  // Paths print as UTF-8, not as quoted octal escapes, so a non-ASCII file name reads the same in every proof.
+  const result = spawnSync('git', ['--no-pager', '-c', 'core.quotePath=false', ...args], {
     cwd: repoDir,
     env: gitEnv(opts.identity),
     encoding: opts.encoding ?? 'utf8',

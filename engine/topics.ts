@@ -520,7 +520,16 @@ Pick the candidates whose code carries out what the item decided or changed, usu
 export async function placeItems(client: ModelClient, tree: readonly Topic[], items: readonly Placeable[], note: (line: string) => void): Promise<ReadonlyMap<string, readonly LocalId[]>> {
   const placed = new Map(items.map((item) => [item.key, item.candidates]));
   const open = items.filter((item) => item.candidates.length > 1);
-  if (open.length === 0) return placed;
+  for (let i = 0; i < open.length; i += PLACE_BATCH) {
+    for (const [key, topics] of await placeBatch(client, tree, open.slice(i, i + PLACE_BATCH), note)) placed.set(key, topics);
+  }
+  return placed;
+}
+
+/** One reply cannot hold a pick for every item of a large repo; agent-factory's 300-odd came back malformed. */
+const PLACE_BATCH = 60;
+
+async function placeBatch(client: ModelClient, tree: readonly Topic[], open: readonly Placeable[], note: (line: string) => void): Promise<ReadonlyMap<string, readonly LocalId[]>> {
   const picked = await ask(client, PLACE, { tree, items: open }, 'place', (answer) => {
     const problems: string[] = [];
     const value = new Map<string, readonly LocalId[]>();
@@ -535,6 +544,5 @@ export async function placeItems(client: ModelClient, tree: readonly Topic[], it
     return { value, problems };
   });
   picked.problems.forEach((line) => note(`place ${line}`));
-  for (const [key, topics] of picked.value) placed.set(key, topics);
-  return placed;
+  return picked.value;
 }

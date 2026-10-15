@@ -104,3 +104,19 @@ for (const slug of ['tally', 'wayfinder', 'seedling'] as Slug[]) {
     }
   });
 }
+
+test('restyle proofs round-trip real-repo paths in the lab and the app', () => {
+  const cases: [string, string][] = [
+    ['lettericon/testdata/ф-32-dfdfdf.png', 'restyle 3d3aee3..0ec875e:lettericon/testdata/ф-32-dfdfdf.png'],
+    ['docs/My Guide.md', 'restyle 3d3aee3..0ec875e: "docs/My Guide.md"'],
+    ['say "hi".txt', 'restyle 3d3aee3..0ec875e: "say \\"hi\\".txt"'],
+  ];
+  for (const [file, raw] of cases) {
+    const proof = parseProof(raw);
+    assert.deepEqual(proof, { verb: 'restyle', from: '3d3aee3', to: '0ec875e', path: file });
+    if (proof === null) continue;
+    assert.equal(formatProof(proof), raw);
+    assert.equal(kernelProof.formatProof(proof), raw);
+    assert.deepEqual(kernelProof.parseProof(raw), proof);
+  }
+});
