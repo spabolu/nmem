@@ -9,6 +9,7 @@
  * timestamp, so a snapshot cannot move the axis.
  */
 import { git } from './git.mjs';
+import { loginOfCommit, shaLogins } from './login.mjs';
 
 export const EMPTY_TREE = '4b825dc642cb6eb9a060e54bf8d69288fbee4904';
 const GITHUB_TIME = /^(\d{4}-\d{2}-\d{2})T\d{2}:\d{2}:\d{2}Z$/;
@@ -55,11 +56,12 @@ function assertPartition(repoDir, changes) {
 export function factsOf(repoDir, github) {
   const pullByMerge = new Map(github.pulls.filter((p) => p.mergeCommitSha).map((p) => [p.mergeCommitSha, p]));
   const loginByName = new Map(github.users.map((u) => [u.name, u.login]));
+  const bySha = shaLogins(github);
   const head = git(repoDir, ['rev-parse', 'HEAD']).stdout.trim();
   const changes = lines(git(repoDir, ['rev-list', '--first-parent', '--reverse', head]).stdout).map((sha) => {
     const parent = git(repoDir, ['rev-parse', '--verify', '--quiet', `${sha}^1`], { allowStatus: [0, 1] }).stdout.trim();
     const before = parent || EMPTY_TREE;
-    const [live, authorName] = git(repoDir, ['show', '-s', '--format=%cs%x09%an', sha]).stdout.trim().split('\t');
+    const [live, authorName, authorEmail] = git(repoDir, ['show', '-s', '--format=%cs%x09%an%x09%ae', sha]).stdout.trim().split('\t');
     const pull = pullByMerge.get(sha);
     return {
       id: pull ? `pr#${pull.number}` : sha.slice(0, 7),
@@ -67,7 +69,7 @@ export function factsOf(repoDir, github) {
       before,
       after: sha,
       touched: touchedOf(repoDir, before, sha),
-      author: pull ? pull.author : loginByName.get(authorName) ?? null,
+      author: pull ? pull.author : loginOfCommit(sha, authorName, authorEmail ?? '', bySha, loginByName),
     };
   });
   const ids = new Set(changes.map((c) => c.id));

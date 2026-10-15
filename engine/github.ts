@@ -370,6 +370,8 @@ export type Remote = {
   details<K extends Kind>(slug: Slug, kind: K, numbers: readonly number[]): Promise<ReadonlyMap<number, RawNode[K]>>;
   tags(slug: Slug): Promise<readonly RawTag[]>;
   releases(slug: Slug): Promise<readonly RawRelease[]>;
+  /** One page of default-branch history, newest first. 100 commits, oid and author login only. */
+  history(slug: Slug, after: string | null): Promise<{ readonly commits: readonly { readonly sha: string; readonly authorLogin: string | null }[]; readonly next: string | null }>;
   calls(): number;
 };
 
@@ -475,5 +477,19 @@ export function graphqlRemote(graphql: Graphql, say: (line: string) => void = ()
     async releases(slug) {
       return pagesOf<RawRelease>(slug, 'releases', ', orderBy: { field: CREATED_AT, direction: ASC }', 'tagName name description createdAt author { login name }');
     },
+    async history(slug, after) {
+      const repo = await repository(slug, `defaultBranchRef { target { ... on Commit { history(first: 100, after: $after) { ${PAGE} nodes { oid author { user { __typename login } } } } } } }`, { after }, ', $after: String');
+      const history = (repo.defaultBranchRef as { target?: { history?: { pageInfo?: { hasNextPage: boolean; endCursor: string | null }; nodes: readonly (HistoryNode | null)[] } } } | null)?.target?.history;
+      if (!history) throw new Error(`${slug.owner}/${slug.name} has no commit history on its default branch`);
+      const commits = history.nodes.flatMap((node) => (node === null ? [] : [{ sha: node.oid, authorLogin: historyLogin(node.author?.user ?? null) }]));
+      return { commits, next: history.pageInfo?.hasNextPage ? history.pageInfo.endCursor : null };
+    },
   };
+}
+
+type HistoryNode = { readonly oid: string; readonly author: { readonly user: { readonly __typename?: string; readonly login: string } | null } | null };
+
+function historyLogin(user: { readonly __typename?: string; readonly login: string } | null): string | null {
+  if (user === null) return null;
+  return user.__typename === 'Bot' && !user.login.endsWith('[bot]') ? `${user.login}[bot]` : user.login;
 }

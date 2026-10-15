@@ -49,6 +49,10 @@ function fakeRemote(items: Items): Remote & { readonly log: string[] } {
       log.push('releases');
       return data.releases;
     },
+    async history() {
+      log.push('history');
+      return { commits: [], next: null };
+    },
   };
 }
 
@@ -86,7 +90,7 @@ test('adding twice writes the same bytes, and the second run reads only the list
   const first = await add('sindresorhus/p-limit', { remote, root, origin: () => url });
   const file = path.join(root, 'repos', 'sindresorhus', 'p-limit', 'github.json');
   const bytes = fs.readFileSync(file, 'utf8');
-  assert.deepEqual(remote.log.splice(0), ['meta', 'list pulls', 'list pulls after 2', 'details pulls 90,20,9', 'list issues', 'details issues 18', 'tags', 'releases']);
+  assert.deepEqual(remote.log.splice(0), ['meta', 'list pulls', 'list pulls after 2', 'details pulls 90,20,9', 'list issues', 'details issues 18', 'tags', 'releases', 'history']);
   const second = await add('sindresorhus/p-limit', { remote, root, origin: () => url });
   assert.deepEqual(remote.log, ['meta', 'list pulls', 'list issues', 'tags', 'releases']);
   assert.equal(fs.readFileSync(file, 'utf8'), bytes);
@@ -125,4 +129,83 @@ test('one new pull fetches only that pull and changes only its entries and the p
     { login: 'shirshak55', name: 'Shirshak', type: 'User' },
   ]);
   assert.deepEqual(after.users.filter((user) => !added.includes(user)), before.users);
+});
+
+test('commit authors are stored a page at a time, a crash resumes, and a rerun does not fetch them', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'nmem-add-'));
+  const url = origin();
+  fs.writeFileSync(path.join(url, 'more.txt'), 'more\n');
+  git(url, ['add', '-A']);
+  git(url, ['commit', '--quiet', '-m', 'More'], { identity: { name: 'Sindre Sorhus', email: 'sindresorhus@gmail.com', date: '2016-10-22T07:59:39Z' } });
+  const shas = git(url, ['rev-list', '--reverse', 'HEAD']).stdout.trim().split('\n');
+  const pages = shas.map((sha, i) => ({ sha, authorLogin: i === 0 ? 'sindresorhus' : null }));
+  const historyRemote = (log: string[], crashOn: number | null) => {
+    let calls = 0;
+    const base = fakeRemote(itemsOf([]));
+    return {
+      ...base,
+      log,
+      async history(_slug: unknown, after: string | null) {
+        const from = after === null ? 0 : Number(after);
+        log.push(from === 0 ? 'history' : `history after ${from}`);
+        calls += 1;
+        if (crashOn !== null && calls === crashOn) throw new Error('history crashed');
+        return { commits: pages.slice(from, from + 1), next: from + 1 < pages.length ? String(from + 1) : null };
+      },
+    };
+  };
+  const crashed: string[] = [];
+  await assert.rejects(add('sindresorhus/p-limit', { remote: historyRemote(crashed, 2), root, origin: () => url }), { message: 'history crashed' });
+  assert.deepEqual(crashed.filter((line) => line.startsWith('history')), ['history', 'history after 1']);
+  const index = JSON.parse(fs.readFileSync(path.join(root, 'repos', 'sindresorhus', 'p-limit', 'authors.json'), 'utf8')) as { complete: boolean; cursor: string | null; commits: Record<string, string | null> };
+  assert.equal(index.complete, false);
+  assert.equal(index.cursor, '1');
+  assert.equal(index.commits[shas[0] ?? ''], 'sindresorhus');
+  const resumed: string[] = [];
+  await add('sindresorhus/p-limit', { remote: historyRemote(resumed, null), root, origin: () => url });
+  assert.deepEqual(resumed.filter((line) => line.startsWith('history')), ['history after 1']);
+  const doc = read(path.join(root, 'repos', 'sindresorhus', 'p-limit', 'github.json'));
+  assert.deepEqual(doc.commits, [...pages].sort((a, b) => (a.sha < b.sha ? -1 : 1)));
+  const again: string[] = [];
+  await add('sindresorhus/p-limit', { remote: historyRemote(again, null), root, origin: () => url });
+  assert.deepEqual(again.filter((line) => line.startsWith('history')), []);
+});
+
+test('a later push fetches history only until the stored tip', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'nmem-add-'));
+  const url = origin();
+  const first = git(url, ['rev-parse', 'HEAD']).stdout.trim();
+  const remoteFor = (log: string[], pages: readonly { readonly sha: string; readonly authorLogin: string | null }[]) => {
+    const base = fakeRemote(itemsOf([]));
+    return {
+      ...base,
+      log,
+      async history(_slug: unknown, after: string | null) {
+        const from = after === null ? 0 : Number(after);
+        log.push(from === 0 ? 'history' : `history after ${from}`);
+        return { commits: pages.slice(from, from + 1), next: from + 1 < pages.length ? String(from + 1) : null };
+      },
+    };
+  };
+  const firstLog: string[] = [];
+  await add('sindresorhus/p-limit', { remote: remoteFor(firstLog, [{ sha: first, authorLogin: 'sindresorhus' }]), root, origin: () => url });
+  assert.deepEqual(firstLog.filter((line) => line.startsWith('history')), ['history']);
+  fs.writeFileSync(path.join(url, 'later.txt'), 'later\n');
+  git(url, ['add', '-A']);
+  git(url, ['commit', '--quiet', '-m', 'Later'], { identity: { name: 'Ada Lovelace', email: 'ada@example.com', date: '2016-10-23T07:59:39Z' } });
+  const second = git(url, ['rev-parse', 'HEAD']).stdout.trim();
+  const pushed: string[] = [];
+  const pushedRemote = remoteFor(pushed, []);
+  pushedRemote.history = async (_slug: unknown, after: string | null) => {
+    pushed.push(after === null ? 'history' : `history after ${after}`);
+    if (after !== null) return { commits: [{ sha: 'should-not-fetch', authorLogin: 'ghost' }], next: null };
+    return { commits: [{ sha: second, authorLogin: 'ada' }, { sha: first, authorLogin: 'sindresorhus' }], next: 'more' };
+  };
+  await add('sindresorhus/p-limit', { remote: pushedRemote, root, origin: () => url });
+  assert.deepEqual(pushed.filter((line) => line.startsWith('history')), ['history']);
+  const doc = read(path.join(root, 'repos', 'sindresorhus', 'p-limit', 'github.json'));
+  assert.deepEqual([...(doc.commits ?? [])].sort((a, b) => (a.sha < b.sha ? -1 : 1)), [
+    { sha: first, authorLogin: 'sindresorhus' },
+    { sha: second, authorLogin: 'ada' },
+  ].sort((a, b) => (a.sha < b.sha ? -1 : 1)));
 });

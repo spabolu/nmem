@@ -35,7 +35,7 @@ function nmem(...args: string[]): { status: number | null; stderr: string } {
 function buildTally(): { bytes: string; snapshot: Snapshot } {
   const out = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'nmem-engine-')), 'tally.json');
   const run = nmem('build', tally, out, '--no-model');
-  assert.equal(run.stderr, 'tally: 20 changes (5 routine), 5 decisions, 1 undone, 1 topics, 0 claims; no model\n');
+  assert.equal(run.stderr, 'note: 1 change has no GitHub login, so a finding or decision on it is dropped: 10474f7\ntally: 20 changes (5 routine), 5 decisions, 1 undone, 1 topics, 0 claims; no model\n');
   assert.equal(run.status, 0);
   const bytes = fs.readFileSync(out, 'utf8');
   return { bytes, snapshot: JSON.parse(bytes) as Snapshot };

@@ -12,7 +12,7 @@ import { stepCanFallBack } from './copilot.ts';
 import type { ModelClient } from './copilot.ts';
 import { proveRoutine, proveUndone, routineParts } from './proofs.ts';
 import type { UndoneProof } from './proofs.ts';
-import { ingest, isDoc } from './record.ts';
+import { changesWithoutLogin, ingest, isDoc } from './record.ts';
 import type { Change, RepoRecord } from './record.ts';
 import { collapse, noModel, ROOT } from './steps.ts';
 import type { Placeable, Steps } from './steps.ts';
@@ -272,6 +272,9 @@ export function modelSteps(record: RepoRecord, client: ModelClient, notes: Notes
 export async function build(workspace: string, client: ModelClient | null = null): Promise<Built & { readonly notes: Notes }> {
   const record = ingest(workspace);
   const notes: Notes = [];
+  const nameless = changesWithoutLogin(record);
+  if (nameless.length === 1) notes.push(`1 change has no GitHub login, so a finding or decision on it is dropped: ${nameless[0]?.id}`);
+  else if (nameless.length > 1) notes.push(`${nameless.length} changes have no GitHub login, so findings and decisions on them are dropped${nameless.length <= 20 ? `: ${nameless.map((change) => change.id).join(', ')}` : ''}`);
   const usage = (): Usage | null => {
     if (client === null) return null;
     const totals = client.totals().usage;
