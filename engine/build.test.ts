@@ -240,6 +240,7 @@ test('classify copies record text for handles, refuses a denial as intent or anc
     'scan farewell.txt says bye': [{ stated: [] }],
     'why decision pr#1: One farewell line.': [{ reason: null, said: null }],
     'scan One farewell line.': [{ stated: [] }],
+    'weigh pr#1': [{ weights: [{ choice: 'D1', note: 'A stated choice.', weight: 'key' }] }],
   };
   const client = fakeClient(answers);
   const notes: string[] = [];
@@ -367,6 +368,8 @@ test('a reason is recorded only when a second call agrees, and the scan drops a 
     'why decision pr#2: Moves the greeting to stdout.': [{ reason: 'S2', said: { eng: 'It moves the greeting.', plain: 'It moves the greeting.' } }],
     'confirm decision pr#2: Moves the greeting to stdout.': [{ verdict: 'does-not' }],
     'scan Moves the greeting to stdout.': [{ stated: [] }],
+    'weigh pr#1': [{ weights: [{ choice: 'D1', note: 'A stated choice.', weight: 'key' }] }],
+    'weigh pr#2': [{ weights: [{ choice: 'D1', note: 'A stated choice.', weight: 'key' }] }],
   });
   const notes: string[] = [];
   const snapshot = JSON.parse((await assemble(record, modelSteps(record, client, notes))).bytes) as Snapshot;
@@ -379,6 +382,51 @@ test('a reason is recorded only when a second call agrees, and the scan drops a 
   assert.deepEqual(notes, ['scan dropped a sentence that states a reason: Users wanted it.', 'topics fell back: no canned answer for form topics sample 1']);
   const why = client.seen.find((request) => request.label === 'why finding pr#1: Prints bye' && request.sample === 1);
   assert.match(why?.user ?? '', /- reason: S4 is marked \(denial\) or \(bot\), so it can never be a reason$/);
+});
+
+test('weigh drops a not decision, marks a minor one, keeps a key one bare, and re-asks for a decision left out', async () => {
+  const record = ingest(toyWorkspace([
+    { title: 'Add a farewell', body: 'Use one farewell line. Ship it in farewell.txt.', files: { 'farewell.txt': 'bye\n' } },
+    { title: 'Tidy the greeting', body: 'Print the greeting in lower case.', files: { 'greet.txt': 'hello\n' } },
+  ]));
+  const chose = (sentence: string, eng: string) => ({ sentence, stance: 'chose', carried: 'this', restates: null, details: null, what: { eng, plain: eng }, files: [] });
+  const weights = (...pairs: [string, string][]) => ({ weights: pairs.map(([choice, weight]) => ({ choice, note: 'Why.', weight })) });
+  const client = fakeClient({
+    'claims README.md': [{ claims: [] }],
+    'classify pr#1': [{ choices: [chose('S2', 'Use one farewell line.'), chose('S3', 'Ship it in farewell.txt.')], findings: [] }],
+    'classify pr#2': [{ choices: [chose('S2', 'Print the greeting in lower case.')], findings: [] }],
+    'why decision pr#1: Use one farewell line.': [{ reason: null, said: null }],
+    'why decision pr#1: Ship it in farewell.txt.': [{ reason: null, said: null }],
+    'why decision pr#2: Print the greeting in lower case.': [{ reason: null, said: null }],
+    'scan Use one farewell line.': [{ stated: [] }],
+    'scan Ship it in farewell.txt.': [{ stated: [] }],
+    'scan Print the greeting in lower case.': [{ stated: [] }],
+    'weigh pr#1': [weights(['D1', 'key']), weights(['D1', 'key'], ['D2', 'not'])],
+    'weigh pr#2': [weights(['D1', 'minor'])],
+  });
+  const notes: string[] = [];
+  const built = await assemble(record, modelSteps(record, client, notes));
+  const snapshot = JSON.parse(built.bytes) as Snapshot;
+  assert.deepEqual(snapshot.decisions.map((decision) => [decision.carriedBy, decision.what.eng, decision.weight ?? 'no weight']), [
+    ['pr#1', 'Ship it in farewell.txt.', 'no weight'],
+    ['pr#2', 'Print the greeting in lower case.', 'minor'],
+  ]);
+  assert.match(built.summary, /, 2 decisions \(1 minor, 1 more weighed as not decisions\), /);
+  assert.deepEqual(notes, ['topics fell back: no canned answer for form topics sample 1']);
+  const weigh = client.seen.filter((request) => request.label.startsWith('weigh'));
+  assert.deepEqual(weigh.map((request) => [request.label, request.sample, request.system.split('\n')[0]]), [
+    ['weigh pr#1', 0, 'nmem weigh v7'],
+    ['weigh pr#2', 0, 'nmem weigh v7'],
+    ['weigh pr#1', 1, 'nmem weigh v7'],
+  ]);
+  assert.equal(weigh[1]?.user, [
+    'Change pr#2: Tidy the greeting',
+    'Touched files: greet.txt.',
+    '',
+    '[D1] Print the greeting in lower case.',
+    '  Written in the pull request: "Print the greeting in lower case."',
+  ].join('\n'));
+  assert.match(weigh[2]?.user ?? '', /- D2 is not weighed$/);
 });
 
 test('topics: the tree is checked against HEAD, Start here is computed, and pages cite lines and test lines by handle', async () => {
@@ -397,6 +445,7 @@ test('topics: the tree is checked against HEAD, Start here is computed, and page
     'classify pr#1': [{ choices: [{ sentence: 'S2', stance: 'chose', carried: 'this', restates: null, what: { eng: 'Greets by name.', plain: 'Greets by name.' }, files: ['src/greet.py'] }], findings: [] }],
     'why decision pr#1: Greet people by name.': [{ reason: null, said: null }],
     'scan Greet people by name.': [{ stated: [] }],
+    'weigh pr#1': [{ weights: [{ choice: 'D1', note: 'A stated choice.', weight: 'key' }] }],
     'form topics': [{ topics: topic(['src/greet.py', 'tests/test_greet.py', 'nope.py']) }, { topics: topic(['src/greet.py', 'tests/test_greet.py']) }],
     'page root': [{ headline: [{ eng: 'Toy prints a greeting.', plain: 'Toy prints a greeting.', source: 'S2' }], example: null }],
     'page greeting': [

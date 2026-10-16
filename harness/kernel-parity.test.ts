@@ -47,13 +47,18 @@ function proofsIn(value: unknown, out: Set<string>): Set<string> {
   return out;
 }
 
-for (const slug of ['tally', 'wayfinder', 'seedling'] as Slug[]) {
-  test(`${slug}: the app kernel renders gold exactly as the lab kernel does`, async () => {
+const variants = {
+  gold: (snapshot: Snapshot): Snapshot => snapshot,
+  'gold with every other decision minor': (snapshot: Snapshot): Snapshot => ({ ...snapshot, decisions: snapshot.decisions.map((decision, i) => (i % 2 === 0 ? { ...decision, weight: 'minor' as const } : decision)) }),
+};
+
+for (const slug of ['tally', 'wayfinder', 'seedling'] as Slug[]) for (const [variant, weigh] of Object.entries(variants)) {
+  test(`${slug}: the app kernel renders ${variant} exactly as the lab kernel does`, async () => {
     const fixture = path.join(root, 'out', slug);
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), `nmem-kernel-${slug}-`));
     try {
       for (const entry of ['repo', 'github.json']) fs.symlinkSync(path.join(fixture, entry), path.join(dir, entry));
-      const oracle = loadGold(path.join(root, 'out'), slug).oracle;
+      const oracle = weigh(loadGold(path.join(root, 'out'), slug).oracle);
       const bytes = JSON.stringify(oracle);
       fs.writeFileSync(path.join(dir, 'snapshot.json'), bytes);
       await bakeSite(dir, path.join(dir, 'snapshot.json'));

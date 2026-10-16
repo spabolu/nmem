@@ -19,6 +19,7 @@ import type { Placeable, Steps } from './steps.ts';
 import { formTopics, implementers, overlapping, placeItems } from './topics.ts';
 import { declinedChoices, placeUncarried } from './threads.ts';
 import { vetFinding } from './vet.ts';
+import { weighDecisions } from './weigh.ts';
 import { scanReasons, whyOf, whyUncarried } from './why.ts';
 
 function topicList(ids: readonly string[]): [string, ...string[]] {
@@ -121,10 +122,17 @@ export async function assemble(record: RepoRecord, steps: Steps, usage: () => Us
       })),
     };
   });
-  const decisions: Decision[] = [
+  const placedDecisions: Decision[] = [
     ...decided.map((item, i) => ({ ...item.decision, topics: topicList(placed.get(`decision ${i + 1}`) ?? []) })),
     ...extra.map((decision) => ({ ...decision, topics: topicList((extraTopics.get(decision.id) ?? []).filter((id) => topicIds.has(id))) })),
   ];
+  // Weighed after place, so the batched place prompt and its cached draw do not change with the weights.
+  const weights = await steps.weigh(placedDecisions);
+  const decisions = placedDecisions.flatMap((decision): Decision[] => {
+    const weight = weights.get(decision.id);
+    if (weight === 'not') return [];
+    return weight === 'minor' ? [{ ...decision, weight }] : [decision];
+  });
   const undone = proveUndone(record.repoDir, record.changes).map(undoneOf);
   const claimed = await steps.claims(topics);
   const snapshot: Snapshot = {
@@ -143,7 +151,10 @@ export async function assemble(record: RepoRecord, steps: Steps, usage: () => Us
   if (!parsed.ok) throw new Error(`the engine wrote a snapshot the contract rejects:\n${parsed.errors.map((error) => `${error.path}: ${error.what}`).join('\n')}`);
   checkQuotes(snapshot, record);
   const routine = changes.filter((change) => change.routine.length > 0).length;
-  const summary = `${record.identity.name}: ${changes.length} changes (${routine} routine), ${decisions.length} decisions, ${undone.length} undone, ${snapshot.topics.length} topics, ${snapshot.claims.length} claims`;
+  const minor = decisions.filter((decision) => decision.weight === 'minor').length;
+  const dropped = placedDecisions.length - decisions.length;
+  const weighed = minor + dropped > 0 ? ` (${minor} minor, ${dropped} more weighed as not decisions)` : '';
+  const summary = `${record.identity.name}: ${changes.length} changes (${routine} routine), ${decisions.length} decisions${weighed}, ${undone.length} undone, ${snapshot.topics.length} topics, ${snapshot.claims.length} claims`;
   return { bytes, summary };
 }
 
@@ -157,9 +168,9 @@ function fallback(notes: Notes, label: string, error: unknown): void {
 
 /**
  * The model steps that are on, over the no-model floor. A bad reply after the re-ask takes the step's fallback and is
- * noted: classify leaves the change unclassified, vet keeps the finding, why leaves the reason not recorded, and scan treats every sentence as
- * stating a reason, so an unscanned gap object is never written. Auth and provider failures throw, so a scored run
- * fails rather than writing a partial snapshot.
+ * noted: classify leaves the change unclassified, vet keeps the finding, why leaves the reason not recorded, weigh
+ * leaves the change's decisions key, and scan treats every sentence as stating a reason, so an unscanned gap object is
+ * never written. Auth and provider failures throw, so a scored run fails rather than writing a partial snapshot.
  */
 export function modelSteps(record: RepoRecord, client: ModelClient, notes: Notes): Steps {
   const floor = noModel(record);
@@ -252,6 +263,7 @@ export function modelSteps(record: RepoRecord, client: ModelClient, notes: Notes
         return new Map();
       }
     },
+    weigh: (decisions) => weighDecisions(record, client, decisions, (line) => notes.push(line)),
     scan: async (subject, shown) => {
       const label = subject.eng;
       try {

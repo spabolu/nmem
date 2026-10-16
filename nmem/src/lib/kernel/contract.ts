@@ -417,6 +417,7 @@ export type Change = {
  * is the intent, meaning the ADR, thread comment, PR sentence, or commit message that shows someone chose this on purpose.
  * There is no who and no date. view.ts derives the decider (the intent's author, or the person who added the cited
  * file) and the day (carriedBy's live day, else the intent's day). topics [<root id>] means repo-wide, shown on the root page only.
+ * weight minor is a real but small choice, listed after the key ones. A decision with no weight is key.
  */
 export type Decision = {
   readonly id: LocalId;
@@ -425,6 +426,7 @@ export type Decision = {
   readonly carriedBy: ChangeId | null;
   readonly replacedBy: LocalId | null;
   readonly why: Why;
+  readonly weight?: "minor";
 };
 
 /** A sentence in a written doc, verbatim at HEAD. */
@@ -1113,9 +1115,16 @@ function readDecision(
   rejectUnknown(
     value,
     path,
-    ["id", "what", "topics", "carriedBy", "replacedBy", "why"],
+    ["id", "what", "topics", "carriedBy", "replacedBy", "why", "weight"],
     bag,
   );
+  const weighted = Object.hasOwn(value, "weight");
+  if (weighted && value.weight !== "minor")
+    push(
+      bag,
+      at(path, "weight"),
+      'expected "minor"; a key decision has no weight',
+    );
   const id = Object.hasOwn(value, "id")
     ? readString(value.id, at(path, "id"), bag)
     : (push(bag, at(path, "id"), "missing"), null);
@@ -1171,7 +1180,8 @@ function readDecision(
     (value.replacedBy !== null && !replacedBy)
   )
     return null;
-  return {
+  if (weighted && value.weight !== "minor") return null;
+  const decision: Decision = {
     id,
     what,
     topics: topics as [string, ...string[]],
@@ -1179,6 +1189,7 @@ function readDecision(
     replacedBy: value.replacedBy === null ? null : replacedBy,
     why,
   };
+  return weighted ? { ...decision, weight: "minor" } : decision;
 }
 
 function readSentence(

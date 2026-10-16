@@ -2,10 +2,11 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { parseSnapshot } from './contract.ts';
 import type { ChangeId, Claim, Snapshot, Topic } from './contract.ts';
 import { loadGold } from './gold.ts';
 import { factsOf, openFixture } from './record.ts';
-import { TEMPLATES, censusOf, formatDay, labelChange } from './view.ts';
+import { TEMPLATES, censusOf, formatDay, labelChange, pageOf } from './view.ts';
 import type { IsoDay, RepoFacts } from './view.ts';
 
 const day = (iso: string): IsoDay => iso as IsoDay;
@@ -111,4 +112,20 @@ test('tally census matches the gold tree', () => {
   const census = censusOf(gold.oracle, factsOf(record));
   assert.deepEqual(census, { topics: 6, neverWritten: 1, outOfDate: 1, upToDate: 4 });
   assert.equal(TEMPLATES.census(census).eng, '1 of 6 topics was never written down. 1 of 6 topics is out of date.');
+});
+
+test('a minor decision is listed after every key one, and a key decision is written with no weight', () => {
+  const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+  const record = openFixture(path.join(root, 'out', 'tally'));
+  const facts = factsOf(record);
+  const gold = loadGold(path.join(root, 'out'), 'tally' as never).oracle;
+  const shown = (snapshot: Snapshot) => pageOf(snapshot, facts, 'root').decisions.shown.map((row) => row.decision.id);
+  const weighed = (weight: string): unknown => ({ ...gold, decisions: gold.decisions.map((decision) => (decision.id === 'd-note' ? { ...decision, weight } : decision)) });
+  assert.deepEqual(shown(gold), ['d-note', 'd-flag', 'd-round-revert']);
+  const expected = { repo: record.workspace.identity, head: facts.head, changes: new Set(facts.changes.map((change) => change.id)) };
+  const minor = parseSnapshot(JSON.stringify(weighed('minor')), expected);
+  assert.ok(minor.ok);
+  assert.deepEqual(shown(minor.snapshot), ['d-flag', 'd-round-revert', 'd-round-first']);
+  const key = parseSnapshot(JSON.stringify(weighed('key')), expected);
+  assert.deepEqual(key.ok ? [] : key.errors, [{ path: 'decisions[0].weight', what: 'expected "minor"; a key decision has no weight' }]);
 });

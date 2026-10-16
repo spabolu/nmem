@@ -91,8 +91,8 @@ export function settledChoices(record: RepoRecord): readonly Choice[] {
   return [...revertChoices(record), ...adrChoices(record).map((item) => item.choice)];
 }
 
-function idOf(intent: Intent): LocalId {
-  return `d${createHash('sha256').update(`${intent.ref}\n${intent.text}`).digest('hex').slice(0, 8)}`;
+export function idOf(sentence: Sentence): LocalId {
+  return `d${createHash('sha256').update(`${sentence.ref}\n${sentence.text}`).digest('hex').slice(0, 8)}`;
 }
 
 /**
