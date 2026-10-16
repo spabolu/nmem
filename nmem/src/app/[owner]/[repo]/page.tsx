@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import Loading from "@/app/[owner]/[repo]/loading";
 import { BadQuery } from "@/components/bad-query";
-import { BuildBanner, BuildStatus } from "@/components/build-status";
+import { BuildStatus } from "@/components/build-status";
 import { RepoFrame } from "@/components/repo-frame";
 import { TopicView } from "@/components/topic-view";
 import { hasBuild } from "@/lib/jobs";
@@ -70,7 +70,6 @@ async function RepoContent({ params, searchParams }: Props) {
       path=""
       layout="split"
     >
-      <BuildBanner owner={request.repo.owner} name={request.repo.name} />
       <TopicView ctx={ctx} id={rootId(request.site)} all={query.all} />
     </RepoFrame>
   );

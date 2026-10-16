@@ -18,6 +18,7 @@ import type { Audience } from "@/lib/kernel/view";
 
 const PHASE: Record<Phase, string> = {
   fetching: "Fetching the repository from GitHub.",
+  quick: "Preparing the first pages.",
   building: "Reading the history.",
   baking: "Preparing the pages.",
 };
@@ -187,9 +188,13 @@ export async function BuildStatus({
 export async function BuildBanner({
   owner,
   name,
+  audience,
+  preview,
 }: {
   readonly owner: string;
   readonly name: string;
+  readonly audience: Audience;
+  readonly preview: boolean;
 }) {
   await connection();
   const view = buildView(owner, name);
@@ -202,23 +207,52 @@ export async function BuildBanner({
     );
   }
   const alive = workerAlive();
+  const line = headline(view, alive);
+  const reading = preview && view.kind !== "unread";
+  const progress =
+    audience === "eng" &&
+    view.kind === "running" &&
+    view.progress !== "" &&
+    view.progress !== line
+      ? view.progress
+      : null;
+  const elapsed = since(view, Date.now());
   return (
     <div
       className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-[8px] border border-(color:--borderColor-default) bg-(--bgColor-muted) px-4 py-3"
       data-build-state={view.kind}
+      data-build-phase={
+        view.kind === "running" || view.kind === "failed"
+          ? view.phase
+          : undefined
+      }
+      data-preview={reading ? "yes" : undefined}
     >
       <Refresh />
       <div className="min-w-0">
-        <p className="m-0 text-[14px]">{headline(view, alive)}</p>
+        <p className="m-0 text-[14px]">{line}</p>
         {view.kind === "failed" ? (
           <p className={`${HINT} m-0 mt-1 [overflow-wrap:anywhere]`}>
-            {view.reason} The last finished build is still on this page.
+            {view.reason}{" "}
+            {reading
+              ? "These pages have no decisions yet."
+              : "The last finished build is still on this page."}
           </p>
+        ) : reading ? (
+          <p className={`${HINT} m-0 mt-1`}>nmem is still reading decisions.</p>
         ) : (
           <p className={`${HINT} m-0 mt-1`}>
             This page still shows the last finished build.
           </p>
         )}
+        {reading && elapsed ? (
+          <p className={`${HINT} m-0 mt-1`}>{elapsed}</p>
+        ) : null}
+        {progress ? (
+          <p className={`${HINT} m-0 mt-1 [overflow-wrap:anywhere]`}>
+            {progress}
+          </p>
+        ) : null}
         {!alive ? <StartCommand /> : null}
       </div>
       {view.kind === "failed" && view.retryable ? (

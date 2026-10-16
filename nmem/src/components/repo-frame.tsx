@@ -8,6 +8,7 @@ import {
 import { rootId } from "@/lib/kernel/site";
 import type { Audience } from "@/lib/kernel/view";
 import type { RepoRequest } from "@/lib/request";
+import { BuildBanner } from "./build-status";
 import { RepoBar } from "./repo-bar";
 import { PAGE } from "./styles";
 
@@ -53,6 +54,12 @@ export function RepoFrame({
         }}
       />
       <main id="main" className={PAGE[layout]}>
+        <BuildBanner
+          owner={repo.owner}
+          name={repo.name}
+          audience={audience}
+          preview={site.snapshot.usage === null}
+        />
         {children}
       </main>
     </div>

@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { jobKey, parseSlug, type Slug } from "@/lib/slug";
 
-export type Phase = "fetching" | "building" | "baking";
+export type Phase = "fetching" | "quick" | "building" | "baking";
 
 export type BuildView =
   | {
@@ -50,7 +50,7 @@ export type BuildView =
     }
   | { readonly kind: "unread"; readonly slug: string; readonly reason: string };
 
-const PHASES: readonly Phase[] = ["fetching", "building", "baking"];
+const PHASES: readonly Phase[] = ["fetching", "quick", "building", "baking"];
 
 function homeRoot(): string {
   return path.join(os.userInfo().homedir, ".cache", "nmem");
