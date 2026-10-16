@@ -12,8 +12,9 @@ import { useRouter } from "next/navigation";
 export type RepoBarProps = {
   readonly owner: string;
   readonly name: string;
-  readonly view: "topics" | "timeline" | "source" | "other";
+  readonly view: "topics" | "timeline" | "source" | "door" | "other";
   readonly topicsHref: string;
+  readonly topicPageHref: string;
   readonly timelineHref: string;
   readonly github: string;
   readonly audience: "eng" | "plain";
@@ -57,7 +58,7 @@ export function RepoBar(props: RepoBarProps) {
         >
           <UnderlineNav.Item
             as={NextLink}
-            href={props.topicsHref}
+            href={props.topicPageHref}
             leadingVisual={<ListUnorderedIcon />}
             aria-current={props.view === "topics" ? "page" : undefined}
           >

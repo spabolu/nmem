@@ -7,7 +7,7 @@ import { buildStateLine } from "@/components/build-status";
 import { AppLink, ButtonLink } from "@/components/links";
 import { RequestButton } from "@/components/request-button";
 import { HINT, PANEL, PANEL_HD, SOURCE_PRE } from "@/components/styles";
-import { repoPath, topicsHref } from "@/lib/hrefs";
+import { repoPath, topicHref, topicsHref } from "@/lib/hrefs";
 import {
   type BuildView,
   listBuilds,
@@ -176,7 +176,11 @@ function RepoRow({
           {card.census ? (
             <>
               <ButtonLink
-                href={topicsHref(card.identity, "eng")}
+                href={
+                  card.root
+                    ? topicHref(card.identity, card.root, "eng")
+                    : topicsHref(card.identity, "eng")
+                }
                 size="small"
                 variant="primary"
               >
