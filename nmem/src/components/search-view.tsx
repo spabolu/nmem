@@ -1,16 +1,11 @@
 import { Button } from "@primer/react";
 import Form from "next/form";
 import NextLink from "next/link";
-import {
-  itemHref,
-  repoPath,
-  sourceHref,
-  timelineHref,
-  topicHref,
-} from "@/lib/hrefs";
-import type { SearchHit, SearchKind } from "@/lib/kernel/view";
+import { searchPath } from "@/lib/hrefs";
+import type { SearchKind } from "@/lib/kernel/view";
 import { SEARCH_INDEXERS, search } from "@/lib/kernel/view";
 import { hitLine, hitTitle } from "@/lib/present";
+import { hitHref, hitsForAudience } from "@/lib/typeahead";
 import { Blank } from "./blank";
 import { type Ctx, Prose } from "./said";
 import { H1, HINT, TEXT_INPUT } from "./styles";
@@ -30,34 +25,6 @@ function kindLabel(kind: SearchKind, audience: Ctx["audience"]): string {
   );
 }
 
-function visible(
-  hits: readonly SearchHit[],
-  audience: Ctx["audience"],
-): SearchHit[] {
-  return hits.filter((hit) => {
-    if (audience === "eng") return true;
-    return (
-      SEARCH_INDEXERS.find((row) => row.kind === hit.kind)?.plain !== false
-    );
-  });
-}
-
-function hrefOf(hit: SearchHit, ctx: Ctx): string {
-  const { repo, audience } = ctx;
-  const link = hit.link;
-  if (link.to === "topic") {
-    const href = topicHref(repo, link.topic, audience);
-    return link.anchor === null
-      ? href
-      : `${href}#${encodeURIComponent(link.anchor)}`;
-  }
-  if (link.to === "timeline") {
-    return timelineHref(repo, link.topic, link.from, link.until, audience);
-  }
-  if (link.to === "item") return itemHref(repo, link.item, audience);
-  return sourceHref(repo, audience, { ref: link.ref, quote: link.quote });
-}
-
 export function SearchView({
   ctx,
   q,
@@ -67,7 +34,7 @@ export function SearchView({
 }) {
   const { site, repo, audience } = ctx;
   const hits = q.trim() ? search(site.snapshot, site.facts, q) : [];
-  const shown = visible(hits, audience);
+  const shown = hitsForAudience(hits, audience);
   const listed = shown.slice(0, SHOWN);
   const kinds = [...new Set(listed.map((hit) => hit.kind))];
   const prompt = placeholder(audience);
@@ -82,7 +49,7 @@ export function SearchView({
         <h1 className={H1}>Search</h1>
         <Form
           className="mb-3 flex gap-2"
-          action={`${repoPath(repo)}/search`}
+          action={searchPath(repo)}
           role="search"
         >
           <input type="hidden" name="audience" value={audience} />
@@ -139,7 +106,7 @@ export function SearchView({
                     >
                       <NextLink
                         className="text-[16px] font-[600] break-words"
-                        href={hrefOf(hit, ctx)}
+                        href={hitHref(hit, repo, audience)}
                       >
                         <Prose text={title} audience={audience} />
                       </NextLink>

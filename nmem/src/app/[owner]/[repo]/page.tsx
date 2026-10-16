@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { Suspense } from "react";
 import Loading from "@/app/[owner]/[repo]/loading";
 import { BadQuery } from "@/components/bad-query";
 import { BuildBanner, BuildStatus } from "@/components/build-status";
+import { Door } from "@/components/door";
 import { RepoFrame } from "@/components/repo-frame";
-import { TopicView } from "@/components/topic-view";
+import { topicHref } from "@/lib/hrefs";
 import { hasBuild } from "@/lib/jobs";
 import { readQuery, rootId } from "@/lib/kernel/site";
 import { siteFor } from "@/lib/repos";
@@ -57,6 +58,11 @@ async function RepoContent({ params, searchParams }: Props) {
   const request = await openRepo(params, searchParams);
   const { query } = request;
   if ("error" in query) return <BadQuery what={query.error} />;
+  if (query.all) {
+    redirect(
+      topicHref(request.repo, rootId(request.site), query.audience, true),
+    );
+  }
   const ctx = {
     site: request.site,
     repo: request.repo,
@@ -66,12 +72,18 @@ async function RepoContent({ params, searchParams }: Props) {
     <RepoFrame
       request={request}
       audience={query.audience}
-      view="topics"
+      view="door"
       path=""
-      layout="split"
+      layout="wide"
     >
-      <BuildBanner owner={request.repo.owner} name={request.repo.name} />
-      <TopicView ctx={ctx} id={rootId(request.site)} all={query.all} />
+      <div className="mx-auto w-full max-w-[44rem]">
+        <BuildBanner
+          owner={request.repo.owner}
+          name={request.repo.name}
+          quiet
+        />
+        <Door ctx={ctx} />
+      </div>
     </RepoFrame>
   );
 }

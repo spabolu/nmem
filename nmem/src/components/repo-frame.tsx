@@ -2,6 +2,7 @@ import {
   githubHref,
   repoPath,
   timelineHref,
+  topicHref,
   topicsHref,
   withAudience,
 } from "@/lib/hrefs";
@@ -11,7 +12,7 @@ import type { RepoRequest } from "@/lib/request";
 import { RepoBar } from "./repo-bar";
 import { PAGE } from "./styles";
 
-type View = "topics" | "timeline" | "source" | "other";
+type View = "topics" | "timeline" | "source" | "door" | "other";
 
 /** Every repo page: the bar, then main. data-view and data-audience let scripts read which screen this is. */
 export function RepoFrame({
@@ -38,6 +39,7 @@ export function RepoFrame({
         name={repo.name}
         view={view}
         topicsHref={topicsHref(repo, audience)}
+        topicPageHref={topicHref(repo, rootId(site), audience)}
         timelineHref={timelineHref(
           repo,
           rootId(site),

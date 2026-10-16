@@ -104,10 +104,16 @@ async function crawl(workspace) {
   const server = await serve(workspace);
   const base = `/${server.identity.owner}/${server.identity.name}`;
   const urls = ["/", base, `${base}/source`];
+  const doorWord =
+    snapshot.topics
+      .find((topic) => topic.parent !== null)
+      ?.name?.eng?.split(/\s+/)
+      .find((word) => word.length > 3) ?? "readme";
   for (const audience of ["eng", "plain"]) {
     urls.push(`${base}/timeline?audience=${audience}`);
     for (const topic of snapshot.topics) urls.push(`${base}/topics/${encodeURIComponent(topic.id)}?audience=${audience}`);
     for (const q of ["test", "readme", snapshot.topics[1]?.name?.eng ?? "config"]) urls.push(`${base}/search?q=${encodeURIComponent(q)}&audience=${audience}`);
+    urls.push(`${base}/search/hits?q=${encodeURIComponent(doorWord)}&audience=${audience}`);
     for (const item of site.items ?? []) urls.push(`${base}/items/${item.id.split("/").map(encodeURIComponent).join("/")}?audience=${audience}`);
   }
   const failures = [];
@@ -118,6 +124,16 @@ async function crawl(workspace) {
     for (const url of urls) {
       const page = await get(server.port, url);
       if (page.status !== 200) failures.push(`${page.status} ${url}`);
+      if (url === base && !page.html.includes('name="q"')) failures.push(`no search field ${url}`);
+      if (url.includes("/search/hits?")) {
+        let hits = null;
+        try {
+          hits = JSON.parse(page.html).hits;
+        } catch {
+          hits = null;
+        }
+        if (!Array.isArray(hits) || hits.length === 0) failures.push(`typeahead returned no hits ${url}`);
+      }
       if (page.ms > 5000) slow.push(`${page.ms}ms ${url}`);
       const prose = page.html.replace(/<code\b[^>]*>[\s\S]*?<\/code>/g, "");
       const bad = [">undefined<", "[object Object]", ">NaN<", "Invalid Date"].find((token) => prose.includes(token));

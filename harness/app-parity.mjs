@@ -207,6 +207,15 @@ function start(...roots) {
 /** Sees every page get fetches. checkEngine sets it to look for content the engine did not write. */
 let watch = null;
 
+async function jsonGet(port, urlPath) {
+  const response = await fetch(`http://127.0.0.1:${port}${urlPath}`, {
+    signal: AbortSignal.timeout(20000),
+    headers: { accept: "application/json" },
+  });
+  const body = await response.json();
+  return { status: response.status, body };
+}
+
 async function get(port, urlPath) {
   const response = await fetch(`http://127.0.0.1:${port}${urlPath}`, {
     signal: AbortSignal.timeout(20000),
@@ -606,9 +615,18 @@ async function checkOracle(snapshotFile, snapshot, facts, screens, findings) {
     const realBase = `/${identity.owner}/${identity.name}`;
     const rootId = snapshot.topics.find((topic) => topic.parent === null).id;
     const bare = await get(port, `${realBase}?audience=eng`);
+    check(bare.status === 200, `repo root status ${bare.status}`);
     check(
-      bare.status === 200 && attr(bare.html, "data-topic") === rootId,
-      "the repo root is not the topic tree",
+      bare.html.includes('data-door="search"') &&
+        bare.html.includes('name="q"') &&
+        /autofocus/i.test(bare.html) &&
+        bare.html.includes("What are you working on?"),
+      "the repo root is not the search door",
+    );
+    check(
+      bare.html.includes(`data-root-topic="${rootId}"`) &&
+        bare.html.includes(`data-topic-way="${rootId}"`),
+      "the repo root does not link the root topic",
     );
     let differed = false;
     for (const topic of snapshot.topics) {
@@ -709,6 +727,25 @@ async function checkOracle(snapshotFile, snapshot, facts, screens, findings) {
       found.some((hit) => hit.kind === "topic" && hit.id === named.id),
       `search for "${query}" missed ${named.id}`,
     );
+    const ahead = await jsonGet(
+      port,
+      `${realBase}/search/hits?${new URLSearchParams({ audience: "eng", q: query })}`,
+    );
+    const got = Array.isArray(ahead.body?.hits)
+      ? ahead.body.hits.map((hit) => `${hit.kind}:${hit.id}`)
+      : [];
+    const kernelIds = found.map((hit) => `${hit.kind}:${hit.id}`);
+    check(ahead.status === 200, `typeahead status ${ahead.status}`);
+    check(
+      got.length === Math.min(kernelIds.length, 8) &&
+        got.join(",") === kernelIds.slice(0, got.length).join(","),
+      `typeahead for "${query}" is "${got.join(",")}", kernel prefix is "${kernelIds.slice(0, 8).join(",")}"`,
+    );
+    check(
+      got.includes(`topic:${named.id}`) ||
+        kernelIds.indexOf(`topic:${named.id}`) >= 8,
+      `typeahead for "${query}" missed ${named.id}`,
+    );
     const none = await get(
       port,
       `${realBase}/search?audience=eng&q=zzznomatch`,
@@ -756,6 +793,18 @@ async function checkOracle(snapshotFile, snapshot, facts, screens, findings) {
       !plainItems.html.includes('data-kind="item"'),
       "plain search lists a code name",
     );
+    const plainAhead = await jsonGet(
+      port,
+      `${realBase}/search/hits?audience=plain&q=minimal_transfers`,
+    );
+    check(
+      plainAhead.status === 200 &&
+        Array.isArray(plainAhead.body?.hits) &&
+        !plainAhead.body.hits.some(
+          (hit) => hit.kind === "item" || hit.kind === "file",
+        ),
+      "plain typeahead lists a code name",
+    );
     const source = snapshot.decisions.find(
       (row) => row.what.source.kind === "record",
     );
@@ -790,7 +839,10 @@ async function checkOracle(snapshotFile, snapshot, facts, screens, findings) {
     const trust = new Set(
       Object.values(TRUST_WORDS).flatMap((line) => [line.eng, line.plain]),
     );
-    const proof = bare.html.match(/href="[^"]*proof=[^"]*"[^>]*>([^<]+)</);
+    const rootTopic = await get(port, topicUrl(realBase, rootId, "eng"));
+    const proof = rootTopic.html.match(
+      /href="[^"]*proof=[^"]*"[^>]*>([^<]+)</,
+    );
     if (proof)
       check(
         trust.has(decode(proof[1])),

@@ -80,6 +80,7 @@ export function proxy(request: NextRequest) {
   }
   if (view === "topics" && id === undefined)
     return refuse(404, "Pick a topic.");
+  if (view === "search" && id === "hits") return NextResponse.next();
   if (view !== "topics" && id !== undefined)
     return refuse(404, "Nothing at this address is in the snapshot.");
   return NextResponse.next();
