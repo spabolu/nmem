@@ -2,10 +2,11 @@
  * The model steps of engine.md's pipeline, as typed functions. This slice ships each step's one honest fallback, the
  * output a build writes when no model answers. A model-backed step replaces one entry of Steps and keeps its type.
  */
-import type { ChangeId, Claim, Finding, LocalId, Login, Named, RecordSource, Run, Said, Topic, Why } from '../harness/contract.ts';
+import type { ChangeId, Claim, Decision, Finding, LocalId, Login, Named, RecordSource, Run, Said, Topic, Why } from '../harness/contract.ts';
 import { plainHits } from '../fixtures/lib/plain.mjs';
 import { isReadme } from './record.ts';
 import type { Change, RepoRecord, Sentence } from './record.ts';
+import type { Weight } from './weigh.ts';
 
 /** How a sentence reads: someone chose this, it describes what the change does, or it denies changing behavior. */
 export type Stance = 'chose' | 'describes' | 'denies';
@@ -65,6 +66,8 @@ export type Steps = {
   readonly declined: () => Promise<readonly Choice[]>;
   /** Topics for those choices. A missing pick stays on root. Not the batched place call. */
   readonly placeDeclined: (tree: readonly Topic[], items: readonly { readonly id: LocalId; readonly what: string; readonly ref: string; readonly quote: string }[]) => Promise<ReadonlyMap<string, readonly LocalId[]>>;
+  /** Each decision's weight. A not decision is dropped, and one with no weight stays key. */
+  readonly weigh: (decisions: readonly Decision[]) => Promise<ReadonlyMap<LocalId, Weight>>;
 };
 
 /** The first candidate a non-engineer can read, else the fallback. */
@@ -118,8 +121,8 @@ export function rootTopic(record: RepoRecord): Topic {
 
 /**
  * No model: nothing is classified or linked, every reason is not recorded with the subject's ask, nothing is scanned
- * because no model wrote any prose, no doc sentence is judged, the tree is the root alone, and every item keeps all
- * its candidate topics.
+ * because no model wrote any prose, no doc sentence is judged, the tree is the root alone, every item keeps all
+ * its candidate topics, and every decision stays key.
  */
 export function noModel(record: RepoRecord): Steps {
   return {
@@ -134,5 +137,6 @@ export function noModel(record: RepoRecord): Steps {
     place: async (_tree, items) => new Map(items.map((item) => [item.key, item.candidates])),
     declined: async () => [],
     placeDeclined: async () => new Map(),
+    weigh: async () => new Map(),
   };
 }

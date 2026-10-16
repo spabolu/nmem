@@ -305,6 +305,7 @@ export type Change = {
  * is the intent, meaning the ADR, thread comment, PR sentence, or commit message that shows someone chose this on purpose.
  * There is no who and no date. view.ts derives the decider (the intent's author, or the person who added the cited
  * file) and the day (carriedBy's live day, else the intent's day). topics [<root id>] means repo-wide, shown on the root page only.
+ * weight minor is a real but small choice, listed after the key ones. A decision with no weight is key.
  */
 export type Decision = {
   readonly id: LocalId;
@@ -313,6 +314,7 @@ export type Decision = {
   readonly carriedBy: ChangeId | null;
   readonly replacedBy: LocalId | null;
   readonly why: Why;
+  readonly weight?: 'minor';
 };
 
 /** A sentence in a written doc, verbatim at HEAD. */
@@ -685,7 +687,9 @@ function readDecision(value: unknown, path: string, bag: Bag, expected: Expected
     push(bag, path, 'expected an object');
     return null;
   }
-  rejectUnknown(value, path, ['id', 'what', 'topics', 'carriedBy', 'replacedBy', 'why'], bag);
+  rejectUnknown(value, path, ['id', 'what', 'topics', 'carriedBy', 'replacedBy', 'why', 'weight'], bag);
+  const weighted = Object.hasOwn(value, 'weight');
+  if (weighted && value.weight !== 'minor') push(bag, at(path, 'weight'), 'expected "minor"; a key decision has no weight');
   const id = Object.hasOwn(value, 'id') ? readString(value.id, at(path, 'id'), bag) : (push(bag, at(path, 'id'), 'missing'), null);
   const what = Object.hasOwn(value, 'what') ? readSaid<RecordSource>(value.what, at(path, 'what'), bag, expected.repo, 'record', runs) : (push(bag, at(path, 'what'), 'missing'), null);
   const topics = Object.hasOwn(value, 'topics') ? readStringArray(value.topics, at(path, 'topics'), bag) : (push(bag, at(path, 'topics'), 'missing'), null);
@@ -700,7 +704,9 @@ function readDecision(value: unknown, path: string, bag: Bag, expected: Expected
   if (!id || !what || what.source.kind !== 'record' || !topics || topics.length === 0 || !why) return null;
   if (!Object.hasOwn(value, 'carriedBy') || (value.carriedBy !== null && !carriedBy)) return null;
   if (!Object.hasOwn(value, 'replacedBy') || (value.replacedBy !== null && !replacedBy)) return null;
-  return { id, what, topics: topics as [string, ...string[]], carriedBy: value.carriedBy === null ? null : carriedBy, replacedBy: value.replacedBy === null ? null : replacedBy, why };
+  if (weighted && value.weight !== 'minor') return null;
+  const decision: Decision = { id, what, topics: topics as [string, ...string[]], carriedBy: value.carriedBy === null ? null : carriedBy, replacedBy: value.replacedBy === null ? null : replacedBy, why };
+  return weighted ? { ...decision, weight: 'minor' } : decision;
 }
 
 function readSentence(value: unknown, path: string, bag: Bag): DocSentence | null {

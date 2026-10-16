@@ -183,13 +183,14 @@ export function censusOf(snapshot: Snapshot, facts: RepoFacts): TopicCensus {
   return { topics: neverWritten + outOfDate + upToDate, neverWritten, outOfDate, upToDate };
 }
 
-/** Newest first by decisionDay, ties by list order. Root gets every decision. A child gets decisions that name it.
- *  A decision tagged with the root id alone is repo-wide and appears on the root only. */
+/** Key decisions before minor ones, each newest first by decisionDay, ties by list order. Root gets every decision. A
+ *  child gets decisions that name it. A decision tagged with the root id alone is repo-wide and appears on the root only. */
 export function decisionsFor(topic: LocalId, snapshot: Snapshot, facts: RepoFacts): readonly Decision[] {
   const named = topic === rootOf(snapshot).id ? snapshot.decisions : snapshot.decisions.filter((d) => d.topics.includes(topic));
+  const minor = (d: Decision): number => (d.weight === 'minor' ? 1 : 0);
   return named
     .map((decision, order) => ({ decision, order, day: decisionDay(decision, facts) }))
-    .sort((a, b) => (a.day < b.day ? 1 : a.day > b.day ? -1 : a.order - b.order))
+    .sort((a, b) => minor(a.decision) - minor(b.decision) || (a.day < b.day ? 1 : a.day > b.day ? -1 : a.order - b.order))
     .map((x) => x.decision);
 }
 
