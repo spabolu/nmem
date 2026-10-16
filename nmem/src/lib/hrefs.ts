@@ -23,6 +23,14 @@ export function topicsHref(repo: RepoRef, audience: Audience): string {
   return `${repoPath(repo)}?${qs(audience)}`;
 }
 
+export function searchPath(repo: RepoRef): string {
+  return `${repoPath(repo)}/search`;
+}
+
+export function searchHitsPath(repo: RepoRef): string {
+  return `${repoPath(repo)}/search/hits`;
+}
+
 export function topicHref(
   repo: RepoRef,
   topic: string,
