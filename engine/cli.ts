@@ -53,6 +53,9 @@ const USAGE = [
 // The account's real home, not $HOME: the harness gives each build a scratch HOME, and paid-for replies must outlive it and any git worktree.
 const DEFAULT_STORE = path.join(NMEM_CACHE, 'engine');
 
+// Highest limit with no HTTP 429 on a cold walkdir build. 4 took 773s, 8 took 467s, 16 took 323s.
+const CALLS_IN_FLIGHT = 16;
+
 const COPILOT_SIGN_IN = 'Sign in to Copilot on the server: node engine/cli.ts auth copilot';
 
 /** The workspace `nmem add` wrote for a repo, which must exist. */
@@ -138,6 +141,26 @@ export function parseArgs(argv: readonly string[]): Command {
   return { kind: 'build', workspace, out: path.join(workspace, 'snapshot.json'), store: flags.store, model: flags.model, site: true };
 }
 
+/** Build into a staging directory, then swap the live pair. A crash leaves the live snapshot untouched. */
+async function publishStaged(workspace: string, client: ModelClient | null, beforeBake?: () => void): Promise<{ readonly summary: string; readonly notes: readonly string[] }> {
+  const staging = path.join(workspace, '.nmem-staging');
+  fs.rmSync(staging, { recursive: true, force: true });
+  fs.mkdirSync(staging, { recursive: true });
+  try {
+    const built = await buildRepo({
+      workspace,
+      out: path.join(staging, 'snapshot.json'),
+      client,
+      site: true,
+      ...(beforeBake ? { beforeBake } : {}),
+    });
+    publishBuilt(workspace, staging);
+    return built;
+  } finally {
+    fs.rmSync(staging, { recursive: true, force: true });
+  }
+}
+
 /** Build a workspace and, when site is set, bake site.json beside `out`. The worker and `build-repo` both call this. */
 export async function buildRepo(options: {
   readonly workspace: string;
@@ -169,29 +192,21 @@ async function runRequested(root: string, ctx: JobContext): Promise<RunResult> {
     say: ctx.say,
     remote: graphqlRemote(openGraphql({ auth, say: ctx.say }), ctx.say),
   });
-  ctx.phase('building', 'Building the snapshot.');
-  const client = countingClient(limited(openClient({ store: DEFAULT_STORE, mode: 'live', credential }), 4), ctx.say);
-  const staging = path.join(added.workspace, '.nmem-staging');
-  fs.rmSync(staging, { recursive: true, force: true });
-  fs.mkdirSync(staging, { recursive: true });
-  try {
-    const built = await buildRepo({
-      workspace: added.workspace,
-      out: path.join(staging, 'snapshot.json'),
-      client,
-      site: true,
-      beforeBake: () => ctx.phase('baking', 'Preparing the pages.'),
-    });
-    publishBuilt(added.workspace, staging);
-    for (const note of built.notes) ctx.say(`note: ${note}`);
-    const totals = client.totals();
-    return {
-      repo: `${added.slug.owner}/${added.slug.name}`,
-      summary: `${summaryLine(added)}\n${built.summary}; ${totals.live + totals.cached} calls, ${totals.live} live, ${totals.cached} cached`,
-    };
-  } finally {
-    fs.rmSync(staging, { recursive: true, force: true });
+  if (!fs.existsSync(path.join(added.workspace, 'snapshot.json'))) {
+    ctx.phase('quick', 'Preparing the first pages.');
+    const preview = await publishStaged(added.workspace, null);
+    for (const note of preview.notes) ctx.say(`note: ${note}`);
+    ctx.say(`first pages: ${preview.summary}`);
   }
+  ctx.phase('building', 'Building the snapshot.');
+  const client = countingClient(limited(openClient({ store: DEFAULT_STORE, mode: 'live', credential }), CALLS_IN_FLIGHT), ctx.say);
+  const built = await publishStaged(added.workspace, client, () => ctx.phase('baking', 'Preparing the pages.'));
+  for (const note of built.notes) ctx.say(`note: ${note}`);
+  const totals = client.totals();
+  return {
+    repo: `${added.slug.owner}/${added.slug.name}`,
+    summary: `${summaryLine(added)}\n${built.summary}; ${totals.live + totals.cached} calls, ${totals.live} live, ${totals.cached} cached`,
+  };
 }
 
 function callsLine(totals: Totals): string {
@@ -353,7 +368,7 @@ export async function main(argv: readonly string[]): Promise<number> {
   let client: ModelClient | null = null;
   if (command.model) {
     try {
-      client = limited(openClient({ store: command.store ?? DEFAULT_STORE, mode: 'live', credential: loadCredential(process.env, os.homedir()) }), 4);
+      client = limited(openClient({ store: command.store ?? DEFAULT_STORE, mode: 'live', credential: loadCredential(process.env, os.homedir()) }), CALLS_IN_FLIGHT);
     } catch (error) {
       console.error((error as Error).message);
       return 1;

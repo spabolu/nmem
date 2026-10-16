@@ -47,6 +47,31 @@ test('consuming a request queues the job and a second consume leaves that job', 
   });
 });
 
+test('a quick phase is a running phase, and a failed job can name it', () => {
+  const running = parseJob({
+    state: 'running',
+    slug: 'acme/demo',
+    attempts: 1,
+    requestedAt: '2026-10-14T00:00:00.000Z',
+    phase: 'quick',
+    pid: 42,
+    startedAt: '2026-10-14T00:01:00.000Z',
+    progress: 'Preparing the first pages.',
+  }, 'acme/demo.json');
+  assert.equal(running.state === 'running' ? running.phase : running.state, 'quick');
+  const failed = parseJob({
+    state: 'failed',
+    slug: 'acme/demo',
+    attempts: 1,
+    requestedAt: '2026-10-14T00:00:00.000Z',
+    finishedAt: '2026-10-14T00:02:00.000Z',
+    phase: 'quick',
+    reason: 'The build failed.',
+    retryable: true,
+  }, 'acme/demo.json');
+  assert.equal(failed.state === 'failed' ? failed.phase : failed.state, 'quick');
+});
+
 test('a request left beside a queued or running job is deleted and the job stays', () => {
   const dir = root();
   const job = path.join(dir, 'jobs', 'acme', 'demo.json');

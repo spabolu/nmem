@@ -1,8 +1,9 @@
 /**
  * Pilot end to end: a person builds a public repo from the home page. Starts `nmem serve` over a fresh root, types the
- * repo into the home page form in headless Chrome, and follows the status page until the repo's pages open. Kills serve
- * mid-build and restarts it to prove the build resumes, then asks for a repo that does not exist and expects a plain
- * refusal. Screenshots of the status page go to <out>.
+ * repo into the home page form in headless Chrome, and follows the status page until the repo's pages open. The first
+ * pages must open while the build is still running, with a banner that then disappears. Kills serve mid-build and
+ * restarts it to prove the build resumes, then asks for a repo that does not exist and expects a plain refusal.
+ * Screenshots of the status page go to <out>.
  *
  *   node harness/pilot-e2e.mjs <out-dir> [owner/name]
  */
@@ -127,24 +128,53 @@ let server = serve();
 const page = await browser();
 try {
   await until("serve to answer", () => fetch(`${base}/`).then((res) => res.ok), 120000);
+  const submitted = Date.now();
   await submit(page, `https://github.com/${slug}`);
   const landed = await until("the status page", () => page.evaluate(`location.pathname`).then((p) => (p.toLowerCase() === `/${slug}`.toLowerCase() ? p : null)), 30000);
   check(true, `the form sent the browser to ${landed}`);
   const seen = new Set();
+  const job = path.join(root, "jobs", ...slug.toLowerCase().split("/")) + ".json";
+  const early = await until("a status step", async () => {
+    const state = await stateOf(page);
+    seen.add(state);
+    return state.startsWith("running:") ? state : null;
+  }, 600000);
+  check(early.startsWith("running:"), `the status page showed ${early} before the first pages`);
+  if (await page.evaluate(`!!document.querySelector('[data-view="build"]')`)) {
+    await page.shot(path.join(out, "status-1400.png"), 1400);
+    await page.shot(path.join(out, "status-390.png"), 390);
+  }
+  const opened = await until("the repo pages to open during the build", async () => {
+    const state = await stateOf(page);
+    seen.add(state);
+    let jobState = "missing";
+    try {
+      jobState = JSON.parse(fs.readFileSync(job, "utf8")).state;
+    } catch {}
+    const open = await page.evaluate(`!!document.querySelector('[data-door="search"], [data-status]') && document.querySelector('[data-preview="yes"]')?.getAttribute('data-preview') === 'yes' && document.body.innerText.includes('nmem is still reading decisions')`);
+    return open && jobState === "running" ? state : null;
+  }, 600000);
+  const firstPageSec = Math.round((Date.now() - submitted) / 1000);
+  check(true, `repo pages opened while the build was still running (${opened}) after ${firstPageSec}s from submit`);
+  await page.shot(path.join(out, "quick-1400.png"), 1400);
+  await page.shot(path.join(out, "quick-390.png"), 390);
+  for (const view of ["/timeline", "/search?q=queue", "/source"]) {
+    await page.goto(`${base}/${slug}${view}`);
+    const banner = await until(`the banner on ${view}`, () => page.evaluate(`document.querySelector('[data-preview="yes"]') ? document.body.innerText.includes('nmem is still reading decisions') : false`), 30000);
+    check(banner, `${view} shows the reading banner while the build is running`);
+  }
+  await page.goto(`${base}/${slug}`);
   await until("building", async () => {
     const state = await stateOf(page);
     seen.add(state);
     return state.includes("building") ? state : null;
   }, 600000);
-  await page.shot(path.join(out, "status-1400.png"), 1400);
-  await page.shot(path.join(out, "status-390.png"), 390);
   const lock = JSON.parse(fs.readFileSync(path.join(root, "jobs", "worker.lock"), "utf8"));
   killGroup(server, "SIGKILL");
   try {
     process.kill(lock.pid, "SIGKILL");
   } catch {}
   await sleep(2000);
-  const job = path.join(root, "jobs", ...slug.toLowerCase().split("/")) + ".json";
   check(JSON.parse(fs.readFileSync(job, "utf8")).state === "running", "a killed worker leaves its job running on disk");
   server = serve();
   await until("serve to answer again", () => fetch(`${base}/`).then((res) => res.ok), 120000);
@@ -160,6 +190,10 @@ try {
   }, 60000);
   const after = JSON.parse(fs.readFileSync(job, "utf8"));
   check(after.state === "done" && after.attempts === 1, `the restarted worker finished the job (state ${after.state}, attempts ${after.attempts})`);
+  const stillReading = await page.evaluate(`document.body.innerText.includes('nmem is still reading decisions') || !!document.querySelector('[data-preview="yes"]')`);
+  check(!stillReading, "the reading banner is gone after the full snapshot");
+  const fullSec = Math.round((Date.now() - submitted) / 1000);
+  check(true, `full snapshot finished ${fullSec}s after submit; first pages were at ${firstPageSec}s`);
   check(true, `states seen: ${[...seen].join(" -> ")} -> ${done}`);
   for (const view of ["", "/timeline", "/search?q=queue", "/source"]) {
     const res = await fetch(`${base}/${slug}${view}`);

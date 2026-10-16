@@ -10,7 +10,7 @@ import type { ModelClient } from './copilot.ts';
 
 export const ATTEMPT_CAP = 3;
 
-export type Phase = 'fetching' | 'building' | 'baking';
+export type Phase = 'fetching' | 'quick' | 'building' | 'baking';
 
 type Common = {
   readonly slug: string;
@@ -30,7 +30,7 @@ export type RequestFile = { readonly version: 1; readonly input: string; readonl
 
 export type LockFile = { readonly pid: number; readonly startedAt: string };
 
-const PHASES: readonly Phase[] = ['fetching', 'building', 'baking'];
+const PHASES: readonly Phase[] = ['fetching', 'quick', 'building', 'baking'];
 const KEY = /^[a-z0-9-]+\/[a-z0-9._-]+$/;
 
 export function pidAlive(pid: number): boolean {
@@ -96,10 +96,10 @@ export function parseJob(raw: unknown, file: string): Job {
   if (state === 'queued') return { ...common, state };
   if (state === 'running') {
     const phase = raw.phase;
-    if (phase !== 'fetching' && phase !== 'building' && phase !== 'baking') throw new Error(`${file} has no phase`);
+    if (!PHASES.includes(phase as Phase)) throw new Error(`${file} has no phase`);
     const pid = raw.pid;
     if (typeof pid !== 'number' || !Number.isInteger(pid) || pid <= 0) throw new Error(`${file} has no pid`);
-    return { ...common, state, phase, pid, startedAt: needString(raw, 'startedAt', file), progress: needString(raw, 'progress', file) };
+    return { ...common, state, phase: phase as Phase, pid, startedAt: needString(raw, 'startedAt', file), progress: needString(raw, 'progress', file) };
   }
   if (state === 'done') {
     const seconds = raw.seconds;

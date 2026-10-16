@@ -29,7 +29,7 @@ The app has no sign-in. Anyone who can reach the port can start builds that spen
 ## What a pilot user sees
 
 1. On the home page they paste `owner/name` or a github.com URL and press Build. A repository that is already built opens instead.
-2. They land on the repository's address, which shows the build's step: waiting, fetching from GitHub, reading the history, or preparing the pages. The page updates by itself and turns into the repository's pages when the build is done.
+2. They land on the repository's address, which shows the build's step: waiting, fetching from GitHub, preparing the first pages, reading the history, or preparing the pages. After the fetch, the pages open while nmem is still reading decisions. A banner shows the same progress as the status page and goes away when the full snapshot is ready.
 3. A failed build says why in a sentence and offers Retry. A private repository, a missing one, a repository with no commits, and missing GitHub or Copilot sign-in each have their own message.
 4. A built repository has Rebuild on the home page. It fetches only what changed on GitHub and keeps serving the old pages until the new ones are ready.
 
@@ -48,7 +48,9 @@ Measured on the pilot matrix in October 2026. Calls are from the latest build. M
 | mat/besticon | Go | 546 | 1,812 | 28 |
 | expressjs/body-parser | JavaScript | 736 | 1,873 | 37 |
 
-Expect 2 to 10 model calls per change and about 30 minutes for a repository with 500 changes. A change is a merged pull request or a commit pushed straight to the default branch. There is no size cap, so a repository with thousands of changes takes hours. Builds run one at a time, so a second request waits for the first.
+Expect 2 to 10 model calls per change. The full build is still about 30 minutes for a repository with 500 changes. The first pages open in minutes, before that build finishes. They are the no-model snapshot: changes, items, and search, with no invented decisions. Measured on 2026-10-16, a cold fetch of mat/besticon took 99 seconds and the no-model build plus bake took 4.8 minutes on an already fetched workspace. expressjs/body-parser took 3.5 minutes for that build plus bake. sindresorhus/yocto-queue opened in 23 seconds including fetch, against 2.7 minutes for the full snapshot.
+
+The worker keeps 16 model calls in flight. A cold walkdir model build, fetch not included, took 12.9 minutes at 4, 7.8 minutes at 8, and 5.4 minutes at 16, with no HTTP 429. A change is a merged pull request or a commit pushed straight to the default branch. There is no size cap, so a repository with thousands of changes takes hours. Builds run one at a time, so a second request waits for the first.
 
 ## What to watch
 

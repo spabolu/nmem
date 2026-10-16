@@ -3,7 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { Suspense } from "react";
 import Loading from "@/app/[owner]/[repo]/loading";
 import { BadQuery } from "@/components/bad-query";
-import { BuildBanner, BuildStatus } from "@/components/build-status";
+import { BuildStatus } from "@/components/build-status";
 import { Door } from "@/components/door";
 import { RepoFrame } from "@/components/repo-frame";
 import { topicHref } from "@/lib/hrefs";
@@ -77,11 +77,6 @@ async function RepoContent({ params, searchParams }: Props) {
       layout="wide"
     >
       <div className="mx-auto w-full max-w-[44rem]">
-        <BuildBanner
-          owner={request.repo.owner}
-          name={request.repo.name}
-          quiet
-        />
         <Door ctx={ctx} />
       </div>
     </RepoFrame>
