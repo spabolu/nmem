@@ -415,9 +415,9 @@ test('weigh drops a not decision, marks a minor one, keeps a key one bare, and r
   assert.deepEqual(notes, ['topics fell back: no canned answer for form topics sample 1']);
   const weigh = client.seen.filter((request) => request.label.startsWith('weigh'));
   assert.deepEqual(weigh.map((request) => [request.label, request.sample, request.system.split('\n')[0]]), [
-    ['weigh pr#1', 0, 'nmem weigh v1'],
-    ['weigh pr#2', 0, 'nmem weigh v1'],
-    ['weigh pr#1', 1, 'nmem weigh v1'],
+    ['weigh pr#1', 0, 'nmem weigh v7'],
+    ['weigh pr#2', 0, 'nmem weigh v7'],
+    ['weigh pr#1', 1, 'nmem weigh v7'],
   ]);
   assert.equal(weigh[1]?.user, [
     'Change pr#2: Tidy the greeting',

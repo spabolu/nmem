@@ -27,7 +27,7 @@ type Answer = ReturnType<typeof ANSWER.parse>;
 
 const WEIGH: Task<Group, Answer> = {
   id: 'weigh',
-  version: 1,
+  version: 7,
   model: OPUS,
   maxOutputTokens: 3000,
   rules: `You decide which entries belong on the short list of decisions a read-only history of a software project shows. Its readers are engineers new to this code, and they already have too much to read, so an entry earns its place only when it tells them something they should know before changing the code.
@@ -35,9 +35,9 @@ const WEIGH: Task<Group, Answer> = {
 Each [D#] is a sentence from a pull request, commit message, review, or thread that an earlier step read as a choice. Weigh each one:
 - key: it records a choice between real alternatives that still shapes the code. It says why something is the way it is, sets a rule or limit that later work has to respect, or sets on purpose a behavior that users or callers can notice.
 - minor: it records a real choice, but a small or local one. Knowing it would seldom change what a newcomer does.
-- not: it records no choice. It says what work was done, such as a feature added, a bug fixed, code moved or cleaned up, a dependency or version raised, or a test or build step added, with no sign of an alternative that was turned down. It repeats what the change's title already says the change does. It reports a status or a plan, or it is conversation between reviewers.
+- not: it records no choice. It says what work was done, such as a feature added, a bug fixed, code moved or cleaned up, a dependency or version raised, or a test or build step added, with no sign of an alternative that was turned down. It says how the work was carried out inside the code, such as a helper, a type, a script, or a restructuring, without weighing it against another way. It does what a reviewer asked without changing what users or callers get. It repeats what the change's title already says the change does. It reports a status or a plan, or it is conversation between reviewers.
 
-Judge from the sentence, where it was written, and the change it belongs to. Weigh every [D#] exactly once. note is at most 12 words on why.`,
+Judge from the sentence, where it was written, and the change it belongs to. A stated reason does not make a sentence a choice: work done for a reason is still not, unless the record shows another way was open and turned down. Weigh every [D#] exactly once. note is at most 12 words on why.`,
   render: (group) => [
     ...group.header,
     '',
