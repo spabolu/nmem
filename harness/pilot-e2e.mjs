@@ -156,7 +156,7 @@ try {
   const done = await until("the status page to turn into the repo page", async () => {
     const state = await stateOf(page);
     seen.add(state);
-    return (await page.evaluate(`!document.querySelector('[data-build-state="request"],[data-build-state="queued"],[data-build-state="running"]') && !!document.querySelector('[data-status]')`)) ? state : null;
+    return (await page.evaluate(`!document.querySelector('[data-build-state="request"],[data-build-state="queued"],[data-build-state="running"]') && !!document.querySelector('[data-door="search"], [data-status]')`)) ? state : null;
   }, 60000);
   const after = JSON.parse(fs.readFileSync(job, "utf8"));
   check(after.state === "done" && after.attempts === 1, `the restarted worker finished the job (state ${after.state}, attempts ${after.attempts})`);
