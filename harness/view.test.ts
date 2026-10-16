@@ -6,7 +6,7 @@ import { parseSnapshot } from './contract.ts';
 import type { ChangeId, Claim, Snapshot, Topic } from './contract.ts';
 import { loadGold } from './gold.ts';
 import { factsOf, openFixture } from './record.ts';
-import { TEMPLATES, censusOf, formatDay, labelChange, pageOf } from './view.ts';
+import { TEMPLATES, censusOf, formatDay, kindOf, labelChange, pageOf, timelineOf } from './view.ts';
 import type { IsoDay, RepoFacts } from './view.ts';
 
 const day = (iso: string): IsoDay => iso as IsoDay;
@@ -128,4 +128,20 @@ test('a minor decision is listed after every key one, and a key decision is writ
   assert.deepEqual(shown(minor.snapshot), ['d-flag', 'd-round-revert', 'd-round-first']);
   const key = parseSnapshot(JSON.stringify(weighed('key')), expected);
   assert.deepEqual(key.ok ? [] : key.errors, [{ path: 'decisions[0].weight', what: 'expected "minor"; a key decision has no weight' }]);
+});
+
+test('a quiet change gets no card, and one never read stays a card that says nmem could not classify it', () => {
+  const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+  const facts = factsOf(openFixture(path.join(root, 'out', 'tally')));
+  const gold = loadGold(path.join(root, 'out'), 'tally' as never).oracle;
+  const id = 'f01e078' as ChangeId;
+  const bare = (quiet: boolean): Snapshot => ({
+    ...gold,
+    decisions: gold.decisions.filter((decision) => decision.carriedBy !== id),
+    changes: gold.changes.map((change) => (change.id === id ? { ...change, findings: [], routine: [], ...(quiet ? { quiet: true as const } : {}) } : change)),
+  });
+  const life = { topic: 'root', from: facts.born, to: facts.end };
+  const checks = (snapshot: Snapshot): number => timelineOf(snapshot, facts, life).counts.check ?? 0;
+  assert.deepEqual([kindOf(id, bare(false), facts), kindOf(id, bare(true), facts)], ['unclassified', 'quiet']);
+  assert.equal(checks(bare(false)) - checks(bare(true)), 1);
 });

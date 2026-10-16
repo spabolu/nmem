@@ -26,7 +26,8 @@ export type Choice = {
 /** A finding with the touched paths it is about. */
 export type Found = { readonly finding: Finding; readonly files: readonly string[] };
 
-export type Classification = { readonly choices: readonly Choice[]; readonly findings: readonly Found[] };
+/** read is set only when the model classified the change, so a fallback never reads as a change with nothing to show. */
+export type Classification = { readonly choices: readonly Choice[]; readonly findings: readonly Found[]; readonly read?: true };
 
 /** An item to place on topics: the topics its change touches or acts on, and each file it acts on with the definitions reached. */
 export type Placeable = { readonly key: string; readonly kind: 'decision' | 'finding'; readonly what: string; readonly candidates: readonly LocalId[]; readonly acts: readonly string[] };

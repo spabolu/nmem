@@ -403,13 +403,15 @@ export type RoutinePart = {
  * never written. view.ts kindOf derives it. Findings give the most serious severity. Without findings, a decision
  * carried by this change gives decision. Otherwise, routine parts that partition every touched file give routine. A
  * commit that mixes a hidden behavior change with tidying (wayfinder PR #16) is one change with findings plus routine
- * parts.
+ * parts. quiet means the model read the change and kept nothing a reader needs: no finding, and no decision it carries
+ * survived weighing. A change that was never read (a step fell back) has no quiet and stays unclassified.
  */
 export type Change = {
   readonly id: ChangeId;
   readonly topics: readonly LocalId[];
   readonly findings: readonly Finding[];
   readonly routine: readonly RoutinePart[];
+  readonly quiet?: true;
 };
 
 /**
@@ -1054,7 +1056,19 @@ function readChange(
     push(bag, path, "expected an object");
     return null;
   }
-  rejectUnknown(value, path, ["id", "topics", "findings", "routine"], bag);
+  rejectUnknown(
+    value,
+    path,
+    ["id", "topics", "findings", "routine", "quiet"],
+    bag,
+  );
+  const quiet = Object.hasOwn(value, "quiet");
+  if (quiet && value.quiet !== true)
+    push(
+      bag,
+      at(path, "quiet"),
+      "expected true; a change with something to show has no quiet",
+    );
   const id = Object.hasOwn(value, "id")
     ? readChangeId(value.id, at(path, "id"), bag, expected)
     : (push(bag, at(path, "id"), "missing"), null);
@@ -1073,8 +1087,17 @@ function readChange(
     bag,
     (item, itemPath) => readRoutine(item, itemPath, bag, expected, runs),
   );
-  if (!id || !topics || !findings || !routine) return null;
-  return { id, topics, findings, routine };
+  if (
+    !id ||
+    !topics ||
+    !findings ||
+    !routine ||
+    (quiet && value.quiet !== true)
+  )
+    return null;
+  return quiet
+    ? { id, topics, findings, routine, quiet: true }
+    : { id, topics, findings, routine };
 }
 
 function readObjectList<T>(

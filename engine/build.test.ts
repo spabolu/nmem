@@ -339,12 +339,26 @@ test('a bad reply after the re-ask leaves the change unclassified and says so', 
   const record = ingest(toyWorkspace(FAREWELL));
   const notes: string[] = [];
   const snapshot = JSON.parse((await assemble(record, modelSteps(record, fakeClient({ 'claims README.md': [{ claims: [] }] }), notes))).bytes) as Snapshot;
-  assert.deepEqual(snapshot.changes.filter((change) => change.id.startsWith('pr#')).map((change) => [change.id, change.findings.length]), [['pr#1', 0], ['pr#2', 0]]);
+  assert.deepEqual(snapshot.changes.filter((change) => change.id.startsWith('pr#')).map((change) => [change.id, change.findings.length, change.quiet ?? false]), [['pr#1', 0, false], ['pr#2', 0, false]]);
   assert.deepEqual(notes, [
     'classify pr#1 fell back: no canned answer for classify pr#1 sample 1',
     'classify pr#2 fell back: no canned answer for classify pr#2 sample 1',
     'topics fell back: no canned answer for form topics sample 1',
   ]);
+});
+
+test('a change the model read and kept nothing from is quiet, so it gets no card', async () => {
+  const record = ingest(toyWorkspace(FAREWELL));
+  const chose = (sentence: string, eng: string) => ({ sentence, stance: 'chose', carried: 'this', restates: null, what: { eng, plain: eng }, files: [] });
+  const client = fakeClient({
+    'claims README.md': [{ claims: [] }],
+    'classify pr#1': [{ choices: [], findings: [] }],
+    'classify pr#2': [{ choices: [chose('S1', 'Tidy the greeting.')], findings: [] }],
+    'weigh pr#2': [{ weights: [{ choice: 'D1', note: 'Work done, no choice.', weight: 'not' }] }],
+  });
+  const snapshot = JSON.parse((await assemble(record, modelSteps(record, client, []))).bytes) as Snapshot;
+  assert.deepEqual(snapshot.changes.filter((change) => change.id.startsWith('pr#')).map((change) => [change.id, change.quiet ?? false]), [['pr#1', true], ['pr#2', true]]);
+  assert.deepEqual(snapshot.decisions.filter((decision) => decision.carriedBy === 'pr#2'), []);
 });
 
 test('a reason is recorded only when a second call agrees, and the scan drops a card point that states one', async () => {

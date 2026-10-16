@@ -63,7 +63,7 @@ export type RepoFacts = {
   readonly items: readonly TrackedItem[];
 };
 
-export type Kind = 'decision' | 'behavior' | 'check' | 'routine' | 'unclassified';
+export type Kind = 'decision' | 'behavior' | 'check' | 'routine' | 'quiet' | 'unclassified';
 
 /** Card priority and the order the summary names kinds in. 'net' is a full undone bracket, last. */
 export const PRIORITY = ['decision', 'behavior', 'check', 'net'] as const;
@@ -100,7 +100,8 @@ function partitions(parts: readonly RoutinePart[], touched: ReadonlyMap<string, 
 /**
  * Findings give the most serious severity (behavior over check). Without findings, a decision carried by the change
  * gives decision. Otherwise routine parts that partition every touched path (no gaps, no overlaps) give routine.
- * Anything else is unclassified, rendered as Worth a look with "nmem could not classify this change".
+ * A change the model read and kept nothing from is quiet and gets no card. Anything else is unclassified, rendered as
+ * Worth a look with "nmem could not classify this change".
  */
 export function kindOf(change: ChangeId, snapshot: Snapshot, facts: RepoFacts): Kind {
   const entry = snapshot.changes.find((c) => c.id === change);
@@ -108,7 +109,7 @@ export function kindOf(change: ChangeId, snapshot: Snapshot, facts: RepoFacts): 
   if (top) return top;
   if (snapshot.decisions.some((d) => d.carriedBy === change)) return 'decision';
   if (entry && entry.routine.length > 0 && partitions(entry.routine, changeFacts(change, facts).touched)) return 'routine';
-  return 'unclassified';
+  return entry?.quiet ? 'quiet' : 'unclassified';
 }
 
 /** The decider of record is the author of the intent object, or the person who added the cited file. Never written. */
@@ -373,7 +374,7 @@ export function rangeOf(snapshot: Snapshot, facts: RepoFacts, range: Range, item
   type Look = { readonly severity: Severity; readonly findings: readonly number[]; readonly counted: readonly Item[] };
   const changeLook = (change: ChangeFacts): Look | null => {
     const kind = kindOf(change.id, snapshot, facts);
-    if (kind === 'routine' || kind === 'decision') return null;
+    if (kind === 'routine' || kind === 'decision' || kind === 'quiet') return null;
     const entry = entries.get(change.id);
     const own = (entry?.findings ?? []).flatMap((finding, index) => (whole || finding.topics.includes(range.topic) ? [{ finding, index }] : []));
     if (own.length === 0 && (entry?.findings.length ?? 0) > 0) return null;

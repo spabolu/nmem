@@ -133,13 +133,15 @@ export async function assemble(record: RepoRecord, steps: Steps, usage: () => Us
     if (weight === 'not') return [];
     return weight === 'minor' ? [{ ...decision, weight }] : [decision];
   });
+  const carriers = new Set(decisions.map((decision) => decision.carriedBy));
+  const entries: Entry[] = changes.map((entry, i) => (classified[i]?.read && entry.findings.length === 0 && !carriers.has(entry.id) ? { ...entry, quiet: true } : entry));
   const undone = proveUndone(record.repoDir, record.changes).map(undoneOf);
   const claimed = await steps.claims(topics);
   const snapshot: Snapshot = {
     version: 1,
     head: record.head,
     topics,
-    changes,
+    changes: entries,
     decisions,
     claims: claimed.claims,
     undone,
@@ -151,10 +153,11 @@ export async function assemble(record: RepoRecord, steps: Steps, usage: () => Us
   if (!parsed.ok) throw new Error(`the engine wrote a snapshot the contract rejects:\n${parsed.errors.map((error) => `${error.path}: ${error.what}`).join('\n')}`);
   checkQuotes(snapshot, record);
   const routine = changes.filter((change) => change.routine.length > 0).length;
+  const quiet = entries.filter((entry) => entry.quiet).length;
   const minor = decisions.filter((decision) => decision.weight === 'minor').length;
   const dropped = placedDecisions.length - decisions.length;
   const weighed = minor + dropped > 0 ? ` (${minor} minor, ${dropped} more weighed as not decisions)` : '';
-  const summary = `${record.identity.name}: ${changes.length} changes (${routine} routine), ${decisions.length} decisions${weighed}, ${undone.length} undone, ${snapshot.topics.length} topics, ${snapshot.claims.length} claims`;
+  const summary = `${record.identity.name}: ${changes.length} changes (${routine} routine${quiet > 0 ? `, ${quiet} with nothing to show` : ''}), ${decisions.length} decisions${weighed}, ${undone.length} undone, ${snapshot.topics.length} topics, ${snapshot.claims.length} claims`;
   return { bytes, summary };
 }
 
@@ -182,7 +185,7 @@ export function modelSteps(record: RepoRecord, client: ModelClient, notes: Notes
       try {
         const classified = await classifyChange(record, client, change, settled);
         notes.push(...classified.problems);
-        return { choices: classified.choices, findings: classified.findings };
+        return { choices: classified.choices, findings: classified.findings, read: true };
       } catch (error) {
         fallback(notes, `classify ${change.id}`, error);
         return floor.classify(change);
