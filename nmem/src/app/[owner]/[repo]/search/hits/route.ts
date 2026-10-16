@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { readQuery } from "@/lib/kernel/site";
-import { siteFor } from "@/lib/repos";
+import { siteForProxy } from "@/lib/repos";
 import { typeahead } from "@/lib/typeahead";
 
 type Context = {
@@ -14,7 +14,9 @@ export async function GET(
   const { owner, repo } = await context.params;
   const decodedOwner = decodeURIComponent(owner);
   const decodedRepo = decodeURIComponent(repo);
-  const site = await siteFor(decodedOwner, decodedRepo);
+  const loaded = performance.now();
+  const site = siteForProxy(decodedOwner, decodedRepo);
+  const siteMs = performance.now() - loaded;
   if (!site) {
     return NextResponse.json(
       {
@@ -40,7 +42,7 @@ export async function GET(
     {
       headers: {
         "cache-control": "no-store",
-        "server-timing": `search;dur=${searchMs.toFixed(1)}`,
+        "server-timing": `site;dur=${siteMs.toFixed(1)}, search;dur=${searchMs.toFixed(1)}`,
       },
     },
   );

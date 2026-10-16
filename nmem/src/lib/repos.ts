@@ -86,9 +86,25 @@ export function builtSlug(owner: string, name: string): string | null {
   return found ? `${found.identity.owner}/${found.identity.name}` : null;
 }
 
+function workspaceAt(dir: string): Workspace | null {
+  const identity = readIdentity(dir);
+  if (!identity) return null;
+  const snapshot = path.join(dir, "snapshot.json");
+  if (!fs.existsSync(snapshot)) return null;
+  return { identity, dir, snapshot, built: true };
+}
+
 /** GitHub matches owner and repo names without regard to case, so the URL does too. */
 function findWorkspace(owner: string, repo: string): Workspace | null {
   const want = `${owner}/${repo}`.toLowerCase();
+  for (const root of repoRoots()) {
+    const direct = workspaceAt(path.join(root, owner, repo));
+    if (
+      direct &&
+      `${direct.identity.owner}/${direct.identity.name}`.toLowerCase() === want
+    )
+      return direct;
+  }
   return (
     listWorkspaces().find(
       (row) =>
