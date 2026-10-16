@@ -77,7 +77,11 @@ async function RepoContent({ params, searchParams }: Props) {
       layout="wide"
     >
       <div className="mx-auto w-full max-w-[44rem]">
-        <BuildBanner owner={request.repo.owner} name={request.repo.name} />
+        <BuildBanner
+          owner={request.repo.owner}
+          name={request.repo.name}
+          quiet
+        />
         <Door ctx={ctx} />
       </div>
     </RepoFrame>

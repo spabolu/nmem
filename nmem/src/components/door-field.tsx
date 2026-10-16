@@ -149,7 +149,7 @@ export function DoorField({
           ) : null}
         </form>
       </search>
-      <div id={listId}>
+      <div id={listId} data-door-results>
         {q === "" ? (
           children
         ) : failed ? (
@@ -175,7 +175,7 @@ export function DoorField({
                   {hit.label}
                 </p>
                 <NextLink
-                  className="text-[16px] font-[600] break-words text-(color:--fgColor-default)!"
+                  className="line-clamp-2 text-[16px] font-[600] break-words text-(color:--fgColor-default)!"
                   href={hit.href}
                 >
                   <CodeText text={hit.title} />

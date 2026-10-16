@@ -187,14 +187,17 @@ export async function BuildStatus({
 export async function BuildBanner({
   owner,
   name,
+  quiet,
 }: {
   readonly owner: string;
   readonly name: string;
+  readonly quiet?: boolean;
 }) {
   await connection();
   const view = buildView(owner, name);
   const slug = `${owner}/${name}`;
   if (!view || view.kind === "done") {
+    if (quiet) return null;
     return (
       <div className="mb-4 flex justify-end">
         <RequestButton repo={slug} label="Rebuild" force />

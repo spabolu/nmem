@@ -54,7 +54,7 @@ export function RepoBar(props: RepoBarProps) {
         <UnderlineNav
           aria-label="Repository views"
           hideIconsBreakpoint={null}
-          className="flex! flex-1! items-end! self-stretch! p-0! [box-shadow:none]!"
+          className="w-full min-w-full p-0! [box-shadow:none]! md:min-w-0 md:w-auto md:flex-1! md:self-stretch"
         >
           <UnderlineNav.Item
             as={NextLink}
@@ -73,7 +73,7 @@ export function RepoBar(props: RepoBarProps) {
             Timeline
           </UnderlineNav.Item>
         </UnderlineNav>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 max-md:basis-full">
           <span
             className="text-(length:--text-body-size-small) text-(color:--fgColor-muted) max-md:hidden"
             id="readas"
