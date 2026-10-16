@@ -28,7 +28,7 @@ Each topic page shows, top to bottom:
 
 1. **Status, in words.** "Up to date", "Out of date since `<change>`, `<date>`" with the wrong sentence quoted, or "Never written down".
 2. **A headline** that says what this part does, in at most 45 words.
-3. **Decisions.** The choices that made this part the way it is, newest first: what was decided, who decided it, when, and why. If nobody wrote down why, the page says so and names who to ask. The page shows three decisions and lists the rest behind **Show all**. The root page rolls up the decisions of the whole repo.
+3. **Decisions.** The choices that made this part the way it is, key ones before minor ones and each newest first: what was decided, who decided it, when, and why. A sentence that only reports work done is not listed. If nobody wrote down why, the page says so and names who to ask. The page shows three decisions and lists the rest behind **Show all**. The root page rolls up the decisions of the whole repo.
 4. **One example**, taken from a test or a run.
 5. **Start here**, a link to GitHub's file view at the exact lines.
 6. **History of this topic**, which opens the timeline narrowed to this topic.

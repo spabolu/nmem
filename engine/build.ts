@@ -168,9 +168,9 @@ function fallback(notes: Notes, label: string, error: unknown): void {
 
 /**
  * The model steps that are on, over the no-model floor. A bad reply after the re-ask takes the step's fallback and is
- * noted: classify leaves the change unclassified, vet keeps the finding, why leaves the reason not recorded, weigh leaves the
- * group's decisions key, and scan treats every sentence as stating a reason, so an unscanned gap object is never written. Auth and provider failures throw, so a scored run
- * fails rather than writing a partial snapshot.
+ * noted: classify leaves the change unclassified, vet keeps the finding, why leaves the reason not recorded, weigh
+ * leaves the change's decisions key, and scan treats every sentence as stating a reason, so an unscanned gap object is
+ * never written. Auth and provider failures throw, so a scored run fails rather than writing a partial snapshot.
  */
 export function modelSteps(record: RepoRecord, client: ModelClient, notes: Notes): Steps {
   const floor = noModel(record);
