@@ -30,7 +30,7 @@ The app has no sign-in. Anyone who can reach the port can start builds that spen
 
 1. On the home page they paste `owner/name` or a github.com URL and press Build. A repository that is already built opens instead.
 2. They land on the repository's address, which shows the build's step: waiting, fetching from GitHub, preparing the first pages, reading the history, or preparing the pages. After the fetch, the pages open while nmem is still reading decisions. A banner shows the same progress as the status page and goes away when the full snapshot is ready.
-3. A failed build says why in a sentence and offers Retry. A private repository, a missing one, a repository with no commits, and missing GitHub or Copilot sign-in each have their own message.
+3. A failed build says why in a sentence. A private repository, a missing one, a repository with no commits, and missing GitHub or Copilot sign-in each have their own message. Retry shows only when asking again can help, so a missing or private repository gets none. An address for a repository nmem has not built offers a Build button.
 4. A built repository has Rebuild on the home page. It fetches only what changed on GitHub and keeps serving the old pages until the new ones are ready.
 
 ## Time and cost
