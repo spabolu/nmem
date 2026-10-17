@@ -35,27 +35,29 @@ The app has no sign-in. Anyone who can reach the port can start builds that spen
 
 ## Time and cost
 
-Measured on the pilot matrix in October 2026. Calls are from the latest build. Minutes are the first build with an empty model cache, one build at a time.
+Measured on the pilot matrix in October 2026. Calls and decisions are from the final build on 2026-10-16, with the decision weighing step. Minutes are the first build with an empty model cache and 4 calls in flight, before the worker moved to 16.
 
-| Repository | Language | Changes | Model calls | Minutes |
-| --- | --- | --- | --- | --- |
-| BurntSushi/walkdir | Rust | 185 | 770 | 9 |
-| mozilla-ai/agent-factory | Python | 191 | 1,889 | 29 |
-| vlucas/phpdotenv | PHP | 339 | 1,365 | 21 |
-| rack/rack-attack | Ruby | 479 | 1,790 | 26 |
-| square/javapoet | Java | 522 | 1,976 | 29 |
-| apple/swift-argument-parser | Swift | 538 | 2,399 | not measured |
-| mat/besticon | Go | 546 | 1,812 | 28 |
-| expressjs/body-parser | JavaScript | 736 | 1,873 | 37 |
+| Repository | Language | Changes | Model calls | Decisions shown | Minutes |
+| --- | --- | --- | --- | --- | --- |
+| sindresorhus/p-limit | TypeScript | 84 | 369 | 18 | not measured |
+| BurntSushi/walkdir | Rust | 185 | 928 | 53 | 9 |
+| mozilla-ai/agent-factory | Python | 191 | 2,060 | 236 | 29 |
+| vlucas/phpdotenv | PHP | 339 | 1,568 | 69 | 21 |
+| rack/rack-attack | Ruby | 479 | 2,087 | 121 | 26 |
+| square/javapoet | Java | 522 | 2,335 | 131 | 29 |
+| apple/swift-argument-parser | Swift | 538 | 2,780 | 263 | not measured |
+| mat/besticon | Go | 546 | 2,214 | 56 | 28 |
+| expressjs/body-parser | JavaScript | 737 | 2,276 | 58 | 37 |
 
-Expect 2 to 10 model calls per change. The full build is still about 30 minutes for a repository with 500 changes. The first pages open in minutes, before that build finishes. They are the no-model snapshot: changes, items, and search, with no invented decisions. Measured on 2026-10-16, a cold fetch of mat/besticon took 99 seconds and the no-model build plus bake took 4.8 minutes on an already fetched workspace. expressjs/body-parser took 3.5 minutes for that build plus bake. sindresorhus/yocto-queue opened in 23 seconds including fetch, against 2.7 minutes for the full snapshot.
+Expect 3 to 11 model calls per change. The full build is still about 30 minutes for a repository with 500 changes. The first pages open in minutes, before that build finishes. They are the no-model snapshot: changes, items, and search, with no invented decisions. Measured on 2026-10-16, a cold fetch of mat/besticon took 99 seconds and the no-model build plus bake took 4.8 minutes on an already fetched workspace. expressjs/body-parser took 3.5 minutes for that build plus bake. sindresorhus/yocto-queue opened in 23 seconds including fetch, against 2.7 minutes for the full snapshot.
 
 The worker keeps 16 model calls in flight. A cold walkdir model build, fetch not included, took 12.9 minutes at 4, 7.8 minutes at 8, and 5.4 minutes at 16, with no HTTP 429. A change is a merged pull request or a commit pushed straight to the default branch. There is no size cap, so a repository with thousands of changes takes hours. Builds run one at a time, so a second request waits for the first.
 
 ## What to watch
 
 - `~/.cache/nmem/jobs/<owner>/<name>.log` has each build's progress and its notes. A line starting `note:` is a step that fell back to a simpler answer; a few per build are normal.
-- "nmem could not classify this change" on the timeline means the model gave no reading for that change. It ran from 1% to 15% of changes on the matrix.
+- "nmem could not classify this change" on the timeline means a model step failed for that change and fell back. It was 0 or 1 change per repository on the final matrix. A change the model read and found nothing worth showing gets no card.
+- Decisions are weighed: entries that record no choice are dropped, and small choices are listed after key ones. On a labeled sample from six repos, 86% of the decisions kept were worth showing, and 82% of the worth-showing ones were kept (`node harness/decisions-real.mjs <dir>` scores a build).
 - A change whose author has no GitHub account (an old email-only commit, or a bot) carries no decisions or findings. The build log names those changes.
 - Never delete `~/.cache/nmem/engine` or `~/.cache/nmem/github`. They hold paid-for model replies and fetched GitHub items, and every later build reuses them.
 
