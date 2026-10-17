@@ -44,7 +44,7 @@ export const H1 = "m-0 mb-3 text-[32px] font-[600] max-md:text-[20px]";
 export const LABEL =
   "mb-1 block text-[12px] font-[700] uppercase tracking-[0.06em] text-(color:--fgColor-accent)";
 export const CALLOUT =
-  "mx-0 my-2 rounded-[6px] bg-(--bgColor-attention-muted) px-3 py-2";
+  "mx-0 my-2 rounded-[6px] bg-(--bgColor-attention-muted) px-3 py-2 [overflow-wrap:anywhere]";
 export const SOURCE_PRE =
   "whitespace-pre-wrap rounded-[6px] border border-(color:--borderColor-default) bg-(--bgColor-muted) p-3 [font:12px/20px_var(--fontStack-monospace)]";
 export const HINT = "text-[14px] text-(color:--fgColor-muted)";

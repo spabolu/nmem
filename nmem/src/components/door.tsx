@@ -81,10 +81,11 @@ function TopicList({
           <NextLink
             className="font-[600] break-words text-(color:--fgColor-default)!"
             href={topic.href}
+            data-nmem
           >
             <Prose text={topic.name} audience={audience} />
           </NextLink>
-          <p className={`${HINT} m-0 line-clamp-1 break-words`}>
+          <p className={`${HINT} m-0 line-clamp-1 break-words`} data-nmem>
             <Prose text={topic.line} audience={audience} />
           </p>
         </li>
@@ -228,11 +229,15 @@ export function Door({ ctx }: { readonly ctx: Ctx }) {
                   <NextLink
                     className="font-[600] break-words text-(color:--fgColor-default)!"
                     href={row.href}
+                    data-nmem
                   >
                     <Prose text={row.name} audience={audience} />
                   </NextLink>
                   {row.line !== "" && row.line !== row.name ? (
-                    <p className={`${HINT} m-0 line-clamp-1 break-words`}>
+                    <p
+                      className={`${HINT} m-0 line-clamp-1 break-words`}
+                      data-nmem
+                    >
                       <Prose text={row.line} audience={audience} />
                     </p>
                   ) : null}

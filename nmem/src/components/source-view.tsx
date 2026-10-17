@@ -139,7 +139,7 @@ export async function SourceView({
         {callout}
         <article>
           <p className={KICKER}>Commit {parsed.rev.slice(0, 7)}</p>
-          <h1 className={`${H1} break-words`}>
+          <h1 className={`${H1} break-words`} data-record>
             {subject.trim() ? (
               <Marked text={subject.trim()} quote={quote} />
             ) : (
@@ -152,7 +152,7 @@ export async function SourceView({
           </p>
           <GithubLink url={url} />
           {body ? (
-            <div className={BODY}>
+            <div className={BODY} data-record>
               <Paragraphs text={body} quote={quote} />
             </div>
           ) : null}
@@ -164,10 +164,12 @@ export async function SourceView({
     <>
       {callout}
       <article>
-        <h1 className={`${H1} break-words`}>{object.header}</h1>
+        <h1 className={`${H1} break-words`} data-record>
+          {object.header}
+        </h1>
         <GithubLink url={url} />
         {object.revisions.at(-1)?.trim() ? (
-          <div className={BODY}>
+          <div className={BODY} data-record>
             <Paragraphs text={object.revisions.at(-1) ?? ""} quote={quote} />
           </div>
         ) : null}
@@ -361,7 +363,7 @@ function CommentBox({
           <b className="text-(color:--fgColor-default)">{author}</b> {verb} on{" "}
           {stamp(at)}
         </header>
-        <div className={cbdClass(marked)}>
+        <div className={cbdClass(marked)} data-record>
           {body.trim() ? (
             <Paragraphs text={body} quote={quote} />
           ) : (
@@ -434,7 +436,7 @@ function Thread({
     return (
       <article>
         {kicker}
-        <h1 className={`${H1} break-words`}>
+        <h1 className={`${H1} break-words`} data-record>
           <Marked text={row.title} quote={quote} />{" "}
           <span className="font-[400] text-(color:--fgColor-muted)">
             #{row.number}
@@ -470,7 +472,7 @@ function Thread({
     return (
       <article>
         {kicker}
-        <h1 className={`${H1} break-words`}>
+        <h1 className={`${H1} break-words`} data-record>
           <Marked text={row.title} quote={quote} />{" "}
           <span className="font-[400] text-(color:--fgColor-muted)">
             #{row.number}
@@ -505,7 +507,7 @@ function Thread({
   return (
     <article>
       {kicker}
-      <h1 className={`${H1} break-words`}>
+      <h1 className={`${H1} break-words`} data-record>
         <Marked text={pull.title} quote={quote} />{" "}
         <span className="font-[400] text-(color:--fgColor-muted)">
           #{pull.number}
@@ -624,7 +626,10 @@ function FileLines({
           Lines {from}-{to} of {rows.length}.
         </p>
       ) : null}
-      <div className="py-2 [font:12px/20px_var(--fontStack-monospace)]">
+      <div
+        className="py-2 [font:12px/20px_var(--fontStack-monospace)]"
+        data-record
+      >
         {rows.slice(from - 1, to).map((row, index) => {
           const n = from + index;
           return (

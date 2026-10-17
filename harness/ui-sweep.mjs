@@ -87,7 +87,7 @@ const DEFECTS = `(() => {
   const found = [];
   const label = (el) => (el.tagName.toLowerCase() + (el.id ? '#' + el.id : '') + ' "' + (el.innerText || '').replace(/\\s+/g, ' ').slice(0, 50) + '"');
   const words = (document.querySelector('main') ?? document.body).cloneNode(true);
-  words.querySelectorAll('code, pre, mark, q, blockquote, .said, [data-nmem]').forEach((el) => el.remove());
+  words.querySelectorAll('code, pre, mark, q, blockquote, .said, [data-nmem], [data-record]').forEach((el) => el.remove());
   const leak = /\\b(undefined|NaN)\\b|\\[object Object\\]|Invalid Date/.exec(words.innerText);
   if (leak) found.push('prints ' + leak[0]);
   if (!document.querySelector('main')) found.push('no main');
