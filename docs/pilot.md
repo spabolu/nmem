@@ -69,4 +69,5 @@ The worker keeps 16 model calls in flight. A cold walkdir model build, fetch not
 node harness/pilot-e2e.mjs <out-dir>                 # builds a small repo from the home page in Chrome, kills and restarts serve mid-build
 node harness/pilot-matrix.mjs <out-dir> owner/name   # crawls every page of built repos; add --build to rebuild them first
 node harness/app-parity.mjs <out-dir>                # the app against the lab's kernel on the fixture repos
+node harness/ui-sweep.mjs <base-url> <out-dir> owner/name...   # layout and edge cases on built repos, against a running app
 ```
