@@ -154,7 +154,9 @@ export async function BuildStatus({
             {view.reason}
           </p>
         ) : null}
-        {progress && progress !== headline(view, alive) ? (
+        {progress &&
+        lines.length === 0 &&
+        progress !== headline(view, alive) ? (
           <p className={`${HINT} m-0 mb-4 [overflow-wrap:anywhere]`}>
             {progress}
           </p>
@@ -169,8 +171,12 @@ export async function BuildStatus({
             <StartCommand />
           </div>
         ) : null}
-        {view.kind === "failed" && view.retryable ? (
-          <RequestButton repo={slug} label="Retry" force variant="primary" />
+        {view.kind === "failed" ? (
+          view.retryable ? (
+            <RequestButton repo={slug} label="Retry" force variant="primary" />
+          ) : (
+            <AppLink href="/">Try another repository</AppLink>
+          )
         ) : null}
         {view.kind === "unread" ? (
           <RequestButton repo={slug} label="Retry" force variant="primary" />

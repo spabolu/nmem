@@ -106,7 +106,8 @@ export function rootTopic(record: RepoRecord): Topic {
   const last = readme.text.slice(0, sentence.start + sentence.text.length).split('\n').length;
   const first = readme.lines[0];
   if (!first) throw new Error(`${readme.path} is empty`);
-  const headline: Said = { eng: collapse(sentence.text), plain: collapse(sentence.text), source: { kind: 'record', ref: readme.ref, quote: sentence.text } };
+  const text = collapse(sentence.text).replace(/^(?:>\s*)+/, '');
+  const headline: Said = { eng: text, plain: text, source: { kind: 'record', ref: readme.ref, quote: sentence.text } };
   return {
     id: ROOT,
     parent: null,

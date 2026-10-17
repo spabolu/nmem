@@ -204,6 +204,7 @@ try {
   await until("the missing repo's status page", () => page.evaluate(`location.pathname`).then((p) => p === `/${missing}`), 30000);
   const failed = await until("a refusal", async () => ((await stateOf(page)).startsWith("failed") ? page.evaluate(`document.querySelector('[data-build-state]').innerText`) : null), 300000);
   check(/not|no such|could not|cannot/i.test(failed), `a missing repo is refused in words: ${failed.replace(/\s+/g, " ").slice(0, 200)}`);
+  check(!/\bRetry\b/.test(failed), "a missing repo offers no Retry, since asking again cannot help");
   await page.shot(path.join(out, "failed-1400.png"), 1400);
 } catch (error) {
   check(false, String(error instanceof Error ? error.message : error));

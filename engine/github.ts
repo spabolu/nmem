@@ -163,6 +163,14 @@ function ghToken(): string | null {
   return token === '' ? null : token;
 }
 
+/** GitHub will not give nmem this repository: it is missing, private, or hidden from the token. Asking again does not help. */
+export class RepoRefused extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'RepoRefused';
+  }
+}
+
 /** A query GitHub would not finish: too many nodes, or a gateway timeout twice. Its caller asks for less. */
 export class TooBig extends Error {
   constructor(message: string) {
@@ -384,7 +392,7 @@ export function graphqlRemote(graphql: Graphql, say: (line: string) => void = ()
   const repository = async (slug: Slug, selection: string, variables: Readonly<Record<string, unknown>> = {}, declared = ''): Promise<Record<string, unknown>> => {
     const { data, errors } = await graphql.query(`query($owner: String!, $name: String!${declared}) { repository(owner: $owner, name: $name) { ${selection} } }`, { owner: slug.owner, name: slug.name, ...variables });
     const repo = data.repository as Record<string, unknown> | null;
-    if (!repo) throw new Error(`${slug.owner}/${slug.name} does not exist, or this GitHub token cannot read it.`);
+    if (!repo) throw new RepoRefused(`${slug.owner}/${slug.name} does not exist, or this GitHub token cannot read it.`);
     if (errors.length > 0) throw new Error(`GitHub: ${errors.map((error) => error.message).join('; ').slice(0, 300)}`);
     return repo;
   };

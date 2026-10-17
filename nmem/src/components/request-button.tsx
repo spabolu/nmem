@@ -19,7 +19,7 @@ export function RequestButton({
 }) {
   const [state, action, pending] = useActionState(requestBuild, null);
   return (
-    <form action={action} className="flex shrink-0 flex-col gap-1">
+    <form action={action} className="flex shrink-0 flex-col items-start gap-1">
       <input type="hidden" name="repo" value={repo} />
       {force ? <input type="hidden" name="force" value="1" /> : null}
       <Button type="submit" size={size} variant={variant} disabled={pending}>

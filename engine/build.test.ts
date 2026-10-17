@@ -796,3 +796,10 @@ test('a closed pull request is a decision carried by nothing, and a request left
     [null, ['root'], 'Ana Lima closed PR #2.', 'Closing this.', { kind: 'not-recorded', ask: ['ana'], guess: null }],
   ]);
 });
+
+test('the README-only root headline drops a blockquote marker the README opens with', () => {
+  const record = ingest(toyWorkspace([{ title: 'Quote the tagline', body: 'Quote it.', files: { 'README.md': '# toy\n\n> Tiny queue data structure\n' } }]));
+  const headline = rootTopic(record).headline[0];
+  assert.equal(headline.eng, 'Tiny queue data structure');
+  assert.equal(headline.source.kind === 'record' ? headline.source.quote : '', '> Tiny queue data structure');
+});

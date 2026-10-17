@@ -10,7 +10,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { git } from '../fixtures/lib/git.mjs';
-import { QUERY_VERSION } from './github.ts';
+import { QUERY_VERSION, RepoRefused } from './github.ts';
 import type { Kind, RawNode, Remote, Slug, Stamp } from './github.ts';
 import { assemble, encode } from './mirror.ts';
 import type { GithubJson, StoredCommit } from './mirror.ts';
@@ -224,7 +224,7 @@ export async function add(input: string, options: AddOptions): Promise<Summary> 
   const asked = parseSlug(input);
   const meta = await remote.meta(asked);
   const slug: Slug = { owner: meta.owner.login, name: meta.name };
-  if (options.publicOnly && meta.isPrivate) throw new Error(`${slug.owner}/${slug.name} is private. nmem builds public repositories only.`);
+  if (options.publicOnly && meta.isPrivate) throw new RepoRefused(`${slug.owner}/${slug.name} is private. nmem builds public repositories only.`);
   const branch = meta.defaultBranchRef?.name;
   if (branch === undefined) throw new Error(`${slug.owner}/${slug.name} has no default branch, so it has no history to read`);
   const workspace = workspaceOf(root, slug);

@@ -7,6 +7,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { parseSlug } from './add.ts';
 import type { ModelClient } from './copilot.ts';
+import { RepoRefused } from './github.ts';
 
 export const ATTEMPT_CAP = 3;
 
@@ -372,7 +373,7 @@ async function runQueued(root: string, job: Job & { readonly state: 'queued' }, 
       finishedAt: new Date(options.clock()).toISOString(),
       phase,
       reason: plainReason(error),
-      retryable: true,
+      retryable: !(error instanceof RepoRefused),
     };
     consumeRequest(root, owner, name);
     writeJob(root, failed);

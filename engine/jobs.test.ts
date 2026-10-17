@@ -4,6 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import type { CallKey, ModelClient, ModelId } from './copilot.ts';
+import { RepoRefused } from './github.ts';
 import { consumeRequest, countingClient, parseJob, pollOnce, publishBuilt, readJob, reconcileJobs, runWorker, takeLock, writeRequest } from './jobs.ts';
 
 function root(): string {
@@ -188,7 +189,7 @@ test('a lock held by a live pid is refused, and a dead pid is taken over', () =>
   assert.deepEqual(read(file), { pid: 12, startedAt: '2026-10-14T00:02:00.000Z' });
 });
 
-test('a failed run records the reason, and the next request starts a fresh attempt', async () => {
+test('a refused repo fails as not retryable, and the next request starts a fresh attempt', async () => {
   const dir = root();
   writeRequest(dir, 'acme/demo', '2026-10-14T00:00:00.000Z');
   let calls = 0;
@@ -199,7 +200,7 @@ test('a failed run records the reason, and the next request starts a fresh attem
     alive: () => false,
     async run() {
       calls += 1;
-      throw new Error('acme/demo is private. nmem builds public repositories only.');
+      throw new RepoRefused('acme/demo is private. nmem builds public repositories only.');
     },
   }), 'ran');
   assert.equal(calls, 1);
@@ -211,7 +212,7 @@ test('a failed run records the reason, and the next request starts a fresh attem
     finishedAt: '2023-11-14T22:13:20.000Z',
     phase: 'fetching',
     reason: 'acme/demo is private. nmem builds public repositories only.',
-    retryable: true,
+    retryable: false,
   });
   writeRequest(dir, 'acme/demo', '2026-10-14T01:00:00.000Z');
   assert.equal(await pollOnce(dir, {
