@@ -56,15 +56,15 @@ export function RepoFrame({
         }}
       />
       <main id="main" className={PAGE[layout]}>
-        <div className={view === "door" ? "mx-auto w-full max-w-[44rem]" : ""}>
-          <BuildBanner
-            owner={repo.owner}
-            name={repo.name}
-            audience={audience}
-            preview={site.snapshot.usage === null}
-            quiet={view === "door"}
-          />
-        </div>
+        <BuildBanner
+          owner={repo.owner}
+          name={repo.name}
+          audience={audience}
+          preview={site.snapshot.usage === null}
+          className={
+            view === "door" ? "mx-auto w-full max-w-[44rem]" : "col-span-full"
+          }
+        />
         {children}
       </main>
     </div>

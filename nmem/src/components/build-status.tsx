@@ -190,25 +190,18 @@ export async function BuildBanner({
   name,
   audience,
   preview,
-  quiet,
+  className,
 }: {
   readonly owner: string;
   readonly name: string;
   readonly audience: Audience;
   readonly preview: boolean;
-  readonly quiet?: boolean;
+  readonly className: string;
 }) {
   await connection();
   const view = buildView(owner, name);
   const slug = `${owner}/${name}`;
-  if (!view || view.kind === "done") {
-    if (quiet) return null;
-    return (
-      <div className="mb-4 flex justify-end">
-        <RequestButton repo={slug} label="Rebuild" force />
-      </div>
-    );
-  }
+  if (!view || view.kind === "done") return null;
   const alive = workerAlive();
   const line = headline(view, alive);
   const reading = preview && view.kind !== "unread";
@@ -222,7 +215,7 @@ export async function BuildBanner({
   const elapsed = since(view, Date.now());
   return (
     <div
-      className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-[8px] border border-(color:--borderColor-default) bg-(--bgColor-muted) px-4 py-3"
+      className={`${className} mb-4 flex flex-wrap items-center justify-between gap-3 rounded-[8px] border border-(color:--borderColor-default) bg-(--bgColor-muted) px-4 py-3`}
       data-build-state={view.kind}
       data-build-phase={
         view.kind === "running" || view.kind === "failed"
