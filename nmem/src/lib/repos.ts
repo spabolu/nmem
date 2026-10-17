@@ -2,10 +2,9 @@ import "server-only";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { cacheLife, cacheTag } from "next/cache";
 import type { RepoIdentity } from "@/lib/kernel/contract";
-import type { Built, Site } from "@/lib/kernel/site";
-import { loadSite, readBuilt, rootId, siteOf } from "@/lib/kernel/site";
+import type { Site } from "@/lib/kernel/site";
+import { loadSite, rootId } from "@/lib/kernel/site";
 import { censusOf, TEMPLATES } from "@/lib/kernel/view";
 
 /**
@@ -130,48 +129,37 @@ function stampOf(workspace: Workspace): string {
     .join("/");
 }
 
-/** Errors do not keep their message through the cache in production, so a refusal comes back as data. */
-async function builtFor(
-  dir: string,
-  _stamp: string,
-): Promise<Built | { readonly refused: string }> {
-  "use cache";
-  cacheLife("max");
-  cacheTag(`repo:${dir}`);
-  try {
-    return readBuilt(dir);
-  } catch (error) {
-    return { refused: error instanceof Error ? error.message : String(error) };
-  }
+const loaded = new Map<
+  string,
+  { readonly stamp: string; readonly site: Site }
+>();
+
+/**
+ * One parsed site per workspace, kept until its files change. A large repo's site.json is tens of megabytes, past the
+ * "use cache" item limit, so that cache would parse it again on every request.
+ */
+function siteAt(workspace: Workspace): Site {
+  const stamp = stampOf(workspace);
+  const known = loaded.get(workspace.dir);
+  if (known?.stamp === stamp) return known.site;
+  const site = loadSite(workspace.dir);
+  loaded.set(workspace.dir, { stamp, site });
+  return site;
 }
 
-/** The parsed site for a built repo, cached until its files change. Null when no built workspace matches. */
+/** The parsed site for a built repo. Null when no built workspace matches. */
 export async function siteFor(
   owner: string,
   repo: string,
 ): Promise<Site | null> {
   const workspace = findWorkspace(owner, repo);
-  if (!workspace) return null;
-  const built = await builtFor(workspace.dir, stampOf(workspace));
-  if ("refused" in built) throw new Error(built.refused);
-  return siteOf(built);
+  return workspace ? siteAt(workspace) : null;
 }
 
-const proxied = new Map<
-  string,
-  { readonly stamp: string; readonly site: Site }
->();
-
-/** siteFor for the proxy, which runs outside a render, where "use cache" does not apply. */
+/** siteFor for the proxy, which cannot await. */
 export function siteForProxy(owner: string, repo: string): Site | null {
   const workspace = findWorkspace(owner, repo);
-  if (!workspace) return null;
-  const stamp = stampOf(workspace);
-  const known = proxied.get(workspace.dir);
-  if (known?.stamp === stamp) return known.site;
-  const site = loadSite(workspace.dir);
-  proxied.set(workspace.dir, { stamp, site });
-  return site;
+  return workspace ? siteAt(workspace) : null;
 }
 
 type RepoCard = {
