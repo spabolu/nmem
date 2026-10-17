@@ -10,12 +10,14 @@ export function Blank({
   action,
   search,
   h1,
+  footer,
 }: {
   readonly heading: string;
   readonly children: React.ReactNode;
   readonly action?: { readonly href: string; readonly label: string };
   readonly search?: boolean;
   readonly h1?: boolean;
+  readonly footer?: React.ReactNode;
 }) {
   return (
     <Blankslate border spacious>
@@ -31,6 +33,7 @@ export function Blank({
           {action.label}
         </Blankslate.PrimaryAction>
       ) : null}
+      {footer}
     </Blankslate>
   );
 }

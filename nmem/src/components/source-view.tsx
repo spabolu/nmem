@@ -504,7 +504,7 @@ function FileLines({
   return (
     <>
       {to - from + 1 < rows.length ? (
-        <p className={HINT}>
+        <p className={`${HINT} m-0 px-4 pt-3`}>
           Lines {from}-{to} of {rows.length}.
         </p>
       ) : null}

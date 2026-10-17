@@ -9,7 +9,13 @@ import type { Topic } from "@/lib/kernel/contract";
 import { rootId } from "@/lib/kernel/site";
 import type { IsoDay } from "@/lib/kernel/view";
 import { cardDay, timelineOf } from "@/lib/kernel/view";
-import { depthOf, isBareCommit, namedChange, shortWhen } from "@/lib/present";
+import {
+  depthOf,
+  isBareCommit,
+  namedChange,
+  shortWhen,
+  topicsInOrder,
+} from "@/lib/present";
 import { DoorField } from "./door-field";
 import { type Ctx, Prose } from "./said";
 import { H1, HINT, LABEL } from "./styles";
@@ -43,19 +49,10 @@ function placeholder(audience: Ctx["audience"]): string {
     : "A file, a flag, an error, or a few words";
 }
 
-function topicWays(ctx: Ctx): readonly TopicWay[] {
+function topicWays(ctx: Ctx, topics: readonly Topic[]): readonly TopicWay[] {
   const { site, repo, audience } = ctx;
   const root = rootId(site);
-  const ordered: Topic[] = [];
-  const walk = (parent: string | null): void => {
-    for (const topic of site.snapshot.topics) {
-      if (topic.parent !== parent) continue;
-      ordered.push(topic);
-      walk(topic.id);
-    }
-  };
-  walk(null);
-  return ordered.map((topic) => ({
+  return topics.map((topic) => ({
     kind: "topic",
     id: topic.id,
     name: topic.name[audience],
@@ -64,6 +61,36 @@ function topicWays(ctx: Ctx): readonly TopicWay[] {
     depth: depthOf(site, topic.id),
     root: topic.id === root,
   }));
+}
+
+function TopicList({
+  ways,
+  audience,
+}: {
+  readonly ways: readonly TopicWay[];
+  readonly audience: Ctx["audience"];
+}) {
+  return (
+    <ul className="m-0 list-none p-0">
+      {ways.map((topic) => (
+        <li
+          key={topic.id}
+          className={`border-t border-(color:--borderColor-muted) py-2 ${PAD[topic.depth] ?? ""}`}
+          data-topic-way={topic.id}
+        >
+          <NextLink
+            className="font-[600] break-words text-(color:--fgColor-default)!"
+            href={topic.href}
+          >
+            <Prose text={topic.name} audience={audience} />
+          </NextLink>
+          <p className={`${HINT} m-0 line-clamp-1 break-words`}>
+            <Prose text={topic.line} audience={audience} />
+          </p>
+        </li>
+      ))}
+    </ul>
+  );
 }
 
 function changeLine(
@@ -127,7 +154,9 @@ function recentWays(ctx: Ctx): readonly ChangeWay[] {
         tone: "behavior" as const,
         name: named.name,
         line: named.line,
-        href: timelineHref(repo, root, card.day, card.day, audience),
+        href: timelineHref(repo, root, card.day, card.day, audience, {
+          show: "both",
+        }),
         when: shortWhen(site, card.day),
       },
     ];
@@ -141,7 +170,9 @@ function toneLabel(tone: ChangeWay["tone"]): string {
 export function Door({ ctx }: { readonly ctx: Ctx }) {
   const { repo, audience } = ctx;
   const root = rootId(ctx.site);
-  const topics = topicWays(ctx);
+  const { code, tests } = topicsInOrder(ctx.site);
+  const topics = topicWays(ctx, code);
+  const testWays = topicWays(ctx, tests);
   const recent = recentWays(ctx);
   const headingId = "door-heading";
   return (
@@ -167,25 +198,18 @@ export function Door({ ctx }: { readonly ctx: Ctx }) {
               The whole repo
             </NextLink>
           </div>
-          <ul className="m-0 list-none p-0">
-            {topics.map((topic) => (
-              <li
-                key={topic.id}
-                className={`border-t border-(color:--borderColor-muted) py-2 ${PAD[topic.depth] ?? ""}`}
-                data-topic-way={topic.id}
-              >
-                <NextLink
-                  className="font-[600] break-words text-(color:--fgColor-default)!"
-                  href={topic.href}
-                >
-                  <Prose text={topic.name} audience={audience} />
-                </NextLink>
-                <p className={`${HINT} m-0 line-clamp-1 break-words`}>
-                  <Prose text={topic.line} audience={audience} />
-                </p>
-              </li>
-            ))}
-          </ul>
+          <TopicList ways={topics} audience={audience} />
+          {testWays.length > 0 ? (
+            <details data-tests={testWays.length}>
+              <summary className="cursor-pointer border-t border-(color:--borderColor-muted) py-2 font-[600]">
+                Tests{" "}
+                <span className="font-[400] text-(color:--fgColor-muted)">
+                  {testWays.length} {testWays.length === 1 ? "topic" : "topics"}
+                </span>
+              </summary>
+              <TopicList ways={testWays} audience={audience} />
+            </details>
+          ) : null}
         </div>
         {recent.length > 0 ? (
           <div>

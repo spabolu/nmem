@@ -34,11 +34,11 @@ async function SearchContent({ params, searchParams }: Props) {
     <RepoFrame
       request={request}
       audience={query.audience}
-      view="topics"
+      view="other"
       path="/search"
       layout="split"
     >
-      <SearchView ctx={ctx} q={query.q} />
+      <SearchView ctx={ctx} q={query.q} all={query.all} />
     </RepoFrame>
   );
 }

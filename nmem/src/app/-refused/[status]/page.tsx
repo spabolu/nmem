@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import Loading from "@/app/loading";
 import { Blank } from "@/components/blank";
+import { BuildThis } from "@/components/build-this";
 import { PAGE } from "@/components/styles";
 
 /**
@@ -48,6 +49,7 @@ async function RefusedBody({ params }: PageProps<"/-refused/[status]">) {
         h1
         heading={page.heading}
         action={{ href: "/", label: "See every built repository" }}
+        footer={status === "404" ? <BuildThis /> : null}
       >
         {page.body}
       </Blank>

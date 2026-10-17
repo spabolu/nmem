@@ -63,6 +63,7 @@ async function ItemContent({ params, searchParams }: Props) {
           audience: query.audience,
         }}
         page={page}
+        all={query.all}
       />
     </RepoFrame>
   );

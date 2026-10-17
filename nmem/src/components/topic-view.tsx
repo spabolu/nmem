@@ -6,6 +6,7 @@ import type {
   LocalId,
   Said,
   Source,
+  Topic,
 } from "@/lib/kernel/contract";
 import { parseProof } from "@/lib/kernel/contract";
 import type { Site } from "@/lib/kernel/site";
@@ -22,7 +23,13 @@ import {
   statusOf,
   TEMPLATES,
 } from "@/lib/kernel/view";
-import { ancestors, dotOf, person, topicById } from "@/lib/present";
+import {
+  ancestors,
+  dotOf,
+  person,
+  topicById,
+  topicsInOrder,
+} from "@/lib/present";
 import { ButtonLink } from "./links";
 import { Avatar, CarriedBy, Chip, type Ctx, Prose, SaidText } from "./said";
 import {
@@ -200,7 +207,12 @@ export async function TopicView({
           <p className={HINT}>No decisions for this topic.</p>
         ) : null}
         {rows.map((decision) => (
-          <DecisionRow key={decision.id} ctx={ctx} decision={decision} />
+          <DecisionRow
+            key={decision.id}
+            ctx={ctx}
+            decision={decision}
+            on={id}
+          />
         ))}
         {hidden > 0 ? (
           <p className="mt-3 mb-0">
@@ -401,6 +413,34 @@ function StatusBox({
       </p>
     ) : null;
   if (rollup) {
+    const testIds = new Set(topicsInOrder(site).tests.map((topic) => topic.id));
+    const testChildren = children.filter((topic) => testIds.has(topic.id));
+    const childRow = (topic: Topic) => {
+      const childStatus = statusOf(topic.id, site.snapshot, site.facts);
+      return (
+        <NextLink
+          key={topic.id}
+          className="grid grid-cols-[16px_1fr] gap-2 border-t border-(color:--borderColor-muted) py-2 text-(color:--fgColor-default)! hover:no-underline!"
+          href={topicHref(repo, topic.id, audience)}
+        >
+          <span className={dotClass(dotOf(childStatus))} />
+          <span>
+            <b className="font-[600]">{topic.name[audience]}</b>{" "}
+            <span
+              className="ml-2 font-[400] text-(color:--fgColor-muted)"
+              data-nmem
+            >
+              {TEMPLATES.status(childStatus)[audience]}
+            </span>
+            {childStatus.kind === "out-of-date-since" ? (
+              <q className="mt-1 mb-0 block italic text-(color:--fgColor-muted)">
+                {childStatus.sentence.quote}
+              </q>
+            ) : null}
+          </span>
+        </NextLink>
+      );
+    };
     return (
       <div className={FRESH[tone]}>
         <div>
@@ -408,32 +448,19 @@ function StatusBox({
             {TEMPLATES.census(census)[audience]}
           </p>
           <div className="mt-2">
-            {children.map((topic) => {
-              const childStatus = statusOf(topic.id, site.snapshot, site.facts);
-              return (
-                <NextLink
-                  key={topic.id}
-                  className="grid grid-cols-[16px_1fr] gap-2 border-t border-(color:--borderColor-muted) py-2 text-(color:--fgColor-default)! hover:no-underline!"
-                  href={topicHref(repo, topic.id, audience)}
-                >
-                  <span className={dotClass(dotOf(childStatus))} />
-                  <span>
-                    <b className="font-[600]">{topic.name[audience]}</b>{" "}
-                    <span
-                      className="ml-2 font-[400] text-(color:--fgColor-muted)"
-                      data-nmem
-                    >
-                      {TEMPLATES.status(childStatus)[audience]}
-                    </span>
-                    {childStatus.kind === "out-of-date-since" ? (
-                      <q className="mt-1 mb-0 block italic text-(color:--fgColor-muted)">
-                        {childStatus.sentence.quote}
-                      </q>
-                    ) : null}
+            {children.filter((topic) => !testIds.has(topic.id)).map(childRow)}
+            {testChildren.length > 0 ? (
+              <details data-tests={testChildren.length}>
+                <summary className="cursor-pointer border-t border-(color:--borderColor-muted) py-2 font-[600]">
+                  Tests{" "}
+                  <span className="font-[400] text-(color:--fgColor-muted)">
+                    {testChildren.length}{" "}
+                    {testChildren.length === 1 ? "topic" : "topics"}
                   </span>
-                </NextLink>
-              );
-            })}
+                </summary>
+                {testChildren.map(childRow)}
+              </details>
+            ) : null}
           </div>
           <p className="mt-2 mb-0 text-[12px] text-(color:--fgColor-muted)">
             <span className={dotClass(dotOf(status), true)} />{" "}
@@ -491,19 +518,22 @@ async function ExampleProof({
   return <pre className={SOURCE_PRE}>{preview}</pre>;
 }
 
-export function DecisionRow({
+/** One decision on a topic page. Its topic chips leave out `on`, the topic the page is about. */
+function DecisionRow({
   ctx,
   decision,
+  on,
 }: {
   readonly ctx: Ctx;
   readonly decision: Decision;
+  readonly on: LocalId;
 }) {
   const { site, repo, audience } = ctx;
   const day = decisionDay(decision, site.facts);
   const author = deciderOf(decision, site.facts);
   const root = rootId(site);
   const topics = decision.topics.filter(
-    (id) => id !== root || decision.topics.length === 1,
+    (id) => id !== on && (id !== root || decision.topics.length === 1),
   );
   const next = decision.replacedBy
     ? site.snapshot.decisions.find((row) => row.id === decision.replacedBy)

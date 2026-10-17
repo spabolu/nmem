@@ -1,5 +1,5 @@
 import NextLink from "next/link";
-import { sourceHref, timelineHref, topicHref } from "@/lib/hrefs";
+import { itemHref, sourceHref, timelineHref, topicHref } from "@/lib/hrefs";
 import type { Decision, Severity } from "@/lib/kernel/contract";
 import { rootId } from "@/lib/kernel/site";
 import type {
@@ -419,6 +419,8 @@ function Lives({ ctx, page }: { readonly ctx: Ctx; readonly page: ItemPage }) {
   );
 }
 
+const SHOWN = 12;
+
 /**
  * One item's history. Engineer reads the answer first (name, where it lives, the net sentence) and then the chain.
  * Non-engineer never sees a code name, so it reads the net sentence and the people, then the chain in plain words.
@@ -428,9 +430,11 @@ function Lives({ ctx, page }: { readonly ctx: Ctx; readonly page: ItemPage }) {
 export function ItemView({
   ctx,
   page,
+  all,
 }: {
   readonly ctx: Ctx;
   readonly page: ItemPage;
+  readonly all: boolean;
 }) {
   const { audience } = ctx;
   const { item } = page;
@@ -483,18 +487,27 @@ export function ItemView({
           <h2 id="history">How it changed</h2>
           <p className={HINT}>Newest first.</p>
           <ol className="m-0 flex list-none flex-col gap-3 p-0">
-            {page.entries.map((entry) => (
-              <EntryView
-                key={
-                  entry.kind === "net"
-                    ? `net:${entry.undone.changes[0]}`
-                    : entry.step.hop.change
-                }
-                ctx={ctx}
-                entry={entry}
-              />
-            ))}
+            {(all ? page.entries : page.entries.slice(0, SHOWN)).map(
+              (entry) => (
+                <EntryView
+                  key={
+                    entry.kind === "net"
+                      ? `net:${entry.undone.changes[0]}`
+                      : entry.step.hop.change
+                  }
+                  ctx={ctx}
+                  entry={entry}
+                />
+              ),
+            )}
           </ol>
+          {!all && page.entries.length > SHOWN ? (
+            <p className="mt-3 mb-0">
+              <NextLink href={`${itemHref(ctx.repo, item.id, audience)}&all=1`}>
+                Show all ({page.entries.length})
+              </NextLink>
+            </p>
+          ) : null}
           <RoutineLine ctx={ctx} routine={page.routine} />
         </section>
       </article>

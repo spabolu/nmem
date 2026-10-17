@@ -87,6 +87,47 @@ export function depthOf(site: Site, id: LocalId): number {
   return Math.min(depth, 2);
 }
 
+/** The patterns in fixtures/lib/tests.mjs, which the engine uses when it gives a test file a topic of its own. */
+const TEST_FILES = [
+  /(?:^|\/)tests?\//,
+  /(?:^|\/)__tests__\//,
+  /(?:^|\/)(?:test_[^/]*|[^/]*_test)\.py$/,
+  /_test\.go$/,
+  /\.(?:test|spec)\.[^/.]+$/,
+  /_spec\.rb$/,
+];
+
+function testsOnly(topic: Topic): boolean {
+  return (
+    topic.parent !== null &&
+    topic.files.length > 0 &&
+    topic.files.every((file) => TEST_FILES.some((test) => test.test(file)))
+  );
+}
+
+/**
+ * Topics depth first in snapshot order, split into those about the code and those that hold only tests. A large repo
+ * has dozens of test-only topics, and listed inline they bury what the code does.
+ */
+export function topicsInOrder(site: Site): {
+  readonly code: readonly Topic[];
+  readonly tests: readonly Topic[];
+} {
+  const ordered: Topic[] = [];
+  const walk = (parent: LocalId | null): void => {
+    for (const topic of site.snapshot.topics) {
+      if (topic.parent !== parent) continue;
+      ordered.push(topic);
+      walk(topic.id);
+    }
+  };
+  walk(null);
+  return {
+    code: ordered.filter((topic) => !testsOnly(topic)),
+    tests: ordered.filter(testsOnly),
+  };
+}
+
 /** The topic's ancestors, root first. */
 export function ancestors(site: Site, topic: Topic): readonly Topic[] {
   const chain: Topic[] = [];

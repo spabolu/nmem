@@ -128,6 +128,7 @@ export function DoorField({
             aria-controls={listId}
             // biome-ignore lint/a11y/noAutofocus: the page exists to take this query
             autoFocus
+            suppressHydrationWarning
             onChange={(event) => {
               const next = event.target.value;
               setValue(next);

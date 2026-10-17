@@ -34,12 +34,19 @@ export function resolveInput(
   return { kind: "fresh", slug };
 }
 
-function examplesOf(built: readonly string[]): readonly string[] {
-  return built.length > 0 ? built.slice(0, 3) : [EXAMPLE];
+/** Three built repos to try, or once the person types, the built repos whose name holds what they typed. */
+function examplesOf(
+  built: readonly string[],
+  typed: string,
+): readonly string[] {
+  const want = typed.trim().toLowerCase();
+  if (want === "") return built.length > 0 ? built.slice(0, 3) : [EXAMPLE];
+  return built.filter((slug) => slug.toLowerCase().includes(want)).slice(0, 5);
 }
 
 export function AddRepo({ built }: { readonly built: readonly string[] }) {
   const [value, setValue] = useState("");
+  const [left, setLeft] = useState(false);
   const [state, action, pending] = useActionState(requestBuild, null);
   const input = resolveInput(value, built);
   const blocked = input.kind === "empty" || input.kind === "invalid" || pending;
@@ -60,24 +67,32 @@ export function AddRepo({ built }: { readonly built: readonly string[] }) {
               leadingVisual={RepoIcon}
               placeholder="https://github.com/owner/repo or owner/repo"
               value={value}
-              onChange={(event) => setValue(event.target.value)}
+              onChange={(event) => {
+                setValue(event.target.value);
+                setLeft(false);
+              }}
+              onBlur={() => setLeft(true)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") setLeft(true);
+              }}
               autoCapitalize="none"
               autoCorrect="off"
               spellCheck={false}
             />
-            {input.kind === "invalid" ? (
+            {input.kind === "invalid" && left ? (
               <FormControl.Validation variant="error">
                 That is not owner/repo or a github.com URL.
               </FormControl.Validation>
             ) : null}
           </FormControl>
-          {input.kind === "empty" ? (
+          {input.kind === "built" ? null : (
             <ExamplePills
-              examples={examplesOf(built)}
+              label={input.kind === "empty" ? "Examples" : "Built"}
+              examples={examplesOf(built, value)}
               built={built}
               onPick={setValue}
             />
-          ) : null}
+          )}
         </div>
         <Button
           variant="primary"
@@ -100,21 +115,24 @@ export function AddRepo({ built }: { readonly built: readonly string[] }) {
 }
 
 function ExamplePills({
+  label,
   examples,
   built,
   onPick,
 }: {
+  readonly label: string;
   readonly examples: readonly string[];
   readonly built: readonly string[];
   readonly onPick: (slug: string) => void;
 }) {
+  if (examples.length === 0) return null;
   return (
     <div className="flex min-w-0 flex-wrap items-center gap-2">
       <span
         id="repo-examples"
         className="text-[12px] text-(color:--fgColor-muted)"
       >
-        Examples
+        {label}
       </span>
       <ul
         aria-labelledby="repo-examples"

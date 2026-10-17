@@ -32,7 +32,9 @@ export function hitHref(
       : `${href}#${encodeURIComponent(link.anchor)}`;
   }
   if (link.to === "timeline") {
-    return timelineHref(repo, link.topic, link.from, link.until, audience);
+    return timelineHref(repo, link.topic, link.from, link.until, audience, {
+      show: link.from === link.until ? "both" : null,
+    });
   }
   if (link.to === "item") return itemHref(repo, link.item, audience);
   if (link.to === "source") {

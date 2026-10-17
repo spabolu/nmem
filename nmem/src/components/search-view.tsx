@@ -28,14 +28,16 @@ function kindLabel(kind: SearchKind, audience: Ctx["audience"]): string {
 export function SearchView({
   ctx,
   q,
+  all,
 }: {
   readonly ctx: Ctx;
   readonly q: string;
+  readonly all: boolean;
 }) {
   const { site, repo, audience } = ctx;
   const hits = q.trim() ? search(site.snapshot, site.facts, q) : [];
   const shown = hitsForAudience(hits, audience);
-  const listed = shown.slice(0, SHOWN);
+  const listed = all ? shown : shown.slice(0, SHOWN);
   const kinds = [...new Set(listed.map((hit) => hit.kind))];
   const prompt = placeholder(audience);
   return (
@@ -79,7 +81,14 @@ export function SearchView({
           <p className={HINT} aria-live="polite">
             {listed.length === shown.length
               ? `${shown.length} ${shown.length === 1 ? "match" : "matches"}`
-              : `Showing ${listed.length} of ${shown.length}`}
+              : `Showing ${listed.length} of ${shown.length}. `}
+            {listed.length < shown.length ? (
+              <NextLink
+                href={`${searchPath(repo)}?${new URLSearchParams({ audience, q, all: "1" })}`}
+              >
+                Show all
+              </NextLink>
+            ) : null}
           </p>
         )}
         {kinds.map((kind) => (

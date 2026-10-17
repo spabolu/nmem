@@ -1,13 +1,17 @@
-/** Same rule as engine/add.ts parseSlug: owner/name, a github.com URL, or an SSH remote. */
+/**
+ * engine/add.ts parseSlug's rule (owner/name, a github.com URL, or an SSH remote), and also any github.com page inside
+ * the repository, such as a file, a pull request, or a branch, since people paste what their address bar shows.
+ */
 
 const SLUG = /^[A-Za-z0-9-]+\/[A-Za-z0-9._-]+$/;
 
 export type Slug = { readonly owner: string; readonly name: string };
 
 export function parseSlug(input: string): Slug | null {
-  const bare = input
-    .trim()
-    .replace(/^(?:https?:\/\/)?(?:www\.)?github\.com\//, "")
+  const trimmed = input.trim();
+  const page =
+    /^(?:https?:\/\/)?(?:www\.)?github\.com\/([^/?#]+\/[^/?#]+)/.exec(trimmed);
+  const bare = (page?.[1] ?? trimmed)
     .replace(/^git@github\.com:/, "")
     .replace(/\/+$/, "")
     .replace(/\.git$/, "");

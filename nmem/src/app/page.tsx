@@ -6,6 +6,7 @@ import { AddRepo } from "@/components/add-repo";
 import { buildStateLine } from "@/components/build-status";
 import { AppLink, ButtonLink } from "@/components/links";
 import { RequestButton } from "@/components/request-button";
+import { Prose } from "@/components/said";
 import { HINT, PANEL, PANEL_HD, SOURCE_PRE } from "@/components/styles";
 import { repoPath, topicHref, topicsHref } from "@/lib/hrefs";
 import {
@@ -21,12 +22,8 @@ type RepoCard = Awaited<ReturnType<typeof repoCards>>[number];
 const COUNT =
   "shrink-0 rounded-[2em] bg-(--bgColor-neutral-muted) px-2 py-0.5 text-[12px] font-[600] text-(color:--fgColor-default)";
 
-const PILL = {
-  built:
-    "shrink-0 rounded-[2em] border border-(color:--borderColor-success-emphasis) bg-(--bgColor-success-muted) px-2 py-px text-[12px] font-[500] text-(color:--fgColor-success)",
-  refused:
-    "shrink-0 rounded-[2em] border border-(color:--borderColor-danger-emphasis) bg-(--bgColor-danger-muted) px-2 py-px text-[12px] font-[500] text-(color:--fgColor-danger)",
-} as const;
+const PILL =
+  "shrink-0 rounded-[2em] border border-(color:--borderColor-danger-emphasis) bg-(--bgColor-danger-muted) px-2 py-px text-[12px] font-[500] text-(color:--fgColor-danger)";
 
 const ROW =
   "flex min-w-0 flex-col gap-2 border-t border-(color:--borderColor-muted) p-4 first:border-t-0 hover:bg-(--bgColor-muted)/40";
@@ -114,7 +111,7 @@ async function HomeBody() {
             id="built-heading"
             className="m-0! text-[14px]! font-[600]! text-(color:--fgColor-default)!"
           >
-            Cached repositories
+            Built repositories
           </h2>
           <span className={COUNT}>{built.length}</span>
         </div>
@@ -168,9 +165,7 @@ function RepoRow({
           >
             {slug}
           </AppLink>
-          <span className={readable ? PILL.built : PILL.refused}>
-            {readable ? "Built" : "Unreadable"}
-          </span>
+          {readable ? null : <span className={PILL}>Unreadable</span>}
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {card.census ? (
@@ -203,7 +198,7 @@ function RepoRow({
       </div>
       {card.identity.description ? (
         <p className="m-0 text-[14px] [overflow-wrap:anywhere] text-(color:--fgColor-muted)">
-          {card.identity.description}
+          <Prose text={card.identity.description} audience="eng" />
         </p>
       ) : null}
       {active ? (

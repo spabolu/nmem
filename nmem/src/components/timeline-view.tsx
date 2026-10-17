@@ -8,7 +8,7 @@ import {
   timelineHref,
   topicHref,
 } from "@/lib/hrefs";
-import type { ChangeId, LocalId, Said } from "@/lib/kernel/contract";
+import type { ChangeId, LocalId, Said, Topic } from "@/lib/kernel/contract";
 import type { RequestQuery } from "@/lib/kernel/site";
 import { rootId } from "@/lib/kernel/site";
 import type {
@@ -41,6 +41,7 @@ import {
   type Slot,
   shortWhen,
   ticksOf,
+  topicsInOrder,
 } from "@/lib/present";
 import { CarriedBy, Chip, type Ctx, Prose, SaidText, WhyText } from "./said";
 import { CHIP, CHIP_ON, HINT } from "./styles";
@@ -119,6 +120,17 @@ export function TimelineView({
     })
     .sort()
     .join(",");
+  const { code, tests } = topicsInOrder(site);
+  const chip = (row: Topic) => (
+    <NextLink
+      key={row.id}
+      className={row.id === topic ? CHIP_ON : CHIP}
+      aria-current={row.id === topic ? "true" : undefined}
+      href={timelineHref(repo, row.id, from, to, audience, kept)}
+    >
+      {row.name[audience]}
+    </NextLink>
+  );
   const link = (up: boolean, down: boolean, routine: boolean) =>
     timelineHref(repo, topic, from, to, audience, {
       ...kept,
@@ -234,16 +246,19 @@ export function TimelineView({
         className="mt-0 mb-3 flex flex-wrap gap-2"
         aria-label="Narrow to a topic"
       >
-        {site.snapshot.topics.map((row) => (
-          <NextLink
-            key={row.id}
-            className={row.id === topic ? CHIP_ON : CHIP}
-            aria-current={row.id === topic ? "true" : undefined}
-            href={timelineHref(repo, row.id, from, to, audience, kept)}
+        {code.map(chip)}
+        {tests.length > 0 ? (
+          <details
+            className="w-full"
+            open={tests.some((row) => row.id === topic)}
+            data-tests={tests.length}
           >
-            {row.name[audience]}
-          </NextLink>
-        ))}
+            <summary className="cursor-pointer text-[12px] text-(color:--fgColor-muted)">
+              Tests, {tests.length} {tests.length === 1 ? "topic" : "topics"}
+            </summary>
+            <div className="mt-2 flex flex-wrap gap-2">{tests.map(chip)}</div>
+          </details>
+        ) : null}
       </nav>
       {item ? (
         <p
