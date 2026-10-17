@@ -1093,7 +1093,11 @@ async function checkPlimit() {
         }
       }
       check(
-        names.includes("Fix typo"),
+        names.includes(
+          audience === "eng"
+            ? "limitFunction now forwards all options to pLimit"
+            : "Wrapped functions now accept the reject-on-clear setting",
+        ),
         `p-limit ${audience} names are ${names.slice(0, 8).join(" | ")}`,
       );
       const counted = (life.html.match(/data-unclassified="1"/g) ?? []).length;
