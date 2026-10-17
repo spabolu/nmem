@@ -54,7 +54,7 @@ export function RepoBar(props: RepoBarProps) {
         <UnderlineNav
           aria-label="Repository views"
           hideIconsBreakpoint={null}
-          className="w-full min-w-full p-0! [box-shadow:none]! md:min-w-0 md:w-auto md:flex-1! md:self-end"
+          className="w-full min-w-full p-0! [box-shadow:none]! md:min-w-0 md:w-auto md:flex-1! md:self-stretch md:max-h-none! md:items-end! md:[&_a]:mb-3! md:[&_a]:after:mb-[-12px]!"
         >
           <UnderlineNav.Item
             as={NextLink}
