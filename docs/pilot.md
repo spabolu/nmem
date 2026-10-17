@@ -49,10 +49,11 @@ Measured on the pilot matrix in October 2026. Calls and decisions are from the f
 | mat/besticon | Go | 546 | 2,214 | 56 | 28 |
 | expressjs/body-parser | JavaScript | 737 | 2,276 | 58 | 37 |
 | pallets/click | Python | 1,384 | 6,962 | 528 | 26.5, nearly all calls cached |
+| JamesNK/Newtonsoft.Json | C# | 1,589 | 7,826 | 262 | 76, 16 calls in flight |
 
 Expect 3 to 11 model calls per change. The full build is still about 30 minutes for a repository with 500 changes. The first pages open in minutes, before that build finishes. They are the no-model snapshot: changes, items, and search, with no invented decisions. Measured on 2026-10-16, a cold fetch of mat/besticon took 99 seconds and the no-model build plus bake took 4.8 minutes on an already fetched workspace. expressjs/body-parser took 3.5 minutes for that build plus bake. sindresorhus/yocto-queue opened in 23 seconds including fetch, against 2.7 minutes for the full snapshot.
 
-The worker keeps 16 model calls in flight. A cold walkdir model build, fetch not included, took 12.9 minutes at 4, 7.8 minutes at 8, and 5.4 minutes at 16, with no HTTP 429. A change is a merged pull request or a commit pushed straight to the default branch. There is no size cap. pallets/click (3,379 commits, 1,384 changes) built to 4,023 pages that all load, with a peak of 1.2 GB of memory; with an empty cache, a repository that size takes hours. Builds run one at a time, so a second request waits for the first.
+The worker keeps 16 model calls in flight. A cold walkdir model build, fetch not included, took 12.9 minutes at 4, 7.8 minutes at 8, and 5.4 minutes at 16, with no HTTP 429. A change is a merged pull request or a commit pushed straight to the default branch. There is no size cap. pallets/click (3,379 commits, 1,384 changes) built to 4,023 pages that all load, with a peak of 1.2 GB of memory. JamesNK/Newtonsoft.Json (1,589 changes) took 76 minutes from an empty cache and peaked at 2.9 GB, and all 3,045 of its pages load; with an empty cache, a repository that size takes hours. Builds run one at a time, so a second request waits for the first.
 
 ## What to watch
 
