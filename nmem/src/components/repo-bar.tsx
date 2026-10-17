@@ -25,8 +25,8 @@ export type RepoBarProps = {
 export function RepoBar(props: RepoBarProps) {
   const router = useRouter();
   const audiences = [
-    { id: "eng", label: "Engineer" },
-    { id: "plain", label: "Non-engineer" },
+    { id: "eng", label: "Technical" },
+    { id: "plain", label: "Manager" },
   ] as const;
   return (
     <header className="border-b border-(color:--borderColor-default) bg-(--bgColor-inset) px-6 max-md:px-4 max-md:pt-3">

@@ -136,12 +136,14 @@ export async function BuildStatus({
       >
         <Refresh />
         <p className="m-0 mb-2 text-[14px] text-(color:--fgColor-muted)">
-          <AppLink href={withAudience(path, search, "eng")}>Engineer</AppLink>
+          <AppLink href={withAudience(path, search, "eng")}>
+            Technical view
+          </AppLink>
           <span className="mx-2" aria-hidden="true">
             ·
           </span>
           <AppLink href={withAudience(path, search, "plain")}>
-            Non-engineer
+            Manager view
           </AppLink>
         </p>
         <h1 className="m-0 mb-3 text-[32px] font-[600] break-all max-md:text-[20px]">
