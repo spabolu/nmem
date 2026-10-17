@@ -242,6 +242,27 @@ export function TimelineView({
       <p className={HINT}>
         Today is {formatDay(site.facts.end)}, the latest thing nmem read.
       </p>
+      {to < site.facts.born || from > site.facts.end ? (
+        <p
+          className="mt-0 mb-3 rounded-[6px] bg-(--bgColor-attention-muted) px-3 py-2"
+          data-outside
+        >
+          This range is outside the history nmem read, which runs from{" "}
+          {formatDay(site.facts.born)} to {formatDay(site.facts.end)}.{" "}
+          <NextLink
+            href={timelineHref(
+              repo,
+              topic,
+              site.facts.born,
+              site.facts.end,
+              audience,
+              kept,
+            )}
+          >
+            Show the whole life
+          </NextLink>
+        </p>
+      ) : null}
       <nav
         className="mt-0 mb-3 flex flex-wrap gap-2"
         aria-label="Narrow to a topic"
@@ -367,14 +388,14 @@ function RoutineRow({
   const { site, audience } = ctx;
   const live = site.facts.changes.find((row) => row.id === change)?.live;
   return (
-    <div className="grid grid-cols-[140px_160px_1fr] gap-3 border-t border-(color:--borderColor-default) px-4 py-2 text-[14px] max-md:grid-cols-[minmax(0,1fr)] max-md:gap-1">
+    <div className="grid grid-cols-[140px_minmax(0,220px)_minmax(0,1fr)] gap-3 border-t border-(color:--borderColor-default) px-4 py-2 text-[14px] max-md:grid-cols-[minmax(0,1fr)] max-md:gap-1">
       <span className="dt">{live ? formatDay(live) : ""}</span>
-      <span>
+      <span className="[overflow-wrap:anywhere]">
         {audience === "eng"
           ? namedChange(site, change, live ?? site.facts.end, audience)
           : "A routine change"}
       </span>
-      <span className="why">
+      <span className="why [overflow-wrap:anywhere]">
         {parts.map((part, index) => (
           // biome-ignore lint/suspicious/noArrayIndexKey: parts keep their order
           <span key={index} className="said" data-nmem>

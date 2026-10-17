@@ -116,6 +116,7 @@ export function SearchView({
                       <NextLink
                         className="text-[16px] font-[600] break-words"
                         href={hitHref(hit, repo, audience)}
+                        data-nmem
                       >
                         <Prose text={title} audience={audience} />
                       </NextLink>
@@ -123,6 +124,7 @@ export function SearchView({
                         <p
                           className={`${HINT} mt-1 mb-0 break-words`}
                           data-matched={hit.field}
+                          data-nmem
                         >
                           <Prose text={matched} audience={audience} />
                         </p>

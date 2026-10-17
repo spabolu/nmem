@@ -3,7 +3,8 @@
  * the repository, such as a file, a pull request, or a branch, since people paste what their address bar shows.
  */
 
-const SLUG = /^[A-Za-z0-9-]+\/[A-Za-z0-9._-]+$/;
+/** GitHub owners are letters, digits, and inner hyphens, so "-refused/404" is never a repo. */
+const SLUG = /^[A-Za-z0-9][A-Za-z0-9-]*\/[A-Za-z0-9._-]+$/;
 
 export type Slug = { readonly owner: string; readonly name: string };
 

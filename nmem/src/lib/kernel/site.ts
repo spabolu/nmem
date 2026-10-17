@@ -372,6 +372,14 @@ export function loadSite(workspace: string): Site {
 
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
 
+/** A real calendar day: 2020-02-30 has the shape but no such day. */
+function isDay(raw: string): boolean {
+  return (
+    DAY.test(raw) &&
+    new Date(`${raw}T00:00:00Z`).toISOString().slice(0, 10) === raw
+  );
+}
+
 export type RequestQuery = {
   readonly audience: Audience;
   readonly all: boolean;
@@ -401,12 +409,12 @@ export function readQuery(
   }
   const fromRaw = params.get("from");
   const toRaw = params.get("to");
-  if (fromRaw !== null && fromRaw !== "" && !DAY.test(fromRaw))
+  if (fromRaw !== null && fromRaw !== "" && !isDay(fromRaw))
     return { error: `from is not a day: ${fromRaw}` };
-  if (toRaw !== null && toRaw !== "" && !DAY.test(toRaw))
+  if (toRaw !== null && toRaw !== "" && !isDay(toRaw))
     return { error: `to is not a day: ${toRaw}` };
-  const from = fromRaw && DAY.test(fromRaw) ? (fromRaw as IsoDay) : null;
-  const to = toRaw && DAY.test(toRaw) ? (toRaw as IsoDay) : null;
+  const from = fromRaw && isDay(fromRaw) ? (fromRaw as IsoDay) : null;
+  const to = toRaw && isDay(toRaw) ? (toRaw as IsoDay) : null;
   if (from && to && from > to)
     return { error: `from ${from} is after to ${to}` };
   const show = params.get("show");

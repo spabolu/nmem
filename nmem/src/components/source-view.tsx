@@ -1,7 +1,9 @@
+import { topicsHref } from "@/lib/hrefs";
 import { parseProof, parseRef } from "@/lib/kernel/contract";
 import type { RequestQuery, Site } from "@/lib/kernel/site";
 import { formatDay, TRUST_WORDS } from "@/lib/kernel/view";
 import { githubUrlOf, person, stamp } from "@/lib/present";
+import { Blank } from "./blank";
 import { Avatar, type Ctx } from "./said";
 import { CALLOUT, H1, HINT, KICKER, LABEL, MUTED, SOURCE_PRE } from "./styles";
 import { ToMark } from "./to-mark";
@@ -52,15 +54,30 @@ export async function SourceView({
   readonly ctx: Ctx;
   readonly query: RequestQuery;
 }) {
-  const { site, audience } = ctx;
-  if (query.proof)
-    return <ProofReceipt site={site} raw={query.proof} audience={audience} />;
+  const { site } = ctx;
+  if (query.proof) return <ProofReceipt ctx={ctx} raw={query.proof} />;
   if (!query.ref)
-    return <p className={MUTED}>A receipt needs a ref or a proof.</p>;
+    return (
+      <Missing ctx={ctx} url={null}>
+        This address names no source. Sources open from the chips on a topic, a
+        search result, or the timeline.
+      </Missing>
+    );
   const parsed = parseRef(query.ref, site.identity);
-  if (!parsed) return <p className={MUTED}>nmem could not read this source.</p>;
+  if (!parsed)
+    return (
+      <Missing ctx={ctx} url={null}>
+        nmem cannot read the source this address names.
+      </Missing>
+    );
   const quote = query.quote;
   const url = githubUrlOf(site, query.ref);
+  const absent = (
+    <Missing ctx={ctx} url={url}>
+      nmem keeps the sources its pages quote, as of the last build, and this is
+      not one of them.
+    </Missing>
+  );
   const callout = quote ? (
     <blockquote className={CALLOUT}>
       <ToMark />
@@ -77,6 +94,7 @@ export async function SourceView({
         quote={quote}
         focus={focus}
         url={url}
+        absent={absent}
       />
     </>
   );
@@ -92,13 +110,16 @@ export async function SourceView({
     if (parent) return thread(parent, parsed.id);
   }
   if (parsed.kind === "file") {
-    const body = site.object(query.ref)?.revisions[0] ?? "";
+    const body = site.object(query.ref)?.revisions[0];
+    if (body === undefined) return absent;
     return (
       <>
         {callout}
         <article>
-          <p className={KICKER}>{parsed.path}</p>
-          <h1 className={H1}>{parsed.path.split("/").at(-1) ?? parsed.path}</h1>
+          <p className={`${KICKER} break-all`}>{parsed.path}</p>
+          <h1 className={`${H1} break-all`}>
+            {parsed.path.split("/").at(-1) ?? parsed.path}
+          </h1>
           <GithubLink url={url} />
           <div className="overflow-auto rounded-[6px] border border-(color:--borderColor-default)">
             <FileLines body={body} lines={parsed.lines} quote={quote} />
@@ -108,11 +129,10 @@ export async function SourceView({
     );
   }
   const object = site.object(query.ref);
+  if (!object) return absent;
   if (parsed.kind === "commit") {
     const facts = site.sourceFacts(query.ref);
-    const [subject = "", ...rest] = (object?.revisions.at(-1) ?? "").split(
-      "\n",
-    );
+    const [subject = "", ...rest] = (object.revisions.at(-1) ?? "").split("\n");
     const body = rest.join("\n").trim();
     return (
       <>
@@ -123,7 +143,7 @@ export async function SourceView({
             {subject.trim() ? (
               <Marked text={subject.trim()} quote={quote} />
             ) : (
-              (object?.header ?? query.ref)
+              object.header
             )}
           </h1>
           <p className="m-0 text-(color:--fgColor-muted)">
@@ -137,15 +157,6 @@ export async function SourceView({
             </div>
           ) : null}
         </article>
-      </>
-    );
-  }
-  if (!object) {
-    return (
-      <>
-        {callout}
-        <p className={MUTED}>This source is not in the workspace record.</p>
-        <GithubLink url={url} />
       </>
     );
   }
@@ -402,12 +413,14 @@ function Thread({
   quote,
   focus,
   url,
+  absent,
 }: {
   readonly site: Site;
   readonly parent: Parent;
   readonly quote: string;
   readonly focus: number | null;
   readonly url: string | null;
+  readonly absent: React.ReactNode;
 }) {
   const { github } = site;
   const kicker = (
@@ -417,10 +430,7 @@ function Thread({
   );
   if (parent.kind === "discussion") {
     const row = github.discussions.find((one) => one.number === parent.number);
-    if (!row)
-      return (
-        <p className={MUTED}>This source is not in the workspace record.</p>
-      );
+    if (!row) return absent;
     return (
       <article>
         {kicker}
@@ -456,10 +466,7 @@ function Thread({
   }
   if (parent.kind === "issue") {
     const row = github.issues.find((one) => one.number === parent.number);
-    if (!row)
-      return (
-        <p className={MUTED}>This source is not in the workspace record.</p>
-      );
+    if (!row) return absent;
     return (
       <article>
         {kicker}
@@ -494,8 +501,7 @@ function Thread({
     );
   }
   const pull = github.pulls.find((one) => one.number === parent.number);
-  if (!pull)
-    return <p className={MUTED}>This source is not in the workspace record.</p>;
+  if (!pull) return absent;
   return (
     <article>
       {kicker}
@@ -560,6 +566,24 @@ function Thread({
   );
 }
 
+/** Where a quote sits in a file, as 1-based first and last lines, matching across line breaks and spacing. */
+function quoteLines(
+  body: string,
+  quote: string,
+): readonly [number, number] | null {
+  const words = squash(quote).split(" ").filter(Boolean);
+  if (words.length === 0) return null;
+  const pattern = words
+    .map((word) => word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+    .join("\\s+");
+  const match = new RegExp(pattern).exec(body);
+  if (!match) return null;
+  const first = body.slice(0, match.index).split("\n").length;
+  return [first, first + match[0].split("\n").length - 1];
+}
+
+const WHOLE = 200;
+
 function FileLines({
   body,
   lines,
@@ -569,25 +593,32 @@ function FileLines({
   readonly lines: { readonly start: number; readonly count: number } | null;
   readonly quote: string;
 }) {
+  if (body.trim() === "")
+    return <p className={`${HINT} m-0 px-4 py-3`}>This file is empty.</p>;
   const rows = body.split("\n");
-  let start = 1;
-  let end = Math.min(rows.length, 40);
+  let hit: readonly [number, number] | null = null;
+  let note: string | null = null;
   if (lines) {
-    start = lines.start;
-    end = lines.start + lines.count - 1;
-  } else if (quote) {
-    const at = rows.findIndex((row) =>
-      row.replace(/\s+/g, " ").includes(squash(quote)),
-    );
-    if (at >= 0) {
-      start = at + 1;
-      end = at + 1;
-    }
+    if (lines.start > rows.length)
+      note = `Line ${lines.start} is past the end of this file, which has ${rows.length} lines.`;
+    else
+      hit = [lines.start, Math.min(rows.length, lines.start + lines.count - 1)];
+  } else if (quote.trim()) {
+    hit = quoteLines(body, quote);
+    if (!hit) note = "The quoted words are not in this version of the file.";
   }
-  const from = Math.max(1, start - 4);
-  const to = Math.min(rows.length, Math.max(end + 4, from + 12));
+  const from = hit ? Math.max(1, hit[0] - 4) : 1;
+  const to = hit
+    ? Math.min(rows.length, Math.max(hit[1] + 4, from + 12))
+    : Math.min(rows.length, WHOLE);
+  const on = (n: number) => hit !== null && n >= hit[0] && n <= hit[1];
   return (
     <>
+      {note ? (
+        <p className="m-0 border-b border-(color:--borderColor-default) bg-(--bgColor-attention-muted) px-4 py-2 text-[14px]">
+          {note}
+        </p>
+      ) : null}
       {to - from + 1 < rows.length ? (
         <p className={`${HINT} m-0 px-4 pt-3`}>
           Lines {from}-{to} of {rows.length}.
@@ -597,12 +628,10 @@ function FileLines({
         {rows.slice(from - 1, to).map((row, index) => {
           const n = from + index;
           return (
-            <div key={n} className={lineClass(n >= start && n <= end)}>
-              <span className={lineNumberClass(n >= start && n <= end)}>
-                {n}
-              </span>
+            <div key={n} className={lineClass(on(n))}>
+              <span className={lineNumberClass(on(n))}>{n}</span>
               <span className="whitespace-pre">
-                <Marked text={row} quote={quote} />
+                {on(n) ? <Marked text={row} quote={quote} /> : row}
               </span>
             </div>
           );
@@ -613,16 +642,20 @@ function FileLines({
 }
 
 async function ProofReceipt({
-  site,
+  ctx,
   raw,
-  audience,
 }: {
-  readonly site: Site;
+  readonly ctx: Ctx;
   readonly raw: string;
-  readonly audience: Ctx["audience"];
 }) {
+  const { site, audience } = ctx;
   const parsed = parseProof(raw);
-  if (!parsed) return <p className={MUTED}>nmem could not read this check.</p>;
+  if (!parsed)
+    return (
+      <Missing ctx={ctx} url={null}>
+        nmem cannot read the check this address names.
+      </Missing>
+    );
   const words = TRUST_WORDS[parsed.verb][audience];
   const result = site.proof(raw) ?? {
     failed: "missing",
@@ -640,5 +673,38 @@ async function ProofReceipt({
         <pre className={SOURCE_PRE}>{result.text}</pre>
       )}
     </article>
+  );
+}
+
+/** A source nmem cannot show, with the way back to the repo and, when the address names one, the way to GitHub. */
+function Missing({
+  ctx,
+  url,
+  children,
+}: {
+  readonly ctx: Ctx;
+  readonly url: string | null;
+  readonly children: React.ReactNode;
+}) {
+  return (
+    <Blank
+      h1
+      heading="nmem has no record of this source"
+      action={{
+        href: topicsHref(ctx.repo, ctx.audience),
+        label: `Back to ${ctx.repo.name}`,
+      }}
+      footer={
+        url ? (
+          <p className="mt-3 mb-0">
+            <a href={url} target="_blank" rel="noreferrer">
+              Look for it on GitHub
+            </a>
+          </p>
+        ) : null
+      }
+    >
+      {children}
+    </Blank>
   );
 }
