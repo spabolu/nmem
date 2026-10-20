@@ -8,7 +8,7 @@ Version 1 is ready for an internal pilot. It builds public repositories only, an
 
 ## Run nmem
 
-You need macOS or Linux, Node 24 or newer, and git. Python 3 is optional. With it, nmem can run the examples in a repository's docs to check that they still hold.
+You need macOS or Linux, Node 24 or newer, and git. Python 3 is optional. With it, nmem can also check a doc sentence about a Python repository by running a test program against the code.
 
 Run every command from the project root, not from `nmem/`.
 
@@ -63,17 +63,17 @@ If another app already uses port 3000, stop it or pass `--port 3001`.
 
 When you press **Build**, the app writes one request file to `<root>/jobs/<owner>/<name>.request.json`. The worker takes requests one at a time, oldest first. The repository's page shows each step: waiting, fetching from GitHub, preparing the first pages, reading the history, and preparing the pages.
 
-The first pages open after the fetch, before the model has read the history. A banner shows progress until the full build is ready. A build survives a crash or a restart. Start `serve` again and the worker continues from where it stopped. Model replies are cached, so a resumed build does not pay for the same calls twice.
+The first pages open after the fetch, before the model has read the history. A banner shows progress until the full build is ready. A build survives a crash or a restart. Start `serve` again and the worker starts the unfinished build again. Model replies are cached, so the restarted build does not pay for the same calls twice. After three crashed starts, the build fails and shows **Retry**.
 
-**Rebuild** on the home page fetches only what changed on GitHub and keeps the old pages up until the new ones are ready. Build times for 11 real repositories are in [docs/pilot.md](docs/pilot.md).
+**Rebuild** on the home page fetches the pull requests, issues, and discussions that changed on GitHub, and keeps the old pages up until the new ones are ready. Build times for 11 real repositories are in [docs/pilot.md](docs/pilot.md).
 
 ## How nmem works
 
-A build has four stages. Each stage writes files, and the next stage reads only those files.
+A build has four stages. Each stage writes files that the next stage reads.
 
-1. `engine/add.ts` mirrors the repository. It clones the code and fetches pull requests, issues, discussions, reviews, tags, and commit authors from GitHub into `github.json`.
+1. `engine/add.ts` mirrors the repository. It clones the code and fetches pull requests, issues, discussions, reviews, tags, releases, and commit authors from GitHub into `github.json`.
 2. `engine/build.ts` reads the clone and `github.json` and writes `snapshot.json`. The snapshot holds the changes, decisions, behavior findings, topics, and doc claims.
-3. `harness/bake.ts` turns the snapshot into `site.json`, the prepared data that the pages read. This step uses no model.
+3. `harness/bake.ts` reads the snapshot and the clone, and writes `site.json`. That file holds everything the pages need from git, such as file contents, commit titles, proof results, and item histories, so the app never runs git. This step uses no model.
 4. The app in `nmem/` reads `snapshot.json`, `site.json`, and `github.json`, and renders the pages.
 
 ### Files on disk
@@ -84,9 +84,9 @@ Everything lives in plain files under the root folder. There is no database.
 | --- | --- |
 | `github/` | One JSON file for each version of each pull request, issue, and discussion that GitHub returned. Files are written once and never changed. Don't delete this folder. It is the record of everything already fetched. |
 | `repos/<owner>/<name>/repo/` | A git clone, checked out on the default branch. |
-| `repos/<owner>/<name>/sync.json` | The last-updated time of each item already fetched, so the next fetch asks only for newer items. |
+| `repos/<owner>/<name>/sync.json` | The last-updated time of each pull request, issue, and discussion already fetched. The next fetch downloads only the items whose time changed. |
 | `repos/<owner>/<name>/authors.json` | The GitHub login for each commit on the default branch. |
-| `repos/<owner>/<name>/github.json` | The whole GitHub record for the repository in one file, rebuilt from the three files above. |
+| `repos/<owner>/<name>/github.json` | The whole GitHub record for the repository in one file. Each fetch writes it again from the cached items, `sync.json`, `authors.json`, and the repository's current tags and releases. |
 | `repos/<owner>/<name>/snapshot.json` | The engine's output. |
 | `repos/<owner>/<name>/site.json` | The data the pages read. |
 | `engine/` | The cache of model replies, keyed by a hash of each call's input. Don't delete this folder. A rebuild that reuses it makes no model calls for unchanged changes. |
@@ -105,12 +105,12 @@ The engine is the command line in `engine/cli.ts` and the build pipeline. The bu
 | vet | yes | Drops a finding that the record shows someone handled, or that no user can reach. |
 | link | yes | Joins agreements in threads to the change that carried them. |
 | why | yes | Keeps a reason only when a quote states it and a second call agrees. Otherwise it marks the reason not recorded and names who to ask. |
-| claims | yes | Finds doc sentences that the code decides. Where it can, it writes a Python or JavaScript check, runs it at HEAD and at each change since the sentence was written, and dates the change that broke the claim. |
-| topics | yes | Forms the topic tree from the code at HEAD, writes each topic page, and places decisions on topics. |
+| claims | yes | Finds doc sentences that the code decides, and keeps only those that are not plainly true at HEAD. Where it can, the model writes a Python or JavaScript program that tests the sentence. Code runs that program at HEAD and at each change since the sentence was written, and names the change that broke the sentence or made it true. |
+| topics | yes | Forms the topic tree from the code, docs, and decision records at HEAD, writes each topic page, and places decisions on topics. |
 | weigh | yes | Marks each decision as key, minor, or not a decision, and drops the last kind. |
 | assemble | no | Copies the quoted text into the snapshot, validates it against `harness/contract.ts`, and writes it. |
 
-The model returns handles, never text to show. Code copies the quoted text from the record, so every quote on a page is an exact substring of its source. [docs/design/engine.md](docs/design/engine.md) has the full rules for each step.
+The model never writes a quote, a date, a name, or a line number. It points at sentences and lines by their handles, and code copies the quoted text from the record, so every quote on a page is an exact substring of its source. The model does write the one-sentence summary of each decision and reason, and its prompt limits that summary to the words of the quoted sentence. [docs/design/engine.md](docs/design/engine.md) has the full rules for each step.
 
 ### nmem/
 
@@ -131,13 +131,15 @@ The **Reading as** switch on a repository's pages changes the wording for a **Te
 | `harness/pilot-e2e.mjs` | A full build of a small repository from the home page in Chrome, with `serve` killed and restarted mid-build. |
 | `harness/ui-sweep.mjs` | Pages it reaches from each built repository's front page, at 1280 and 390 pixels wide, for sideways scrolling, text that spills out of its box, and console errors. Set `WIDTHS` to check other widths. |
 
-[harness/README.md](harness/README.md) and [docs/design/scoring-harness.md](docs/design/scoring-harness.md) describe the scoring.
+[harness/README.md](harness/README.md) and [docs/design/scoring-harness.md](docs/design/scoring-harness.md) describe the scoring. `app-parity.mjs`, `pilot-e2e.mjs`, and `ui-sweep.mjs` start Google Chrome from its macOS install path, so they run on macOS only.
 
 ## Other commands
 
+`add`, `build-repo`, and `bake` take no `--root` option. They always use `~/.cache/nmem`, so an app started with `serve --root` does not see their output.
+
 | Command | What it does |
 | --- | --- |
-| `node engine/cli.ts add <owner>/<repo>` | Mirrors a repository into the root folder without building it. |
+| `node engine/cli.ts add <owner>/<repo>` | Mirrors a repository into `~/.cache/nmem` without building it. |
 | `node engine/cli.ts request <owner>/<repo>` | Asks the worker to build a repository, as the **Build** button does. |
 | `node engine/cli.ts worker` | Runs the builder alone, for when the app runs separately. |
 | `node engine/cli.ts build-repo <owner>/<repo>` | Builds a mirrored repository in the foreground. `--no-model` builds the model-free first pages only. |
