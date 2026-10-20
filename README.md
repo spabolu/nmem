@@ -146,7 +146,10 @@ The **Reading as** switch on a repository's pages changes the wording for a **Te
 
 ## Run the tests
 
+The harness tests read the fixture answer keys in `out/`. Generate them once in a new clone, then run the tests:
+
 ```sh
+node fixtures/generate.mjs --check
 (cd engine && node --test)
 (cd harness && node --test)
 (cd nmem && npm run lint && npm run build)
