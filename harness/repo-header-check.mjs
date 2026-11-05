@@ -101,6 +101,7 @@ async function checkHeader(page, config) {
               audience: input.form.elements.audience.value,
               label: input.getAttribute("aria-label"),
               placeholder: input.placeholder,
+              hasIcon: Boolean(input.closest("search").querySelector("svg[aria-hidden='true']")),
             } : null,
             tabs: tabs ? {
               box: rect(tabs),
@@ -145,6 +146,7 @@ async function checkHeader(page, config) {
           if (facts.search) {
             const search = facts.search;
             assert(search.box.height === 32 && search.box.right === width - 16, `${where} search at right gutter`);
+            assert(search.box.width === (width < 640 ? 128 : 272) && search.hasIcon, `${where} GitHub-style search dimensions and icon`);
             assert(search.box.top === 16 && search.box.left >= facts.crumb.box.right, `${where} search and crumb do not overlap`);
             assert(search.action === `/${owner}/${repo}/search` && search.audience === "eng", `${where} search action`);
             assert(search.q === (name === "search" ? "bill" : ""), `${where} URL query prefill`);

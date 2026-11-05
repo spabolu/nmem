@@ -9,6 +9,7 @@ import {
   HistoryIcon,
   IssueOpenedIcon,
   PlayIcon,
+  SearchIcon,
   ShieldIcon,
   TableIcon,
   TriangleDownIcon,
@@ -137,12 +138,17 @@ export function RepoBand({ repo }: { readonly repo: RepoRef }) {
         </NextLink>
       </nav>
       {onDoor ? null : (
-        <search className="ml-auto w-64 shrink-0 max-sm:w-32 lg:w-80">
+        <search className="relative ml-auto w-[272px] shrink-0 max-sm:w-32">
+          <SearchIcon
+            aria-hidden="true"
+            size={16}
+            className="pointer-events-none absolute top-2 left-2 text-(color:--fgColor-muted)"
+          />
           <Form action={searchPath(repo)}>
             <input type="hidden" name="audience" value={audience} />
             <input
               key={q}
-              className={`${TEXT_INPUT} min-w-0 text-ellipsis`}
+              className={`${TEXT_INPUT} min-w-0 pl-8 text-ellipsis`}
               type="search"
               name="q"
               defaultValue={q}
@@ -256,7 +262,7 @@ export function RepoBandSkeleton() {
         <span className="h-4 min-w-0 flex-1">
           <span className="block h-full max-w-40 rounded-sm bg-(--bgColor-neutral-muted)" />
         </span>
-        <span className="h-8 w-64 shrink-0 rounded-md bg-(--bgColor-neutral-muted) max-sm:w-32 lg:w-80" />
+        <span className="h-8 w-[272px] shrink-0 rounded-md bg-(--bgColor-neutral-muted) max-sm:w-32" />
       </GlobalBar>
     </div>
   );
