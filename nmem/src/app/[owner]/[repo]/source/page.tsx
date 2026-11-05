@@ -31,13 +31,7 @@ async function SourceContent({ params, searchParams }: Props) {
     audience: query.audience,
   };
   return (
-    <RepoFrame
-      request={request}
-      audience={query.audience}
-      view="source"
-      path="/source"
-      layout="wide"
-    >
+    <RepoFrame request={request} audience={query.audience} route="source">
       <SourceView ctx={ctx} query={query} />
     </RepoFrame>
   );

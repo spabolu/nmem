@@ -49,13 +49,7 @@ async function ItemContent({ params, searchParams }: Props) {
   const { query } = request;
   if ("error" in query) return <BadQuery what={query.error} />;
   return (
-    <RepoFrame
-      request={request}
-      audience={query.audience}
-      view="topics"
-      path={`/items/${segments.join("/")}`}
-      layout="split"
-    >
+    <RepoFrame request={request} audience={query.audience} route="items">
       <ItemView
         ctx={{
           site: request.site,

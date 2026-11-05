@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import Loading from "@/app/loading";
 import { Blank } from "@/components/blank";
 import { BuildThis } from "@/components/build-this";
+import { GlobalBar } from "@/components/global-bar";
 import { PAGE } from "@/components/styles";
 
 /**
@@ -44,15 +45,18 @@ async function RefusedBody({ params }: PageProps<"/-refused/[status]">) {
   const { status } = await params;
   const page = REFUSALS[status] ?? REFUSALS["400"];
   return (
-    <main id="main" className={PAGE.wide} data-view={page.view}>
-      <Blank
-        h1
-        heading={page.heading}
-        action={{ href: "/", label: "See every built repository" }}
-        footer={status === "404" ? <BuildThis /> : null}
-      >
-        {page.body}
-      </Blank>
-    </main>
+    <>
+      <GlobalBar />
+      <main id="main" className={PAGE.wide} data-view={page.view}>
+        <Blank
+          h1
+          heading={page.heading}
+          action={{ href: "/", label: "See every built repository" }}
+          footer={status === "404" ? <BuildThis /> : null}
+        >
+          {page.body}
+        </Blank>
+      </main>
+    </>
   );
 }

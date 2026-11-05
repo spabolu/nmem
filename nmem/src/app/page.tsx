@@ -1,9 +1,10 @@
-import { MarkGithubIcon, RepoIcon } from "@primer/octicons-react";
+import { RepoIcon } from "@primer/octicons-react";
 import { Heading, Text } from "@primer/react";
 import { connection } from "next/server";
 import { Suspense } from "react";
 import { AddRepo } from "@/components/add-repo";
 import { buildStateLine } from "@/components/build-status";
+import { GlobalBar } from "@/components/global-bar";
 import { AppLink, ButtonLink } from "@/components/links";
 import { RequestButton } from "@/components/request-button";
 import { Prose } from "@/components/said";
@@ -39,17 +40,7 @@ function keyOf(slug: string): string {
 export default function Home() {
   return (
     <>
-      <header className="flex min-h-14 min-w-0 items-center justify-between gap-4 border-b border-(color:--borderColor-default) bg-(--bgColor-inset) px-6 max-md:px-4">
-        <div className="flex min-w-0 items-center gap-2">
-          <MarkGithubIcon size={24} className="shrink-0" />
-          <span className="shrink-0 font-(family-name:--fontStack-sansSerifDisplay) text-(length:--text-title-size-medium) [font-weight:var(--base-text-weight-semibold)] text-(color:--fgColor-default)">
-            nmem
-          </span>
-          <span className="ml-2 min-w-0 truncate text-(length:--text-body-size-small) text-(color:--fgColor-muted) max-sm:hidden">
-            Repository memory from git and GitHub history
-          </span>
-        </div>
-      </header>
+      <GlobalBar />
       <main
         id="main"
         className="mx-auto min-w-0 max-w-[1012px] px-4 py-8 md:px-8 md:py-10"

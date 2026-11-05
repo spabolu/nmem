@@ -40,13 +40,7 @@ async function TimelineContent({ params, searchParams }: Props) {
   };
   const ctx = { site, repo: request.repo, audience: query.audience };
   return (
-    <RepoFrame
-      request={request}
-      audience={query.audience}
-      view="timeline"
-      path="/timeline"
-      layout="wide"
-    >
+    <RepoFrame request={request} audience={query.audience} route="timeline">
       <TimelineView ctx={ctx} range={range} query={query} item={item} />
     </RepoFrame>
   );

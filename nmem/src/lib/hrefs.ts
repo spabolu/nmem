@@ -1,4 +1,6 @@
 import type { Audience, IsoDay } from "@/lib/kernel/view";
+import { type BareRoute, segmentPath } from "@/lib/repo-routes";
+import { githubUrl } from "@/lib/repo-tabs";
 
 /** The URL space. Every link the site prints comes from here, so the paths change in one place. */
 export type RepoRef = { readonly owner: string; readonly name: string };
@@ -19,16 +21,24 @@ function qs(
   return params.toString();
 }
 
+export function routeHref(
+  repo: RepoRef,
+  route: BareRoute,
+  audience: Audience,
+): string {
+  return `${repoPath(repo)}${segmentPath(route)}?${qs(audience)}`;
+}
+
 export function topicsHref(repo: RepoRef, audience: Audience): string {
-  return `${repoPath(repo)}?${qs(audience)}`;
+  return routeHref(repo, "door", audience);
 }
 
 export function searchPath(repo: RepoRef): string {
-  return `${repoPath(repo)}/search`;
+  return `${repoPath(repo)}${segmentPath("search")}`;
 }
 
 export function searchHitsPath(repo: RepoRef): string {
-  return `${repoPath(repo)}/search/hits`;
+  return `${searchPath(repo)}/hits`;
 }
 
 export function topicHref(
@@ -37,7 +47,7 @@ export function topicHref(
   audience: Audience,
   all = false,
 ): string {
-  return `${repoPath(repo)}/topics/${encodeURIComponent(topic)}?${qs(audience, { all: all ? "1" : null })}`;
+  return `${repoPath(repo)}${segmentPath("topics")}/${encodeURIComponent(topic)}?${qs(audience, { all: all ? "1" : null })}`;
 }
 
 export function timelineHref(
@@ -52,7 +62,7 @@ export function timelineHref(
     readonly item?: string | null;
   } = {},
 ): string {
-  return `${repoPath(repo)}/timeline?${qs(audience, {
+  return `${repoPath(repo)}${segmentPath("timeline")}?${qs(audience, {
     topic,
     from,
     to,
@@ -69,7 +79,7 @@ export function itemHref(
   audience: Audience,
 ): string {
   const path = id.split("/").map(encodeURIComponent).join("/");
-  return `${repoPath(repo)}/items/${path}?${qs(audience)}`;
+  return `${repoPath(repo)}${segmentPath("items")}/${path}?${qs(audience)}`;
 }
 
 export function sourceHref(
@@ -81,7 +91,7 @@ export function sourceHref(
     readonly proof?: string;
   },
 ): string {
-  return `${repoPath(repo)}/source?${qs(audience, {
+  return `${repoPath(repo)}${segmentPath("source")}?${qs(audience, {
     ref: source.ref ?? null,
     quote: source.quote ?? null,
     proof: source.proof ?? null,
@@ -89,7 +99,7 @@ export function sourceHref(
 }
 
 export function githubHref(repo: RepoRef): string {
-  return `https://github.com/${repo.owner}/${repo.name}`;
+  return githubUrl(repo, "");
 }
 
 export function showParam(up: boolean, down: boolean): string | null {

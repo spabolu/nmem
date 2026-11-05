@@ -69,13 +69,7 @@ async function RepoContent({ params, searchParams }: Props) {
     audience: query.audience,
   };
   return (
-    <RepoFrame
-      request={request}
-      audience={query.audience}
-      view="door"
-      path=""
-      layout="wide"
-    >
+    <RepoFrame request={request} audience={query.audience} route="door">
       <div className="mx-auto w-full max-w-[44rem]">
         <Door ctx={ctx} />
       </div>

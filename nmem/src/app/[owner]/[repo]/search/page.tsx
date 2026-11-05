@@ -31,13 +31,7 @@ async function SearchContent({ params, searchParams }: Props) {
     audience: query.audience,
   };
   return (
-    <RepoFrame
-      request={request}
-      audience={query.audience}
-      view="other"
-      path="/search"
-      layout="split"
-    >
+    <RepoFrame request={request} audience={query.audience} route="search">
       <SearchView ctx={ctx} q={query.q} all={query.all} />
     </RepoFrame>
   );

@@ -35,13 +35,7 @@ async function TopicContent({ params, searchParams }: Props) {
     audience: query.audience,
   };
   return (
-    <RepoFrame
-      request={request}
-      audience={query.audience}
-      view="topics"
-      path={`/topics/${encodeURIComponent(id)}`}
-      layout="split"
-    >
+    <RepoFrame request={request} audience={query.audience} route="topics">
       <TopicView ctx={ctx} id={id} all={query.all} />
     </RepoFrame>
   );

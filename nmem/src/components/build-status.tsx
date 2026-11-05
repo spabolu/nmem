@@ -1,11 +1,9 @@
-import { MarkGithubIcon } from "@primer/octicons-react";
 import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import { AppLink } from "@/components/links";
 import { Refresh } from "@/components/refresh";
 import { RequestButton } from "@/components/request-button";
 import { HINT, PAGE, SOURCE_PRE } from "@/components/styles";
-import { withAudience } from "@/lib/hrefs";
 import {
   type BuildView,
   buildView,
@@ -103,8 +101,6 @@ export async function BuildStatus({
   const alive = workerAlive();
   const now = Date.now();
   const slug = `${owner}/${name}`;
-  const path = `/${owner}/${name}`;
-  const search = new URLSearchParams();
   const lines = audience === "eng" ? logTail(owner, name) : [];
   const progress =
     audience === "eng" && view.kind === "running" && view.progress !== ""
@@ -112,84 +108,60 @@ export async function BuildStatus({
       : null;
   const elapsed = since(view, now);
   return (
-    <>
-      <header className="flex min-h-14 min-w-0 items-center gap-2 border-b border-(color:--borderColor-default) bg-(--bgColor-inset) px-6 max-md:px-4">
-        <MarkGithubIcon size={24} className="shrink-0" />
-        <AppLink
-          href="/"
-          className="font-(family-name:--fontStack-sansSerifDisplay) text-(length:--text-title-size-medium) [font-weight:var(--base-text-weight-semibold)] text-(color:--fgColor-default)!"
-        >
-          nmem
-        </AppLink>
-      </header>
-      <main
-        id="main"
-        className={PAGE.wide}
-        data-view="build"
-        data-audience={audience}
-        data-build-state={view.kind}
-        data-build-phase={
-          view.kind === "running" || view.kind === "failed"
-            ? view.phase
-            : undefined
-        }
-      >
-        <Refresh />
-        <p className="m-0 mb-2 text-[14px] text-(color:--fgColor-muted)">
-          <AppLink href={withAudience(path, search, "eng")}>
-            Technical view
-          </AppLink>
-          <span className="mx-2" aria-hidden="true">
-            ·
-          </span>
-          <AppLink href={withAudience(path, search, "plain")}>
-            Manager view
-          </AppLink>
+    <main
+      id="main"
+      className={PAGE.wide}
+      data-view="build"
+      data-audience={audience}
+      data-build-state={view.kind}
+      data-build-phase={
+        view.kind === "running" || view.kind === "failed"
+          ? view.phase
+          : undefined
+      }
+    >
+      <Refresh />
+      <h1 className="m-0 mb-3 text-[32px] font-[600] break-all max-md:text-[20px]">
+        {slug}
+      </h1>
+      <p className="m-0 mb-2 text-[16px]">{headline(view, alive)}</p>
+      {elapsed ? <p className={`${HINT} m-0 mb-3`}>{elapsed}</p> : null}
+      {view.kind === "failed" ? (
+        <p className="m-0 mb-4 max-w-[68ch] text-[16px] [overflow-wrap:anywhere]">
+          {view.reason}
         </p>
-        <h1 className="m-0 mb-3 text-[32px] font-[600] break-all max-md:text-[20px]">
-          {slug}
-        </h1>
-        <p className="m-0 mb-2 text-[16px]">{headline(view, alive)}</p>
-        {elapsed ? <p className={`${HINT} m-0 mb-3`}>{elapsed}</p> : null}
-        {view.kind === "failed" ? (
-          <p className="m-0 mb-4 max-w-[68ch] text-[16px] [overflow-wrap:anywhere]">
-            {view.reason}
-          </p>
-        ) : null}
-        {progress &&
-        lines.length === 0 &&
-        progress !== headline(view, alive) ? (
-          <p className={`${HINT} m-0 mb-4 [overflow-wrap:anywhere]`}>
-            {progress}
-          </p>
-        ) : null}
-        {audience === "eng" && view.kind === "running" && view.attempts > 0 ? (
-          <p className={`${HINT} m-0 mb-4`}>
-            {`Restarted ${view.attempts} ${view.attempts === 1 ? "time" : "times"} after a stop.`}
-          </p>
-        ) : null}
-        {!alive ? (
-          <div className="mb-4 max-w-[68ch]">
-            <StartCommand />
-          </div>
-        ) : null}
-        {view.kind === "failed" ? (
-          view.retryable ? (
-            <RequestButton repo={slug} label="Retry" force variant="primary" />
-          ) : (
-            <AppLink href="/">Try another repository</AppLink>
-          )
-        ) : null}
-        {view.kind === "unread" ? (
+      ) : null}
+      {progress && lines.length === 0 && progress !== headline(view, alive) ? (
+        <p className={`${HINT} m-0 mb-4 [overflow-wrap:anywhere]`}>
+          {progress}
+        </p>
+      ) : null}
+      {audience === "eng" && view.kind === "running" && view.attempts > 0 ? (
+        <p className={`${HINT} m-0 mb-4`}>
+          {`Restarted ${view.attempts} ${view.attempts === 1 ? "time" : "times"} after a stop.`}
+        </p>
+      ) : null}
+      {!alive ? (
+        <div className="mb-4 max-w-[68ch]">
+          <StartCommand />
+        </div>
+      ) : null}
+      {view.kind === "failed" ? (
+        view.retryable ? (
           <RequestButton repo={slug} label="Retry" force variant="primary" />
-        ) : null}
-        {lines.length > 0 ? (
-          <pre className={`${SOURCE_PRE} mt-6`} data-build-log>
-            {lines.join("\n")}
-          </pre>
-        ) : null}
-      </main>
-    </>
+        ) : (
+          <AppLink href="/">Try another repository</AppLink>
+        )
+      ) : null}
+      {view.kind === "unread" ? (
+        <RequestButton repo={slug} label="Retry" force variant="primary" />
+      ) : null}
+      {lines.length > 0 ? (
+        <pre className={`${SOURCE_PRE} mt-6`} data-build-log>
+          {lines.join("\n")}
+        </pre>
+      ) : null}
+    </main>
   );
 }
 

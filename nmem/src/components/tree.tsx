@@ -1,21 +1,12 @@
-import Form from "next/form";
+import { CounterLabel } from "@primer/react";
 import NextLink from "next/link";
-import { repoPath, topicHref } from "@/lib/hrefs";
+import { topicHref } from "@/lib/hrefs";
 import type { LocalId, Topic } from "@/lib/kernel/contract";
-import { rootId } from "@/lib/kernel/site";
 import { censusOf, statusOf, TEMPLATES } from "@/lib/kernel/view";
-import { depthOf, dotOf, topicById, topicsInOrder } from "@/lib/present";
+import { depthOf, dotOf, topicsInOrder } from "@/lib/present";
 import type { Ctx } from "./said";
-import {
-  dotClass,
-  nodeClass,
-  PANEL,
-  PANEL_HD,
-  PANEL_TITLE,
-  TEXT_INPUT,
-} from "./styles";
+import { dotClass, nodeClass, PANEL, PANEL_HD } from "./styles";
 
-/** The topic tree beside every topic and search page, in snapshot order, depth first. */
 export function Tree({
   ctx,
   current,
@@ -37,8 +28,10 @@ export function Tree({
         aria-current={on ? "page" : undefined}
       >
         <span className={dotClass(dotOf(status))} />
-        <span>
-          <span className="block font-[600]">{topic.name[audience]}</span>
+        <span className="min-w-0">
+          <span className="block font-[600] break-words">
+            {topic.name[audience]}
+          </span>
           <span
             className="block text-[12px] text-(color:--fgColor-muted)"
             data-nmem
@@ -49,42 +42,15 @@ export function Tree({
       </NextLink>
     );
   };
-  const noun =
-    audience === "plain" ? "by what the app does" : "by what the code does";
   return (
-    <aside className="max-md:order-2" aria-label="Topic tree">
-      <Form className="mb-3" action={`${repoPath(ctx.repo)}/search`}>
-        <input type="hidden" name="audience" value={audience} />
-        <input
-          className={TEXT_INPUT}
-          type="search"
-          name="q"
-          placeholder={
-            audience === "plain"
-              ? "Topics, decisions, changes, people"
-              : "Topics, decisions, changes, files"
-          }
-          aria-label={
-            audience === "plain"
-              ? "Search topics, decisions, changes, and people"
-              : "Search topics, decisions, changes, files, and people"
-          }
-        />
-      </Form>
+    <aside className="min-w-0" aria-label="Pages">
       <div className={PANEL}>
-        <div className={PANEL_HD}>
-          <b className={PANEL_TITLE}>
-            {topicById(site, rootId(site))?.name[audience] ?? ""}
+        <div className={`${PANEL_HD} flex items-center gap-2`}>
+          <b className="text-[14px] font-[600] text-(color:--fgColor-default)">
+            Pages
           </b>
-          {census.topics} topics, {noun}. nmem builds this tree.
+          <CounterLabel>{census.topics}</CounterLabel>
         </div>
-        <p
-          className="m-0 px-4 py-3 text-[14px]"
-          data-nmem
-          data-census={`${census.topics},${census.neverWritten},${census.outOfDate},${census.upToDate}`}
-        >
-          {TEMPLATES.census(census)[audience]}
-        </p>
         <nav aria-label="Topics">
           {code.map((topic) => node(topic))}
           {tests.length > 0 ? (
@@ -102,6 +68,13 @@ export function Tree({
             </details>
           ) : null}
         </nav>
+        <p
+          className="m-0 border-t border-(color:--borderColor-muted) px-4 py-3 text-[14px]"
+          data-nmem
+          data-census={`${census.topics},${census.neverWritten},${census.outOfDate},${census.upToDate}`}
+        >
+          {TEMPLATES.census(census)[audience]}
+        </p>
       </div>
     </aside>
   );

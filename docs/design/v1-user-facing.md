@@ -15,10 +15,30 @@ The throwaway prototype for this scope is `nmem-v1-proto` in the session temp fo
 
 | Question | v1 answer |
 |---|---|
-| Where people use it | An nmem website that looks like GitHub and links back to it. A tab on github.com needs a browser extension, so it waits. |
+| Where people use it | An nmem website that looks like GitHub and links back to it. The chrome section names the bar, the repository band, and the tabs. nmem does not add a tab inside github.com. |
 | What people can do | Read, search, pick a topic, pick a date range, open one item's history, and follow links to GitHub. Nothing else. |
 | Topics with no written doc | nmem writes a short page from the code and its history, and the page says nobody on the team wrote it. |
 | Who shapes the tree | nmem builds it. Teams cannot edit it. |
+
+## Chrome
+
+This section owns the labels the website shows. `docs/design/ui-language.md` owns how the tab row is drawn, including why it is not Primer UnderlineNav.
+
+Every screen has a full-width global bar in GitHub's repository header colors, in light and dark mode. It holds the GitHub mark and the word **nmem**, which links to the home page. Without an open repository, that is the whole bar, with a bottom line.
+
+Once a repository is open, its breadcrumb and search join that same top bar. The owner links to that account on github.com in the same tab. The repository name links to nmem's door for that repository. Both use the built repository's canonical casing. The owner / repo breadcrumb truncates when space runs out, and search stays reachable at the right edge. The door hides this small search field because it has its own large one.
+
+The tab row is the only row below the global bar. Both rows span the viewport and share one background, with no line between them. The line under the tabs spans the viewport too. Page content remains centered below this header.
+
+The **Reading as** switch, **Technical** / **Manager**, stays commented out in `repo-band.tsx`. The nmem view links and search use `audience=eng`. A typed `audience=plain` URL still renders the Manager wording on its page, and the next header link returns to Technical. There is no separate "View on GitHub" button. **Code** is that exit.
+
+The tabs follow GitHub's order. **Code**, **Issues**, **Pull requests**, **Actions**, **Projects**, **Wiki**, **Timeline**, **Security and quality**, **Insights**. No tab shows a count.
+
+**Code**, **Issues**, **Pull requests**, **Actions**, **Projects**, **Security and quality**, and **Insights** are links to that repository on github.com, in the same tab. They are never the current page. **Wiki** links to the door and is current on the door, a topic, an item, and search. **Timeline** links to the timeline and is current only there. Source lights no tab.
+
+The row is not Primer UnderlineNav. That component folds extra items from the right, which would hide Wiki and Timeline on a narrow screen. Below the xl breakpoint, Wiki and Timeline stay in the row and the GitHub tabs fold into a **GitHub** menu. The menu items are the same links.
+
+Topic, item, and search pages put a **Pages** list on the right, with the topic count. Below 768px that list sits under the page. The door stays one column and keeps its own topic list, so the way in does not depend on the sidebar.
 
 ## Topic tree
 
@@ -43,13 +63,13 @@ Each topic page shows, top to bottom:
 
 ## Search
 
-The search box sits above the tree on every page.
+The search box sits at the right edge of the top global bar on topic, item, timeline, source, and search pages. It keeps the query from the URL and submits with `audience=eng`. The door shows only its own large search field, because that page is the way in.
 
 - Results are grouped by kind: **Topic**, **Decision**, **Change**, **What changed**, **Person**, **In the docs**, **File**, and **In the code**.
 - Each result shows a title and the line that matched. A change is named by its pull request title or commit subject, never by its id alone.
 - Each result opens the page that already holds it. A topic opens its page. A decision opens its topic. A change or a finding opens the timeline at its day. A doc sentence opens its source. A file or a piece of code opens its item page.
 - An exact name ranks first. That covers a flag such as `--round`, a path, a symbol, a config key, `#12` or `PR 12`, and a short SHA. A result that matches every word of the query comes next, weighted by the field it matched in. A partial match comes last.
-- Non-engineer results list no file and no piece of code, because both are code names.
+- Manager results list no file and no piece of code, because both are code names.
 - A query with no result says "No matches."
 
 ## Item page
@@ -58,19 +78,19 @@ An item is a function, class, or other symbol, a command-line option, a config k
 
 Each item page shows, top to bottom:
 
-1. **What it is.** Engineer shows the kind and the name, where it lives now with its lines, any former names, and Start here. A removed item says where it last lived. Non-engineer shows "History of one part of the code" and the kind in words, such as "A piece of code" or "A setting", and never the name.
+1. **What it is.** Technical shows the kind and the name, where it lives now with its lines, any former names, and Start here. A removed item says where it last lived. Manager shows "History of one part of the code" and the kind in words, such as "A piece of code" or "A setting", and never the name.
 2. **Part of**, the topics whose files hold it.
 3. **The net sentence**, for example "Introduced in PR #3. Renamed once. Two behavior changes, one decided in PR #12."
-4. **History of this item** ("See it on the timeline" for Non-engineer), which opens the timeline narrowed to it.
-5. **People**, for Non-engineer. Who changed it and who decided for it.
+4. **History of this item** ("See it on the timeline" for Manager), which opens the timeline narrowed to it.
+5. **People**, for Manager. Who changed it and who decided for it.
 6. **How it changed**, newest first. One card per change, in the timeline's card kinds and colors. The card says what happened to the item (added, changed, moved, renamed, split out of older code, or removed) and names the change. It shows the findings about the item and every decision the change carried, each with its reason or "Nobody wrote down why". Two or more of the item's changes inside one "no net change" bracket fold into one card. Routine changes that only edited the item fold into one counted line.
 
 The rules for the item page:
 
-- The net sentence is a template over counts. The first change and a removal are their own clauses. Every other change counts once, by one kind. It is a behavior change when a finding about the item is one. Otherwise it is a decision when the change carried one. Otherwise it is worth a look when a finding about the item is a check, or when nmem could not classify the change. A bracket the item changed twice in counts once. Non-engineer names days, not changes.
+- The net sentence is a template over counts. The first change and a removal are their own clauses. Every other change counts once, by one kind. It is a behavior change when a finding about the item is one. Otherwise it is a decision when the change carried one. Otherwise it is worth a look when a finding about the item is a check, or when nmem could not classify the change. A bracket the item changed twice in counts once. Manager names days, not changes.
 - A finding is about the item when its anchor is the item's file at that change, or a thread or commit.
 - A change that nmem matched by the item's text, not its name, says so on its card: "nmem matched it by its text, since the name changed." A move says the same across the move.
-- Non-engineer never shows a code name. The page hides the item's name, its path, its former names, and the file it moved from. The card says "Renamed" or "Moved to another file".
+- Manager never shows a code name. The page hides the item's name, its path, its former names, and the file it moved from. The card says "Renamed" or "Moved to another file".
 - Each decision appears once, inside the card of the change that carried it. That change is the only thing that ties the decision to the item, so the page does not list decisions apart from their cards.
 - The timeline narrowed to an item cards and counts each change by the same rule. Over the item's whole life, its summary counts the same behavior changes, things to check, no-net-change brackets, and routine changes as the item page. The timeline counts decisions one per decision, which matches the decisions the item page's cards show.
 
@@ -90,7 +110,7 @@ The rules for the item page:
 - Every claim has one named source, such as "PR #16 description". The source opens the exact quote and a link to it on GitHub.
 - Trust is said in words: "we ran it", "nobody wrote down why, ask Mira Chen".
 - Every line count says what it covers.
-- The **Engineer** and **Non-engineer** setting changes every sentence. Non-engineer text uses no code names or jargon.
+- The **Technical** and **Manager** setting changes every sentence. Manager text uses no code names or jargon.
 
 ## What storage must supply
 
