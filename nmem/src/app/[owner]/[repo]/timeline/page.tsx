@@ -7,6 +7,7 @@ import { RepoFrame } from "@/components/repo-frame";
 import { TimelineView } from "@/components/timeline-view";
 import { rootId } from "@/lib/kernel/site";
 import { topicById } from "@/lib/present";
+import { segmentPath } from "@/lib/repo-routes";
 import { openRepo } from "@/lib/request";
 
 type Props = PageProps<"/[owner]/[repo]/timeline">;
@@ -43,9 +44,8 @@ async function TimelineContent({ params, searchParams }: Props) {
     <RepoFrame
       request={request}
       audience={query.audience}
-      view="timeline"
-      path="/timeline"
-      layout="wide"
+      route="timeline"
+      path={segmentPath("timeline")}
     >
       <TimelineView ctx={ctx} range={range} query={query} item={item} />
     </RepoFrame>

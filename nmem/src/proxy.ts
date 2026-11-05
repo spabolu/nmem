@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { hasBuild } from "@/lib/jobs";
 import { readQuery, SnapshotRejected } from "@/lib/kernel/site";
+import { isPageRoute, refusalFor } from "@/lib/repo-routes";
 import { siteForProxy } from "@/lib/repos";
 
 /**
@@ -13,7 +14,7 @@ export function proxy(request: NextRequest) {
     .split("/")
     .filter(Boolean)
     .map(decodeURIComponent);
-  const [owner, repo, view, ...rest] = parts;
+  const [owner, repo, ...segments] = parts;
   if (!owner || !repo || owner.startsWith("-")) return NextResponse.next();
   const refuse = (status: 400 | 404 | 503, reason: string) =>
     fetch(new URL(`/-refused/${status}`, request.nextUrl.origin)).then(
@@ -34,55 +35,37 @@ export function proxy(request: NextRequest) {
     throw error;
   }
   if (!site) {
-    if (view !== undefined || !hasBuild(owner, repo)) {
+    if (!hasBuild(owner, repo)) {
       return refuse(404, `No built repository is called ${owner}/${repo}.`);
     }
     const pending = readQuery(request.nextUrl.searchParams);
     if ("error" in pending) return refuse(400, pending.error);
+    // The band links every view. An unbuilt repo has no snapshot to open, so send those links to the door.
+    if (isPageRoute(segments)) {
+      const door = request.nextUrl.clone();
+      const [rawOwner, rawRepo] = request.nextUrl.pathname
+        .split("/")
+        .filter(Boolean);
+      door.pathname = `/${rawOwner}/${rawRepo}`;
+      door.search = `?audience=${pending.audience}`;
+      return NextResponse.redirect(door, 307);
+    }
+    if (segments.length > 0) {
+      return refuse(404, `No built repository is called ${owner}/${repo}.`);
+    }
     return NextResponse.next();
   }
   const query = readQuery(request.nextUrl.searchParams);
   if ("error" in query) return refuse(400, query.error);
-  if (view === "items") {
-    const item = rest.join("/");
-    if (site.facts.items.some((row) => row.id === item))
-      return NextResponse.next();
-    return refuse(
-      404,
-      item === "" ? "Pick an item." : `The snapshot has no item ${item}.`,
-    );
-  }
-  const [id, ...extra] = rest;
-  if (extra.length > 0)
-    return refuse(404, "Nothing at this address is in the snapshot.");
-  if (view === "topics" && !site.snapshot.topics.some((row) => row.id === id)) {
-    return refuse(404, `The snapshot has no topic ${id ?? ""}.`);
-  }
-  if (
-    view === "timeline" &&
-    query.topic &&
-    !site.snapshot.topics.some((row) => row.id === query.topic)
-  ) {
-    return refuse(404, `The snapshot has no topic ${query.topic}.`);
-  }
-  if (
-    view === "timeline" &&
-    query.item &&
-    !site.facts.items.some((row) => row.id === query.item)
-  ) {
-    return refuse(404, `The snapshot has no item ${query.item}.`);
-  }
-  if (
-    view !== undefined &&
-    !["topics", "timeline", "search", "source"].includes(view)
-  ) {
-    return refuse(404, "Nothing at this address is in the snapshot.");
-  }
-  if (view === "topics" && id === undefined)
-    return refuse(404, "Pick a topic.");
-  if (view === "search" && id === "hits") return NextResponse.next();
-  if (view !== "topics" && id !== undefined)
-    return refuse(404, "Nothing at this address is in the snapshot.");
+  const refusal = refusalFor(
+    {
+      hasTopic: (id) => site.snapshot.topics.some((row) => row.id === id),
+      hasItem: (id) => site.facts.items.some((row) => row.id === id),
+    },
+    segments,
+    query,
+  );
+  if (refusal) return refuse(refusal.status, refusal.reason);
   return NextResponse.next();
 }
 

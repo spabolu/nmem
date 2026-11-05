@@ -7,6 +7,7 @@ import { ItemView } from "@/components/item-view";
 import { RepoFrame } from "@/components/repo-frame";
 import type { ItemId } from "@/lib/kernel/view";
 import { itemPageOf } from "@/lib/kernel/view";
+import { segmentPath } from "@/lib/repo-routes";
 import { openRepo } from "@/lib/request";
 
 type Props = PageProps<"/[owner]/[repo]/items/[...item]">;
@@ -52,9 +53,8 @@ async function ItemContent({ params, searchParams }: Props) {
     <RepoFrame
       request={request}
       audience={query.audience}
-      view="topics"
-      path={`/items/${segments.join("/")}`}
-      layout="split"
+      route="items"
+      path={`${segmentPath("items")}/${segments.join("/")}`}
     >
       <ItemView
         ctx={{

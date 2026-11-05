@@ -6,6 +6,7 @@ import { BadQuery } from "@/components/bad-query";
 import { RepoFrame } from "@/components/repo-frame";
 import { TopicView } from "@/components/topic-view";
 import { topicById } from "@/lib/present";
+import { segmentPath } from "@/lib/repo-routes";
 import { openRepo } from "@/lib/request";
 
 type Props = PageProps<"/[owner]/[repo]/topics/[id]">;
@@ -38,9 +39,8 @@ async function TopicContent({ params, searchParams }: Props) {
     <RepoFrame
       request={request}
       audience={query.audience}
-      view="topics"
-      path={`/topics/${encodeURIComponent(id)}`}
-      layout="split"
+      route="topics"
+      path={`${segmentPath("topics")}/${encodeURIComponent(id)}`}
     >
       <TopicView ctx={ctx} id={id} all={query.all} />
     </RepoFrame>

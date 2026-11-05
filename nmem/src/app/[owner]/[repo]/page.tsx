@@ -9,6 +9,7 @@ import { RepoFrame } from "@/components/repo-frame";
 import { topicHref } from "@/lib/hrefs";
 import { hasBuild } from "@/lib/jobs";
 import { readQuery, rootId } from "@/lib/kernel/site";
+import { segmentPath } from "@/lib/repo-routes";
 import { siteFor } from "@/lib/repos";
 import { openRepo } from "@/lib/request";
 
@@ -72,9 +73,8 @@ async function RepoContent({ params, searchParams }: Props) {
     <RepoFrame
       request={request}
       audience={query.audience}
-      view="door"
-      path=""
-      layout="wide"
+      route="door"
+      path={segmentPath("door")}
     >
       <div className="mx-auto w-full max-w-[44rem]">
         <Door ctx={ctx} />

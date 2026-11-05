@@ -4,6 +4,7 @@ import Loading from "@/app/[owner]/[repo]/loading";
 import { BadQuery } from "@/components/bad-query";
 import { RepoFrame } from "@/components/repo-frame";
 import { SourceView } from "@/components/source-view";
+import { segmentPath } from "@/lib/repo-routes";
 import { openRepo } from "@/lib/request";
 
 type Props = PageProps<"/[owner]/[repo]/source">;
@@ -34,9 +35,8 @@ async function SourceContent({ params, searchParams }: Props) {
     <RepoFrame
       request={request}
       audience={query.audience}
-      view="source"
-      path="/source"
-      layout="wide"
+      route="source"
+      path={segmentPath("source")}
     >
       <SourceView ctx={ctx} query={query} />
     </RepoFrame>

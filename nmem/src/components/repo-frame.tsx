@@ -8,29 +8,29 @@ import {
 } from "@/lib/hrefs";
 import { rootId } from "@/lib/kernel/site";
 import type { Audience } from "@/lib/kernel/view";
+import { ROUTES, type RouteKey } from "@/lib/repo-routes";
 import type { RepoRequest } from "@/lib/request";
 import { BuildBanner } from "./build-status";
 import { RepoBar } from "./repo-bar";
 import { PAGE } from "./styles";
 
-type View = "topics" | "timeline" | "source" | "door" | "other";
-
 /** Every repo page: the bar, then main. data-view and data-audience let scripts read which screen this is. */
 export function RepoFrame({
   request,
   audience,
-  view,
+  route,
   path,
-  layout,
   children,
 }: {
   readonly request: RepoRequest;
   readonly audience: Audience;
-  readonly view: View;
+  readonly route: RouteKey;
   readonly path: string;
-  readonly layout: "split" | "wide";
   readonly children: React.ReactNode;
 }) {
+  const spec = ROUTES[route];
+  const view = spec.view;
+  const layout = spec.layout === "pages" ? "split" : "wide";
   const { site, repo, search } = request;
   const base = repoPath(repo);
   return (
