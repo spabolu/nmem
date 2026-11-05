@@ -1,18 +1,30 @@
 import { MarkGithubIcon } from "@primer/octicons-react";
 import Link from "next/link";
+import type { ReactNode } from "react";
 
-export function GlobalBar() {
+export function GlobalBar({
+  children,
+  navigation,
+}: {
+  readonly children?: ReactNode;
+  readonly navigation?: ReactNode;
+}) {
   return (
-    <header className="flex h-14 items-center border-b border-(color:--header-borderColor-divider) bg-(--header-bgColor) px-4 md:h-16 md:px-6">
-      <Link
-        href="/"
-        className="inline-flex items-center gap-2 text-(color:--header-fgColor-default)! hover:no-underline!"
-      >
-        <span className="text-(color:--header-fgColor-logo)">
+    <header
+      data-repo-band={navigation ? true : undefined}
+      className={`bg-(--bgColor-inset) text-(color:--fgColor-default)${navigation ? "" : " shadow-[inset_0_-1px_0_var(--borderColor-muted)]"}`}
+    >
+      <div className="flex h-16 min-w-0 items-center gap-4 px-4">
+        <Link
+          href="/"
+          className="inline-flex h-8 shrink-0 items-center gap-2 text-(color:--fgColor-default)! hover:no-underline!"
+        >
           <MarkGithubIcon size={32} />
-        </span>
-        <span className="text-[16px] font-[600]">nmem</span>
-      </Link>
+          <span className="text-[16px] font-[600]">nmem</span>
+        </Link>
+        {children}
+      </div>
+      {navigation}
     </header>
   );
 }

@@ -9,7 +9,6 @@ import {
   HistoryIcon,
   IssueOpenedIcon,
   PlayIcon,
-  RepoIcon,
   ShieldIcon,
   TableIcon,
   TriangleDownIcon,
@@ -19,6 +18,7 @@ import { ActionList, ActionMenu } from "@primer/react";
 import Form from "next/form";
 import NextLink from "next/link";
 import { useSearchParams, useSelectedLayoutSegment } from "next/navigation";
+import { GlobalBar } from "@/components/global-bar";
 import { TEXT_INPUT } from "@/components/styles";
 import { type RepoRef, routeHref, searchPath } from "@/lib/hrefs";
 import type { Audience } from "@/lib/kernel/view";
@@ -43,14 +43,13 @@ const TAB_ICONS: Record<TabKey, Icon> = {
 //   { id: "plain", label: "Manager" },
 // ] as const;
 
-const BAND =
-  "border-b border-(color:--borderColor-default) bg-(--bgColor-inset)";
-const SHELL = "mx-auto max-w-[1280px] px-8 max-md:px-4";
-
+const NAV = "h-12 px-4 pt-2 shadow-[inset_0_-1px_0_var(--borderColor-muted)]";
 const TAB =
-  "relative inline-flex h-12 items-center gap-2 px-2 text-[14px] leading-[21px] text-(color:--fgColor-default)! no-underline! hover:no-underline!";
+  "relative inline-flex h-8 items-center gap-2 whitespace-nowrap rounded-md px-2 py-1.5 text-[14px] leading-[21px] text-(color:--fgColor-default)! no-underline! hover:bg-(--bgColor-neutral-muted) hover:no-underline!";
 const TAB_ON =
-  "font-[600] after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 after:bg-(--underlineNav-borderColor-active)";
+  "font-[600] after:absolute after:inset-x-0 after:-bottom-2 after:h-0.5 after:bg-(--underlineNav-borderColor-active)";
+const CRUMB =
+  "min-w-0 truncate rounded-md px-1.5 py-1 text-(color:--fgColor-default)! hover:bg-(--bgColor-neutral-muted) hover:no-underline!";
 
 type ShownTab = {
   readonly key: TabKey;
@@ -95,58 +94,66 @@ export function RepoBand({ repo }: { readonly repo: RepoRef }) {
   const onDoor = routeOfSegment(segment) === "door";
   const q = search.get("q") ?? "";
   return (
-    <div data-repo-band className={BAND}>
-      <div
-        className={`${SHELL} flex flex-wrap items-center gap-x-3 gap-y-2 py-2 sm:min-h-12`}
-      >
-        <nav
-          aria-label="Breadcrumb"
-          className="flex min-w-0 items-center gap-1 text-[14px] leading-6 [overflow-wrap:anywhere] max-sm:basis-full"
-        >
-          <RepoIcon
-            size={16}
-            className="shrink-0 text-(color:--fgColor-muted)"
-          />
-          <span className="min-w-0">
-            <a
-              href={`https://github.com/${encodeURIComponent(repo.owner)}`}
-              className="text-(color:--fgColor-default)! hover:underline!"
-            >
-              {repo.owner}
-            </a>
-            <span
-              aria-hidden="true"
-              className="mx-1 text-(color:--fgColor-muted)"
-            >
-              /
-            </span>
-            <NextLink
-              href={routeHref(repo, "door", audience)}
-              className="font-[600] text-(color:--fgColor-default)! hover:underline!"
-            >
-              {repo.name}
-            </NextLink>
-          </span>
+    <GlobalBar
+      navigation={
+        // UnderlineNav folds from the right and would hide Wiki and Timeline on a phone.
+        <nav aria-label="Repository" className={NAV}>
+          <ul className="m-0 flex h-10 list-none items-start gap-2 p-0">
+            {tabs.map((tab) => (
+              <li
+                key={tab.key}
+                className={tab.external ? "max-xl:hidden" : undefined}
+              >
+                <TabLink tab={tab} />
+              </li>
+            ))}
+            <li className="xl:hidden">
+              <GithubMenu tabs={tabs.filter((tab) => tab.external)} />
+            </li>
+          </ul>
         </nav>
-        <div className="flex min-w-0 flex-wrap items-center gap-2 max-sm:basis-full sm:ml-auto">
-          {onDoor ? null : (
-            <search className="min-w-0 w-full sm:w-64">
-              <Form action={searchPath(repo)}>
-                <input type="hidden" name="audience" value={audience} />
-                <input
-                  key={q}
-                  className={TEXT_INPUT}
-                  type="search"
-                  name="q"
-                  defaultValue={q}
-                  autoComplete="off"
-                  placeholder="Topics, decisions, changes, files"
-                  aria-label="Search topics, decisions, changes, files, and people"
-                />
-              </Form>
-            </search>
-          )}
-          {/* audience-switch: hidden for now. Uncomment this block and the marked lines above to restore it.
+      }
+    >
+      <nav
+        aria-label="Breadcrumb"
+        className="flex min-w-0 flex-1 items-center gap-2 text-[14px] leading-6"
+      >
+        <a
+          href={`https://github.com/${encodeURIComponent(repo.owner)}`}
+          className={`${CRUMB} font-[400]`}
+          title={repo.owner}
+        >
+          {repo.owner}
+        </a>
+        <span aria-hidden="true" className="shrink-0">
+          /
+        </span>
+        <NextLink
+          href={routeHref(repo, "door", audience)}
+          className={`${CRUMB} max-w-[60%] shrink-0 font-[600]`}
+          title={repo.name}
+        >
+          {repo.name}
+        </NextLink>
+      </nav>
+      {onDoor ? null : (
+        <search className="ml-auto w-64 shrink-0 max-sm:w-32 lg:w-80">
+          <Form action={searchPath(repo)}>
+            <input type="hidden" name="audience" value={audience} />
+            <input
+              key={q}
+              className={`${TEXT_INPUT} min-w-0 text-ellipsis`}
+              type="search"
+              name="q"
+              defaultValue={q}
+              autoComplete="off"
+              placeholder="Topics, decisions, changes, files"
+              aria-label="Search topics, decisions, changes, files, and people"
+            />
+          </Form>
+        </search>
+      )}
+      {/* audience-switch: hidden for now. Uncomment this block and the marked lines above to restore it.
           <div className="flex shrink-0 items-center gap-2">
             <span
               className="text-[12px] text-(color:--fgColor-muted) max-md:hidden"
@@ -175,25 +182,7 @@ export function RepoBand({ repo }: { readonly repo: RepoRef }) {
             </SegmentedControl>
           </div>
           */}
-        </div>
-      </div>
-      {/* Not UnderlineNav, which folds from the right and would hide Wiki and Timeline on a phone. */}
-      <nav aria-label="Repository" className={SHELL}>
-        <ul className="m-0 flex h-12 list-none items-stretch gap-2 p-0">
-          {tabs.map((tab) => (
-            <li
-              key={tab.key}
-              className={tab.external ? "max-xl:hidden" : undefined}
-            >
-              <TabLink tab={tab} />
-            </li>
-          ))}
-          <li className="flex items-center xl:hidden">
-            <GithubMenu tabs={tabs.filter((tab) => tab.external)} />
-          </li>
-        </ul>
-      </nav>
-    </div>
+    </GlobalBar>
   );
 }
 
@@ -202,7 +191,7 @@ function TabLink({ tab }: { readonly tab: ShownTab }) {
   const className = tab.current ? `${TAB} ${TAB_ON}` : `${TAB} font-[400]`;
   const body = (
     <>
-      <Icon size={16} className="text-(color:--fgColor-muted)" />
+      <Icon size={16} className="shrink-0 text-(color:--fgColor-muted)" />
       {tab.label}
     </>
   );
@@ -230,6 +219,7 @@ function GithubMenu({ tabs }: { readonly tabs: readonly ShownTab[] }) {
       <ActionMenu.Button
         variant="invisible"
         size="small"
+        className="h-8! px-2! text-[14px]! font-[400]!"
         trailingAction={TriangleDownIcon}
       >
         GitHub
@@ -255,13 +245,19 @@ function GithubMenu({ tabs }: { readonly tabs: readonly ShownTab[] }) {
 
 export function RepoBandSkeleton() {
   return (
-    <div data-repo-band-skeleton aria-hidden="true" className={BAND}>
-      <div className={`${SHELL} flex min-h-14 items-center py-2`}>
-        <span className="h-4 w-40 rounded-sm bg-(--bgColor-neutral-muted)" />
-      </div>
-      <div className={`${SHELL} h-12`}>
-        <span className="mt-3 inline-block h-4 w-56 rounded-sm bg-(--bgColor-neutral-muted)" />
-      </div>
+    <div data-repo-band-skeleton aria-hidden="true" inert>
+      <GlobalBar
+        navigation={
+          <div className={NAV}>
+            <span className="mt-1.5 inline-block h-5 w-56 rounded-sm bg-(--bgColor-neutral-muted)" />
+          </div>
+        }
+      >
+        <span className="h-4 min-w-0 flex-1">
+          <span className="block h-full max-w-40 rounded-sm bg-(--bgColor-neutral-muted)" />
+        </span>
+        <span className="h-8 w-64 shrink-0 rounded-md bg-(--bgColor-neutral-muted) max-sm:w-32 lg:w-80" />
+      </GlobalBar>
     </div>
   );
 }

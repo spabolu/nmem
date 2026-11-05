@@ -4,6 +4,7 @@ import { connection } from "next/server";
 import { Suspense } from "react";
 import { AddRepo } from "@/components/add-repo";
 import { buildStateLine } from "@/components/build-status";
+import { GlobalBar } from "@/components/global-bar";
 import { AppLink, ButtonLink } from "@/components/links";
 import { RequestButton } from "@/components/request-button";
 import { Prose } from "@/components/said";
@@ -38,14 +39,17 @@ function keyOf(slug: string): string {
 
 export default function Home() {
   return (
-    <main
-      id="main"
-      className="mx-auto min-w-0 max-w-[1012px] px-4 py-8 md:px-8 md:py-10"
-    >
-      <Suspense fallback={<HomeFallback />}>
-        <HomeBody />
-      </Suspense>
-    </main>
+    <>
+      <GlobalBar />
+      <main
+        id="main"
+        className="mx-auto min-w-0 max-w-[1012px] px-4 py-8 md:px-8 md:py-10"
+      >
+        <Suspense fallback={<HomeFallback />}>
+          <HomeBody />
+        </Suspense>
+      </main>
+    </>
   );
 }
 
