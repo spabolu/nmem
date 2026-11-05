@@ -442,8 +442,8 @@ export function ItemView({
   const plain = audience === "plain";
   return (
     <>
-      <Tree ctx={ctx} current={null} />
       <article
+        className="min-w-0"
         data-item={item.id}
         data-summary={page.summary[audience]}
         data-entries={page.entries.length}
@@ -511,6 +511,7 @@ export function ItemView({
           <RoutineLine ctx={ctx} routine={page.routine} />
         </section>
       </article>
+      <Tree ctx={ctx} current={null} />
     </>
   );
 }

@@ -18,11 +18,10 @@ export function RepoFrame({
 }) {
   const spec = ROUTES[route];
   const view = spec.view;
-  const layout = spec.layout === "pages" ? "split" : "wide";
   const { repo } = request;
   return (
     <div data-view={view} data-audience={audience}>
-      <main id="main" className={PAGE[layout]}>
+      <main id="main" className={PAGE[spec.layout]}>
         <BuildBanner
           owner={repo.owner}
           name={repo.name}

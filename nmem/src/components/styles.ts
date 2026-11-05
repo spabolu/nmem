@@ -1,3 +1,5 @@
+import type { RouteSpec } from "@/lib/repo-routes";
+
 /**
  * The pill every chip shares: receipts, topic tags, and the timeline's topic picks. Color and hover carry `!` because
  * Primer BaseStyles and the global `a` rule are unlayered and would beat Tailwind's utilities layer.
@@ -15,7 +17,6 @@ export const PANEL =
   "overflow-hidden rounded-[8px] border border-(color:--borderColor-default) bg-(--bgColor-default)";
 export const PANEL_HD =
   "border-b border-(color:--borderColor-default) bg-(--bgColor-muted) px-4 py-3 text-[12px] text-(color:--fgColor-muted)";
-export const PANEL_TITLE = "block text-[14px] text-(color:--fgColor-default)";
 
 const NODE =
   "grid grid-cols-[16px_1fr] gap-2 border-t border-l-4 border-(color:--borderColor-muted) py-2 pr-4 text-(color:--fgColor-default)! hover:no-underline!";
@@ -32,11 +33,11 @@ export function nodeClass(depth: number, on: boolean): string {
 const PAGE_BASE =
   "mx-auto max-w-[1280px] px-8 pt-6 pb-12 max-md:px-4 max-md:pt-4 max-md:pb-8";
 
-/** main's frame: wide pages fill the column, split pages put the topic tree beside the content. */
+/** wide fills the column. pages puts the content first and a 296px list second, so a phone reads the page before the list. */
 export const PAGE = {
   wide: PAGE_BASE,
-  split: `${PAGE_BASE} grid grid-cols-[300px_minmax(0,1fr)] items-start gap-8 max-md:grid-cols-[minmax(0,1fr)] max-md:gap-6`,
-} as const;
+  pages: `${PAGE_BASE} grid grid-cols-[minmax(0,1fr)_296px] items-start gap-6 max-md:grid-cols-[minmax(0,1fr)]`,
+} as const satisfies Record<RouteSpec["layout"], string>;
 
 export const MUTED = "text-(color:--fgColor-muted)";
 export const KICKER = "m-0 mb-1 text-(color:--fgColor-muted)";

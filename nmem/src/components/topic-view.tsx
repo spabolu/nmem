@@ -163,8 +163,8 @@ export async function TopicView({
   const history = page.historyLink;
   return (
     <>
-      <Tree ctx={ctx} current={id} />
       <article
+        className="min-w-0"
         data-topic={id}
         data-status={page.statusLine[audience]}
         data-shown={rows.map((row) => row.id).join(",")}
@@ -274,6 +274,7 @@ export async function TopicView({
           <FilesLine ctx={ctx} files={topic.files} />
         </section>
       </article>
+      <Tree ctx={ctx} current={id} />
     </>
   );
 }

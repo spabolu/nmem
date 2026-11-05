@@ -42,7 +42,6 @@ export function SearchView({
   const prompt = placeholder(audience);
   return (
     <>
-      <Tree ctx={ctx} current={null} />
       <section
         className="min-w-0"
         data-results={shown.map((hit) => `${hit.kind}:${hit.id}`).join(",")}
@@ -136,6 +135,7 @@ export function SearchView({
           </section>
         ))}
       </section>
+      <Tree ctx={ctx} current={null} />
     </>
   );
 }
