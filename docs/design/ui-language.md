@@ -41,19 +41,19 @@ Rule. Follow the reader's natural order, top to bottom, and keep the page focuse
 
 In nmem:
 
-- Below 768px, every view is one column. The topic page puts the answer first and the tree after it.
-- The header wraps. Topics and Timeline take their own row.
+- Below 768px, every view is one column. Topic, item, and search pages put the answer first and the Pages list after it.
+- The repository band wraps. Below the xl breakpoint, Wiki and Timeline stay in the tab row and the GitHub tabs fold into a menu.
 - No view scrolls sideways at 390px. `node harness/app-parity.mjs <dir>` measures this and prints the result.
 
 ## Navigation
 
-Rule. Use UnderlineNav for switching between the main views of one object. The current item gets a heavier weight and an underline, and is marked as the current page. Source: Primer UnderlineNav.
+Rule. Use an underline row for switching between the main views of one object. The current item gets a heavier weight and an underline, and is marked as the current page. Source: Primer UnderlineNav.
 
-In nmem, Topics and Timeline are an UnderlineNav. The current tab has `aria-current="page"`.
+In nmem the row is custom markup, not Primer UnderlineNav. UnderlineNav folds extra items from the right, which would hide Wiki and Timeline on a phone. The row keeps UnderlineNav's tokens. Type is 14px on 21px, icons are 16px in `--fgColor-muted`, the gap is 8px, the row is 48px, and the current tab has a 2px `--underlineNav-borderColor-active` underline. Wiki and Timeline are nmem views. The current one has `aria-current="page"`. The other tabs are plain links to github.com in the same tab, and they are never current. Below the xl breakpoint those GitHub tabs fold into a menu labelled GitHub. Wiki and Timeline stay in the row. `docs/design/v1-user-facing.md` owns the labels and which tab is current.
 
 Rule. Use SegmentedControl to switch between views of the same content. Source: Primer SegmentedControl.
 
-In nmem, **Engineer** and **Non-engineer** are a SegmentedControl, because they show the same page in different words. The pair is a labelled group, and the selected option has `aria-current`. They stay links, so the choice lives in the URL and works without script.
+In nmem, **Technical** and **Manager** are a SegmentedControl labelled Reading as. They show the same page in different words. Choosing one calls `router.push` with the current path and the other query params kept, and only `audience` changes. The selected button has `aria-pressed="true"`.
 
 ## Timeline
 
@@ -96,7 +96,7 @@ Checked Oct 13, 2026 against @primer/primitives 11.10.0 (https://unpkg.com/@prim
 | Shadow | one-layer `shadow-resting-small-color`, Primer ships a two-layer `shadow-resting-small` | changed, light and dark | light.css, dark.css |
 | Type | sizes 11, 13, 13.5, 18, 22, 24, 26, 28 px; Primer text styles use 12, 14, 16, 20, 32 | snapped outside the timeline board; page titles 32 (20 on phones) | https://unpkg.com/@primer/primitives/dist/css/functional/typography/typography.css |
 | Type | Primer's stack leads with Mona Sans VF | not adopted: needs a webfont download | typography.css |
-| UnderlineNav | no leading icons | vendored Octicons list-unordered and history | https://primer.style/product/components/underline-nav/, https://github.com/primer/octicons |
+| UnderlineNav | Primer folds extra items from the right, which would hide Wiki and Timeline | custom row with the same tokens. GitHub tabs fold into a menu below xl | https://primer.style/product/components/underline-nav/ |
 | TreeView | indents 32 and 42 px, 3px active bar | 16 px steps, 4px bar | https://primer.style/product/components/tree-view/ |
 | Timeline | `.decision` row style leaked onto pins and cards, so pins drew as ovals | scoped to the decisions list | https://primer.style/product/components/timeline/ |
 | Label | chips filled with `bgColor-muted`; Primer Label is outlined, 20px | transparent fill | https://primer.style/product/components/label/ |
@@ -104,7 +104,8 @@ Checked Oct 13, 2026 against @primer/primitives 11.10.0 (https://unpkg.com/@prim
 | Button | 32px, 12px padding matches medium | none | https://github.com/primer/css/blob/main/src/buttons/button.scss |
 | Banner | freshness notes lack a leading icon | left open | https://primer.style/product/components/banner/ |
 | Blankslate | empty and 404 views lack the icon, heading, description anatomy | left open | https://primer.style/product/components/blankslate/ |
-| PageHeader, CounterLabel | not checked in depth | left open | https://primer.style/product/components/page-header/, https://primer.style/product/components/counter-label/ |
+| PageHeader | not checked in depth | left open | https://primer.style/product/components/page-header/ |
+| CounterLabel | Pages heading had a bare count | CounterLabel shows the topic count | https://primer.style/product/components/counter-label/ |
 
 Timeline board labels stay at 11 and 13 px because `harness/app-parity.mjs` measures them for clipping.
 
