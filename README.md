@@ -116,6 +116,8 @@ The model never writes a quote, a date, a name, or a line number. It points at s
 
 The app is a Next.js site built with Primer React. It reads built repositories from `NMEM_REPOS`, or from `~/.cache/nmem/repos` when that variable is not set. The app never clones a repository, calls a model, or runs git. Its only write is the build request file. `nmem/src/lib/kernel/` holds frozen copies of the snapshot contract and the view rules from `harness/`, and `harness/kernel-parity.test.ts` proves that the copies match.
 
+The full-width header follows GitHub's repository colors in light and dark mode. Its top bar holds the GitHub mark, **nmem**, the canonical **owner / repo** breadcrumb, and search at the right edge. The door uses its own large search field instead. A full-width tab row sits directly below the bar. **Wiki** and **Timeline** open nmem views. The other tabs open github.com in the same tab and fold into a **GitHub** menu below 1280px. The content below the header stays centered.
+
 The `audience` query parameter changes the wording for a **Technical** or a **Manager** reader. The **Reading as** switch that sets it is commented out of the repository band for now. Development of the Manager wording is paused.
 
 ### harness/ and fixtures/
@@ -130,6 +132,9 @@ The `audience` query parameter changes the wording for a **Technical** or a **Ma
 | `harness/app-parity.mjs` | The app's pages against the screen rules and the fixture answer keys, and the timeline layout in headless Chrome. |
 | `harness/pilot-e2e.mjs` | A full build of a small repository from the home page in Chrome, with `serve` killed and restarted mid-build. |
 | `harness/ui-sweep.mjs` | Pages it reaches from each built repository's front page, at 1280 and 390 pixels wide, for sideways scrolling, text that spills out of its box, and console errors. Set `WIDTHS` to check other widths. |
+| `harness/repo-header-check.mjs` | The running app's header at six widths in both themes, server-rendered controls, search submission, folded links, and header persistence. Uses `playwright-cli` and visits only `hearthware/tally`, `langchain-ai/design-agent`, and home. |
+
+With those two repositories built and the app running, run `node harness/repo-header-check.mjs <base-url> /tmp/header-shots header-check`. The last argument names its browser session and screenshot prefix. The script closes only its own session and saves 1400px and 390px screenshots.
 
 [harness/README.md](harness/README.md) and [docs/design/scoring-harness.md](docs/design/scoring-harness.md) describe the scoring. `app-parity.mjs`, `pilot-e2e.mjs`, and `ui-sweep.mjs` start Google Chrome from its macOS install path, so they run on macOS only.
 

@@ -25,6 +25,7 @@ In nmem:
 - A `prefers-color-scheme: dark` block redefines the same names. No rule outside `:root` holds a raw hex value.
 - nmem's own purple has two tokens in the same style, `--bgColor-nmem-emphasis` and `--bgColor-nmem-muted`.
 - Status keeps one meaning per color. Green means up to date. Attention yellow means out of date. Muted gray means never written down. The words always appear next to the dot, so color is never the only signal.
+- The global bar and repository tabs share `--bgColor-inset`, `#f6f8fa` in light mode and `#010409` in dark mode. The mark and text use `--fgColor-default`. The header uses no `--header-*` tokens and does not copy GitHub's black logged-out marketing strip.
 
 Rule. Text meets WCAG AA. That is 4.5:1 for body text and 3:1 for focus rings and status dots. Primer's primitives own these pairs, and nmem adds no text color of its own. Source: Primer color usage.
 
@@ -42,14 +43,23 @@ Rule. Follow the reader's natural order, top to bottom, and keep the page focuse
 In nmem:
 
 - Below 768px, every view is one column. Topic, item, and search pages put the answer first and the Pages list after it.
-- The repository band wraps. Below the xl breakpoint, Wiki and Timeline stay in the tab row and the GitHub tabs fold into a menu.
+- The global bar and repository tabs span the viewport with 16px side gutters at every width. Only the page content has a centered 1280px maximum width.
+- The breadcrumb truncates with an ellipsis when space runs out. Search stays at the right edge, including at 390px. Below the xl breakpoint, Wiki and Timeline stay in the tab row and the GitHub tabs fold into a menu.
 - No view scrolls sideways at 390px. `node harness/app-parity.mjs <dir>` measures this and prints the result.
 
 ## Navigation
 
 Rule. Use an underline row for switching between the main views of one object. The current item gets a heavier weight and an underline, and is marked as the current page. Source: Primer UnderlineNav.
 
-In nmem the row is custom markup, not Primer UnderlineNav. UnderlineNav folds extra items from the right, which would hide Wiki and Timeline on a phone. The row keeps UnderlineNav's tokens. Type is 14px on 21px, icons are 16px in `--fgColor-muted`, the gap is 8px, the row is 48px, and the current tab has a 2px `--underlineNav-borderColor-active` underline. Wiki and Timeline are nmem views. The current one has `aria-current="page"`. The other tabs are plain links to github.com in the same tab, and they are never current. Below the xl breakpoint those GitHub tabs fold into a menu labelled GitHub. Wiki and Timeline stay in the row. `docs/design/v1-user-facing.md` owns the labels and which tab is current.
+The global bar is 64px tall with 32px controls. It holds the home link, then the owner / repo breadcrumb, then search. Breadcrumb items use 14px type, 4px vertical and 6px horizontal padding, and an 8px gap around the slash. The owner has weight 400 and the repository has weight 600. Search keeps its URL query and is absent on the door, which has its own search field.
+
+In nmem the tab row is custom markup, not Primer UnderlineNav. UnderlineNav folds extra items from the right, which would hide Wiki and Timeline on a phone. The full-width nav is 48px tall with `8px 16px 0` padding and a 40px list. Each tab is 32px tall with `6px 8px` padding and a 6px radius. Type is 14px on 21px, icons are 16px in `--fgColor-muted`, and the gap is 8px. The current tab has a semibold label and a 2px `--underlineNav-borderColor-active` underline at the nav's bottom edge. A 1px inset shadow in `--borderColor-muted` runs across that edge. There is no divider between the global bar and the tabs. These dimensions follow the repository header measured on [langchain-ai/design-agent](https://github.com/langchain-ai/design-agent), excluding its marketing strip.
+
+Wiki and Timeline are nmem views. The current one has `aria-current="page"`. The other tabs are plain links to github.com in the same tab, and they are never current. Below the xl breakpoint those GitHub tabs fold into a menu labelled GitHub. Wiki and Timeline stay in the row. `docs/design/v1-user-facing.md` owns the labels and which tab is current.
+
+The repo layout owns the complete header, marked `data-repo-band`. It resolves canonical casing inside Suspense, then passes the `RepoRef` to `RepoBand`. The band supplies controls and navigation to the shared `GlobalBar`. It stays mounted across repo navigation and reads the active segment and query with client hooks. `RepoBandSkeleton` uses the same 64px bar and 48px nav. Home, root error, root loading, not-found, and refused pages render a plain `GlobalBar` with its own bottom line. The root layout owns only the theme and skip link.
+
+Registering repo controls in a root context or portal after hydration would leave them out of the server HTML and cause an initial empty bar. A parallel header route would duplicate the route tree and canonical lookup. Explicit header ownership avoids both.
 
 Rule. Use SegmentedControl to switch between views of the same content. Source: Primer SegmentedControl.
 
@@ -114,3 +124,4 @@ Timeline board labels stay at 11 and 13 px because `harness/app-parity.mjs` meas
 - `node harness/app-parity.mjs <dir>` checks the screen rules and the timeline layout against `next start`, then shoots every view through Chrome DevTools at 1400px light, 1400px dark, and 390px into `<dir>`. It also reports any view that scrolls sideways.
 - `node harness/app-parity.mjs <dir> --engine harness/runs/<runId>/nmem/t1` runs the same checks on the engine snapshots of a scored run and shoots each repo's topics, timeline, search, and one item page.
 - `node harness/pixel-diff.mjs <dir>` compares those shots with the frozen set in `harness/shots-baseline`.
+- `node harness/repo-header-check.mjs <base-url> <shot-dir> <prefix>` uses `playwright-cli` against a running app. It checks the header at 1920, 1400, 1280, 1024, 768, and 390px in both themes and saves the 1400px and 390px views. It also checks the streamed HTML, the skeleton's size with JavaScript disabled, navigation persistence, search submission, and folded GitHub menu. It visits only home and the built `hearthware/tally` and `langchain-ai/design-agent` repositories.

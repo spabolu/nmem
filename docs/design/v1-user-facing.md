@@ -24,12 +24,15 @@ The throwaway prototype for this scope is `nmem-v1-proto` in the session temp fo
 
 This section owns the labels the website shows. `docs/design/ui-language.md` owns how the tab row is drawn, including why it is not Primer UnderlineNav.
 
-Every screen has a dark global bar. It holds the GitHub mark and the word **nmem**, which links to the home page. It does not name a repository, and it does not say who is reading.
+Every screen has a full-width global bar in GitHub's repository header colors, in light and dark mode. It holds the GitHub mark and the word **nmem**, which links to the home page. Without an open repository, that is the whole bar, with a bottom line.
 
-Once a repository is open, two more rows sit under that bar.
+Once a repository is open, its breadcrumb and search join that same top bar. The owner links to that account on github.com in the same tab. The repository name links to nmem's door for that repository. Both use the built repository's canonical casing. The owner / repo breadcrumb truncates when space runs out, and search stays reachable at the right edge. The door hides this small search field because it has its own large one.
 
-- The repository band. The breadcrumb is the owner, then the repository name. The owner links to that account on github.com in the same tab. The repository name links to nmem's door for that repository. On the right is the search box. The **Reading as** switch, **Technical** / **Manager**, is commented out in `repo-band.tsx` for now. Every band link is Technical. A typed `audience=plain` URL still renders the Manager wording on its page, and the next band link returns to Technical. There is no separate "View on GitHub" button. **Code** is that exit.
-- The tab row, in GitHub's order. **Code**, **Issues**, **Pull requests**, **Actions**, **Projects**, **Wiki**, **Timeline**, **Security and quality**, **Insights**. No tab shows a count.
+The tab row is the only row below the global bar. Both rows span the viewport and share one background, with no line between them. The line under the tabs spans the viewport too. Page content remains centered below this header.
+
+The **Reading as** switch, **Technical** / **Manager**, stays commented out in `repo-band.tsx`. The nmem view links and search use `audience=eng`. A typed `audience=plain` URL still renders the Manager wording on its page, and the next header link returns to Technical. There is no separate "View on GitHub" button. **Code** is that exit.
+
+The tabs follow GitHub's order. **Code**, **Issues**, **Pull requests**, **Actions**, **Projects**, **Wiki**, **Timeline**, **Security and quality**, **Insights**. No tab shows a count.
 
 **Code**, **Issues**, **Pull requests**, **Actions**, **Projects**, **Security and quality**, and **Insights** are links to that repository on github.com, in the same tab. They are never the current page. **Wiki** links to the door and is current on the door, a topic, an item, and search. **Timeline** links to the timeline and is current only there. Source lights no tab.
 
@@ -60,7 +63,7 @@ Each topic page shows, top to bottom:
 
 ## Search
 
-The search box sits in the repository band. The door also keeps its own search field, because that page is the way in.
+The search box sits at the right edge of the top global bar on topic, item, timeline, source, and search pages. It keeps the query from the URL and submits with `audience=eng`. The door shows only its own large search field, because that page is the way in.
 
 - Results are grouped by kind: **Topic**, **Decision**, **Change**, **What changed**, **Person**, **In the docs**, **File**, and **In the code**.
 - Each result shows a title and the line that matched. A change is named by its pull request title or commit subject, never by its id alone.
