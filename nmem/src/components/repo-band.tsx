@@ -29,7 +29,6 @@ import type { Audience } from "@/lib/kernel/view";
 import { routeOfSegment } from "@/lib/repo-routes";
 import { githubUrl, TABS, type TabKey, tabOfRoute } from "@/lib/repo-tabs";
 
-/** UnderlineNav folds from the right, which would hide Wiki and Timeline on a phone. */
 const TAB_ICONS: Record<TabKey, Icon> = {
   code: CodeIcon,
   issues: IssueOpenedIcon,
@@ -100,6 +99,7 @@ export function RepoBand({ repo }: { readonly repo: RepoRef }) {
   const router = useRouter();
   const audience = audienceOf(search);
   const tabs = shownTabs(repo, segment, audience);
+  const onDoor = routeOfSegment(segment) === "door";
   const q = search.get("q") ?? "";
   const placeholder =
     audience === "plain"
@@ -108,7 +108,7 @@ export function RepoBand({ repo }: { readonly repo: RepoRef }) {
   return (
     <div data-repo-band className={BAND}>
       <div
-        className={`${SHELL} flex flex-wrap items-center gap-x-3 gap-y-2 py-2`}
+        className={`${SHELL} flex flex-wrap items-center gap-x-3 gap-y-2 py-2 sm:min-h-12`}
       >
         <nav
           aria-label="Breadcrumb"
@@ -140,25 +140,27 @@ export function RepoBand({ repo }: { readonly repo: RepoRef }) {
           </span>
         </nav>
         <div className="flex min-w-0 flex-wrap items-center gap-2 max-sm:basis-full sm:ml-auto">
-          <search className="min-w-0 w-full sm:w-64">
-            <Form action={searchPath(repo)}>
-              <input type="hidden" name="audience" value={audience} />
-              <input
-                key={q}
-                className={TEXT_INPUT}
-                type="search"
-                name="q"
-                defaultValue={q}
-                autoComplete="off"
-                placeholder={placeholder}
-                aria-label={
-                  audience === "plain"
-                    ? "Search topics, decisions, changes, and people"
-                    : "Search topics, decisions, changes, files, and people"
-                }
-              />
-            </Form>
-          </search>
+          {onDoor ? null : (
+            <search className="min-w-0 w-full sm:w-64">
+              <Form action={searchPath(repo)}>
+                <input type="hidden" name="audience" value={audience} />
+                <input
+                  key={q}
+                  className={TEXT_INPUT}
+                  type="search"
+                  name="q"
+                  defaultValue={q}
+                  autoComplete="off"
+                  placeholder={placeholder}
+                  aria-label={
+                    audience === "plain"
+                      ? "Search topics, decisions, changes, and people"
+                      : "Search topics, decisions, changes, files, and people"
+                  }
+                />
+              </Form>
+            </search>
+          )}
           <div className="flex shrink-0 items-center gap-2">
             <span
               className="text-[12px] text-(color:--fgColor-muted) max-md:hidden"
@@ -188,6 +190,7 @@ export function RepoBand({ repo }: { readonly repo: RepoRef }) {
           </div>
         </div>
       </div>
+      {/* Not UnderlineNav, which folds from the right and would hide Wiki and Timeline on a phone. */}
       <nav aria-label="Repository" className={SHELL}>
         <ul className="m-0 flex h-12 list-none items-stretch gap-2 p-0">
           {tabs.map((tab) => (
@@ -263,7 +266,6 @@ function GithubMenu({ tabs }: { readonly tabs: readonly ShownTab[] }) {
   );
 }
 
-/** Static shell. It cannot know the repo, so it has no crumb, no tabs, and no data-audience. */
 export function RepoBandSkeleton() {
   return (
     <div data-repo-band-skeleton aria-hidden="true" className={BAND}>
