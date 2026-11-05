@@ -28,7 +28,7 @@ Every screen has a dark global bar. It holds the GitHub mark and the word **nmem
 
 Once a repository is open, two more rows sit under that bar.
 
-- The repository band. The breadcrumb is the owner, then the repository name. The owner links to that account on github.com in the same tab. The repository name links to nmem's door for that repository. On the right are the search box and **Reading as**, a **Technical** / **Manager** switch. The switch changes only `audience` and keeps every other query parameter. There is no separate "View on GitHub" button. **Code** is that exit.
+- The repository band. The breadcrumb is the owner, then the repository name. The owner links to that account on github.com in the same tab. The repository name links to nmem's door for that repository. On the right is the search box. The **Reading as** switch, **Technical** / **Manager**, is commented out in `repo-band.tsx` for now. Every band link is Technical. A typed `audience=plain` URL still renders the Manager wording on its page, and the next band link returns to Technical. There is no separate "View on GitHub" button. **Code** is that exit.
 - The tab row, in GitHub's order. **Code**, **Issues**, **Pull requests**, **Actions**, **Projects**, **Wiki**, **Timeline**, **Security and quality**, **Insights**. No tab shows a count.
 
 **Code**, **Issues**, **Pull requests**, **Actions**, **Projects**, **Security and quality**, and **Insights** are links to that repository on github.com, in the same tab. They are never the current page. **Wiki** links to the door and is current on the door, a topic, an item, and search. **Timeline** links to the timeline and is current only there. Source lights no tab.

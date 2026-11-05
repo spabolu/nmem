@@ -14,17 +14,13 @@ import {
   TableIcon,
   TriangleDownIcon,
 } from "@primer/octicons-react";
-import { ActionList, ActionMenu, SegmentedControl } from "@primer/react";
+// audience-switch: add SegmentedControl, usePathname, useRouter and withAudience back to restore the switch.
+import { ActionList, ActionMenu } from "@primer/react";
 import Form from "next/form";
 import NextLink from "next/link";
-import {
-  usePathname,
-  useRouter,
-  useSearchParams,
-  useSelectedLayoutSegment,
-} from "next/navigation";
+import { useSearchParams, useSelectedLayoutSegment } from "next/navigation";
 import { TEXT_INPUT } from "@/components/styles";
-import { type RepoRef, routeHref, searchPath, withAudience } from "@/lib/hrefs";
+import { type RepoRef, routeHref, searchPath } from "@/lib/hrefs";
 import type { Audience } from "@/lib/kernel/view";
 import { routeOfSegment } from "@/lib/repo-routes";
 import { githubUrl, TABS, type TabKey, tabOfRoute } from "@/lib/repo-tabs";
@@ -41,10 +37,11 @@ const TAB_ICONS: Record<TabKey, Icon> = {
   insights: GraphIcon,
 };
 
-const AUDIENCES = [
-  { id: "eng", label: "Technical" },
-  { id: "plain", label: "Manager" },
-] as const;
+// audience-switch
+// const AUDIENCES = [
+//   { id: "eng", label: "Technical" },
+//   { id: "plain", label: "Manager" },
+// ] as const;
 
 const BAND =
   "border-b border-(color:--borderColor-default) bg-(--bgColor-inset)";
@@ -62,10 +59,6 @@ type ShownTab = {
   readonly current: boolean;
   readonly external: boolean;
 };
-
-function audienceOf(search: URLSearchParams): Audience {
-  return search.get("audience") === "plain" ? "plain" : "eng";
-}
 
 function shownTabs(
   repo: RepoRef,
@@ -95,16 +88,12 @@ function shownTabs(
 export function RepoBand({ repo }: { readonly repo: RepoRef }) {
   const segment = useSelectedLayoutSegment();
   const search = useSearchParams();
-  const pathname = usePathname();
-  const router = useRouter();
-  const audience = audienceOf(search);
+  // audience-switch: const pathname = usePathname();
+  // audience-switch: const router = useRouter();
+  const audience: Audience = "eng";
   const tabs = shownTabs(repo, segment, audience);
   const onDoor = routeOfSegment(segment) === "door";
   const q = search.get("q") ?? "";
-  const placeholder =
-    audience === "plain"
-      ? "Topics, decisions, changes, people"
-      : "Topics, decisions, changes, files";
   return (
     <div data-repo-band className={BAND}>
       <div
@@ -151,16 +140,13 @@ export function RepoBand({ repo }: { readonly repo: RepoRef }) {
                   name="q"
                   defaultValue={q}
                   autoComplete="off"
-                  placeholder={placeholder}
-                  aria-label={
-                    audience === "plain"
-                      ? "Search topics, decisions, changes, and people"
-                      : "Search topics, decisions, changes, files, and people"
-                  }
+                  placeholder="Topics, decisions, changes, files"
+                  aria-label="Search topics, decisions, changes, files, and people"
                 />
               </Form>
             </search>
           )}
+          {/* audience-switch: hidden for now. Uncomment this block and the marked lines above to restore it.
           <div className="flex shrink-0 items-center gap-2">
             <span
               className="text-[12px] text-(color:--fgColor-muted) max-md:hidden"
@@ -188,6 +174,7 @@ export function RepoBand({ repo }: { readonly repo: RepoRef }) {
               ))}
             </SegmentedControl>
           </div>
+          */}
         </div>
       </div>
       {/* Not UnderlineNav, which folds from the right and would hide Wiki and Timeline on a phone. */}

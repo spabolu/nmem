@@ -116,7 +116,7 @@ The model never writes a quote, a date, a name, or a line number. It points at s
 
 The app is a Next.js site built with Primer React. It reads built repositories from `NMEM_REPOS`, or from `~/.cache/nmem/repos` when that variable is not set. The app never clones a repository, calls a model, or runs git. Its only write is the build request file. `nmem/src/lib/kernel/` holds frozen copies of the snapshot contract and the view rules from `harness/`, and `harness/kernel-parity.test.ts` proves that the copies match.
 
-The **Reading as** switch on a repository's pages changes the wording for a **Technical** or a **Manager** reader. Development of the Manager wording is paused.
+The `audience` query parameter changes the wording for a **Technical** or a **Manager** reader. The **Reading as** switch that sets it is commented out of the repository band for now. Development of the Manager wording is paused.
 
 ### harness/ and fixtures/
 

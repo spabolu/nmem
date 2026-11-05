@@ -53,7 +53,7 @@ In nmem the row is custom markup, not Primer UnderlineNav. UnderlineNav folds ex
 
 Rule. Use SegmentedControl to switch between views of the same content. Source: Primer SegmentedControl.
 
-In nmem, **Technical** and **Manager** are a SegmentedControl labelled Reading as. They show the same page in different words. Choosing one calls `router.push` with the current path and the other query params kept, and only `audience` changes. The selected button has `aria-pressed="true"`.
+In nmem, **Technical** and **Manager** are a SegmentedControl labelled Reading as. It is commented out of the repository band for now. When it is on, they show the same page in different words. Choosing one calls `router.push` with the current path and the other query params kept, and only `audience` changes. The selected button has `aria-pressed="true"`.
 
 ## Timeline
 
