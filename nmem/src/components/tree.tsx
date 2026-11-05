@@ -7,7 +7,6 @@ import { depthOf, dotOf, topicsInOrder } from "@/lib/present";
 import type { Ctx } from "./said";
 import { dotClass, nodeClass, PANEL, PANEL_HD } from "./styles";
 
-/** Wiki-style page list. The door keeps its own topic list and does not render this. */
 export function Tree({
   ctx,
   current,

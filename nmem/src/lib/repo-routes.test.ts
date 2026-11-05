@@ -3,7 +3,7 @@ import { existsSync, readdirSync } from "node:fs";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 import {
-  isPageRoute,
+  isPageBelowDoor,
   matchRoute,
   ROUTES,
   refusalFor,
@@ -119,12 +119,12 @@ test("refusalFor keeps the built-repo status rules", () => {
 });
 
 test("unbuilt redirects cover view pages and leave the hits endpoint alone", () => {
-  assert.equal(isPageRoute(["timeline"]), true);
-  assert.equal(isPageRoute(["topics", "nope"]), true);
-  assert.equal(isPageRoute(["items", "file", "a"]), true);
-  assert.equal(isPageRoute(["search"]), true);
-  assert.equal(isPageRoute(["source"]), true);
-  assert.equal(isPageRoute(["search", "hits"]), false);
-  assert.equal(isPageRoute(["bogus"]), false);
-  assert.equal(isPageRoute([]), false);
+  assert.equal(isPageBelowDoor(["timeline"]), true);
+  assert.equal(isPageBelowDoor(["topics", "nope"]), true);
+  assert.equal(isPageBelowDoor(["items", "file", "a"]), true);
+  assert.equal(isPageBelowDoor(["search"]), true);
+  assert.equal(isPageBelowDoor(["source"]), true);
+  assert.equal(isPageBelowDoor(["search", "hits"]), false);
+  assert.equal(isPageBelowDoor(["bogus"]), false);
+  assert.equal(isPageBelowDoor([]), false);
 });

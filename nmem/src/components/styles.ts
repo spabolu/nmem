@@ -33,7 +33,6 @@ export function nodeClass(depth: number, on: boolean): string {
 const PAGE_BASE =
   "mx-auto max-w-[1280px] px-8 pt-6 pb-12 max-md:px-4 max-md:pt-4 max-md:pb-8";
 
-/** wide fills the column. pages puts the content first and a 296px list second, so a phone reads the page before the list. */
 export const PAGE = {
   wide: PAGE_BASE,
   pages: `${PAGE_BASE} grid grid-cols-[minmax(0,1fr)_296px] items-start gap-6 max-md:grid-cols-[minmax(0,1fr)]`,

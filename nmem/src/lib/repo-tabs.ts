@@ -1,10 +1,5 @@
 import type { BareRoute, RouteKey } from "./repo-routes";
 
-/**
- * GitHub's repo tabs, in GitHub's order. A route never names its tab.
- * The lit tab is the nmem tab whose `owns` contains the route, or none.
- */
-
 export type GithubTab = {
   readonly key: string;
   readonly label: string;

@@ -1,11 +1,7 @@
-/**
- * Every address under /[owner]/[repo]. hrefs, the proxy, and the band read this record.
- * It stays free of fs, server-only, and the @/ alias so a node test can load the same list.
- */
+// `node --test` and the client band both load this file, so it imports no @/ alias, server-only, or fs.
 
 export type PathRest = "none" | "topic" | "item+";
 
-/** Harness values. Not the route key. items is a topics screen, search is other. */
 export type HarnessView = "door" | "topics" | "timeline" | "other" | "source";
 
 export type RouteSpec = {
@@ -70,7 +66,6 @@ export const ROUTES = {
 
 export type RouteKey = keyof typeof ROUTES;
 
-/** Routes a tab can link to without an id. */
 export type BareRoute = {
   [K in RouteKey]: (typeof ROUTES)[K]["path"] extends "none" ? K : never;
 }[RouteKey];
@@ -103,7 +98,6 @@ export function matchRoute(segments: readonly string[]): RouteMatch | null {
   return { route, rest };
 }
 
-/** `useSelectedLayoutSegment()` from the repo layout. null and an unknown segment are the door. */
 export function routeOfSegment(segment: string | null): RouteKey {
   if (segment === null) return "door";
   const route = (Object.keys(ROUTES) as RouteKey[]).find(
@@ -112,14 +106,12 @@ export function routeOfSegment(segment: string | null): RouteKey {
   return route ?? "door";
 }
 
-/** "" for the door, otherwise "/topics", "/timeline", and so on. */
 export function segmentPath(route: RouteKey): string {
   const { segment } = ROUTES[route];
   return segment === null ? "" : `/${segment}`;
 }
 
-/** A tab can link here. search/hits is JSON, not a page, so an unbuilt repo does not redirect it. */
-export function isPageRoute(segments: readonly string[]): boolean {
+export function isPageBelowDoor(segments: readonly string[]): boolean {
   const match = matchRoute(segments);
   if (!match || match.route === "door") return false;
   const spec = specOf(match.route);

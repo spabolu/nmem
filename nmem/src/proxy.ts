@@ -1,7 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { hasBuild } from "@/lib/jobs";
 import { readQuery, SnapshotRejected } from "@/lib/kernel/site";
-import { isPageRoute, refusalFor } from "@/lib/repo-routes";
+import { isPageBelowDoor, refusalFor } from "@/lib/repo-routes";
 import { siteForProxy } from "@/lib/repos";
 
 /**
@@ -40,8 +40,7 @@ export function proxy(request: NextRequest) {
     }
     const pending = readQuery(request.nextUrl.searchParams);
     if ("error" in pending) return refuse(400, pending.error);
-    // The band links every view. An unbuilt repo has no snapshot to open, so send those links to the door.
-    if (isPageRoute(segments)) {
+    if (isPageBelowDoor(segments)) {
       const door = request.nextUrl.clone();
       const [rawOwner, rawRepo] = request.nextUrl.pathname
         .split("/")

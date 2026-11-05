@@ -4,7 +4,6 @@ import type { RepoRequest } from "@/lib/request";
 import { BuildBanner } from "./build-status";
 import { PAGE } from "./styles";
 
-/** The page under the layout's band. data-view and data-audience let scripts read which screen this is. */
 export function RepoFrame({
   request,
   audience,

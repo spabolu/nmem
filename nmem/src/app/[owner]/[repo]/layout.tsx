@@ -3,8 +3,8 @@ import { RepoBand, RepoBandSkeleton } from "@/components/repo-band";
 import { builtSlug } from "@/lib/repos";
 
 /**
- * Awaiting params here fails the cacheComponents build. The promise is read inside Suspense.
- * The client band reads the segment and the query, because a layout gets neither on navigation.
+ * Awaiting params here fails the cacheComponents build.
+ * A layout never gets the child segment or the query, so the client band reads both.
  */
 export default function RepoLayout(props: LayoutProps<"/[owner]/[repo]">) {
   return (
