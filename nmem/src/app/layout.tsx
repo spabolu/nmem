@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import localFont from "next/font/local";
+import { GlobalBar } from "@/components/global-bar";
 import { Theme } from "@/components/theme";
 import "./globals.css";
 import "./nmem.css";
@@ -30,7 +31,10 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <a className="skip-link" href="#main">
           Skip to content
         </a>
-        <Theme>{children}</Theme>
+        <Theme>
+          <GlobalBar />
+          {children}
+        </Theme>
       </body>
     </html>
   );

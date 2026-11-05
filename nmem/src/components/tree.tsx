@@ -1,19 +1,11 @@
-import Form from "next/form";
 import NextLink from "next/link";
-import { repoPath, topicHref } from "@/lib/hrefs";
+import { topicHref } from "@/lib/hrefs";
 import type { LocalId, Topic } from "@/lib/kernel/contract";
 import { rootId } from "@/lib/kernel/site";
 import { censusOf, statusOf, TEMPLATES } from "@/lib/kernel/view";
 import { depthOf, dotOf, topicById, topicsInOrder } from "@/lib/present";
 import type { Ctx } from "./said";
-import {
-  dotClass,
-  nodeClass,
-  PANEL,
-  PANEL_HD,
-  PANEL_TITLE,
-  TEXT_INPUT,
-} from "./styles";
+import { dotClass, nodeClass, PANEL, PANEL_HD, PANEL_TITLE } from "./styles";
 
 /** The topic tree beside every topic and search page, in snapshot order, depth first. */
 export function Tree({
@@ -53,24 +45,6 @@ export function Tree({
     audience === "plain" ? "by what the app does" : "by what the code does";
   return (
     <aside className="max-md:order-2" aria-label="Topic tree">
-      <Form className="mb-3" action={`${repoPath(ctx.repo)}/search`}>
-        <input type="hidden" name="audience" value={audience} />
-        <input
-          className={TEXT_INPUT}
-          type="search"
-          name="q"
-          placeholder={
-            audience === "plain"
-              ? "Topics, decisions, changes, people"
-              : "Topics, decisions, changes, files"
-          }
-          aria-label={
-            audience === "plain"
-              ? "Search topics, decisions, changes, and people"
-              : "Search topics, decisions, changes, files, and people"
-          }
-        />
-      </Form>
       <div className={PANEL}>
         <div className={PANEL_HD}>
           <b className={PANEL_TITLE}>

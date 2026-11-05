@@ -4,7 +4,6 @@ import Loading from "@/app/[owner]/[repo]/loading";
 import { BadQuery } from "@/components/bad-query";
 import { RepoFrame } from "@/components/repo-frame";
 import { SearchView } from "@/components/search-view";
-import { segmentPath } from "@/lib/repo-routes";
 import { openRepo } from "@/lib/request";
 
 type Props = PageProps<"/[owner]/[repo]/search">;
@@ -32,12 +31,7 @@ async function SearchContent({ params, searchParams }: Props) {
     audience: query.audience,
   };
   return (
-    <RepoFrame
-      request={request}
-      audience={query.audience}
-      route="search"
-      path={segmentPath("search")}
-    >
+    <RepoFrame request={request} audience={query.audience} route="search">
       <SearchView ctx={ctx} q={query.q} all={query.all} />
     </RepoFrame>
   );
